@@ -9079,3 +9079,36 @@ verhinderte, weil die Arbeit „Prüfwerkzeug" hieß.
 - `k in d` → `d.get(k) is not None`; „6 Sätze definiert" → „wie viele sind **anlegbar**?"
 - Die Gegenprobe ist billig: eine Zeile, die zählt, wie viele Einträge **leer** sind. Steht dort
   eine hohe Zahl, war die erste Zählung eine über Schlüssel.
+
+### 8.142 Wer eine Zelle in einer ausgerichteten Tabelle ändert, ändert die ganze Tabelle
+
+Prettier richtet Markdown-Tabellen aus: Alle Zeilen einer Tabelle bekommen dieselbe Breite, und
+die richtet sich nach der **längsten Zelle**. Eine einzige geänderte Zelle verschiebt damit jede
+Zeile — nach oben, wenn sie länger wird, und nach unten, wenn sie die bisher längste war und
+schrumpft.
+
+Am 2026-08-22 zweimal an einem Vormittag, in beide Richtungen:
+
+| Änderung                               | Folge                                     |
+| -------------------------------------- | ----------------------------------------- |
+| eine Zelle drei Zeichen länger gemacht | Tabelle wollte von 127 auf 130 wachsen    |
+| die längste Zelle gekürzt              | Tabelle wollte von 270 auf 262 schrumpfen |
+
+**Die Zeilenlänge allein sagt nichts.** Eine Tabelle mit ungleichen Zeilen ist kein Befund — sie
+kann von Anfang an so dagestanden haben. Die Frage lautet: **War sie vorher einheitlich?** Erst
+der Vergleich mit `origin/main` macht aus einer Beobachtung eine Aussage.
+
+Und es gibt einen Fall, den die Zeilenlängen-Prüfung **grundsätzlich nicht findet**: eine Tabelle,
+die an der falschen Stelle aufhört. Am selben Tag stand ein eingefügter Kasten zwischen zwei
+Tabellenzeilen; beide Teilstücke waren in sich einheitlich, und jede Prüfung auf gleiche Breite
+lief grün. Gefunden hat es erst `prettier --check`.
+
+#### Wie man es prüft
+
+- Vor dem Ändern einer Tabellenzelle: `git show origin/main:<datei>` und die Zeilenlängen der
+  betroffenen Tabelle vergleichen. Waren sie dort gleich, richtet prettier aus.
+- Wer eine Zelle ändert, hält sie **auf die Länge der vorherigen** — oder lässt `prettier --write`
+  laufen und prüft danach, dass nur Leerzeichen betroffen sind (Trennzeilen mit `---` ändern ihre
+  Bindestrich-Zahl mit; das ist ebenfalls Formatierung).
+- Beim Einfügen eines Absatzes **nachsehen, wo die Tabelle endet** — nicht nur, wo die Zeile
+  steht, an die man anknüpft.
