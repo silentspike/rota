@@ -68,6 +68,19 @@ pub enum Origin {
     DotRefresh,
     /// Aus der Bonus-Schwelle eines Entladers.
     SpenderThreshold,
+    /// Aus der Verhängnis-Uhr des Bosses (Issue #1088).
+    ///
+    /// # Warum diese Art anders entsteht als alle davor
+    ///
+    /// Die übrigen Kandidatenzeilen leiten ihre Schwelle aus dem **Zauber** ab
+    /// — `spender.bonus_threshold` steht im Zauber, `GCD_MS` ist eine
+    /// Konstante der Regeln. Diese hier braucht den **Boss**: `threshold`,
+    /// `amount` und `clear_amount` stehen dort, und sie unterscheiden sich je
+    /// Boss.
+    ///
+    /// Deshalb entsteht sie nicht in [`candidates_for`], sondern erst in der
+    /// Suche, wo der Boss über `BalanceConfig` bekannt ist.
+    DoomClear,
     /// Aus dem Fenster einer Verstaerkung (Issue #553).
     ///
     /// # Warum diese Art gefehlt hat
@@ -157,6 +170,7 @@ impl Origin {
         Origin::BuffWindow,
         Origin::BossCastWindow,
         Origin::NextStrikeWindow,
+        Origin::DoomClear,
     ];
 
     /// Der Platz dieser Art in [`Origin::ALL`].
@@ -173,6 +187,7 @@ impl Origin {
             Self::BuffWindow => 3,
             Self::BossCastWindow => 4,
             Self::NextStrikeWindow => 5,
+            Self::DoomClear => 6,
         }
     }
 
@@ -186,6 +201,7 @@ impl Origin {
             Self::BuffWindow => "Verstaerkungs-Fenster",
             Self::BossCastWindow => "Boss wirkt",
             Self::NextStrikeWindow => "Schlag steht bevor",
+            Self::DoomClear => "Verhaengnis senken",
         }
     }
 }
@@ -489,7 +505,22 @@ pub struct SearchResult {
     /// Die gewaehlten Zeilen in ihrer Reihenfolge.
     pub chosen: Vec<Candidate>,
     /// Wie viele Kandidaten zur Wahl standen.
+    ///
+    /// **Die übergebene Zahl**, nicht die tatsächlich benutzte: Was die Suche
+    /// selbst ergänzt hat, steht in [`SearchResult::ergaenzt`].
     pub pool_size: usize,
+    /// Welche Zeilen die Suche selbst ergänzt hat, mit Zaubernamen (#1088).
+    ///
+    /// # Warum Namen und nicht nur eine Zahl
+    ///
+    /// Eine Zahl sagt, **dass** etwas dazukam. Ein Name sagt, **ob es das
+    /// ist**, was der Aufrufer herausgenommen hat. Wer `purge` aus dem Vorrat
+    /// filtert, um seine Wirkung zu messen, muss sehen können, dass die Suche
+    /// ihn nicht wieder hineingelegt hat.
+    ///
+    /// Leer, wenn nichts ergänzt wurde — und das ist der Normalfall an einem
+    /// Boss ohne die betreffende Mechanik.
+    pub ergaenzt: Vec<String>,
     /// Wie viele Rotationen tatsaechlich gemessen wurden.
     pub measured: usize,
     /// Warum die Suche aufgehoert hat.
@@ -689,6 +720,75 @@ impl Zuege {
     };
 }
 
+/// Ergänzt boss-abhängige Kandidatenzeilen (Issue #1088).
+///
+/// # Warum das hier steht und nicht in `candidates_for`
+///
+/// Die Schwelle kommt aus den **Bossdaten**. `candidates_for(index)` kennt nur
+/// den Zauber — es müsste den Boss durchgereicht bekommen, und das fasst 32
+/// aufrufende Dateien an, deren Diff zu 95 % mechanisch wäre. Hier ist der Boss
+/// über `BalanceConfig` ohnehin bekannt.
+///
+/// # Nur für Zauber, die im übergebenen Pool stehen
+///
+/// **Das ist keine Sparmaßnahme, sondern der Kern.** Wer einen Zauber aus dem
+/// Vorrat filtert, um seine Wirkung zu messen, darf ihn hier nicht wieder
+/// hineingelegt bekommen — sonst wäre seine Gegenprobe still kaputt und sähe
+/// aus wie vorher. Die Prüfung auf Anwesenheit macht diesen Fehler nicht
+/// sichtbar, sondern unmöglich.
+///
+/// # Die Schwelle
+///
+/// Gesenkt wird **so spät wie möglich, aber nicht zu spät**: bei
+/// `threshold - amount * (Wartezeit bis zur nächsten Gelegenheit)`. Die
+/// Wartezeit ist ein GCD.
+///
+/// Die naheliegende Alternative `doom >= clear_amount` war in der Messung vom
+/// 2026-08-22 schlechter — an zwei Bossen, bei `MAX_LEN = 6`. Sie senkt,
+/// sobald nichts mehr verschenkt wird, und verbraucht die Ladung dadurch
+/// früh. Bei `boss-1-2` liegen zwischen `clear_amount` (40) und
+/// `threshold` (100) zehn Sekunden; wer bei 40 senkt, steht bei 90 ohne da.
+/// Genau das beschreibt der Boss selbst: „wer die zweite zu früh verbraucht,
+/// verliert".
+///
+/// # Öffentlich, damit der Prüffall den Gegenstand selbst greifen kann
+///
+/// #1088 fragt, ob die Suche die Bedingung **bilden** kann — nicht, ob sie sie
+/// wählt. Das Wählen entscheidet die Bewertung und darf negativ ausgehen.
+/// Beides in einem Kriterium zu prüfen hieße, zwei Fragen in einen Satz zu
+/// packen; die gebildete Zeile muss deshalb von außen sichtbar sein.
+#[must_use]
+pub fn boss_kandidaten(config: &BalanceConfig, pool: &[Candidate]) -> Vec<Candidate> {
+    let Some(doom) = config.boss.doom else {
+        return Vec::new();
+    };
+    // Ein GCD Vorlauf, in `amount`-Schritten je `per_step_ms` gerechnet.
+    let vorlauf = u32::try_from(
+        u64::from(doom.amount) * u64::from(GCD_MS) / u64::from(doom.per_step_ms.max(1)),
+    )
+    .unwrap_or(0);
+    // `saturating_sub` FAENGT DEN UNTERLAUF AB, UND DAS IST HIER EINE
+    // ENTSCHEIDUNG, KEINE FORMALIE: Waere `vorlauf` groesser als `threshold`,
+    // ergaebe die Saettigung die Schwelle 0 — also „senke immer", still und
+    // ohne Meldung.
+    //
+    // Heute kann das nicht eintreten: Das groesste `amount` ueber alle
+    // doom-Bosse ist 6, der Vorlauf damit 9 gegen ein `threshold` von 100. Ein
+    // Boss mit `amount = 70` wuerde es ausloesen, und niemand saehe es.
+    let schwelle = i64::from(doom.threshold.saturating_sub(vorlauf));
+
+    (0..SPELL_COUNT)
+        .filter(|&i| SPELLS[i].clears_doom)
+        // AUFLAGE 1: nur, wenn der Zauber überhaupt zur Wahl steht.
+        .filter(|&i| pool.iter().any(|k| k.spell == i))
+        .map(|i| Candidate {
+            spell: i,
+            condition: single(Value::Doom, Compare::GreaterEqual, Value::Literal(schwelle)),
+            origin: Origin::DoomClear,
+        })
+        .collect()
+}
+
 /// Dieselbe Suche mit getrennt schaltbaren Paaren und Dreiergruppen (#797).
 ///
 /// # Warum die Trennung Pflicht ist
@@ -709,6 +809,18 @@ pub fn greedy_zuege(
     zuege: Zuege,
 ) -> SearchResult {
     let mit_paaren = zuege.paare;
+
+    // **Boss-abhängige Zeilen** (#1088). Sie entstehen hier und nicht in
+    // `candidates_for`, weil ihre Schwelle aus den Bossdaten kommt — und nur
+    // für Zauber, die im übergebenen Pool stehen.
+    let ergaenzung = boss_kandidaten(config, pool);
+    let ergaenzt: Vec<String> = ergaenzung
+        .iter()
+        .map(|k| SPELLS[k.spell].id.to_string())
+        .collect();
+    let pool: Vec<Candidate> = pool.iter().chain(ergaenzung.iter()).cloned().collect();
+    let pool: &[Candidate] = &pool;
+
     let mut chosen: Vec<Candidate> = start.to_vec();
     // **Was schon in der Startliste steht, steht nicht mehr zur Wahl.** Sonst
     // koennte dieselbe Zeile zweimal in der Rotation landen — die zweite waere
@@ -938,7 +1050,16 @@ pub fn greedy_zuege(
     SearchResult {
         best: measure(config, "gefunden", &chosen),
         chosen,
-        pool_size: pool.len(),
+        // Die ÜBERGEBENE Zahl, zurückgerechnet aus dem erweiterten Vorrat.
+        //
+        // `ergaenzung.len()` und nicht `ergaenzt.len()`: Beide sind heute
+        // gleich lang, weil die Namensliste ein schlichtes `map` ohne
+        // Entdopplung ist. Sie hängt aber an der DARSTELLUNG — wer die
+        // Meldeliste später lesbarer macht und doppelte Namen zusammenfasst,
+        // ändert damit still diese Zahl. Der Vorrat selbst kann das nicht.
+        pool_size: pool.len() - ergaenzung.len(),
+        ergaenzt,
+
         measured,
         stop,
         paare_geprueft,
@@ -1283,6 +1404,10 @@ pub fn exhaustive(config: &BalanceConfig, pool: &[Candidate], max_len: usize) ->
         best: gemessen,
         chosen,
         pool_size: pool.len(),
+        // Die erschoepfende Suche ergaenzt nichts — sie bekommt ihren Vorrat
+        // vollstaendig uebergeben und prueft jede Teilmenge davon. Leer heisst
+        // hier "nichts dazugetan", nicht "nicht nachgesehen".
+        ergaenzt: Vec::new(),
         measured,
         stop: Stop::PoolExhausted,
         // Die erschoepfende Suche kennt keine Paare — sie prueft ohnehin jede
