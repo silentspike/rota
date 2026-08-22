@@ -90,6 +90,10 @@ pub mod gear;
 pub mod gear_balance;
 // Issue #177: Tempo wirkt auf Zeiten.
 pub mod haste;
+// Issue #912: was ein Rechner meldet — und was er wirklich leistet.
+pub mod hostcaps;
+// Issue #912: was dieser Rechner je Arbeitsart leistet, gemessen.
+pub mod kalibrierung;
 pub mod log;
 // Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
 pub mod objective;
