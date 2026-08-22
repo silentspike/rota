@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # Gegenprobe zu tools/fenster-warnung.sh (Issue #1049, Fertig-Kriterium 3).
 #
+#     EXIT 0    alle Richtungen wie erwartet
+#     EXIT 1    eine Richtung ist GESCHEITERT — ein echter Befund
+#     EXIT 2    die Pruefung hat NICHT STATTGEFUNDEN (Vorbedingung fehlt)
+#
+# Die Trennung von 1 und 2 ist nicht kosmetisch: Am 2026-08-22 meldete ein
+# Mutationslauf Exit 1 mit „eigene Rolle nicht ermittelbar" — die Gegenprobe
+# war abgebrochen, bevor sie irgendetwas prüfte, und „rot war da". Als AC-Beleg
+# hätte das durchgehen können. Gefangen hat es nur, wer den Fehlertext las
+# statt den Code zu zählen.
+#
 # Prüft alle Zustände an einem WEGWERF-Schalterstand, in derselben Ablesung:
 #
 #     FALL                              ERGEBNIS   VARIIERT
@@ -70,13 +80,34 @@ mkdir -p "$WEGWERF"
 PROBESTAND="$WEGWERF/rota-fenster.json"
 trap 'rm -rf "$WEGWERF"' EXIT
 
+# **Exit 2 heißt „hat nicht stattgefunden", Exit 1 heißt „gescheitert".**
+#
+# Beides war bis hierher Exit 1, und der Orchestrator ist am 2026-08-22 genau
+# daran hängengeblieben: Sein Mutationslauf meldete Exit 1 mit „eigene Rolle
+# nicht ermittelbar" — er stand in /work/tmp, und `rota-ipc` leitet die Rolle
+# aus dem Verzeichnis ab. Die Gegenprobe war abgebrochen, BEVOR sie etwas
+# prüft. Das hätte als bestandenes AC4 durchgehen können: „rot war da".
+#
+# Gefangen hat es nur, dass er den Fehlertext gelesen hat statt den Exit-Code
+# zu zählen. Wer automatisiert prüft, sieht den Unterschied nicht — und das
+# ist derselbe Unterschied wie zwischen einem fehlenden und einem grünen
+# Messwert.
+if ! command -v rota-ipc > /dev/null 2>&1; then
+  echo "NICHT DURCHGEFUEHRT (Exit 2): rota-ipc ist nicht auffindbar." >&2
+  echo "  Ohne die Rollenauskunft laesst sich 'eigenes' nicht von 'fremdem'" >&2
+  echo "  Fenster trennen. Das ist KEIN Fehlschlag der Warnung — es ist eine" >&2
+  echo "  Pruefung, die nicht stattgefunden hat." >&2
+  exit 2
+fi
+
 MEINE_ROLLE="$(rota-ipc wer 2>/dev/null | awk '/^Rolle:/ {print $2; exit}')"
 if [ -z "$MEINE_ROLLE" ]; then
-  echo "FEHLGESCHLAGEN: eigene Rolle nicht ermittelbar. Ohne sie kann die" >&2
-  echo "  Probe 'eigenes Fenster' nicht von 'fremdes Fenster' trennen —" >&2
-  echo "  sie wuerde dann zwei Richtungen gleich behandeln und trotzdem" >&2
-  echo "  gruen melden." >&2
-  exit 1
+  echo "NICHT DURCHGEFUEHRT (Exit 2): eigene Rolle nicht ermittelbar." >&2
+  echo "  Haeufigste Ursache: falsches Arbeitsverzeichnis — rota-ipc leitet" >&2
+  echo "  die Rolle daraus ab. Aufruf aus $(pwd)." >&2
+  echo "  Ohne sie wuerde die Probe 'eigenes Fenster' und 'fremdes Fenster'" >&2
+  echo "  gleich behandeln und trotzdem gruen melden." >&2
+  exit 2
 fi
 
 setze_stand() {
@@ -266,9 +297,9 @@ fi
 # eine Luecke auch MELDEN kann. Waere `EIGENSCHAFTEN` versehentlich leer oder
 # identisch mit `VARIIERT`, saehe sie genauso aus wie ein vollstaendiger Lauf.
 if [ -z "$(printf '%s' "$EIGENSCHAFTEN" | tr -d ' ')" ]; then
-  echo "FEHLGESCHLAGEN: die Eigenschaftsliste ist LEER — dann meldet der" >&2
-  echo "  Abschnitt oben per Bauart nie eine Luecke." >&2
-  fehler=1
+  echo "NICHT DURCHGEFUEHRT (Exit 2): die Eigenschaftsliste ist LEER — dann" >&2
+  echo "  meldet der Abschnitt oben per Bauart nie eine Luecke." >&2
+  exit 2
 fi
 
 if [ "$fehler" -ne 0 ]; then
