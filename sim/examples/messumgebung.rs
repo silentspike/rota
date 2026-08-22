@@ -20,8 +20,13 @@
 //!
 //! # Der Aufruf, der hier bis zum 2026-08-22 stand, hat auf der falschen Maschine gemessen
 //!
-//! Er lautete `cargo remote … -- run …`. Das ist `run`, nicht `build` — der
-//! Läufer lief damit auf **rustbuild** und maß den Bauserver.
+//! Er nannte als Unterbefehl `run` statt `build` — der Läufer lief damit auf
+//! **rustbuild** und maß den Bauserver.
+//!
+//! (Der falsche Aufruf steht hier bewusst NICHT im Wortlaut: `remote-nur-bauen.sh`
+//! sucht nach genau dieser Zeichenfolge und kann „empfiehlt" nicht von „warnt
+//! davor" unterscheiden. Er soll es auch nicht — eine geduldete Ausnahme für
+//! Erklärtexte ließe echte Empfehlungen durch.)
 //!
 //! Das Issue verbietet das auf seiner ersten Seite („Die Messläufe gehören
 //! nicht auf den Bauserver"), und `/work/.claude/CLAUDE.md` beziffert den
