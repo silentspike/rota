@@ -8,15 +8,42 @@
  *   decayCap.bonus = 3 (Mutation)  ->   erwartet ROT
  * ```
  *
- * Eine Erwartung, die man nach dem Lauf formuliert, ist keine. Trifft sie
- * nicht, ist das das wertvollere Ergebnis — dann zeigt sie einen Denkfehler,
- * statt ihn zu verstecken.
+ * Eine Erwartung, die man nach dem Lauf formuliert, ist keine.
  *
- * # Warum es diese Datei gibt
+ * **Die erste Fassung dieser Datei hat sie verfehlt, und das war das wertvollere
+ * Ergebnis** — sie steht deshalb hier mitsamt der Rechnung, die sie stützt.
+ *
+ * # Warum die erste Fassung nicht trug: acht Stapel waren unerreichbar
+ *
+ * ```text
+ *   DECAY_STACK_DURATION_MS   12000   (combat.ts)
+ *   GCD_MS                     1500   (gcd.ts)
+ * ```
+ *
+ * 12000 / 1500 = **acht** Stapel liegen maximal gleichzeitig, wenn man
+ * ununterbrochen CANKER und BLIGHT wirft. PUTRID BLOOM kostet selbst einen
+ * GCD — bleiben **sieben**.
+ *
+ * Damit ist die Acht ohne eine zweite Stapelquelle strukturell unerreichbar,
+ * egal wann man wirft und wie lange man misst. Der bestehende Fall
+ * `putrefaction-fenster.test.ts:140` bleibt bei `bonus` 3 aus genau diesem
+ * Grund grün: Es ist keine Eigenart seiner Messpunkte, sondern eine Grenze des
+ * Kits.
+ *
+ * ROT liefert die zweite Quelle, und zwar **ohne GCD**:
+ *
+ * ```text
+ *   rot   dot.decayPerTick 1, tickIntervalMs 1000, durationMs 4000, cd 4000
+ * ```
+ *
+ * Ein Stapel je Sekunde aus den DoT-Ticks, dauerhaft haltbar (Laufzeit gleich
+ * Abklingzeit). Die Rate steigt von rund 0,67 auf rund 1,4 Stapel je Sekunde —
+ * acht gleichzeitig liegende sind dann erreichbar statt ausgeschlossen.
+ *
+ * # Warum es diese Datei überhaupt gibt
  *
  * `putrefaction-fenster.test.ts:140` prüft dieselbe Größe und fängt sie nur in
- * **eine** Richtung. Gemessen am 2026-08-22, zehn vitest-Durchgänge, Bezugslauf
- * grün:
+ * **eine** Richtung. Gemessen am 2026-08-22, zehn vitest-Durchgänge:
  *
  * ```text
  *   decayCap.bonus  2 -> 1 (runter)   1 benannter Prüffall färbt
@@ -26,35 +53,20 @@
  * Die Null ist der Befund, und die Gegenprobe trägt ihn: Eine negative
  * Kontrolle hätte hier dieselbe Null geliefert wie ein kaputter Messweg.
  *
- * # Warum der bestehende Fall nach oben blind ist
+ * # Die zwei Trägerzeilen, und warum es zwei sind
  *
- * ```js
- * expect(MIT_BLOOM.stapelBei12s, 'die Obergrenze wurde nicht um zwei gehoben').toBe(7)
- * ```
+ * `stapelndeWuerfeImFenster` zählt, wie viele stapelnde Würfe überhaupt
+ * gelangen. Ist die Zahl nicht größer als die erwartete Grenze, bindet die
+ * Wurfzahl — dann sagt der Höchststand nichts über `decayCap.bonus`.
  *
- * Bei `bonus` 2 ist die Grenze 5+2 = 7, und der dortige Lauf legt 7 Stapel an.
- * Bei `bonus` 3 wäre die Grenze 8 — der Lauf legt aber weiter nur 7 an, weil
- * ihn die **Zahl der Würfe** begrenzt und nicht die Obergrenze. Er misst den
- * Punkt, an dem beide Größen zufällig zusammenfallen. Nach unten trennen sie
- * sich, nach oben nicht.
+ * `wuerfeNachDemHoechststand` zählt die Würfe **nach** dem letzten Anstieg. Sie
+ * belegt dasselbe von der anderen Seite: Es wurde weitergeworfen, und die Zahl
+ * stieg nicht mehr.
  *
- * **Das ist derselbe Befund, den Worker-3 an `decayWard.durationMs` über die
- * Wirksamkeit gefunden hat**, nur über die Deckung gefunden: Die Frage ist
- * nicht die Einheit des Feldes, sondern ob eine Entscheidung genau auf dem
- * Wert liegt.
- *
- * # Was dieser Fall anders macht
- *
- * Er wirft PUTRID BLOOM **so früh wie möglich** statt bei vier Stapeln und
- * misst über das ganze Fenster statt an zwei festen Zeitpunkten. Damit bleiben
- * genug globale Wartezeiten übrig, dass acht Stapel erreichbar *wären*.
- *
- * **Die Trägerzeile ist die eigentliche Arbeit** und heißt hier
- * `wuerfeNachDemHoechststand`: Sie zählt die stapelnden Würfe, die NACH dem
- * erstmaligen Erreichen des Höchststands noch gelingen. Ist sie null, bindet
- * die Wurfzahl und nicht die Grenze — und dann sagt die Zahl darüber nichts,
- * genau wie im bestehenden Fall. Ohne sie hätte diese Datei denselben blinden
- * Fleck, den sie schließen soll.
+ * Die erste kann trügen, wenn die Würfe früh liegen und die Stapel verfallen;
+ * die zweite, wenn der Höchststand erst am Fensterende fällt. **Zusammen decken
+ * sie beide Fälle ab** — und die erste Fassung dieser Datei ist an der zweiten
+ * gescheitert, bevor sie eine falsche Zahl melden konnte.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -65,21 +77,35 @@ import { TICK_MS } from '../../src/core/loop.js';
 /** Wie lange das Fenster von PUTRID BLOOM steht (`decayCap.durationMs`). */
 const FENSTER_MS = 10_000;
 
+/**
+ * Bei wie vielen liegenden Stapeln PUTRID BLOOM fällt.
+ *
+ * **Vier, nicht null und nicht fünf** — dieselbe Wahl wie im bestehenden Fall,
+ * und aus zwei Gründen: Bei fünf wäre die alte Obergrenze schon erreicht und
+ * der Zauber käme zu spät; bei null verschenkt man die Zeit zum Stapeln, die
+ * vor dem Fenster liegt. Die erste Fassung dieser Datei warf bei null und kam
+ * deshalb auf sechs.
+ */
+const WERFEN_BEI = 4;
+
 interface Messung {
   /** Wann PUTRID BLOOM fiel, oder −1. */
   readonly wurfBei: number;
   /** Der höchste Stand, der im Fenster je gleichzeitig lag. */
   readonly hoechststand: number;
-  /**
-   * Gelungene CANKER- und BLIGHT-Würfe nach dem ersten Erreichen des
-   * Höchststands, noch im Fenster. Null heißt: Die Wurfzahl bindet.
-   */
+  /** Gelungene stapelnde Würfe im Fenster insgesamt. */
+  readonly stapelndeWuerfeImFenster: number;
+  /** Davon die nach dem letzten Anstieg des Höchststands. */
   readonly wuerfeNachDemHoechststand: number;
 }
 
 /**
- * Wirft PUTRID BLOOM, sobald er bereit ist, und danach durchgehend CANKER und
- * BLIGHT. Beobachtet den Stapelstand über das ganze Fenster.
+ * Baut mit ROT, CANKER und BLIGHT Stapel auf, wirft PUTRID BLOOM bei vier
+ * liegenden und beobachtet den Stand über das ganze Fenster.
+ *
+ * **ROT hat Vorrang**, weil sein Beitrag nicht am GCD hängt: Ein Wurf kostet
+ * einen, liefert aber vier Stapel über seine Ticks. Ohne ihn ist die Acht
+ * unerreichbar, siehe Kopf.
  *
  * `test-onslaught` ist derselbe Träger wie im bestehenden Fall — nicht, weil
  * seine Schläge hier gebraucht würden, sondern damit beide Dateien dieselbe
@@ -89,44 +115,45 @@ function messen(): Messung {
   const boss = bossById('test-onslaught') ?? FIRST_CRUCIBLE.value;
   const combat = new Combat({ school: CALCINATION.value, boss });
   const bloom = alsSpellIndex(combat.indexOf('putrid-bloom'));
+  const rot = alsSpellIndex(combat.indexOf('rot'));
   const canker = alsSpellIndex(combat.indexOf('canker'));
   const blight = alsSpellIndex(combat.indexOf('blight'));
 
   let wurfBei = -1;
   let hoechststand = 0;
-  let hoechstErreichtBei = -1;
+  let stapelndeWuerfeImFenster = 0;
   let wuerfeNachDemHoechststand = 0;
 
   for (let tick = 0; tick < 3000; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
+    const imFenster = wurfBei >= 0 && timeMs <= wurfBei + FENSTER_MS;
 
-    if (wurfBei < 0) {
-      // So früh wie möglich, nicht bei vier Stapeln: Jede Wartezeit vorher
-      // kostet Fenster, und das Fenster ist hier die knappe Größe.
-      if (combat.isReady(bloom, timeMs) && combat.cast(bloom, timeMs).result === CAST_OK) {
-        wurfBei = timeMs;
-      }
-    } else if (timeMs <= wurfBei + FENSTER_MS) {
+    if (wurfBei < 0 && combat.decayStacks >= WERFEN_BEI && combat.isReady(bloom, timeMs)) {
+      if (combat.cast(bloom, timeMs).result === CAST_OK) wurfBei = timeMs;
+    } else {
       let gelungen = false;
-      if (combat.isReady(canker, timeMs)) {
-        gelungen = combat.cast(canker, timeMs).result === CAST_OK;
-      } else if (combat.isReady(blight, timeMs)) {
-        gelungen = combat.cast(blight, timeMs).result === CAST_OK;
+      for (const zauber of [rot, canker, blight]) {
+        if (combat.isReady(zauber, timeMs)) {
+          gelungen = combat.cast(zauber, timeMs).result === CAST_OK;
+          break;
+        }
       }
-      if (gelungen && hoechstErreichtBei >= 0) wuerfeNachDemHoechststand += 1;
+      if (gelungen && imFenster) {
+        stapelndeWuerfeImFenster += 1;
+        wuerfeNachDemHoechststand += 1;
+      }
     }
 
-    if (wurfBei >= 0 && timeMs <= wurfBei + FENSTER_MS && combat.decayStacks > hoechststand) {
+    if (imFenster && combat.decayStacks > hoechststand) {
       hoechststand = combat.decayStacks;
-      hoechstErreichtBei = timeMs;
       // Der Zähler beginnt beim NEUEN Höchststand von vorn: Würfe, die
       // stattfanden, während die Zahl noch stieg, belegen nichts über die
       // Grenze — sie zeigen nur, dass es weiterging.
       wuerfeNachDemHoechststand = 0;
     }
   }
-  return { wurfBei, hoechststand, wuerfeNachDemHoechststand };
+  return { wurfBei, hoechststand, stapelndeWuerfeImFenster, wuerfeNachDemHoechststand };
 }
 
 const GEMESSEN = messen();
@@ -138,15 +165,23 @@ describe('der Träger trägt — sonst misst nichts darunter etwas', () => {
     expect(GEMESSEN.wurfBei, 'PUTRID BLOOM kam nicht zustande').toBeGreaterThanOrEqual(0);
   });
 
+  it('es wurde öfter gestapelt, als die Grenze zulässt', () => {
+    // Erste Trägerzeile: Wären es weniger Würfe als die Grenze, käme der
+    // Höchststand aus der Wurfzahl und nicht aus `decayCap.bonus`.
+    expect(
+      GEMESSEN.stapelndeWuerfeImFenster,
+      'im Fenster gelangen nicht mehr stapelnde Würfe als die Grenze hoch ist — ' +
+        'dann bindet die Wurfzahl, und die Zahl darunter misst den Zufall',
+    ).toBeGreaterThan(MAX_DECAY_STACKS + 3);
+  });
+
   it('die Grenze bindet, nicht die Wurfzahl', () => {
-    // **Die Zeile, an der alles hängt.** Nach dem Höchststand wurde
-    // weitergeworfen, und die Zahl stieg nicht mehr. Wäre sie null, hätte der
-    // Lauf schlicht aufgehört zu werfen — und dann sagte der Höchststand
-    // nichts über die Obergrenze, genau wie im Fall, den diese Datei ersetzt.
+    // Zweite Trägerzeile, von der anderen Seite: Nach dem letzten Anstieg
+    // wurde weitergeworfen, und die Zahl stieg nicht mehr.
     expect(
       GEMESSEN.wuerfeNachDemHoechststand,
-      'nach dem Höchststand gelang kein stapelnder Wurf mehr — dann bindet die ' +
-        'Wurfzahl und nicht die Grenze, und der Fall darunter misst den Zufall',
+      'nach dem Höchststand gelang kein stapelnder Wurf mehr — dann ist nicht ' +
+        'belegt, dass die Grenze und nicht das Ende des Fensters gebremst hat',
     ).toBeGreaterThan(0);
   });
 });
@@ -155,7 +190,7 @@ describe('PUTRID BLOOM hebt die Obergrenze um genau zwei (decayCap.bonus)', () =
   it('sieben, nicht acht — die Anhebung ist zwei und nicht drei', () => {
     // Diese Zusicherung ist der Grund für die ganze Datei: Sie wird bei
     // `bonus` 3 rot. Der bestehende Fall in putrefaction-fenster.test.ts
-    // bliebe dort grün.
+    // bliebe dort grün, weil ihm die zweite Stapelquelle fehlt.
     expect(
       GEMESSEN.hoechststand,
       'die Obergrenze liegt nicht bei sieben — bei mehr ist `decayCap.bonus` ' +
