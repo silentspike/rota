@@ -28,16 +28,21 @@
 > | FIXATION     |     10 |     11 |      +1 |
 > | PUTREFACTION |      6 |     10 |      +4 |
 > | SUBLIMATION  |      8 |     12 |      +4 |
-> | COAGULATION  |      7 |     12 |      +5 |
-> |              | **41** | **55** | **+14** |
+> | COAGULATION  |      7 |     13 |      +6 |
+> |              | **41** | **56** | **+15** |
 >
 > **Die Tabelle stand am 2026-08-10 auf 54 und war am selben Abend überholt** — `RETORT` kam als
 > zwölfter SUBLIMATION-Zauber dazu (#733, #743) und schloss damit den **letzten der achtzehn
 > Vorschläge**.
 >
-> Das ist derselbe Vorgang, den der Kasten beschreibt, zum dritten Mal an diesem Dokument: Am
-> 09.08. stand hier 41 statt der gemessenen 54, am 10.08. 54 statt 55. **Jedes Mal hat die
-> Messung es gefunden, nie das Lesen.**
+> Das ist derselbe Vorgang, den der Kasten beschreibt, zum **vierten** Mal an diesem Dokument: Am
+> 09.08. stand hier 41 statt der gemessenen 54, am 10.08. 54 statt 55, und bis zum 2026-08-22
+> 55 statt 56. **Jedes Mal hat die Messung es gefunden, nie das Lesen.**
+>
+> Das vierte Mal war `DECOCTION` (2026-08-13, `1b4ac11d`), der dreizehnte COAGULATION-Zauber.
+> Er kam **zwei Tage nach** dem letzten Nachziehen dieser Tabelle — und GAME-DESIGN 20.4 trug
+> dieselbe 55 und wurde am 14.08. angefasst, ohne dass sie mitging. Zwei Orte, eine Zahl,
+> neun Tage auseinandergelaufen.
 >
 > Dazu zwei schulübergreifende in `common.json`.
 >
