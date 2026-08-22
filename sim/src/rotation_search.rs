@@ -766,6 +766,14 @@ pub fn boss_kandidaten(config: &BalanceConfig, pool: &[Candidate]) -> Vec<Candid
         u64::from(doom.amount) * u64::from(GCD_MS) / u64::from(doom.per_step_ms.max(1)),
     )
     .unwrap_or(0);
+    // `saturating_sub` FAENGT DEN UNTERLAUF AB, UND DAS IST HIER EINE
+    // ENTSCHEIDUNG, KEINE FORMALIE: Waere `vorlauf` groesser als `threshold`,
+    // ergaebe die Saettigung die Schwelle 0 — also „senke immer", still und
+    // ohne Meldung.
+    //
+    // Heute kann das nicht eintreten: Das groesste `amount` ueber alle
+    // doom-Bosse ist 6, der Vorlauf damit 9 gegen ein `threshold` von 100. Ein
+    // Boss mit `amount = 70` wuerde es ausloesen, und niemand saehe es.
     let schwelle = i64::from(doom.threshold.saturating_sub(vorlauf));
 
     (0..SPELL_COUNT)

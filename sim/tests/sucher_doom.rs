@@ -126,6 +126,18 @@ fn auflage1_gefilterte_zauber_kommen_nicht_zurueck() {
         "Der Filter hat nichts entfernt — dann prüft dieser Fall nichts."
     );
 
+    // TRÄGERZEILE IM SELBEN FALL: Mit vollem Pool MUSS etwas ergänzt werden.
+    // Ohne sie wäre dieser Fall auch dann grün, wenn `boss_kandidaten` gar
+    // nichts mehr bildet — dann ist `ergaenzt` trivial leer und die Aussage
+    // entwertet. Die positive Kontrolle steht sonst nur in `ac3`, also in
+    // einem ANDEREN Fall: Fällt der, bleibt dieser grün und behauptet weiter
+    // etwas.
+    assert!(
+        !suche(MIT_DOOM, &all_candidates()).ergaenzt.is_empty(),
+        "Mit vollem Pool wurde nichts ergänzt — dann prüft dieser Fall nicht \
+         den Filter, sondern nur, dass überhaupt nichts passiert."
+    );
+
     let ergebnis = suche(MIT_DOOM, &ohne_purge);
     assert!(
         ergebnis.ergaenzt.is_empty(),
@@ -142,11 +154,26 @@ fn auflage1_gefilterte_zauber_kommen_nicht_zurueck() {
 /// **AC2** — die Schwelle kommt aus den Bossdaten, nicht aus einer Konstante.
 ///
 /// Geprüft wird die **gebildete** Zeile, nicht die gewählte — aus demselben
-/// Grund wie bei AC1: Ob die Suche sie wählt, entscheidet die Bewertung.
+/// Grund wie bei AC1.
 ///
-/// `boss-3-4` trägt `amount = 2`, `boss-1-2` trägt `6`. **`threshold` ist bei
-/// allen fünf doom-Bossen 100** — eine Ableitung allein daraus wäre überall
-/// gleich und bestünde diesen Fall nicht, obwohl sie formal aus den Daten käme.
+/// # Warum die Zahlen festgenagelt sind und nicht nur ihre Ungleichheit
+///
+/// Ein `assert_ne!` fängt eine **konstante** Schwelle, aber keine **falsche**.
+/// Ein Vorzeichenfehler — `threshold + vorlauf` statt `- vorlauf` — ergäbe 109
+/// und 103: ebenfalls verschieden, ebenfalls grün, und vollkommen unbrauchbar,
+/// weil oberhalb von `threshold` gesenkt würde, also nie.
+///
+/// Die Zahlen sind gerechnet **und an einem Lauf abgelesen**, bevor sie hier
+/// standen (2026-08-22):
+///
+/// | Boss | `threshold` | `amount` | Schwelle |
+/// | --- | ---: | ---: | ---: |
+/// | `boss-1-2` | 100 | 6 | 91 |
+/// | `boss-3-4` | 100 | 2 | 97 |
+///
+/// `threshold` ist bei **jedem** doom-Boss 100 — eine Ableitung allein daraus
+/// wäre überall gleich und käme formal trotzdem aus den Daten. Deshalb trennt
+/// erst `amount` die beiden Fälle.
 #[test]
 fn ac2_die_schwelle_stammt_aus_den_bossdaten() {
     let zeile = |boss_id: &str| -> String {
@@ -160,20 +187,15 @@ fn ac2_die_schwelle_stammt_aus_den_bossdaten() {
             .first()
             .map_or_else(|| "keine".to_string(), |k| format!("{}", k.rule()))
     };
-    let a = zeile("boss-1-2");
-    let b = zeile("boss-3-4");
-
-    // ZUSICHERUNG: Beide müssen überhaupt eine Zeile ergeben. Zweimal "keine"
-    // wären ebenfalls ungleich-frei und der Fall bestünde ohne Aussage.
-    assert!(
-        a != "keine" && b != "keine",
-        "Mindestens ein Boss ergab keine Zeile (a={a}, b={b}) — dann vergleicht \
-         dieser Fall nicht zwei Schwellen."
+    assert_eq!(
+        zeile("boss-1-2"),
+        "purge if doom >= 91",
+        "boss-1-2: threshold 100 minus amount 6 mal einem GCD sind 91."
     );
-    assert_ne!(
-        a, b,
-        "Beide Bosse ergaben dieselbe Zeile ({a}). Dann stammt die Schwelle \
-         nicht aus den Bossdaten — oder aus einem Feld, das bei beiden gleich \
-         ist."
+    assert_eq!(
+        zeile("boss-3-4"),
+        "purge if doom >= 97",
+        "boss-3-4: threshold 100 minus amount 2 mal einem GCD sind 97. \
+         Weicht nur diese ab, hängt die Schwelle nicht an `amount`."
     );
 }
