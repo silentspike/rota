@@ -743,9 +743,10 @@ impl Zuege {
 /// `threshold - amount * (Wartezeit bis zur nächsten Gelegenheit)`. Die
 /// Wartezeit ist ein GCD.
 ///
-/// Die naheliegende Alternative `doom >= clear_amount` ist gemessen schlechter
-/// — sie senkt, sobald nichts mehr verschenkt wird, und verbraucht die Ladung
-/// dadurch früh. Bei `boss-1-2` liegen zwischen `clear_amount` (40) und
+/// Die naheliegende Alternative `doom >= clear_amount` war in der Messung vom
+/// 2026-08-22 schlechter — an zwei Bossen, bei `MAX_LEN = 6`. Sie senkt,
+/// sobald nichts mehr verschenkt wird, und verbraucht die Ladung dadurch
+/// früh. Bei `boss-1-2` liegen zwischen `clear_amount` (40) und
 /// `threshold` (100) zehn Sekunden; wer bei 40 senkt, steht bei 90 ohne da.
 /// Genau das beschreibt der Boss selbst: „wer die zweite zu früh verbraucht,
 /// verliert".

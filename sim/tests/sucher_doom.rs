@@ -45,8 +45,17 @@ fn purge_index() -> usize {
 /// **AC1 (Fassung b)** — die Suche kann die Bedingung **bilden**.
 ///
 /// Nicht: ob sie sie wählt. Das entscheidet die Bewertung, und sie darf
-/// negativ ausgehen — gemessen ist sie es: An `boss-1-2` ist die bedingte
-/// Zeile an keiner Schwelle besser als die unbedingte.
+/// negativ ausgehen — gemessen ist sie es.
+///
+/// **Der Umfang dieser Messung, damit die Aussage nicht breiter gelesen wird
+/// als sie ist:** zwei Bosse (`boss-1-2`, `boss-3-4`), eine Listenlänge
+/// (`MAX_LEN = 6`), neun Schwellen von 10 bis 91. Dort war die bedingte Zeile
+/// an keiner Schwelle besser als die unbedingte.
+///
+/// **Nicht gemessen** sind andere Listenlängen und alle übrigen doom-Bosse.
+/// Das ist keine Formalie: Der Vorrat wirkt nicht monoton (#1099) — eine Zeile
+/// hinzuzufügen kann das Ergebnis senken, und dann kann dieselbe Zeile bei
+/// anderer Länge sehr wohl gewinnen.
 ///
 /// Beides in einem Kriterium zu prüfen hieße, zwei Fragen in einen Satz zu
 /// packen. Wer die Schwelle so lange dreht, bis die Zeile gewählt wird, leitet
