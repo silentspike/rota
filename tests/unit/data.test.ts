@@ -130,6 +130,64 @@ describe('Zauber-Datensätze', () => {
     });
     expect(result.problems.some((p) => p.includes('ganzzahlig'))).toBe(true);
   });
+
+  // ------------------------------------------------------ Issue #1104
+  //
+  // Drei `…Ms`-Felder, und **nur zwei** davon gehören aufs Raster. Der
+  // Unterschied ist nicht die Einheit, sondern was aus dem Wert wird: ein
+  // Termin oder ein Vergleich.
+
+  const schule = (spell: Record<string, unknown>) =>
+    parseSchool({
+      schema: 1,
+      school: 'X',
+      resource: { id: 'r', name: 'R', cap: 1, decayPerStepMs: 1000, decayAmount: 1 },
+      spells: [{ id: 'a', cooldownMs: 0, ...spell }],
+    });
+
+  it('meldet ein channelTickMs neben dem Raster', () => {
+    // 999 ist ein Vielfaches von 333 — die ÄLTERE Prüfung (`channelMs %
+    // channelTickMs`) bliebe also still. Genau deshalb steht hier 333 und
+    // nicht irgendein krummer Wert: Der Fall trennt die zwei Rasterfragen.
+    const result = schule({ channelMs: 999, channelTickMs: 333 });
+    expect(result.problems.some((p) => p.includes('channelTickMs 333'))).toBe(true);
+  });
+
+  it('lässt ein channelTickMs auf dem Raster durch', () => {
+    // Die Gegenprobe. Ohne sie meldete auch eine Prüfung „alles ist krumm",
+    // und der Fall darüber wäre grün ohne Aussage.
+    const result = schule({ channelMs: 4000, channelTickMs: 1000 });
+    expect(result.problems.some((p) => p.includes('channelTickMs'))).toBe(false);
+  });
+
+  it('meldet ein cooldownReductionMs neben dem Raster', () => {
+    const result = schule({ cooldownReductionMs: 1005 });
+    expect(result.problems.some((p) => p.includes('cooldownReductionMs 1005'))).toBe(true);
+  });
+
+  it('lässt ein cooldownReductionMs auf dem Raster durch', () => {
+    const result = schule({ cooldownReductionMs: 1000 });
+    expect(result.problems.some((p) => p.includes('cooldownReductionMs'))).toBe(false);
+  });
+
+  it('lässt ein cooldownReductionBelowMs neben dem Raster durch — es ist eine Schwelle', () => {
+    // **Das ist die Entscheidung, nicht ihre Abwesenheit.** Der Wert wird nie
+    // zu einem Termin, sondern nur verglichen (`slot - now >= below`). Ein
+    // Prüffall, der das festhält, verhindert, dass jemand die Regel beim
+    // nächsten Aufräumen „vervollständigt".
+    const result = schule({ cooldownReductionMs: 1000, cooldownReductionBelowMs: 10_005 });
+    expect(result.problems.some((p) => p.includes('cooldownReductionBelowMs'))).toBe(false);
+  });
+
+  it('meldet ein negatives oder krummes cooldownReductionBelowMs', () => {
+    // Bis #1104 prüfte hier gar nichts — `number(…, 0)` nimmt jede Zahl.
+    expect(
+      schule({ cooldownReductionBelowMs: -5 }).problems.some((p) => p.includes('negativ')),
+    ).toBe(true);
+    expect(
+      schule({ cooldownReductionBelowMs: 10.5 }).problems.some((p) => p.includes('ganzzahlig')),
+    ).toBe(true);
+  });
 });
 
 describe('Boss-Datensatz', () => {
