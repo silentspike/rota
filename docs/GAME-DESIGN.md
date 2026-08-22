@@ -1909,7 +1909,15 @@ das Player Home.
 
 ### 17.1 Klang
 
-**Umfang V1: ~115 Sounds**, jeder der 60 Zauber einzeln vertont.
+**Umfang V1: 126 Sounds**, jeder der 60 Zauber einzeln vertont.
+
+> **Die Zahl ist die Summe der Tabelle darunter, nicht eine Schätzung daneben.** Bis zum
+> 2026-08-22 stand hier „~115" — der Wert von vor der Slot-Korrektur vom 2026-07-27, die
+> den Klangteppich von 8 auf 19 hob und die Tabelle damit um genau 11 erhöhte. Die
+> Überschrift wurde damals nicht mitgezogen, und 115 + 11 = 126.
+>
+> `data/sound-manifest.json` führt dieselbe 126 als Summe seiner `target`-Werte — die Daten
+> hatten die Korrektur, das Dokument nicht.
 
 | Bereich                                                                                                                                                                                 | Anzahl |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -1979,6 +1987,14 @@ Aus Epic E8, für die Planung von E10:
 | 56 Klänge kosteten                                            | rund **2.500 Suno-Credits** — etwa **45 je Klang**, inklusive Nachbesserungen und verworfener Erstversuche |
 | Die verbleibenden **71** (57 Zauber + 14 Instanz-Grundklänge) | rund **3.200 Credits**, eher mehr                                                                          |
 | Monatskontingent im Pro-Tarif                                 | **2.500**, setzt sich monatlich zurück                                                                     |
+
+> **56 + 71 ergibt 127, der Umfang oben ist 126 — die Differenz von eins ist ungeklärt und
+> wird hier nicht wegkorrigiert.** Beide Zahlen der zweiten Zeile sind eine Messung vom
+> 2026-07-28 mit einem Credits-Betrag daneben; sie im Nachhinein anzupassen hieße, eine
+> Messung zu ändern, statt sie einzuordnen.
+>
+> Für die Planung gilt die 126 aus der Tabelle in 17.1 und aus `data/sound-manifest.json`.
+> Der Stand von heute steht ohnehin dort und nicht hier: 85 der 126 Slots sind belegt.
 
 > **E10 ist dadurch nicht blockiert, aber es passt nicht in eine Abrechnungsperiode.** Entweder über
 > zwei Monate verteilen oder aufladen. Bei den Instanz-Grundklängen ist mit mehr Aufwand zu rechnen:
@@ -2445,7 +2461,7 @@ Wegwerfarbeit.** Konkrete Zahlen: [`STEP1-SPEC.md`](STEP1-SPEC.md).
 > **Ausdrückliche Abgrenzung:** Es wird **nicht** geprüft, ob jeder Boss eine _andere_ Rotation
 > verlangt. Der Spieler soll spielen können, wie er will.
 
-### 20.4 Wo der Bestand steht — gemessen am 2026-08-11
+### 20.4 Wo der Bestand steht — gemessen am 2026-08-22
 
 **Der Abstand zwischen Soll und Ist ist keine Schätzung.** Er wird gemessen, weil er zweimal aus
 dem Gedächtnis falsch angegeben wurde:
@@ -2453,22 +2469,22 @@ dem Gedächtnis falsch angegeben wurde:
 ```bash
 for f in data/spells/*.json; do echo -n "$(basename $f .json): "; jq '.spells|length' $f; done
 jq '.items|length' data/items.json
-ls data/bosses/*.json | xargs -n1 basename | grep -v '^test' | wc -l
+jq -r 'select(.instance | startswith("instance-") or . == "prologue") | .id' data/bosses/*.json | wc -l
 jq -r '[.trees[].paths[]] | map(select(.!="trunk")) | length' data/player/talents.json
 jq -r '.instances | length' data/instances.json
 ```
 
 | Bestand                     |                        Soll |                                Ist | Quelle des Solls           |
 | --------------------------- | --------------------------: | ---------------------------------: | -------------------------- |
-| Zauber                      |                           — |              **55** + 2 gemeinsame | Zauber-Raster abgearbeitet |
+| Zauber                      |                           — |              **56** + 2 gemeinsame | Zauber-Raster abgearbeitet |
 | Talentbäume                 |          5 Schulen + global |                              **6** | 12.5                       |
 | Talentwege                  |     18 (sechs Bäume à drei) |                    **18** — gebaut | `docs/TALENT-RASTER.md`    |
 | — im Simulator geprüft      |            12 Talent-Felder |           **12** (#738 abgenommen) | #738, PR #751              |
 | Schlüsseltalente            |                           5 |                **1** (CALCINATION) | #418                       |
-| **Ausrüstung**              |     zehn Plätze, vier Töpfe | **20 spielbare** + 5 Prüf-Einträge | 13.0, 13.1b                |
+| **Ausrüstung**              |     zehn Plätze, vier Töpfe | **20 spielbare** + 7 Prüf-Einträge | 13.0, 13.1b                |
 | — Topf 4 (Sätze, Legendäre) |               angeschlossen |        **angeschlossen** (PR #748) | 13.1b                      |
-| — Satz-Katalog              |   sechs Sätze à drei Stufen |   **1 Prüfsatz**, kein echter Satz | `docs/SATZ-KATALOG.md`     |
-| **Bosse**                   |      **68 in 14 Instanzen** |              **13 in 4 Instanzen** | 3.0                        |
+| — Satz-Katalog              |   sechs Sätze à drei Stufen |    **6 definiert**, **1 anlegbar** | `docs/SATZ-KATALOG.md`     |
+| **Bosse**                   |      **68 in 14 Instanzen** |     **17 in 5 Instanzen** (22.08.) | 3.0                        |
 | Instanz-Zuordnung           |       Teil des Datenmodells |                          vorhanden | `instance` je Boss         |
 | Instanz als Objekt          | Name, Stufen, Freischaltung |            **vorhanden** (PR #749) | `data/instances.json`      |
 
@@ -2477,6 +2493,34 @@ jq -r '.instances | length' data/instances.json
 > jemand dort auf 55 und 18 nach — hier standen weiterhin 54 und 12. Beide Dokumente waren
 > gepflegt und widersprachen sich trotzdem. **Wer eine dieser Zahlen ändert, ändert sie an beiden
 > Orten oder gar nicht.**
+>
+> **„Beide Orte" ist zu wenig — es sind bis zu sieben.** Gemessen am 2026-08-22 über
+> GAME-DESIGN, die drei Raster und die vier SIM-Dokumente: Die Bosszahl steht an **sieben**
+> Stellen, die Leisten-Größe an **zehn**, die Zauberzahl an **sechs**. Wer nur die zwei
+> ändert, die der Kasten nennt, lässt die übrigen stehen.
+>
+> **Und in jedem gefundenen Fall hatte mindestens eine Stelle recht.** Es gab keinen
+> einzigen, in dem alle dieselbe falsche Zahl trugen. Diese Fehler entstehen nicht durch
+> falsches Messen, sondern durch unvollständiges Nachziehen — jemand hat richtig gemessen und
+> an einem von sieben Orten eingetragen. Wer eine solche Zahl richtigstellen will, muss sie
+> deshalb **nicht neu ermitteln, sondern die zurückgebliebenen Stellen finden.**
+>
+> **Die Form hilft, aber die Grundmenge entscheidet mit.** Von den sieben Stellen zur Bosszahl
+> hatten die sechs recht, die eine Soll-Ist-Spalte oder das Wort „heute" führen — und sie sind
+> nicht neuer als die falsche. Eine Zahl in einer Soll-Ist-Spalte wird als Momentaufnahme
+> gelesen und gepflegt; eine nackte Zahl im Fließtext wird als Eigenschaft gelesen und bleibt
+> stehen.
+>
+> **Die Form allein schützt aber nicht**, und der Gegenfall steht in
+> `SIM-ARCHITEKTUR-PLAN.md` Teil 1: Dort ist eine Zeile einer Soll-Ist-Tabelle veraltet
+> („strike 38 · interruptibleCast 22", gemessen 47 und 24), während alle ihre Nachbarn
+> stimmen. Der Unterschied ist die **Grundmenge**: Die Nachbarn zählen Spielinhalt — Bosse in
+> Instanzen, Zauber, Plätze, Gegenstände —, diese eine Zeile zählt _alle_ Bossdateien und
+> damit auch die Prüf- und Lastprofile. Die wachsen schneller, und niemand rechnet damit,
+> weil an der Zeile nicht steht, dass sie etwas anderes misst als die darüber.
+>
+> **Wer eine Bestandszahl schreibt, schreibt also beides dazu: wovon sie gilt und wann sie
+> gemessen wurde.** Das Datum allein reicht nicht, wenn unklar bleibt, was gezählt wurde.
 
 **Entschieden vom Auftraggeber am 2026-08-10, nachdem ihm diese Zahlen vorlagen:**
 
@@ -2794,7 +2838,7 @@ eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen
 | **Erfolge**                    | Je Boss die konkreten Ziele, 288 Zeitmarken                                                                                                                                            | E10                                                          |
 | **Instanz-Themen und Namen**   | 14 Instanzen mit Thema, Farbwelt, Klangteppich                                                                                                                                         | E10                                                          |
 | **~150 Archiv-Texte**          | Inhalte, Stimmen-Verteilung, Reihenfolge                                                                                                                                               | E10                                                          |
-| **Sound-Manifest**             | 115 Prompts mit Ziel-Längen                                                                                                                                                            | E8                                                           |
+| **Sound-Manifest**             | 126 Prompts mit Ziel-Längen                                                                                                                                                            | E8                                                           |
 | **Grafik-Stil**                | Konkretes Asset-Set auswählen                                                                                                                                                          | E9                                                           |
 | **Cooldown-Rücksetzer**        | Abklingzeit, ob GCD-frei, auf welche Zauber anwendbar                                                                                                                                  | E3                                                           |
 | **Unterbrechen**               | Fensterbreite, Abklingzeit, Folgen des Verpassens                                                                                                                                      | E4                                                           |
