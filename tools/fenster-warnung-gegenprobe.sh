@@ -104,6 +104,27 @@ pruefe "eigenes Fenster" still "$B"
 pruefe "niemand haelt es" still "$C"
 pruefe "fremdes Fenster, aber abgegeben" still "$D"
 
+# --- Der fuenfte Fall: eine Umgebung OHNE Messfenster (die CI) -----------
+#
+# Der erste Entwurf hat dort bei JEDEM Lauf angeschlagen — kein
+# rota-fenster.json unter /home/runner, also lief der "nicht lesbar"-Zweig,
+# bei npm test, lint, build und typecheck, in jedem Durchgang jedes PRs.
+# Damit war die erste Auflage verletzt.
+#
+# DIESE GEGENPROBE HAT ES NICHT GEFUNDEN, weil sie nur hier laeuft, wo das
+# Werkzeug existiert. Gefunden wurde es im CI-Protokoll des eigenen PRs.
+# Deshalb steht der Fall jetzt hier: mit einem PATH ohne rota-fenster.
+setze_stand "$FREMD" ""
+E="$(PATH=/usr/bin:/bin bash "$WARNUNG" 2>&1)"
+pruefe "Umgebung ohne rota-fenster (CI)" still "$E"
+
+# Traegerzeile FUER DIESEN FALL: Mit demselben eingeschraenkten PATH, aber
+# vorhandenem Werkzeug, MUSS gewarnt werden. Sonst belegt das Schweigen oben
+# nur, dass der kurze PATH irgendetwas anderes kaputtmacht.
+BINDIR="$(dirname "$(command -v rota-fenster)")"
+F="$(PATH=/usr/bin:/bin:$BINDIR bash "$WARNUNG" 2>&1)"
+pruefe "kurzer PATH, aber Werkzeug da" warnt "$F"
+
 # --- Traegerzeile --------------------------------------------------------
 #
 # Ohne sie hiesse "drei Mal still" auch dann alles in Ordnung, wenn das
@@ -122,4 +143,6 @@ if [ "$fehler" -ne 0 ]; then
   echo "GEGENPROBE ROT." >&2
   exit 1
 fi
-echo "BESTANDEN: warnt bei fremdem Fenster, schweigt in den drei anderen Faellen."
+echo "BESTANDEN: warnt in zwei Faellen, schweigt in vier — und die vier sind"
+echo "  die wichtigeren: Ein Melder, der immer anschlaegt, bestuende die zwei"
+echo "  ersten ebenfalls."
