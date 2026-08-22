@@ -5,6 +5,17 @@
 #     EXIT 1    eine Richtung ist GESCHEITERT — ein echter Befund
 #     EXIT 2    die Pruefung hat NICHT STATTGEFUNDEN (Vorbedingung fehlt)
 #
+# AUFRUFEN AUS EINEM WORKTREE, nicht aus /work/tmp oder sonstwo: `rota-ipc`
+# leitet die eigene Rolle aus dem Arbeitsverzeichnis ab, und ohne sie lässt
+# sich „eigenes Fenster" nicht von „fremdem" trennen. Der Lauf bricht dann mit
+# Exit 2 ab, statt etwas Falsches zu belegen.
+#
+#     bash tools/fenster-warnung-gegenprobe.sh      # aus der Worktree-Wurzel
+#
+# Das steht hier und nicht nur in der Fehlermeldung, weil es genau der Fehler
+# ist, den am 2026-08-22 zwei Sitzungen nacheinander gemacht haben — und wer
+# ihn noch nicht hat, liest die Fehlermeldung nicht.
+#
 # Die Trennung von 1 und 2 ist nicht kosmetisch: Am 2026-08-22 meldete ein
 # Mutationslauf Exit 1 mit „eigene Rolle nicht ermittelbar" — die Gegenprobe
 # war abgebrochen, bevor sie irgendetwas prüfte, und „rot war da". Als AC-Beleg
@@ -306,6 +317,24 @@ if [ "$fehler" -ne 0 ]; then
   echo "GEGENPROBE ROT." >&2
   exit 1
 fi
-echo "BESTANDEN: warnt in drei Faellen, schweigt in vier, meldet in zwei"
-echo "  'nicht lesbar'. Die vier stillen sind die wichtigeren — ein Melder,"
-echo "  der immer anschlaegt, bestuende die drei ersten ebenfalls."
+
+# **Die Schlusszeile darf bei einer Lücke nicht „BESTANDEN" heißen.**
+#
+# Der erste Entwurf hatte den Hinweis „NICHT VARIIERT: …" und darunter ein
+# schlichtes „BESTANDEN". Das Letzte, was ein Leser sieht, war damit ein
+# Freispruch — bei einem Werkzeug, dessen Ausgabe man überfliegt, hebt die
+# eine Zeile die andere auf.
+#
+# Dieselbe Klasse wie ein Hinweis mit Exit 0, nur eine Zeile tiefer. Der Exit
+# bleibt 0 (eine Lücke ist kein Fehler des geprüften Codes), aber wer nach dem
+# Wort BESTANDEN sucht, findet es nicht mehr allein.
+if [ -n "$FEHLEND" ]; then
+  ANZAHL=$(printf '%s' "$FEHLEND" | wc -w)
+  echo "BESTANDEN MIT LUECKE: $ANZAHL Eigenschaft(en) unvariiert —$FEHLEND"
+  echo "  Die geprueften Richtungen sind alle wie erwartet ausgegangen. Aber"
+  echo "  ueber die genannte(n) Eigenschaft(en) sagt dieser Lauf NICHTS."
+else
+  echo "BESTANDEN: warnt in drei Faellen, schweigt in vier, meldet in zwei"
+  echo "  'nicht lesbar'. Die vier stillen sind die wichtigeren — ein Melder,"
+  echo "  der immer anschlaegt, bestuende die drei ersten ebenfalls."
+fi
