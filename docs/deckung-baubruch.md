@@ -165,12 +165,18 @@ Erstellt am 2026-08-22 ohne Lauf, gelesen aus `sim/build.rs`, `sim/src/data.rs` 
 Diese vier werden von `build.rs` gelesen, geprüft und **verworfen**. Sie landen in keiner
 Rust-Struktur; der Simulator sieht sie nie.
 
-| Feld                  | Zusicherung in `build.rs`        | zulässige Werte |
-| --------------------- | -------------------------------- | --------------- |
-| `convert.from`        | `assert_eq!(from, "cooldown")`   | genau einer     |
-| `spender.resource`    | `assert_eq!(named, resource_id)` | genau einer     |
-| `spender.consumesAll` | `assert!(consumes_all)`          | nur `true`      |
-| `dot.refreshMode`     | `assert_eq!(mode, "reset")`      | nur `"reset"`   |
+| Feld                  | eingelesen in   | Zusicherung                      | zulässige Werte |
+| --------------------- | --------------- | -------------------------------- | --------------- |
+| `convert.from`        | `build.rs:2107` | `assert_eq!(from, "cooldown")`   | genau einer     |
+| `spender.resource`    | `build.rs:836`  | `assert_eq!(named, resource_id)` | genau einer     |
+| `spender.consumesAll` | `build.rs:843`  | `assert!(consumes_all)`          | nur `true`      |
+| `dot.refreshMode`     | `build.rs:789`  | `assert_eq!(mode, "reset")`      | nur `"reset"`   |
+
+> **Einer der vier war schon so eingeordnet, drei nicht.** In der Tabelle oben trägt
+> `spender.consumesAll` als altes Urteil `GESICHERT (build.rs)` — genau diese Kategorie. Die
+> anderen drei stehen dort als `gedeckt`, obwohl für sie dasselbe gilt. Das alte Urteil ist bei
+> ihnen also nicht falsch, sondern zu grob: Es sagt „geprüft", wo „durch den Bau erzwungen"
+> zutrifft.
 
 **Ein Prüffall wäre hier wertlos.** Der Wert lässt sich nicht variieren, ohne dass der Bau
 bricht — die `BAU`-Meldung _ist_ die Absicherung und nicht ihr Fehlen.
@@ -187,45 +193,54 @@ hier liegt eine Zusicherung, die genau einmal wirkt und dann nicht mehr gebrauch
 Alle fließen in eine Rust-Struktur **und** werden in `fight.rs` gelesen. Je Feld eine
 Fundstelle:
 
-| Feld                                                                                                    | gelesen in                                           |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `spender.damagePerPoint`                                                                                | `fight.rs:4709`                                      |
-| `spender.bonusThreshold`                                                                                | `fight.rs:4710`                                      |
-| `spender.bonusMultiplier`                                                                               | `fight.rs:4711`                                      |
-| `dot.tickDamage`                                                                                        | `fight.rs:3273`                                      |
-| `dot.tickIntervalMs`, `dot.durationMs`                                                                  | über `Dot`, mit `tick_damage` zusammen               |
-| `shield.amount`, `shield.durationMs`                                                                    | `fight.rs`, 20 Stellen über `self.shield`            |
-| `shield.maxStacks`                                                                                      | `fight.rs:2418`                                      |
-| `heal.amount`, `heal.tickIntervalMs`                                                                    | `fight.rs:2483`                                      |
-| `reflect.sharePercent`, `reflect.durationMs`                                                            | `self.reflect_percent`, `self.reflect_until`         |
-| `conversion.sharePercent`, `conversion.durationMs`                                                      | `self.conversion_percent`                            |
-| `decayCap.bonus`, `decayCap.durationMs`                                                                 | `self.decay_cap_bonus`                               |
-| `decayWard.permillePerStack`, `decayWard.durationMs`                                                    | `self.decay_ward_permille`                           |
-| `convert.perSecond`                                                                                     | `fight.rs`, in der Schadensrechnung                  |
-| `control.cost`, `control.effect`, `control.amountMs`, `control.amountPercent`, `control.amountPerPoint` | `fight.rs`, 12 Stellen                               |
-| `buff.kind`, `buff.factor`, `buff.gcds`                                                                 | `fight.rs:4795` `apply_for_gcds(kind, factor, gcds)` |
-| `resourceGain.heat`, `dot.resourceGainPerTick.heat`                                                     | `fight.rs`, Ressourcenaufbau                         |
+| Feld                                                                           | gelesen in                                           |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `spender.damagePerPoint`                                                       | `fight.rs:4709`                                      |
+| `spender.bonusThreshold`                                                       | `fight.rs:4710`                                      |
+| `spender.bonusMultiplier`                                                      | `fight.rs:4711`                                      |
+| `dot.tickDamage`                                                               | `fight.rs:3273`                                      |
+| `dot.tickIntervalMs`, `dot.durationMs`                                         | über `Dot`, mit `tick_damage` zusammen               |
+| `shield.amount`, `shield.durationMs`                                           | `fight.rs`, 20 Stellen über `self.shield`            |
+| `shield.maxStacks`                                                             | `fight.rs:2418`                                      |
+| `heal.amount`, `heal.tickIntervalMs`                                           | `fight.rs:2483`                                      |
+| `reflect.sharePercent`, `reflect.durationMs`                                   | `self.reflect_percent`, `self.reflect_until`         |
+| `conversion.sharePercent`, `conversion.durationMs`                             | `self.conversion_percent`                            |
+| `decayCap.bonus`, `decayCap.durationMs`                                        | `self.decay_cap_bonus`                               |
+| `decayWard.permillePerStack`, `decayWard.durationMs`                           | `self.decay_ward_permille`                           |
+| `convert.perSecond`                                                            | `fight.rs`, in der Schadensrechnung                  |
+| `control.cost`, `control.effect`, `control.amountMs`, `control.amountPerPoint` | `fight.rs`, 12 Stellen über `amount`                 |
+| `control.amountPercent`                                                        | `fight.rs:2591`, eigenes Feld `amount_percent`       |
+| `buff.kind`, `buff.factor`, `buff.gcds`                                        | `fight.rs:4795` `apply_for_gcds(kind, factor, gcds)` |
+| `resourceGain.heat`, `dot.resourceGainPerTick.heat`                            | `fight.rs`, Ressourcenaufbau                         |
 
 **Für diese ist ein Prüffall billig:** Der Wert steht in einer Rechnung, eine Änderung verschiebt
 eine Zahl im Kampf.
 
-> **`control.amountMs`, `.amountPercent` und `.amountPerPoint` sind kein Dreierpaket, sondern ein
-> Feld.** `build.rs` wählt nach `control.effect` aus, welches gelesen wird, und schreibt den Wert
-> in dasselbe Rust-Feld `amount`:
+> **`control.amountMs` und `.amountPerPoint` teilen sich ein Rust-Feld, `.amountPercent` nicht.**
+> `build.rs:2149-2161` wählt nach `control.effect` aus, welches JSON-Feld gelesen wird:
 >
-> | `effect`                                                   | gelesenes Feld   |
-> | ---------------------------------------------------------- | ---------------- |
-> | `slowCast`, `delayStrike`, `allThree`, `makeInterruptible` | `amountMs`       |
-> | `holdPhase`                                                | `amountPercent`  |
-> | `convertToDamage`                                          | `amountPerPoint` |
+> | `effect`                                                   | gelesenes Feld   | Rust-Feld        |
+> | ---------------------------------------------------------- | ---------------- | ---------------- |
+> | `slowCast`, `delayStrike`, `allThree`, `makeInterruptible` | `amountMs`       | `amount`         |
+> | `convertToDamage`                                          | `amountPerPoint` | `amount`         |
+> | `holdPhase`                                                | `amountPercent`  | `amount_percent` |
 >
-> Ein Zauber trägt nur eines davon. Die Tabelle zählt sie dreifach, obwohl **ein** Prüffall alle
-> drei deckt.
+> **Ein Prüffall auf `amountMs` deckt `amountPerPoint` mit, aber `amountPercent` nicht** —
+> `data.rs:306` führt es als eigenes Feld, `build.rs:2204` liest es getrennt ein, und
+> `fight.rs:2591` liest es getrennt aus.
+>
+> **Der Grund steht daneben, und es ist ein Fehler, den es wirklich gab:** Die Wirkungen sprechen
+> zwei Einheiten — `slowCast` und `delayStrike` rechnen in Millisekunden, `holdPhase` in
+> Prozentpunkten. Solange beide dasselbe Feld benutzten, bekam `holdPhase` bei `CAPSTONE` dessen
+> 2000 Millisekunden als Prozentzahl; `boss_hp_percent + 2000` liegt über jeder Schwelle, und der
+> Phasenwechsel war **für die volle Frist abgeschaltet statt gesenkt**. `allThree` braucht beide
+> Einheiten gleichzeitig — deshalb sind es zwei Felder.
 >
 > Dazu eine Stelle, die beim Bauen eines Prüffalls zu kennen ist: Für `PIN` bedeutet `amountMs`
 > etwas anderes als bei `delayStrike` — dort ist es die **Fensterlänge**, mit der ein Schlag ohne
-> Wirkzeit unterbrechbar wird, keine Verzögerung. Der Kommentar in `build.rs` sagt es ausdrücklich
-> („Dasselbe Feld, andere Bedeutung"). Ein Prüffall auf `amountMs` deckt also zwei Bedeutungen.
+> Wirkzeit unterbrechbar wird, keine Verzögerung. Der Kommentar in `build.rs:2157` sagt es
+> ausdrücklich („Dasselbe Feld, andere Bedeutung"). Ein Prüffall auf `amountMs` deckt also zwei
+> Bedeutungen.
 
 ### Gruppe C — Kennungen und Namen: keine
 
