@@ -8139,6 +8139,208 @@ export function instance4Payload(bossId: string, name: string): Record<string, u
   };
 }
 
+/**
+ * Die vier Bosse der fünften Instanz, je eine Aufzeichnung.
+ *
+ * # Warum eine eigene Leiste und nicht die von Instanz 4
+ *
+ * Instanz 4 kam mit vier Plätzen aus und ließ PURGE bewusst weg: Keiner ihrer
+ * vier trug einen Verhängnis-Zähler, und ein Zauber, der nie gedrückt wird, ist
+ * ein Platz, der nichts belegt. Instanz 5 kombiniert Bausteine, und damit kommen
+ * zwei Anforderungen zurück, die dort keine waren:
+ *
+ * - **PURGE**, weil `boss-5-4` einen Verhängnis-Zähler trägt. Er ist der einzige
+ *   Zauber mit `clearsDoom`.
+ * - **CRUST**, weil `boss-5-3` `runaway` trägt. Das ist keine Bequemlichkeit,
+ *   sondern die Bedingung aus #394: Ein Boss mit umgekehrtem Ziel braucht einen
+ *   Stabilisierer, der OHNE eingehenden Schaden wirkt. CRUST erfüllt das (900
+ *   Schutz, bis drei Stapel), TEMPER nicht — er wandelt ausgeteilten Schaden um,
+ *   und damit stabilisierte man durch Schaden.
+ *
+ * Dass die Leiste dafür die Schule wechselt, ist im Bestand üblich und kein
+ * Sonderweg: 54 der eingecheckten Aufzeichnungen mischen Schulen, die größte
+ * führt zehn Plätze.
+ *
+ * # Was diese Aufzeichnungen leisten — und was nicht
+ *
+ * Sie belegen, dass jeder der vier Bosse gefahren wird, und sie frieren das
+ * Verhalten Tick für Tick ein. Sie sagen NICHTS über Balance: nicht, ob der Boss
+ * schaffbar ist, und nicht, ob eine gute Rotation zehn Prozent vor einer
+ * schlechten liegt. Das misst der Balance-Läufer, und beides steht noch aus.
+ *
+ * Derselbe Zuschnitt wie beim Wächter, der sie einfordert: Er prüft die
+ * Existenz, nicht die Güte.
+ */
+export const INSTANCE5_NAMES = [
+  'instance5-boss-1',
+  'instance5-boss-2',
+  'instance5-boss-3',
+  'instance5-boss-4',
+] as const;
+
+const INSTANCE5_BINDINGS = [
+  { slot: 0, spellId: 'kindle' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'pyre' },
+  { slot: 3, spellId: 'quench' },
+  { slot: 4, spellId: 'purge' },
+  { slot: 5, spellId: 'crust' },
+] as const;
+
+/**
+ * Das Ergebnis eines Instanz-5-Laufs: die Aufzeichnung UND die höchste Phase,
+ * die dabei erreicht wurde.
+ *
+ * # Warum die Phase mitkommt und nicht nachträglich gemessen wird
+ *
+ * `boss-5-4` bindet zwei Zeitleisten-Ereignisse an Phasen. Ob die Schwellen im
+ * Lauf wirklich fallen, steht in keinem Feld, das die Aufzeichnung sonst führt —
+ * `ReplayResult` kennt Schaden, Treffer und Prüfsummen, aber keine Phase.
+ *
+ * Nachträglich ließe es sich nur ermitteln, indem man die Rotation ein zweites
+ * Mal nachbaut. Das wäre eine zweite Quelle, die plausibel antwortet und bei der
+ * nächsten Änderung still auseinanderläuft. Hier zählt die Schleife mit, die den
+ * Kampf ohnehin fährt.
+ */
+interface Instanz5Lauf {
+  readonly recording: Recording;
+  /**
+   * Jede Phase, die im Lauf tatsächlich ANLAG, aufsteigend — nicht nur die
+   * höchste.
+   *
+   * Der Unterschied ist keine Feinheit. `phaseAt()` bildet den HP-Anteil direkt
+   * auf eine Phasenzahl ab; fällt der Boss in einem Schlag unter beide
+   * Schwellen, springt der Wert von 0 auf 2, und Phase 1 hat nie angelegen. Die
+   * höchste erreichte Phase wäre trotzdem 2 gewesen.
+   *
+   * Für `boss-5-4` hängt daran eine echte Aussage: `Culmination` ist an Phase 1
+   * gebunden. Ein Lauf, der Phase 1 überspringt, feuert es zwar (die Bindung
+   * fragt `>=`), hat den Zwischenzustand aber nie gezeigt — und „beide Phasen
+   * erreicht" wäre eine Aussage aus einer gemessenen und einer angenommenen
+   * Hälfte.
+   */
+  readonly phasenGesehen: readonly number[];
+}
+
+function recordInstance5(bossId: string, ticks: number): Instanz5Lauf {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss });
+  const presses: RecordedPress[] = [];
+  const press = pressRecorder(combat, INSTANCE5_BINDINGS, presses);
+  const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
+  const phasen = new Set<number>();
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    phasen.add(combat.bossPhase);
+    if (combat.damageDealt >= combat.boss.hp) break;
+    if (combat.playerDead) break;
+
+    // **Unterbrechen zuerst und ohne GCD-Prüfung** — QUENCH trägt
+    // `triggersGcd: false`. Bei `boss-5-3` und `boss-5-4` wirken die Bosse
+    // unterbrechbare Zauber, deren Wirkzeit mit jedem Zyklus schrumpft.
+    if (combat.casting !== -1 && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+      continue;
+    }
+    // **Das Gift ebenfalls über QUENCH** — bei `boss-5-1` nennt `clearedBy`
+    // genau QUENCH und TEMPER. Dass derselbe Zauber beides tut, IST die
+    // Signatur dieses Bosses; hier zeigt sie sich als eine Zeile, die zwei
+    // Gründe hat.
+    if (combat.afflicted && combat.isOffCooldown(idx('quench'), timeMs)) {
+      press(idx('quench'), tick, timeMs);
+      continue;
+    }
+    if (!combat.gcd.isReady(timeMs)) continue;
+
+    // **Das Verhängnis vor allem anderen**, sobald es die halbe Schwelle
+    // überschritten hat und noch eine Ladung übrig ist. Die Ladungen sind
+    // endlich (`clearCharges: 3`), deshalb nicht bei jedem Punkt drücken.
+    //
+    // Dass die Rotation die Ladungen einteilt, ist Gegenstand einer offenen
+    // Frage beim Auftraggeber: Kapitel 21.3 führt „begrenzte Ressource schonen"
+    // unter den bewusst NICHT übernommenen Mustern. Die zwei möglichen Lesarten
+    // stehen im Kommentar von `data/bosses/boss-5-4.json`; hier wird keine
+    // unterstellt. Fällt die Entscheidung gegen das Muster, ändert sich diese
+    // Bedingung — und mit ihr die Aufzeichnung, die aus ihr entsteht.
+    const doom = combat.boss.doom;
+    if (
+      doom !== null &&
+      combat.doomCharges > 0 &&
+      combat.doom >= doom.threshold / 2 &&
+      combat.isOffCooldown(idx('purge'), timeMs)
+    ) {
+      press(idx('purge'), tick, timeMs);
+      continue;
+    }
+    // **Stabilisieren, sobald es geht** — nur bei einem `runaway`-Boss, und dort
+    // ohne Schwelle: Der Ring füllt sich von selbst, und CRUST stapelt bis drei.
+    // Eine Schwelle hier wäre eine Balance-Entscheidung, und die trifft der
+    // Balance-Läufer, nicht diese Aufzeichnung.
+    if (combat.boss.runaway !== null && combat.isOffCooldown(idx('crust'), timeMs)) {
+      press(idx('crust'), tick, timeMs);
+      continue;
+    }
+
+    if (
+      !combat.isDotActive(idx('smoulder'), timeMs) &&
+      combat.isOffCooldown(idx('smoulder'), timeMs)
+    ) {
+      press(idx('smoulder'), tick, timeMs);
+    } else if (combat.resource >= 15 && combat.isOffCooldown(idx('pyre'), timeMs)) {
+      press(idx('pyre'), tick, timeMs);
+    } else if (combat.isOffCooldown(idx('kindle'), timeMs)) {
+      press(idx('kindle'), tick, timeMs);
+    }
+  }
+
+  return {
+    recording: { name: bossId, seed: 0, ticks, presses, bindings: INSTANCE5_BINDINGS },
+    phasenGesehen: [...phasen].sort((a, b) => a - b),
+  };
+}
+
+/** Erzeugt den Datensatz für einen der vier Bosse der fünften Instanz. */
+export function instance5Payload(bossId: string, name: string): Record<string, unknown> {
+  const boss = bossById(bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
+  const lauf = recordInstance5(bossId, 6000);
+  const recording = { ...lauf.recording, name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    bindings: INSTANCE5_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      damage: result.damage,
+      killedAtMs: result.killedAtMs,
+      diedAtMs: result.diedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
+      // **Jede Phase, die im Lauf anlag** — nur hier, nicht bei den Instanzen 1
+      // bis 4. Sie steht in `expected`, weil die Rust-Seite dieselbe Datei liest
+      // und daraus eine Zusicherung machen kann: Eine Phase, die nie fällt, ist
+      // von einer wirkungslosen Phase sonst nicht zu unterscheiden (#557).
+      //
+      // Eine LISTE und keine Zahl, aus demselben Grund, aus dem der Boss-Wächter
+      // die Bosse aufzählt statt sie zu zählen: `[0, 2]` und `[0, 1, 2]` haben
+      // dasselbe Maximum und bedeuten Verschiedenes.
+      phasesSeen: lauf.phasenGesehen,
+    },
+    checksums: result.checksums,
+  };
+}
+
 export const CAP_STAPELUNG_NAME = 'cap-stapelung';
 
 const CAP_STAPELUNG_BINDINGS = [

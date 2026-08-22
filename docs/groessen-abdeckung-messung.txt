@@ -1,117 +1,142 @@
-buff.factor                aether       2 -> 1        RUST-GEPRUEFT (sim/tests/parity_aether.rs, Pruefsumme Takt 150) — vitest meldet nur den Mess-Waechter
-buff.factor                distil       2 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.factor                flashpoint   2 -> 1        geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
-buff.factor                griplock     2 -> 1        geschuetzt [3 Prueffaelle] (buff-ersetzung-ueber-zauber.test.ts)
-buff.factor                quicksilver  2 -> 1        geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
-buff.factor                slag         1.5 -> 0.75     geschuetzt [10 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, faktor-untergrenze.test.ts, slag.test.ts)
-buff.factor                virulence    2 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.gcds                  aether       8 -> 4        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
-buff.gcds                  distil       4 -> 2        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.gcds                  flashpoint   3 -> 1        geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
-buff.gcds                  griplock     4 -> 2        geschuetzt [2 Prueffaelle] (buff-fenster-und-art.test.ts)
-buff.gcds                  quicksilver  4 -> 2        geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
-buff.gcds                  slag         4 -> 2        geschuetzt [6 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)
-buff.gcds                  virulence    4 -> 2        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.kind                  aether       0 -> 1        RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter
-buff.kind                  distil       0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.kind                  flashpoint   0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.kind                  griplock     0 -> 1        geschuetzt [1 Prueffall] (buff-ersetzung-ueber-zauber.test.ts)
-buff.kind                  quicksilver  0 -> 1        geschuetzt [1 Prueffall] (buff-fenster-und-art.test.ts)
-buff.kind                  slag         1 -> 0        geschuetzt [4 Prueffaelle] (buff-expire-log.test.ts, buff-stapelung-ueber-zauber.test.ts)
-buff.kind                  virulence    0 -> 1        geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.target                aether       cdreduce -> tick     RUST-GEPRUEFT (sim/tests/parity_aether.rs; zusaetzlich sim/tests/buff_targets.rs) — vitest meldet nur den Mess-Waechter
-buff.target                distil       cdreduce -> tick     geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-buff.target                flashpoint   resource -> tick     geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)
-buff.target                griplock     control -> tick     geschuetzt [3 Prueffaelle] (buff-ersetzung-ueber-zauber.test.ts)
-buff.target                quicksilver  convert -> tick     geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)
-buff.target                slag         cap -> tick     geschuetzt [8 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)
-buff.target                virulence    stack -> tick     geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)
-control.amountMs           capstone     2000 -> 1000     geschuetzt [2 Prueffaelle] (fixation-ausgeber.test.ts, capstone-senkung.test.ts)
-control.amountPercent      capstone     10 -> 5       geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts)
-control.amountMs           latch        4000 -> 2000     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
-control.amountMs           stall        2000 -> 1000     geschuetzt [6 Prueffaelle] (kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
-control.amountMs           pin          2000 -> 1000     geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts, pin-kontrolle.test.ts) + RUST (parity_pin.rs)
-control.amountMs           stay         3000 -> 1500     geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
-control.amountPerPoint     wedge        8 -> 4        geschuetzt [1 Prueffall] (wedge.test.ts)
-control.amountPercent      anchor       10 -> 5        geschuetzt [4 Prueffaelle] (capstone-senkung.test.ts, fixation-ausgeber.test.ts)
-control.cost               anchor       6 -> 3        geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)
-control.cost               capstone     8 -> 4        geschuetzt [1 Prueffall] (control-spent-log.test.ts)
-control.cost               latch        2 -> 1        geschuetzt [1 Prueffall] (fixation-ausgeber.test.ts)
-control.cost               stall        4 -> 2        geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, kontroll-leitung.test.ts)
-control.cost               pin          3 -> 1        geschuetzt [1 Prueffall] (pin-kontrolle.test.ts) + RUST (parity_pin.rs)
-control.cost               stay         3 -> 1        geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)
-control.cost               wedge        3 -> 1        geschuetzt [2 Prueffaelle] (fixation-ausgeber.test.ts)
-control.effect             anchor       holdPhase -> slowCast geschuetzt [1 Prueffall] (anchor-phasenschwelle.test.ts)
-control.effect             capstone     allThree -> holdPhase geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, wedge.test.ts)
-control.effect             latch        delayStrike -> holdPhase geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
-control.effect             stall        slowCast -> holdPhase geschuetzt [7 Prueffaelle] (boss-cast-display.test.ts, kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)
-control.effect             pin          makeInterruptible -> holdPhase geschuetzt [3 Prueffaelle] (pin-kontrolle.test.ts) + RUST (parity_pin.rs: damageTaken 96 statt 64)
-control.effect             stay         delayStrike -> holdPhase geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)
-control.effect             wedge        convertToDamage -> holdPhase geschuetzt [6 Prueffaelle] (control-spent-log.test.ts, efflux.test.ts, wedge.test.ts)
-conversion.durationMs      crucible-skin 6000 -> 3000     geschuetzt [1 Prueffall] (crucible-skin.test.ts)
-conversion.durationMs      temper       10000 -> 5000     geschuetzt [2 Prueffaelle] (umwandlung-groessen.test.ts)
-conversion.sharePercent    crucible-skin 50 -> 25       geschuetzt [1 Prueffall] (crucible-skin.test.ts)
-conversion.sharePercent    temper       25 -> 12       geschuetzt [4 Prueffaelle] (umwandlung-groessen.test.ts)
-convert.from               efflux       cooldown -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [3 Prueffaelle] (combat.test.ts, data.test.ts, efflux.test.ts)
-convert.perSecond          efflux       12 -> 6        geschuetzt [2 Prueffaelle] (letzte-drei-groessen.test.ts)
-decayWard.durationMs       decay        6000 -> 3000     geschuetzt [2 Prueffaelle] (putrefaction-fenster.test.ts)
-decayWard.permillePerStack decay        40 -> 20       geschuetzt [2 Prueffaelle] (putrefaction-fenster.test.ts) + RUST (parity_decay_ward.rs: damageTaken)
-decayCap.bonus             putrid-bloom 2 -> 1        geschuetzt [3 Prueffaelle] (putrefaction-fenster.test.ts) + RUST (parity_putrid_bloom.rs)
-decayCap.durationMs        putrid-bloom 10000 -> 5000     geschuetzt [4 Prueffaelle] (putrefaction-fenster.test.ts)
-decay.stacks               blight       1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)
-decay.stacks               canker       1 -> 0        geschuetzt [24 Prueffaelle] (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)
-dot.decayPerTick           rot          1 -> 0        geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
-dot.durationMs             cinder       4000 -> 2000     geschuetzt [1 Prueffall] (dot-groessen.test.ts)
-dot.durationMs             rot          4000 -> 2000     geschuetzt [5 Prueffaelle] (rot-decay-per-tick.test.ts)
-dot.durationMs             searing      6000 -> 3000     geschuetzt [4 Prueffaelle] (bindungen-im-nachlauf.test.ts, combat.test.ts, data.test.ts...)
-dot.durationMs             smoulder     12000 -> 6000     geschuetzt [33 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-dot.refreshMode            cinder       reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [4 Prueffaelle] (combat.test.ts, data.test.ts, dot-groessen.test.ts)
-dot.refreshMode            rot          reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)
-dot.refreshMode            searing      reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [5 Prueffaelle] (bindungen-im-nachlauf.test.ts, combat.test.ts, data.test.ts...)
-dot.refreshMode            smoulder     reset -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [66 Prueffaelle] (active-dots.test.ts, buff-targets.test.ts, checksum-effectiveness.test.ts...)
-dot.tickDamage             cinder       30 -> 15       geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)
-dot.tickDamage             rot          25 -> 12       geschuetzt [3 Prueffaelle] (letzte-drei-groessen.test.ts)
-dot.tickDamage             searing      90 -> 45       geschuetzt [3 Prueffaelle] (bindungen-im-nachlauf.test.ts, dot-groessen.test.ts)
-dot.tickDamage             smoulder     40 -> 20       geschuetzt [27 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-dot.tickIntervalMs         cinder       1000 -> 500      geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)
-dot.tickIntervalMs         rot          1000 -> 500      geschuetzt [4 Prueffaelle] (rot-decay-per-tick.test.ts)
-dot.tickIntervalMs         searing      2000 -> 1000     geschuetzt [3 Prueffaelle] (bindungen-im-nachlauf.test.ts, dot-groessen.test.ts)
-dot.tickIntervalMs         smoulder     2000 -> 1000     geschuetzt [39 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-heal.amount                crucible-skin 2000 -> 1000     geschuetzt [1 Prueffall] (crucible-skin.test.ts)
-heal.amount                mend         800 -> 400      geschuetzt [2 Prueffaelle] (mend.test.ts)
-heal.amount                poultice     1800 -> 900      geschuetzt [4 Prueffaelle] (poultice.test.ts)
-heal.amount                salve        1500 -> 750      geschuetzt [1 Prueffall] (heilung-schild-groessen.test.ts)
-heal.amount                suture       400 -> 200      geschuetzt [4 Prueffaelle] (suture.test.ts)
-heal.fromShieldPercent     suture       100 -> 50       geschuetzt [3 Prueffaelle] (suture.test.ts)
-heal.overMs                poultice     6000 -> 3000     geschuetzt [2 Prueffaelle] (poultice.test.ts)
-heal.perMissingPercent     mend         30 -> 15       geschuetzt [3 Prueffaelle] (mend.test.ts)
-heal.tickIntervalMs        poultice     1000 -> 500      geschuetzt [1 Prueffall] (poultice.test.ts)
-reflect.durationMs         riposte      8000 -> 4000     geschuetzt [1 Prueffall] (riposte.test.ts)
-reflect.sharePercent       riposte      50 -> 25       geschuetzt [4 Prueffaelle] (riposte.test.ts)
-resourceGain.heat          bellows      8 -> 4        geschuetzt [4 Prueffaelle] (slag.test.ts)
-resourceGain.heat          ember        2 -> 1        geschuetzt [1 Prueffall] (letzte-drei-groessen.test.ts)
-resourceGain.heat          kindle       3 -> 1        geschuetzt [33 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-shield.amount              crucible-skin 1800 -> 900      geschuetzt [1 Prueffall] (crucible-skin.test.ts)
-shield.amount              crust        900 -> 450      geschuetzt [7 Prueffaelle] (instance-2-signaturen.test.ts, runaway-beatable.test.ts, suture.test.ts)
-shield.amount              plate        2400 -> 1200     geschuetzt [1 Prueffall] (riposte.test.ts)
-shield.amount              scab         200 -> 100      geschuetzt [3 Prueffaelle] (heilung-schild-groessen.test.ts, suture.test.ts)
-shield.durationMs          crucible-skin 6000 -> 3000     geschuetzt [2 Prueffaelle] (crucible-skin.test.ts)
-shield.durationMs          crust        12000 -> 6000     geschuetzt [1 Prueffall] (checksum-effectiveness.test.ts)
-shield.durationMs          plate        15000 -> 7500     geschuetzt [4 Prueffaelle] (oberste-ebene-rest.test.ts, schild-dauer.test.ts)
-shield.durationMs          scab         8000 -> 4000     geschuetzt [2 Prueffaelle] (schild-dauer.test.ts)
-shield.maxStacks           crucible-skin 1 -> 0        geschuetzt [4 Prueffaelle] (combat.test.ts, crucible-skin.test.ts, data.test.ts)
-shield.maxStacks           crust        3 -> 1        geschuetzt [10 Prueffaelle] (boss-runaway.test.ts, progress-direction.test.ts, runaway-beatable.test.ts)
-shield.maxStacks           plate        1 -> 0        geschuetzt [3 Prueffaelle] (combat.test.ts, data.test.ts, riposte.test.ts)
-shield.maxStacks           scab         3 -> 1        geschuetzt [3 Prueffaelle] (coagulation-scab.test.ts, heilung-schild-groessen.test.ts, suture.test.ts)
-spender.bonusMultiplier    pyre         2 -> 1        geschuetzt [31 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-spender.bonusMultiplier    pyroclasm    2 -> 1        geschuetzt [3 Prueffaelle] (pyroclasm-spender.test.ts)
-spender.bonusThreshold     pyre         15 -> 7        geschuetzt [22 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-spender.bonusThreshold     pyroclasm    15 -> 7        geschuetzt [4 Prueffaelle] (pyroclasm-spender.test.ts)
-spender.consumesAll        pyre         True -> False    geschuetzt [24 Prueffaelle] (combat.test.ts, devtools-replay.test.ts, instance-1-signaturen.test.ts...)
-spender.consumesAll        pyroclasm    True -> False    RUST-GEPRUEFT (sim/build.rs:671 bricht ab) — vitest schweigt
-spender.damagePerPoint     pyre         12 -> 6        geschuetzt [35 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)
-spender.damagePerPoint     pyroclasm    12 -> 6        geschuetzt [5 Prueffaelle] (pyroclasm-spender.test.ts)
-spender.resource           pyre         heat -> rota-mutation-ungueltig geschuetzt [STRUKTUR, nicht Groesse] [45 Prueffaelle] (combat.test.ts, composition-preview.test.ts, devtools-replay.test.ts...)
-spender.resource           pyroclasm    heat -> rota-mutation-ungueltig RUST-GEPRUEFT (sim/build.rs:664 bricht ab) — vitest schweigt
-synergy.partner            canker       fester -> searing  geschuetzt [6 Prueffaelle] (factor-triggers.test.ts, synergy.test.ts)
-synergy.windowGcds         canker       2 -> 1        geschuetzt [3 Prueffaelle] (synergy-window.test.ts)
+# Welche Groesse ist wogegen geprueft? — Rohdaten zu docs/GROESSEN-ABDECKUNG.md
+#
+# Eine Zeile je Feld-Zauber-Paar:
+#
+#   FELD  ZAUBER  ALT -> NEU  [RICHTUNG]  URTEIL  || GEGENRICHTUNG: ZUSTAND
+#
+# RICHTUNG ist aus ALT und NEU gerechnet: SENKEN, ANHEBEN oder TAUSCH (bei
+# Werten, die keine Groessen sind, etwa control.effect).
+#
+# GEGENRICHTUNG hat genau drei Zustaende:
+#
+#   gemessen/gedeckt    die andere Richtung wurde gefahren und faerbte
+#   gemessen/offen      sie wurde gefahren und faerbte NICHT
+#   nicht gemessen      sie wurde nie gefahren
+#   nicht anwendbar     der Wert ist keine Groesse (TAUSCH-Zeilen)
+#
+# WARUM DIE SPALTE UEBERALL 'nicht gemessen' ZEIGT (Issue #1094): Sie tut es
+# nicht ueberall — drei Paare sind nachgemessen. Der Rest ist der ehrliche
+# Ausgangszustand. Die Vollmessung hat je Paar EINE Richtung gefahren, und bei
+# den Zahlen-Groessen war das ausnahmslos die Senkung: 'tools/groessen-hebel.py'
+# rechnet 'vorher // 2' beziehungsweise '1 if vorher == 0'. Eine Spalte, die
+# nach dem Umbau ueberall 'gedeckt' zeigt, waere der Beweis, dass niemand
+# gemessen hat.
+#
+# ZEILEN MIT '#' SIND KOMMENTAR. 'grep -cvE "^#|^$"' zaehlt weiter die Paare.
+buff.factor                aether       2 -> 1            [SENKEN]  RUST-GEPRUEFT (sim/tests/parity_aether.rs, Pruefsumme Takt 150) — vitest meldet nur den Mess-Waechter  || GEGENRICHTUNG: nicht gemessen
+buff.factor                distil       2 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.factor                flashpoint   2 -> 1            [SENKEN]  geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.factor                griplock     2 -> 1            [SENKEN]  geschuetzt [3 Prueffaelle] (buff-ersetzung-ueber-zauber.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.factor                quicksilver  2 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.factor                slag         1.5 -> 0.75         [SENKEN]  geschuetzt [10 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, faktor-untergrenze.test.ts, slag.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.factor                virulence    2 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  aether       8 -> 4            [SENKEN]  RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  distil       4 -> 2            [SENKEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  flashpoint   3 -> 1            [SENKEN]  geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  griplock     4 -> 2            [SENKEN]  geschuetzt [2 Prueffaelle] (buff-fenster-und-art.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  quicksilver  4 -> 2            [SENKEN]  geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  slag         4 -> 2            [SENKEN]  geschuetzt [6 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.gcds                  virulence    4 -> 2            [SENKEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  aether       0 -> 1            [ANHEBEN]  RUST-GEPRUEFT (sim/tests/parity_aether.rs, dieselbe Aufzeichnung) — vitest meldet nur den Mess-Waechter  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  distil       0 -> 1            [ANHEBEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  flashpoint   0 -> 1            [ANHEBEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  griplock     0 -> 1            [ANHEBEN]  geschuetzt [1 Prueffall] (buff-ersetzung-ueber-zauber.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  quicksilver  0 -> 1            [ANHEBEN]  geschuetzt [1 Prueffall] (buff-fenster-und-art.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  slag         1 -> 0            [SENKEN]  geschuetzt [4 Prueffaelle] (buff-expire-log.test.ts, buff-stapelung-ueber-zauber.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.kind                  virulence    0 -> 1            [ANHEBEN]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht gemessen
+buff.target                aether       cdreduce -> tick         [TAUSCH]  RUST-GEPRUEFT (sim/tests/parity_aether.rs; zusaetzlich sim/tests/buff_targets.rs) — vitest meldet nur den Mess-Waechter  || GEGENRICHTUNG: nicht anwendbar
+buff.target                distil       cdreduce -> tick         [TAUSCH]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+buff.target                flashpoint   resource -> tick         [TAUSCH]  geschuetzt [2 Prueffaelle] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+buff.target                griplock     control -> tick         [TAUSCH]  geschuetzt [3 Prueffaelle] (buff-ersetzung-ueber-zauber.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+buff.target                quicksilver  convert -> tick         [TAUSCH]  geschuetzt [1 Prueffall] (umwandlung-groessen.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+buff.target                slag         cap -> tick         [TAUSCH]  geschuetzt [8 Prueffaelle] (buff-stapelung-ueber-zauber.test.ts, slag.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+buff.target                virulence    stack -> tick         [TAUSCH]  geschuetzt [1 Prueffall] (buff-groessen-540.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+control.amountMs           capstone     2000 -> 1000         [SENKEN]  geschuetzt [2 Prueffaelle] (fixation-ausgeber.test.ts, capstone-senkung.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.amountPercent      capstone     10 -> 5            [SENKEN]  geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts)  || GEGENRICHTUNG: gemessen/gedeckt (10 -> 11, parity_fixation_spells)
+control.amountMs           latch        4000 -> 2000         [SENKEN]  geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.amountMs           stall        2000 -> 1000         [SENKEN]  geschuetzt [6 Prueffaelle] (kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.amountMs           pin          2000 -> 1000         [SENKEN]  geschuetzt [2 Prueffaelle] (capstone-senkung.test.ts, pin-kontrolle.test.ts) + RUST (parity_pin.rs)  || GEGENRICHTUNG: nicht gemessen
+control.amountMs           stay         3000 -> 1500         [SENKEN]  geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.amountPerPoint     wedge        8 -> 4            [SENKEN]  geschuetzt [1 Prueffall] (wedge.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.amountPercent      anchor       10 -> 5            [SENKEN]  geschuetzt [4 Prueffaelle] (capstone-senkung.test.ts, fixation-ausgeber.test.ts)  || GEGENRICHTUNG: gemessen/gedeckt (10 -> 11, anchor-phasenschwelle.test.ts u.a.)
+control.cost               anchor       6 -> 3            [SENKEN]  geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.cost               capstone     8 -> 4            [SENKEN]  geschuetzt [1 Prueffall] (control-spent-log.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.cost               latch        2 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (fixation-ausgeber.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.cost               stall        4 -> 2            [SENKEN]  geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, kontroll-leitung.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.cost               pin          3 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (pin-kontrolle.test.ts) + RUST (parity_pin.rs)  || GEGENRICHTUNG: nicht gemessen
+control.cost               stay         3 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (kontroll-leitung.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.cost               wedge        3 -> 1            [SENKEN]  geschuetzt [2 Prueffaelle] (fixation-ausgeber.test.ts)  || GEGENRICHTUNG: nicht gemessen
+control.effect             anchor       holdPhase -> slowCast     [TAUSCH]  geschuetzt [1 Prueffall] (anchor-phasenschwelle.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+control.effect             capstone     allThree -> holdPhase    [TAUSCH]  geschuetzt [2 Prueffaelle] (control-spent-log.test.ts, wedge.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+control.effect             latch        delayStrike -> holdPhase    [TAUSCH]  geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+control.effect             stall        slowCast -> holdPhase    [TAUSCH]  geschuetzt [7 Prueffaelle] (boss-cast-display.test.ts, kontroll-groessen.test.ts, kontrolle-senkt-schaden.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+control.effect             pin          makeInterruptible -> holdPhase    [TAUSCH]  geschuetzt [3 Prueffaelle] (pin-kontrolle.test.ts) + RUST (parity_pin.rs: damageTaken 96 statt 64)  || GEGENRICHTUNG: nicht anwendbar
+control.effect             stay         delayStrike -> holdPhase    [TAUSCH]  geschuetzt [2 Prueffaelle] (kontroll-wirkung.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+control.effect             wedge        convertToDamage -> holdPhase    [TAUSCH]  geschuetzt [6 Prueffaelle] (control-spent-log.test.ts, efflux.test.ts, wedge.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+conversion.durationMs      crucible-skin 6000 -> 3000         [SENKEN]  geschuetzt [1 Prueffall] (crucible-skin.test.ts)  || GEGENRICHTUNG: nicht gemessen
+conversion.durationMs      temper       10000 -> 5000         [SENKEN]  geschuetzt [2 Prueffaelle] (umwandlung-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+conversion.sharePercent    crucible-skin 50 -> 25           [SENKEN]  geschuetzt [1 Prueffall] (crucible-skin.test.ts)  || GEGENRICHTUNG: nicht gemessen
+conversion.sharePercent    temper       25 -> 12           [SENKEN]  geschuetzt [4 Prueffaelle] (umwandlung-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+convert.from               efflux       cooldown -> rota-mutation-ungueltig [TAUSCH]  geschuetzt [STRUKTUR, nicht Groesse] [3 Prueffaelle] (combat.test.ts, data.test.ts, efflux.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+convert.perSecond          efflux       12 -> 6            [SENKEN]  geschuetzt [2 Prueffaelle] (letzte-drei-groessen.test.ts)  || GEGENRICHTUNG: gemessen/gedeckt (12 -> 13, letzte-drei-groessen.test.ts)
+decayWard.durationMs       decay        6000 -> 3000         [SENKEN]  geschuetzt [2 Prueffaelle] (putrefaction-fenster.test.ts)  || GEGENRICHTUNG: nicht gemessen
+decayWard.permillePerStack decay        40 -> 20           [SENKEN]  geschuetzt [2 Prueffaelle] (putrefaction-fenster.test.ts) + RUST (parity_decay_ward.rs: damageTaken)  || GEGENRICHTUNG: nicht gemessen
+decayCap.bonus             putrid-bloom 2 -> 1            [SENKEN]  geschuetzt [3 Prueffaelle] (putrefaction-fenster.test.ts) + RUST (parity_putrid_bloom.rs)  || GEGENRICHTUNG: gemessen/offen (2 -> 3 faerbt keinen benannten Prueffall, Refs #1094)
+decayCap.durationMs        putrid-bloom 10000 -> 5000         [SENKEN]  geschuetzt [4 Prueffaelle] (putrefaction-fenster.test.ts)  || GEGENRICHTUNG: nicht gemessen
+decay.stacks               blight       1 -> 0            [SENKEN]  geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, decay-stack-percent.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+decay.stacks               canker       1 -> 0            [SENKEN]  geschuetzt [24 Prueffaelle] (buff-targets.test.ts, combat.test.ts, composition-preview.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+dot.decayPerTick           rot          1 -> 0            [SENKEN]  geschuetzt [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.durationMs             cinder       4000 -> 2000         [SENKEN]  geschuetzt [1 Prueffall] (dot-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.durationMs             rot          4000 -> 2000         [SENKEN]  geschuetzt [5 Prueffaelle] (rot-decay-per-tick.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.durationMs             searing      6000 -> 3000         [SENKEN]  geschuetzt [4 Prueffaelle] (bindungen-im-nachlauf.test.ts, combat.test.ts, data.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+dot.durationMs             smoulder     12000 -> 6000         [SENKEN]  geschuetzt [33 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+dot.refreshMode            cinder       reset -> rota-mutation-ungueltig [TAUSCH]  geschuetzt [STRUKTUR, nicht Groesse] [4 Prueffaelle] (combat.test.ts, data.test.ts, dot-groessen.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+dot.refreshMode            rot          reset -> rota-mutation-ungueltig [TAUSCH]  geschuetzt [STRUKTUR, nicht Groesse] [8 Prueffaelle] (combat.test.ts, data.test.ts, rot-decay-per-tick.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+dot.refreshMode            searing      reset -> rota-mutation-ungueltig [TAUSCH]  geschuetzt [STRUKTUR, nicht Groesse] [5 Prueffaelle] (bindungen-im-nachlauf.test.ts, combat.test.ts, data.test.ts...)  || GEGENRICHTUNG: nicht anwendbar
+dot.refreshMode            smoulder     reset -> rota-mutation-ungueltig [TAUSCH]  geschuetzt [STRUKTUR, nicht Groesse] [66 Prueffaelle] (active-dots.test.ts, buff-targets.test.ts, checksum-effectiveness.test.ts...)  || GEGENRICHTUNG: nicht anwendbar
+dot.tickDamage             cinder       30 -> 15           [SENKEN]  geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.tickDamage             rot          25 -> 12           [SENKEN]  geschuetzt [3 Prueffaelle] (letzte-drei-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.tickDamage             searing      90 -> 45           [SENKEN]  geschuetzt [3 Prueffaelle] (bindungen-im-nachlauf.test.ts, dot-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.tickDamage             smoulder     40 -> 20           [SENKEN]  geschuetzt [27 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+dot.tickIntervalMs         cinder       1000 -> 500          [SENKEN]  geschuetzt [2 Prueffaelle] (dot-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.tickIntervalMs         rot          1000 -> 500          [SENKEN]  geschuetzt [4 Prueffaelle] (rot-decay-per-tick.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.tickIntervalMs         searing      2000 -> 1000         [SENKEN]  geschuetzt [3 Prueffaelle] (bindungen-im-nachlauf.test.ts, dot-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+dot.tickIntervalMs         smoulder     2000 -> 1000         [SENKEN]  geschuetzt [39 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+heal.amount                crucible-skin 2000 -> 1000         [SENKEN]  geschuetzt [1 Prueffall] (crucible-skin.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.amount                mend         800 -> 400          [SENKEN]  geschuetzt [2 Prueffaelle] (mend.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.amount                poultice     1800 -> 900          [SENKEN]  geschuetzt [4 Prueffaelle] (poultice.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.amount                salve        1500 -> 750          [SENKEN]  geschuetzt [1 Prueffall] (heilung-schild-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.amount                suture       400 -> 200          [SENKEN]  geschuetzt [4 Prueffaelle] (suture.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.fromShieldPercent     suture       100 -> 50           [SENKEN]  geschuetzt [3 Prueffaelle] (suture.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.overMs                poultice     6000 -> 3000         [SENKEN]  geschuetzt [2 Prueffaelle] (poultice.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.perMissingPercent     mend         30 -> 15           [SENKEN]  geschuetzt [3 Prueffaelle] (mend.test.ts)  || GEGENRICHTUNG: nicht gemessen
+heal.tickIntervalMs        poultice     1000 -> 500          [SENKEN]  geschuetzt [1 Prueffall] (poultice.test.ts)  || GEGENRICHTUNG: nicht gemessen
+reflect.durationMs         riposte      8000 -> 4000         [SENKEN]  geschuetzt [1 Prueffall] (riposte.test.ts)  || GEGENRICHTUNG: nicht gemessen
+reflect.sharePercent       riposte      50 -> 25           [SENKEN]  geschuetzt [4 Prueffaelle] (riposte.test.ts)  || GEGENRICHTUNG: nicht gemessen
+resourceGain.heat          bellows      8 -> 4            [SENKEN]  geschuetzt [4 Prueffaelle] (slag.test.ts)  || GEGENRICHTUNG: nicht gemessen
+resourceGain.heat          ember        2 -> 1            [SENKEN]  geschuetzt [1 Prueffall] (letzte-drei-groessen.test.ts)  || GEGENRICHTUNG: nicht gemessen
+resourceGain.heat          kindle       3 -> 1            [SENKEN]  geschuetzt [33 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+shield.amount              crucible-skin 1800 -> 900          [SENKEN]  geschuetzt [1 Prueffall] (crucible-skin.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.amount              crust        900 -> 450          [SENKEN]  geschuetzt [7 Prueffaelle] (instance-2-signaturen.test.ts, runaway-beatable.test.ts, suture.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.amount              plate        2400 -> 1200         [SENKEN]  geschuetzt [1 Prueffall] (riposte.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.amount              scab         200 -> 100          [SENKEN]  geschuetzt [3 Prueffaelle] (heilung-schild-groessen.test.ts, suture.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.durationMs          crucible-skin 6000 -> 3000         [SENKEN]  geschuetzt [2 Prueffaelle] (crucible-skin.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.durationMs          crust        12000 -> 6000         [SENKEN]  geschuetzt [1 Prueffall] (checksum-effectiveness.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.durationMs          plate        15000 -> 7500         [SENKEN]  geschuetzt [4 Prueffaelle] (oberste-ebene-rest.test.ts, schild-dauer.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.durationMs          scab         8000 -> 4000         [SENKEN]  geschuetzt [2 Prueffaelle] (schild-dauer.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.maxStacks           crucible-skin 1 -> 0            [SENKEN]  geschuetzt [4 Prueffaelle] (combat.test.ts, crucible-skin.test.ts, data.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.maxStacks           crust        3 -> 1            [SENKEN]  geschuetzt [10 Prueffaelle] (boss-runaway.test.ts, progress-direction.test.ts, runaway-beatable.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.maxStacks           plate        1 -> 0            [SENKEN]  geschuetzt [3 Prueffaelle] (combat.test.ts, data.test.ts, riposte.test.ts)  || GEGENRICHTUNG: nicht gemessen
+shield.maxStacks           scab         3 -> 1            [SENKEN]  geschuetzt [3 Prueffaelle] (coagulation-scab.test.ts, heilung-schild-groessen.test.ts, suture.test.ts)  || GEGENRICHTUNG: nicht gemessen
+spender.bonusMultiplier    pyre         2 -> 1            [SENKEN]  geschuetzt [31 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+spender.bonusMultiplier    pyroclasm    2 -> 1            [SENKEN]  geschuetzt [3 Prueffaelle] (pyroclasm-spender.test.ts)  || GEGENRICHTUNG: nicht gemessen
+spender.bonusThreshold     pyre         15 -> 7            [SENKEN]  geschuetzt [22 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+spender.bonusThreshold     pyroclasm    15 -> 7            [SENKEN]  geschuetzt [4 Prueffaelle] (pyroclasm-spender.test.ts)  || GEGENRICHTUNG: nicht gemessen
+spender.consumesAll        pyre         True -> False        [TAUSCH]  geschuetzt [24 Prueffaelle] (combat.test.ts, devtools-replay.test.ts, instance-1-signaturen.test.ts...)  || GEGENRICHTUNG: nicht anwendbar
+spender.consumesAll        pyroclasm    True -> False        [TAUSCH]  RUST-GEPRUEFT (sim/build.rs:671 bricht ab) — vitest schweigt  || GEGENRICHTUNG: nicht anwendbar
+spender.damagePerPoint     pyre         12 -> 6            [SENKEN]  geschuetzt [35 Prueffaelle] (combat.test.ts, data.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht gemessen
+spender.damagePerPoint     pyroclasm    12 -> 6            [SENKEN]  geschuetzt [5 Prueffaelle] (pyroclasm-spender.test.ts)  || GEGENRICHTUNG: nicht gemessen
+spender.resource           pyre         heat -> rota-mutation-ungueltig [TAUSCH]  geschuetzt [STRUKTUR, nicht Groesse] [45 Prueffaelle] (combat.test.ts, composition-preview.test.ts, devtools-replay.test.ts...)  || GEGENRICHTUNG: nicht anwendbar
+spender.resource           pyroclasm    heat -> rota-mutation-ungueltig [TAUSCH]  RUST-GEPRUEFT (sim/build.rs:664 bricht ab) — vitest schweigt  || GEGENRICHTUNG: nicht anwendbar
+synergy.partner            canker       fester -> searing      [TAUSCH]  geschuetzt [6 Prueffaelle] (factor-triggers.test.ts, synergy.test.ts)  || GEGENRICHTUNG: nicht anwendbar
+synergy.windowGcds         canker       2 -> 1            [SENKEN]  geschuetzt [3 Prueffaelle] (synergy-window.test.ts)  || GEGENRICHTUNG: nicht gemessen

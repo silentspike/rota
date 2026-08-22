@@ -234,6 +234,7 @@ describe('Das Instanz-Objekt und die Freischaltung (12.7)', () => {
       'instance-2',
       'instance-3',
       'instance-4',
+      'instance-5',
     ]);
   });
 
