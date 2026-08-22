@@ -140,8 +140,13 @@ Die Entscheidung des Auftraggebers dazu:
 nicht als Vorschlag. Was **entschieden** ist: welcher Zauber es gibt, welche Rolle er in der
 Schul-Mechanik spielt, und warum er fehlt.
 
-**Die Abklingzeiten folgen dem Muster der vorhandenen:** 1,5 s für Füller, 3–15 s für Wirkungen,
-20–45 s für Höhepunkte. Auch das ist eine Ordnung, keine Balance.
+**Die Abklingzeiten folgen dem Muster der vorhandenen:** 1,5 s für Füller, 2–15 s für Wirkungen,
+18–60 s für Höhepunkte. Auch das ist eine Ordnung, keine Balance.
+
+> **Nachgemessen am 2026-08-22** über alle 58 Zauber mit `cooldownMs`: Die Spanne reicht von
+> 1,5 s bis 60 s. Vorher stand hier „3–15 s" und weiter unten „5–15 s" für dieselbe Sache, dazu
+> „20–45 s" gegen „30–45 s" — vier Zahlen für zwei Gruppen. Die Untergrenzen trafen `canker`
+> (2 s) nicht, die Obergrenzen `aether` (60 s) nicht.
 
 **Zwei Namen sind ersetzt**, weil sie die Regel „ein- bis zweisilbig, passt auf ein 48-Pixel-Symbol"
 brechen: `FORGE` → `FORGE`, `PYROCLASM` → `PYROCLASM`.
@@ -207,8 +212,8 @@ Mechanik. Sie hing an einem Schalter, nicht an einem Feld.
 ## Was ich dabei nicht entschieden habe
 
 **Alle Zahlen sind Platzhalter.** Sie stehen da, damit der Balance-Läufer etwas zu messen hat —
-nicht als Vorschlag. Die Abklingzeiten folgen dem Muster der vorhandenen (1,5 s für Füller, 5–15 s
-für Wirkungen, 30–45 s für Höhepunkte).
+nicht als Vorschlag. Die Abklingzeiten folgen dem Muster der vorhandenen (1,5 s für Füller, 2–15 s
+für Wirkungen, 18–60 s für Höhepunkte) — dieselben Zahlen wie oben, nachgemessen am 2026-08-22.
 
 **Die Namen sind englisch und ein- bis zweisilbig**, wie die vorhandenen (GAME-DESIGN: „Ein
 Zaubername steht auf einem Symbol von 48 Pixeln"). `FORGE` und `PYROCLASM` brechen das

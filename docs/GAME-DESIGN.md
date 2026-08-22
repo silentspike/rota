@@ -460,12 +460,28 @@ Fließkomma-Multiplikation ist nicht assoziativ, und beide Seiten müssen auf de
 
 ### 6.4 Zahlen-Rahmen
 
-| Größe                      | Festlegung                                                                                                                                                                                                                                    |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Schadens-Größenordnung** | ~100 Schaden auf Stufe 1, einige zehntausend auf Stufe 100. Vier- bis fünfstellige Zahlen bleiben im Kampf lesbar                                                                                                                             |
-| **Wachstum**               | **Gleichmäßig ~5 % je Stufe.** Über 100 Stufen ergibt das Faktor ~130. Jede Stufe fühlt sich gleich wertvoll an, alte Inhalte werden verlässlich leichter. Der genaue Prozentsatz wird am Simulator feinjustiert                              |
-| **Abklingzeiten**          | **3–180 Sekunden, fein abgestuft, NUR ganze Sekunden.** Keine festen Klassen — jeder Zauber bekommt seinen individuell gewählten Wert. Die unregelmäßigen Überlagerungen machen die Rotation interessant und schwerer zu lernen (**gewollt**) |
-| **Globale Wartezeit**      | **1,5 s**, per Talent senkbar bis ca. 1,0 s                                                                                                                                                                                                   |
+| Größe                      | Festlegung                                                                                                                                                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Schadens-Größenordnung** | ~100 Schaden auf Stufe 1, einige zehntausend auf Stufe 100. Vier- bis fünfstellige Zahlen bleiben im Kampf lesbar                                                                                                                     |
+| **Wachstum**               | **Gleichmäßig ~5 % je Stufe.** Von Stufe 1 auf 100 ergibt das Faktor **125** (99 Schritte). Jede Stufe fühlt sich gleich wertvoll an, alte Inhalte werden verlässlich leichter. Der genaue Prozentsatz wird am Simulator feinjustiert |
+| **Abklingzeiten**          | **1,5 s oder ganze Sekunden bis 60 s.** Keine festen Klassen — jeder Zauber bekommt seinen individuell gewählten Wert. Die unregelmäßigen Überlagerungen machen die Rotation interessant und schwerer zu lernen (**gewollt**)         |
+| **Globale Wartezeit**      | **1,5 s**, per Talent senkbar bis ca. 1,0 s                                                                                                                                                                                           |
+
+> **Hier stand „3–180 Sekunden, NUR ganze Sekunden"** (korrigiert am 2026-08-22). Beide Hälften
+> trafen den Bestand nicht: Gemessen reichen die Abklingzeiten von 1,5 s bis 60 s, und 14 der 58
+> Zauber tragen keine ganze Sekunde.
+>
+> **Die 1,5 s sind eine Konvention und keine Ausnahme.** Ein Zauber mit `cooldownMs: 1500` hat
+> keine eigene Abklingzeit, sondern die des GCD — `gcd.ts:14` setzt `GCD_MS = 1500`, und
+> `session.ts:545` nennt den Zusammenhang ausdrücklich. Dreizehn Füller sind so gebaut.
+> `ZAUBER-RASTER.md` kennt diese Konvention („1,5 s für Füller"), GAME-DESIGN kannte sie nicht.
+>
+> **Der einzige Wert, den auch die Konvention nicht deckt, ist `purge` mit 7500 ms.** Weder ganze
+> Sekunde noch GCD. Er wird hier nicht wegkorrigiert: Eine Zahl zu ändern, ohne zu wissen, warum
+> sie so ist, ist schlimmer als sie stehen zu lassen. Sie gehört in den Balance-Lauf.
+>
+> Die Obergrenze 180 s wird von keinem Zauber erreicht — als Ziel gelesen ist sie richtig und der
+> Bestand unfertig. Deshalb steht oben, was gebaut ist, und nicht, was möglich wäre.
 
 > **Warnung aus der Genre-Erfahrung:** WoW musste seine Zahlen zweimal zurücksetzen (2014, 2018),
 > Diablo 3 landete bei Billionen. Bei 5 % je Stufe bleiben wir weit davon entfernt — aber die
@@ -683,10 +699,16 @@ Daraus folgt eine Grenze, die in der Zahl selbst steckt:
 
 Bei 2000 ms Wirkzeit bleiben allen anderen Zaubern genau **500 ms** Fenster.
 
-> **Der Grenzfall liegt auf der Untergrenze dieses Kapitels.** 1,5–2,5 s ist der Korridor; bei
-> genau 1,5 s existiert die Abbruch-Entscheidung für alle Zauber außer einem nicht mehr. Das ist
-> keine Fehlfunktion, sondern folgt zwingend aus der Regel — aber es ist die Zahl, an der die
-> Mechanik hängt.
+> **Der Grenzfall liegt auf der Untergrenze des damaligen Korridors.** 1,5–2,5 s war die Spanne,
+> als dieser Abschnitt am 2026-08-05 gemessen wurde; bei genau 1,5 s existiert die
+> Abbruch-Entscheidung für alle Zauber außer einem nicht mehr. Das ist keine Fehlfunktion,
+> sondern folgt zwingend aus der Regel — aber es ist die Zahl, an der die Mechanik hängt.
+>
+> **Einen Tag später ist genau deshalb entschieden worden, sie nicht mehr zu verwenden**
+> (7.2, „ENTSCHIEDEN am 2026-08-06"): Die Spanne ist seither **2,3–3,0 s**, und was nach altem
+> Korridor 1,5–1,9 s bekommen hätte, bekommt gar keine Wirkzeit. Die Rechnung hier bleibt
+> stehen, weil sie die Begründung für diese Entscheidung IST — nicht, weil der Korridor noch
+> gilt.
 
 **Für E10 heißt das:** Ein Zauber, dessen Wirkzeit die Verpflichtung („kann ich mir das gerade
 leisten?") tatsächlich erzeugen soll, braucht **deutlich mehr als eine globale Wartezeit**. Wer ihm
@@ -732,9 +754,9 @@ Basis-Wirkzeit   bei 50 % Tempo   Fenster
     2,50 s           1670 ms       170 ms      obere Grenze des Korridors
 ```
 
-Selbst am **oberen** Ende von 1,5–2,5 s bleiben 170 ms — ein Neuntel dessen, was ohne Tempo zur
-Verfügung steht. Ein längerer Zauber ist also kein Ausweg, sondern nur eine Verzögerung des
-Problems.
+Selbst am **oberen** Ende des damaligen Korridors von 1,5–2,5 s bleiben 170 ms — ein Neuntel
+dessen, was ohne Tempo zur Verfügung steht. Ein längerer Zauber ist also kein Ausweg, sondern nur
+eine Verzögerung des Problems. (Die heutige Spanne ist 2,3–3,0 s; die Rechnung führte zu ihr.)
 
 **Damit stehen zwei Wege offen, und keiner ist entschieden:**
 
@@ -955,9 +977,19 @@ dass die Taste oben links liegt.
 
 > Weicht bewusst von den Referenzbildern ab — die zeigen lange Reihen mittig.
 
-**Alle 26 Belegungen dauerhaft sichtbar** (zwei komplette Blöcke: direkte und Umschalt-Ebene).
-Grund: Auch die selteneren Zauber brauchen sichtbare Abklingzeiten. Kostet Bildfläche, ist aber für
-die Rotationsplanung nötig.
+**Beide Ebenen dauerhaft sichtbar** — die direkte und die Umschalt-Ebene nebeneinander, nicht
+abwechselnd. Grund: Auch die selteneren Zauber brauchen sichtbare Abklingzeiten. Kostet
+Bildfläche, ist aber für die Rotationsplanung nötig.
+
+> **Hier stand „alle 26 Belegungen dauerhaft sichtbar", und die Zahl war falsch** (korrigiert am
+> 2026-08-22). Die 26 kommt aus 8.1 und beschreibt, was die Tastatur ANBIETET — 13 Tasten mal
+> zwei Ebenen. Freigeschaltet werden nach 12.1 aber nur „12–16" Plätze, und `barSlotLevels` in
+> `data/player/levels.json` baut auf zwölf aus (zwei zu Beginn, zehn durch Aufstieg). Es gibt
+> also nie 26 belegte Plätze, auch nicht im Endzustand.
+>
+> **Die Aussage bleibt und ist nicht die Zahl:** Gemeint ist, dass beide Ebenen gleichzeitig im
+> Bild stehen. Der Absatz darunter — „nur freigeschaltete Plätze zeigen" — widersprach ihr nur
+> scheinbar; er sagt, WIE VIELE Kästen erscheinen, dieser hier sagt, in welcher Anordnung.
 
 **Nur freigeschaltete Plätze zeigen.** Am Anfang zwei Symbole statt 26 leerer Kästen.
 **Auflage:** Positionen müssen von Anfang an fest vergeben werden, damit das Wachsen bestehende
@@ -2295,17 +2327,26 @@ liest, hielte sie für wirksam. Die Ausnahme steht mit Begründung im Code und i
 ### 18.7 Die Zauber-Reihenfolge ist eine Schnittstelle
 
 **Der Index eines Zaubers ist an einigen Stellen eine nackte Zahl** — und dort deutet eine
-Verschiebung der Liste sie still um. Gemessen, damit die Regel weiß, wovon sie handelt:
+Verschiebung der Liste sie still um. Gemessen am 2026-08-22 über alle 86 Dateien unter
+`tests/parity/recordings/`, damit die Regel weiß, wovon sie handelt:
 
-| Wo ein Zauber vorkommt                           | Form                         | Verschiebung     |
-| ------------------------------------------------ | ---------------------------- | ---------------- |
-| 21 von 22 Aufzeichnungen (`bindings`, `presses`) | `spellId` und `slot` — Namen | übersteht sie    |
-| `cast-time.json`, Spalte `playerCasting`         | roher Index (2400 Einträge)  | **bricht**       |
-| Prüffälle mit `const QUENCH = 3`                 | roher Index                  | **bricht still** |
+| Wo ein Zauber vorkommt                   | Form                         | Verschiebung     |
+| ---------------------------------------- | ---------------------------- | ---------------- |
+| alle 68 mit `bindings` (Stand 22.08.)    | `spellId` und `slot` — Namen | übersteht sie    |
+| `cast-time.json`, Spalte `playerCasting` | roher Index (2400 Einträge)  | **bricht**       |
+| Prüffälle mit `const QUENCH = 3`         | roher Index                  | **bricht still** |
 
 **Der teure Fall ist der dritte**, nicht der zweite. Eine Aufzeichnung, die bricht, meldet
 sich: Die Prüfsumme läuft auseinander. Ein Prüffall mit falschem Index meldet sich **nicht**
 — er ist grün und misst einen anderen Zauber.
+
+> **Die erste Zeile stand bis zum 2026-08-22 auf „21 von 22 Aufzeichnungen".** Gemessen sind
+> es heute 68 mit `bindings`-Feld, und **alle** tragen `spellId` — die eine Ausnahme, die der
+> alte Stand nannte, gibt es nicht mehr. Die übrigen 18 der 86 Dateien haben gar kein
+> `bindings`-Feld und fallen nicht unter diese Aussage.
+>
+> Die Zahl war um das Vierfache daneben, weil der Absatz zwar „gemessen" sagte, aber **kein
+> Datum** nannte. Eine IST-Zahl ohne Zeitpunkt liest sich wie eine Eigenschaft.
 
 > Bei `interrupt-losses` fiel eine Verschiebung nur auf, weil an Index 3 zufällig ein
 > Hitze-Zauber landete, der gar keine Unterbrechung platziert. Wäre dort ein anderer
@@ -2831,7 +2872,7 @@ eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen
 | **15–20 Mechanik-Bausteine**   | Die Varianten der neun übernommenen Muster                                                                                                                                             | E4                                                           |
 | **68 Signatur-Regeln**         | Je Boss eine Regel in einem Satz                                                                                                                                                       | E10                                                          |
 | **Boss-Zeitleisten**           | Je Boss: welcher Baustein wann, Phasen-Schwellen, Energieleisten-Takt                                                                                                                  | E10                                                          |
-| **Talent-Inhalte**             | ~50 Punkte, 15 Zweige, Schlüsseltalente je Weg                                                                                                                                         | E5                                                           |
+| **Talent-Inhalte**             | ~50 Punkte, 15 Schul-Zweige plus globaler Baum (18 Wege), Schlüsseltalente je Weg                                                                                                      | E5                                                           |
 | **Gegenstands-Katalog**        | Konkrete Gegenstände, Sätze, legendäre Effekte, Boss-Bindungen                                                                                                                         | E6                                                           |
 | **Erfahrungskurve**            | ~~Wie viel Erfahrung je Stufe~~ — **entschieden am 2026-08-05**, siehe 12.2                                                                                                            | erledigt                                                     |
 | **Endlos-Leiter-Skalierung**   | Wachstum je Stufe, wo die Werte-Obergrenze liegt                                                                                                                                       | E10                                                          |
