@@ -50,10 +50,27 @@ set -u
 
 STAND="${HOME}/.claude/rota-fenster.json"
 
-# Kein Fensterstand, keine Aussage. **Nicht als "frei" behandeln** — ein
-# fehlender Messwert ist kein grüner Messwert (#1049, Kriterium 4). Anders
-# als beim Schalter selbst wird hier aber nichts blockiert, also genügt eine
-# Zeile.
+# **Gibt es das Messfenster in dieser Umgebung überhaupt?** Wo kein
+# `rota-fenster` installiert ist, teilt sich niemand eine Maschine mit
+# anderen Sitzungen — dann ist Schweigen richtig und jede Meldung Rauschen.
+#
+# Das ist kein theoretischer Fall: Der erste Entwurf hat in der CI bei JEDEM
+# Lauf angeschlagen. `/home/runner/.claude/rota-fenster.json` gibt es dort
+# nicht, also lief der Zweig unten — bei `npm test`, `npm run lint`, `build`
+# und `typecheck`, in jedem Durchgang jedes PRs.
+#
+# Damit war die erste Auflage des Issues verletzt: Eine Warnung, die immer
+# kommt, ist von einer abgeschalteten nicht zu unterscheiden. Gefunden habe
+# ich es nicht durch die Gegenprobe — die läuft nur auf DIESER Maschine —,
+# sondern im CI-Protokoll des eigenen Pull Requests.
+if ! command -v rota-fenster > /dev/null 2>&1; then
+  exit 0
+fi
+
+# Hier dagegen IST das Werkzeug da, und dann ist ein fehlender Stand
+# verdächtig. **Nicht als "frei" behandeln** — ein fehlender Messwert ist kein
+# grüner Messwert (#1049, Kriterium 4). Anders als beim Schalter selbst wird
+# hier nichts blockiert, also genügt eine Zeile.
 if [ ! -f "$STAND" ]; then
   echo "  [Fenster] Der Schalterstand ist nicht lesbar ($STAND fehlt)." >&2
   echo "            Ob jemand misst, ist damit UNBEKANNT — sieh selbst nach." >&2
