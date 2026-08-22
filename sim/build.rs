@@ -696,7 +696,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     emit_buff(out, spell, &whose);
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
-    emit_putrefaction(out, spell);
+    emit_putrefaction(out, spell, &whose);
     emit_synergy(out, spell);
     emit_fixation(out, spell, &whose);
     emit_convert(out, spell, &whose);
@@ -1859,7 +1859,7 @@ fn emit_levels(out: &mut String, levels: &Value) {
 /// die Felder gar nicht. Die drei Kalzinations-Zauber und der Unterbrecher
 /// fuehren keines davon.
 /// Die Felder der PUTREFACTION (Issue #97). Fehlen sie, stehen sie auf 0.
-fn emit_putrefaction(out: &mut String, spell: &Value) {
+fn emit_putrefaction(out: &mut String, spell: &Value, whose: &str) {
     let stapel = spell
         .get("decay")
         .and_then(|d| d.get("stacks"))
@@ -1892,14 +1892,40 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .unwrap_or(false);
     let _ = writeln!(out, "        consumes_decay_stacks: {stapel_weg},");
     // HARDEN und SEPSIS (#523).
+    //
+    // **NULL IST HIER DER RICHTIGE VORGABEWERT, und das ist entschieden, nicht
+    // uebersehen** (#1104): Die allermeisten Zauber verlaengern nichts und
+    // sollen das Feld gar nicht erst nennen muessen. `uint()` waere falsch, es
+    // machte das Feld zur Pflicht fuer alle sechzig Zauber. Null heisst
+    // "verlaengert nicht" und wird unten in `combat.rs` genau so gelesen —
+    // anders als bei einer GROESSE, wo eine stille Null wie eine gesetzte
+    // aussaehe.
+    //
+    // **DIE RASTERPRUEFUNG DAGEGEN HAT GEFEHLT.** Bis zum 2026-08-22 waren
+    // dies die einzigen beiden `Ms`-Felder ohne sie, waehrend zwanzig andere
+    // Stellen `is_multiple_of(RASTER_MS)` erzwingen. Gemessen an
+    // `extendShieldMs = 12001`: Bau und beide Pruefsuiten liefen durch, und
+    // der Wert wirkte als 12010 — `combat.ts` vergleicht gegen `seitBeginn`,
+    // das nur Vielfache des Rasters annimmt. Die Angabe log um neun
+    // Millisekunden, und nichts sagte etwas.
     let schild_ms = spell
         .get("extendShieldMs")
         .and_then(Value::as_u64)
         .unwrap_or(0);
+    assert!(
+        schild_ms.is_multiple_of(RASTER_MS),
+        "{whose}: extendShieldMs {schild_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         — der Wert wuerde erst im naechsten Takt wirken"
+    );
     let stapel_ms = spell
         .get("extendDecayMs")
         .and_then(Value::as_u64)
         .unwrap_or(0);
+    assert!(
+        stapel_ms.is_multiple_of(RASTER_MS),
+        "{whose}: extendDecayMs {stapel_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         — der Wert wuerde erst im naechsten Takt wirken"
+    );
     let _ = writeln!(out, "        extend_shield_ms: {schild_ms},");
     let _ = writeln!(out, "        extend_decay_ms: {stapel_ms},");
 }
