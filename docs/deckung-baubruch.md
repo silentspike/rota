@@ -361,6 +361,19 @@ fachlich passende, und das ist selbst der Beleg gegen Last als Ursache. Bei 52, 
 dasselbe Argument nicht in derselben Schärfe; dort könnten einzelne last-bedingte Rote enthalten
 sein, ohne dass sich die Aussage ändert — sie lautet „flächig gedeckt", nicht „genau 52".
 
+**Nachträglich geprüft, und die beiden Rust-Schranken sind sauber:** Keiner der sieben Durchgänge
+hat einen der zwei wanduhr-zusichernden Fälle rot gemacht. `rota_sim_trockenlauf` steht in keiner
+Rot-Liste; `balance` steht in dreien, aber mit den Fällen
+`die_json_ausgabe_ist_lesbar_und_vollstaendig` und `in_schritt_1_streut_nichts` — beide fachlich,
+beide erwartbar bei einer geänderten Spender-Zahl. `ac4_zehntausend_durchgaenge_in_vertretbarer_zeit`
+kommt nicht vor. Gemessen durch Schnitt der roten Namen gegen die `fn`-Namen aus `balance.rs`
+(`comm -12`), nicht durch Ansehen der Liste.
+
+**Was diese Prüfung nicht kann:** Die Zeitschranke ist die Form von Lastfärbung, die eine _Spur_
+hinterlässt — ein Timeout meldet sich anders als eine Zusicherung. Ein Fall, der unter Last aus
+einem anderen Grund kippt (ein Wettlauf, eine Reihenfolge), meldet sich wie ein echter Fehler. Die
+Aussage lautet also: **von der messbaren Form gab es keine.** Nicht: es gab keine.
+
 ### Was hier nicht gemessen ist
 
 Ob die 28 Felder der Gruppe B auf der **TypeScript-Seite** ebenfalls gelesen werden. Gemessen
