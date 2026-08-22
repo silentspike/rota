@@ -48,7 +48,20 @@
 
 set -u
 
-STAND="${HOME}/.claude/rota-fenster.json"
+# **Übersteuerbar, damit die Gegenprobe den echten Stand nicht anfassen muss**
+# (#1081). Der Pfad stand hier fest verdrahtet, und die Gegenprobe hat den
+# echten Eintrag deshalb viermal je Lauf durch einen erfundenen ersetzt und
+# hinterher zurückgeschrieben.
+#
+# Das schützt gegen das Liegenbleiben — nicht gegen das ABLESEN währenddessen.
+# Wer in einem dieser vier Momente `rota-fenster status` gefahren hätte, hätte
+# ein fremdes Fenster gesehen. Dazu: bei SIGKILL läuft kein `trap`, und die
+# Sicherungsdatei lag unter `/work/tmp`, das sich alle Sitzungen teilen.
+#
+# Mit der Übersteuerung entfallen Sicherung, `trap` und alle drei Ausfälle
+# ERSATZLOS. Das ist der Unterschied zu einer Absicherung, die in drei Fällen
+# versagt: Hier gibt es nichts mehr, was versagen könnte.
+STAND="${ROTA_FENSTER_STAND:-${HOME}/.claude/rota-fenster.json}"
 
 # **Gibt es das Messfenster in dieser Umgebung überhaupt?** Wo kein
 # `rota-fenster` installiert ist, teilt sich niemand eine Maschine mit
