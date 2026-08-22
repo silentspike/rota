@@ -557,7 +557,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     // davon war beantwortet.
     let channel_tick = opt_uint(spell, "channelTickMs", &whose, 0);
     assert!(
-        u64::from(channel_tick).is_multiple_of(RASTER_MS),
+        channel_tick.is_multiple_of(RASTER_MS),
         "{whose}: channelTickMs {channel_tick} liegt nicht auf dem \
          {RASTER_MS}-ms-Raster des Spiels — die Teilwirkungen nach der ersten \
          laegen zwischen zwei Takten"
@@ -667,7 +667,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     // aus dem Wert wird.
     let cd_reduction = opt_uint(spell, "cooldownReductionMs", &whose, 0);
     assert!(
-        u64::from(cd_reduction).is_multiple_of(RASTER_MS),
+        cd_reduction.is_multiple_of(RASTER_MS),
         "{whose}: cooldownReductionMs {cd_reduction} liegt nicht auf dem \
          {RASTER_MS}-ms-Raster des Spiels — die verkuerzte Abklingzeit endete \
          zwischen zwei Takten"
