@@ -74,10 +74,17 @@ fn ac1_jeder_boss_traegt_eine_klasse() {
     // Der Ersatz ist ein Wert, der als Instanzname nie gewaehlt wird. Er
     // waechst nicht in den Bestand hinein, und derselbe Fall haelt auch bei
     // Instanz 6.
+    // Der zweite Halbsatz der Meldung ist geprueft und nicht behauptet:
+    // `build.rs:1029` (`pruefe_instanz`) bricht mit einem `assert!`, wenn ein
+    // Boss einen `instance`-Wert traegt, der in keiner der beiden Listen steht;
+    // aufgerufen wird sie in `build.rs:1055` fuer jeden Boss. Er gilt fuer einen
+    // Boss in einer Datei — der Aufruf hier mit einem freien String bricht
+    // nichts, und genau deshalb steht er hier pruefbar.
     assert_eq!(
         BossClass::of("kein-solcher-instanzwert"),
         None,
-        "ein unbekannter Wert hat keine Klasse — und bricht im Bau"
+        "ein unbekannter Wert hat keine Klasse — und ein Boss mit so einem Wert \
+         bricht im Bau (build.rs:1029, aufgerufen in 1055)"
     );
 
     // **Die veraltungssichere Fassung derselben Aussage**, und sie ist der
