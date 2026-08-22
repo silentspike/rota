@@ -160,6 +160,27 @@ Erstellt am 2026-08-22 ohne Lauf, gelesen aus `sim/build.rs`, `sim/src/data.rs` 
 > ungeprüft Tests für etwas, das längst geprüft ist: Die Gruppen sagen, **welche Absicherung
 > sinnvoll wäre**, nicht dass keine existiert.
 
+> **Und `gedeckt` heißt bei einem `BAU`-Feld nicht „auf beiden Seiten geprüft".** Die Spalte
+> _altes Urteil_ stammt aus dem Lauf vom 13.08. Bei den Feldern, die `build.rs` mit `uint()`
+> liest, brach dort der Rust-Bau — die Rust-Suite lief also gar nicht, und die Farbe kam allein
+> aus vitest, das kein `cargo` braucht. Aus `rc != 0` wurde ROT und aus ROT wurde `gedeckt`.
+> Als `BAU` erkannt wurde es nicht, weil die Panic-Erkennung erst am 21.08. dazukam.
+>
+> **Die beiden Kästen sagen dasselbe von zwei Seiten:** `BAU` ist gröber als „ungedeckt",
+> `gedeckt` ist gröber als „geprüft". Wer eine Zeile dieser Tabelle liest, liest ein Urteil mit
+> einem blinden Fleck auf jeder Seite — welcher es ist, hängt an der Spalte.
+
+> **Zeilenverweise in diesem Dokument sind gegen `origin/main` gelesen, nicht gegen einen
+> Arbeitsbaum.** Das steht hier, weil drei Verweise auf `build.rs` es zuerst nicht waren und
+> deshalb je eine Zeile zu hoch standen (2107, 2149, 2204 statt 2106, 2148, 2203). Ursache war
+> eine **einzige** uncommittete Zeile in `build.rs` — ein `"instance-5",` in `SCORED_INSTANCES`
+> bei Zeile 967, weit oberhalb der drei Stellen. Die acht Verweise nach `fight.rs` und `data.rs`
+> waren richtig: Diese Dateien lagen unverändert.
+>
+> Es war also keine Unaufmerksamkeit, sondern ein fehlender Bezugspunkt — und er ist von außen
+> unsichtbar, weil beide Ablesungen für sich stimmen. Prüfen lässt es sich mit
+> `git show origin/main:sim/build.rs | sed -n '2106p'`.
+
 ### Gruppe A — Bauzeit-Zusicherungen: 4 Felder, kein Prüffall möglich
 
 Diese vier werden von `build.rs` gelesen, geprüft und **verworfen**. Sie landen in keiner
@@ -167,7 +188,7 @@ Rust-Struktur; der Simulator sieht sie nie.
 
 | Feld                  | eingelesen in   | Zusicherung                      | zulässige Werte |
 | --------------------- | --------------- | -------------------------------- | --------------- |
-| `convert.from`        | `build.rs:2107` | `assert_eq!(from, "cooldown")`   | genau einer     |
+| `convert.from`        | `build.rs:2106` | `assert_eq!(from, "cooldown")`   | genau einer     |
 | `spender.resource`    | `build.rs:836`  | `assert_eq!(named, resource_id)` | genau einer     |
 | `spender.consumesAll` | `build.rs:843`  | `assert!(consumes_all)`          | nur `true`      |
 | `dot.refreshMode`     | `build.rs:789`  | `assert_eq!(mode, "reset")`      | nur `"reset"`   |
@@ -217,7 +238,7 @@ Fundstelle:
 eine Zahl im Kampf.
 
 > **`control.amountMs` und `.amountPerPoint` teilen sich ein Rust-Feld, `.amountPercent` nicht.**
-> `build.rs:2149-2161` wählt nach `control.effect` aus, welches JSON-Feld gelesen wird:
+> `build.rs:2148-2161` wählt nach `control.effect` aus, welches JSON-Feld gelesen wird:
 >
 > | `effect`                                                   | gelesenes Feld   | Rust-Feld        |
 > | ---------------------------------------------------------- | ---------------- | ---------------- |
@@ -226,7 +247,7 @@ eine Zahl im Kampf.
 > | `holdPhase`                                                | `amountPercent`  | `amount_percent` |
 >
 > **Ein Prüffall auf `amountMs` deckt `amountPerPoint` mit, aber `amountPercent` nicht** —
-> `data.rs:306` führt es als eigenes Feld, `build.rs:2204` liest es getrennt ein, und
+> `data.rs:306` führt es als eigenes Feld, `build.rs:2203` liest es getrennt ein, und
 > `fight.rs:2591` liest es getrennt aus.
 >
 > **Der Grund steht daneben, und es ist ein Fehler, den es wirklich gab:** Die Wirkungen sprechen
@@ -264,8 +285,108 @@ Geprüft wurde in zwei Schritten:
 gebaut und ungelesen. Die vier aus Gruppe A werden gelesen — nur eben zur Bauzeit und nicht im
 Kampf.
 
+## Sechs der 28 sind wertgedeckt — gemessen am 2026-08-22 (Refs #1076 AC2)
+
+Die Streich-Methode kann bei diesen Feldern nichts sagen. Die **Wertänderung** kann es: Zahl in
+der JSON um eins erhöhen, bauen, den Bestand fahren, die roten Suiten gegen einen Bezugslauf
+abziehen, Datei zurückbauen. Sieben Durchgänge, je 220 Suiten remote gebaut und lokal gefahren.
+
+| Feld                      | Träger            | neu rote Suiten |
+| ------------------------- | ----------------- | --------------: |
+| `spender.damagePerPoint`  | pyre + pyroclasm  |              52 |
+| `spender.bonusThreshold`  | pyre + pyroclasm  |              44 |
+| `spender.bonusMultiplier` | pyre + pyroclasm  |              49 |
+| `convert.perSecond`       | efflux            |               1 |
+| `decayCap.bonus`          | putrid-bloom      |               1 |
+| `control.amountPercent`   | anchor + capstone |               3 |
+
+Die drei Spender-Felder gehen flächig durch Balance, APL, Faktoren und ein Dutzend
+Paritäts-Aufzeichnungen. Die drei anderen treffen genau ihre Stelle: `convert.perSecond` färbt
+`parity_efflux`, `decayCap.bonus` färbt `parity_putrid_bloom`, `control.amountPercent` färbt
+`keystone_partial_control`, `parity_fixation` und `parity_fixation_spells`.
+
+**Damit ist die Rust-Seite dieser sechs Felder geprüft** — was der Kasten oben über den Lauf vom
+13.08. sagt, gilt für jenen Lauf, nicht für den Bestand. Was fehlte, war nie die Deckung, sondern
+eine Methode, die sie sichtbar macht. Ein Werkzeug braucht es dafür nicht: Sieben Änderungen von
+Hand haben gereicht.
+
+### Warum der siebte Durchgang nötig war
+
+Vier der sechs Felder haben **zwei** Träger, und in den ersten sechs Durchgängen waren beide
+zugleich mutiert. Die ganze Deckung hätte damit von je einem kommen können, und der andere wäre
+ungeprüft durchgerutscht — die Form „Mehrheit gesehen, auf alle geschlossen".
+
+Der siebte mutiert deshalb nur `pyroclasm` und nur `capstone`. Ergebnis: `parity_dot_lifetime`
+und `parity_fixation_spells` werden rot, beide Träger sind also einzeln gedeckt. Die Zuordnung
+ist am Inhalt der Suiten gemessen und nicht aus ihrem Namen geschlossen: `parity_dot_lifetime`
+nennt `pyroclasm` sechsmal im Testcode und zweimal in der Aufzeichnung, `parity_fixation_spells`
+nennt `capstone` viermal und einmal.
+
+### Der Bezugslauf war nicht grün, und das gehört dazu
+
+Vor jeder Mutation standen **4 Suiten mit 8 Fällen** rot — Ursache sind vier uncommittete
+Instanz-5-Bossdateien im messenden Arbeitsbaum, belegt durch die Fehlertexte selbst (21 statt 17
+wertungsfähige Bosse, 6 statt 5 Spielinstanzen).
+
+Für das Differenzverfahren ist das unschädlich, und zwar geprüft statt angenommen: Dieselben vier
+Suiten stehen in **jeder** der sieben Rot-Listen, und die Differenz ist mechanisch gebildet
+(`comm -13` gegen die Liste des Bezugslaufs), nicht nach Augenmaß.
+
+### Die Differenz trennt Last nicht von Wert — und die Last ist nicht erfasst
+
+Das Verfahren nimmt jede Suite als _neu rot_, die im Mutationslauf färbt und im Bezugslauf nicht.
+Es sieht dabei nicht, **warum** sie färbt. Drei Schranken im Bestand färben unter Fremdlast rot,
+ohne dass die mutierte Zahl sie erreicht hätte (gemessen am 2026-08-22, Refs #1092):
+
+| Ort                                     | Schranke                                                       |
+| --------------------------------------- | -------------------------------------------------------------- |
+| `sim/tests/balance.rs:186`              | `dauer.as_secs() < 60`                                         |
+| `sim/tests/rota_sim_trockenlauf.rs:291` | `dauer.as_secs() < 5`                                          |
+| `vitest`, Vorgabe, **jeder** TS-Fall    | `testTimeout` 5000 ms — `vite.config.ts:54-57` setzt ihn nicht |
+
+**Die Last während der sieben Durchgänge ist nicht erfasst.** Das Zyklus-Skript hat keine
+protokolliert, und in den Läufen steht keine. Das ist eine **Lücke, keine Null** — wer die Zahlen
+unten prüft, weiß nicht, wie ruhig die Maschine dabei war.
+
+Was es gibt, sind Prozessablesungen aus fremder Hand: Zwischen 08:22 und 08:41 hat der
+Orchestrator viermal nachgesehen, welche Prozesse rechnen, und jedes Mal liefen ausschließlich
+die dieses Arbeitsbaums. Die sieben Rust-Durchgänge lagen zwischen 08:12 und 08:42. Das ist keine
+Lastmessung, aber es beantwortet die engere Frage „lief außer mir jemand" für vier Zeitpunkte im
+Messfenster.
+
+**Die Mitigation ist die Spezifität der Suiten, nicht das Verfahren.** Eine last-bedingte
+Rotfärbung trifft eine **beliebige** Suite — nicht ausgerechnet die, die den mutierten Zauber
+trägt. Bei `convert.perSecond`, `decayCap.bonus` und `control.amountPercent` färbt je genau die
+fachlich passende, und das ist selbst der Beleg gegen Last als Ursache. Bei 52, 44 und 49 trägt
+dasselbe Argument nicht in derselben Schärfe; dort könnten einzelne last-bedingte Rote enthalten
+sein, ohne dass sich die Aussage ändert — sie lautet „flächig gedeckt", nicht „genau 52".
+
+**Nachträglich geprüft, und die beiden Rust-Schranken sind sauber:** Keiner der sieben Durchgänge
+hat einen der zwei wanduhr-zusichernden Fälle rot gemacht. `rota_sim_trockenlauf` steht in keiner
+Rot-Liste; `balance` steht in dreien, aber mit den Fällen
+`die_json_ausgabe_ist_lesbar_und_vollstaendig` und `in_schritt_1_streut_nichts` — beide fachlich,
+beide erwartbar bei einer geänderten Spender-Zahl. `ac4_zehntausend_durchgaenge_in_vertretbarer_zeit`
+kommt nicht vor. Gemessen durch Schnitt der roten Namen gegen die `fn`-Namen aus `balance.rs`
+(`comm -12`), nicht durch Ansehen der Liste.
+
+**Was diese Prüfung nicht kann:** Die Zeitschranke ist die Form von Lastfärbung, die eine _Spur_
+hinterlässt — ein Timeout meldet sich anders als eine Zusicherung. Ein Fall, der unter Last aus
+einem anderen Grund kippt (ein Wettlauf, eine Reihenfolge), meldet sich wie ein echter Fehler. Die
+Aussage lautet also: **von der messbaren Form gab es keine.** Nicht: es gab keine.
+
 ### Was hier nicht gemessen ist
 
 Ob die 28 Felder der Gruppe B auf der **TypeScript-Seite** ebenfalls gelesen werden. Gemessen
 wurden `fight.rs`, `balance.rs` und `gear.rs`, nicht `src/core/`. Für die Frage „ist ein Prüffall
 billig" reicht die Rust-Seite; für die Parität nicht.
+
+Bei der Wertmessung oben kommen drei weitere Lücken dazu:
+
+1. **Die drei Spender-Felder einzeln an `pyroclasm`.** Der siebte Durchgang hat alle drei
+   gleichzeitig mutiert. Belegt ist damit „bei mindestens einem der drei gedeckt", nicht „bei
+   jedem". Zwei Felder in einer Mutation sichern einander nicht.
+2. **Die übrigen 22 Felder der Gruppe B.** Sechs sind gemessen. Dass für die anderen dasselbe
+   gilt, ist eine Vermutung.
+3. **Eine feinere Stufe als eins.** Erhöht wurde um 1, bei `bonusMultiplier` von 2 auf 3. Bei
+   Ganzzahlen ist das die feinste mögliche Änderung — eine Deckung, die erst gröbere Sprünge
+   bemerkt, wäre hier trotzdem nicht von einer feinen zu unterscheiden.
