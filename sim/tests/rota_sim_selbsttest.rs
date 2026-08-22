@@ -165,8 +165,20 @@ fn der_selbsttest_sagt_was_er_nicht_prueft() {
         assert!(stdout.contains(satz), "'{satz}' fehlt in:\n{stdout}");
     }
     // Und die Zahlen, die den Umfang beziffern: geprüfte von vorhandenen.
+    //
+    // **Diese Zeile prüft die falsche Sache, und das ist bekannt.** Die
+    // Fehlermeldung darunter sagt, worum es geht: dass eine Bezugsgröße genannt
+    // wird. Festgenagelt ist aber die ZAHL — und die wächst mit jeder neuen
+    // Aufzeichnung. Am 2026-08-22 stand hier 86 und die Instanz-5-Bosse machten
+    // 90 daraus; der Fall wurde rot, ohne dass an der geprüften Eigenschaft
+    // etwas fehlte.
+    //
+    // Ein Muster wie `der \d+ Dateien` prüfte dasselbe und überlebte den
+    // nächsten Zauber. Der Umbau ist ein eigenes Issue und steht hier bewusst
+    // nicht drin: Wer eine Prüfung im selben Zug ändert, in dem er ihre Ursache
+    // beseitigt, hat sie danach nicht mehr geprüft.
     assert!(
-        stdout.contains("der 86 Dateien"),
+        stdout.contains("der 90 Dateien"),
         "die Bezugsgroesse fehlt — 'x geprueft' ohne 'von wie vielen':\n{stdout}"
     );
 }

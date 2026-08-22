@@ -107,6 +107,10 @@ import eingecheckterVier1 from './recordings/instance4-boss-1.json';
 import eingecheckterVier2 from './recordings/instance4-boss-2.json';
 import eingecheckterVier3 from './recordings/instance4-boss-3.json';
 import eingecheckterVier4 from './recordings/instance4-boss-4.json';
+import eingecheckterFuenf1 from './recordings/instance5-boss-1.json';
+import eingecheckterFuenf2 from './recordings/instance5-boss-2.json';
+import eingecheckterFuenf3 from './recordings/instance5-boss-3.json';
+import eingecheckterFuenf4 from './recordings/instance5-boss-4.json';
 import eingecheckteZielgroessen from './recordings/buff-targets.json';
 import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
@@ -185,6 +189,7 @@ import {
   instance2Payload,
   instance3Payload,
   instance4Payload,
+  instance5Payload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -298,6 +303,27 @@ describe('Gemeinsame Vergleichsdateien', () => {
     for (let i = 0; i < erwartet.length; i++) {
       expect(erwartet[i], HINWEIS).toEqual(
         instance4Payload(`boss-4-${i + 1}`, `instance4-boss-${i + 1}`),
+      );
+    }
+  });
+
+  it('die vier Bosse der fünften Instanz entsprechen dem heutigen Spielstand', () => {
+    // Dieser Fall entsteht zugleich mit den Aufzeichnungen, und zwar aus dem
+    // Satz, der zwölf Zeilen weiter oben steht: Ohne ihn prüfte der Simulator
+    // gegen die Dateien und bliebe grün, sobald eine Regel im Spiel wandert.
+    //
+    // Bei Instanz 3 hat genau das gefehlt, und das Fehlen war unsichtbar — ein
+    // Fall, den es nicht gibt, meldet nichts. Deshalb wird er hier nicht
+    // nachgereicht, sondern mitgeliefert.
+    const erwartet = [
+      eingecheckterFuenf1,
+      eingecheckterFuenf2,
+      eingecheckterFuenf3,
+      eingecheckterFuenf4,
+    ];
+    for (let i = 0; i < erwartet.length; i++) {
+      expect(erwartet[i], HINWEIS).toEqual(
+        instance5Payload(`boss-5-${i + 1}`, `instance5-boss-${i + 1}`),
       );
     }
   });
@@ -951,6 +977,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance4-boss-2',
   'instance4-boss-3',
   'instance4-boss-4',
+  'instance5-boss-1',
+  'instance5-boss-2',
+  'instance5-boss-3',
+  'instance5-boss-4',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',
