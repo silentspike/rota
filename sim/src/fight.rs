@@ -5591,6 +5591,33 @@ impl Fight {
         self.shield
     }
 
+    /// Wie viele Senkungen der Verhängnis-Uhr noch übrig sind.
+    ///
+    /// `doom()` selbst gibt es schon länger (Zeile 3364, als `const fn`) — die
+    /// Uhr war also lesbar, nur nicht für die APL. Was fehlte, waren die
+    /// **übrigen** Werte des Bausteins und der Zugang aus der Sprache.
+    #[must_use]
+    pub fn doom_charges(&self) -> u32 {
+        self.doom_charges
+    }
+
+    /// Liegt die Schwächung gerade an? (Baustein 5)
+    ///
+    /// Das Feld heißt `afflicted`, der Baustein `affliction` — wer nach dem
+    /// Baustein-Namen sucht, findet den Zustand nicht.
+    #[must_use]
+    pub fn afflicted(&self) -> bool {
+        self.afflicted
+    }
+
+    /// Stand des Rings (Baustein 8, Datenfeld `runaway`).
+    ///
+    /// Auch hier weicht der Feldname vom Baustein ab: `race_progress`.
+    #[must_use]
+    pub fn race_progress(&self) -> u32 {
+        self.race_progress
+    }
+
     /// Wie viele Anwendungen der Schutzschicht uebereinanderliegen.
     #[must_use]
     pub fn shield_stacks(&self) -> u32 {
