@@ -1834,7 +1834,12 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // (2) Ohne Raster gäbe es keine Teilwirkungen, und die Kanalisierung wäre
     // ein Cast mit anderem Namen.
     if (channelTickMs <= 0) {
-      problems.push(`${where}: Kanalisierung ohne channelTickMs — es gäbe keine Teilwirkungen.`);
+      problems.push(
+        `${where}: Kanalisierung benötigt channelTickMs > 0 — der Zauber wird nicht geladen.`,
+      );
+      // A reported problem alone leaves this spell usable through value.spells.
+      // A zero interval would keep Combat's channel loop at the same instant.
+      return null;
     } else if (channelTickMs % TICK_MS !== 0) {
       // (2b) **Zwei Rasterfragen, und bis Issue #1104 war nur eine
       // beantwortet.** Die Prüfung darunter stellt sicher, dass `channelMs`
