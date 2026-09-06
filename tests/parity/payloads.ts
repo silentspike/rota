@@ -48,6 +48,7 @@ import {
 } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
+export { productionPhasesPayload, PRODUCTION_PHASES_NAME } from './phase-bindings-production.js';
 import {
   POOL_CATALYSIS,
   POOL_COUNT,
