@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import itertools
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,7 @@ class SimRegistry(unittest.TestCase):
 
     def cli(self, registry=None, plan=None, mode='--check'):
         # The historical issue requires temporary artifacts under /work/tmp.
-        temp_root = Path('/work/tmp')
+        temp_root = Path(os.environ.get('RUNNER_TEMP', '/work/tmp'))
         temp_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='rota-registry-', dir=temp_root) as temporary:
             directory = Path(temporary)

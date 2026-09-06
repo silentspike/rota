@@ -52,15 +52,16 @@ def package_headings(text):
     return headings(text[start:end])
 
 
-def section_text(text, anchor):
+def sections(text):
+    """Parse the document once, then reuse its sections for every registry entry."""
     all_headings = headings(text)
+    lines = text.splitlines()
+    result = {}
     for index, heading in enumerate(all_headings):
-        if heading['anchor'] != anchor:
-            continue
         end = next((h['line'] for h in all_headings[index + 1:]
-                    if h['level'] <= heading['level']), len(text.splitlines()))
-        return '\n'.join(text.splitlines()[heading['line'] + 1:end])
-    return ''
+                    if h['level'] <= heading['level']), len(lines))
+        result[heading['anchor']] = '\n'.join(lines[heading['line'] + 1:end])
+    return result
 
 
 def validate(registry, plan, assignments=None):
@@ -70,7 +71,8 @@ def validate(registry, plan, assignments=None):
     duplicates = [ident for ident, count in collections.Counter(ids).items() if count > 1]
     errors.extend(f'duplicate id: {ident}' for ident in duplicates)
     indexed = {entry.get('id'): entry for entry in entries}
-    anchors = {heading['anchor'] for heading in headings(plan)}
+    bodies = sections(plan)
+    anchors = bodies.keys()
     for entry in entries:
         ident = entry.get('id')
         if not isinstance(ident, str) or not ident:
@@ -85,7 +87,7 @@ def validate(registry, plan, assignments=None):
             errors.append(f'{ident}: missing normative section {entry.get("normative_section")}')
         if entry.get('kind') in {'task', 'forecast'} and entry.get('section_scope') == 'shared_section':
             excerpt = entry.get('normative_excerpt')
-            if not excerpt or excerpt not in section_text(plan, entry['normative_section']):
+            if not excerpt or excerpt not in bodies.get(entry['normative_section'], ''):
                 errors.append(f'{ident}: missing normative evidence inside shared section')
         if entry.get('status') not in {'described', 'acceptance_ready'}:
             errors.append(f'{ident}: invalid planning status')
