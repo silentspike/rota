@@ -1757,6 +1757,22 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     if (wert === undefined) continue;
     if (wert <= 0) problems.push(`${where}: ${name} ${wert} ist nicht positiv.`);
     if (!Number.isInteger(wert)) problems.push(`${where}: ${name} ${wert} ist nicht ganzzahlig.`);
+    // **Auf dem Takt-Raster, wie jede andere Zeit** (Issue #1104). Bis zum
+    // 2026-08-22 waren dies die einzigen beiden `Ms`-Felder ohne diese
+    // Auflage — hier und in `sim/build.rs`, wo zwanzig andere Stellen sie
+    // erzwingen.
+    //
+    // Gemessen an `extendShieldMs = 12001`: Bau und beide Prüfsuiten liefen
+    // durch, und der Wert wirkte als 12010. `combat.ts` addiert ihn ohne
+    // `snapUp` und vergleicht gegen `seitBeginn`, das nur Vielfache von
+    // `TICK_MS` annimmt — 12000 und 12001 laufen beide erst bei 12010 ab.
+    // Die Angabe log um neun Millisekunden, und nichts sagte etwas.
+    else if (wert % TICK_MS !== 0) {
+      problems.push(
+        `${where}: ${name} ${wert} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          `der Wert würde erst im nächsten Takt wirken.`,
+      );
+    }
   }
 
   const reduction = raw['cooldownReductionMs'];
