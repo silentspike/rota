@@ -11,6 +11,19 @@ pub fn validate(value: &Value, path: &str, tick_ms: u64) -> Result<(), String> {
             }
         }
         Value::Object(values) => {
+            // Zero is on the grid, but cannot advance a channel's next tick.
+            // This validator runs in build.rs before spell code is generated.
+            if values.get("channelMs").and_then(Value::as_u64).unwrap_or(0) > 0
+                && values
+                    .get("channelTickMs")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0)
+                    == 0
+            {
+                return Err(format!(
+                    "{path}.channelTickMs: a channel requires a positive tick interval"
+                ));
+            }
             for (key, child) in values {
                 let location = format!("{path}.{key}");
                 if key.ends_with("Ms") {

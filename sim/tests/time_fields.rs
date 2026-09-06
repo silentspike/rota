@@ -13,10 +13,17 @@ fn existing_and_new_duration_fields_must_follow_the_grid() {
         "extendDecayMs",
         "futureEffectMs",
     ] {
-        let invalid = json!({"spells": [{name: 12001}]});
+        let mut valid = json!({"spells": [{name: 12000}]});
+        // A channel duration also needs its positive tick interval. Change
+        // only the field under test, keeping the carrier otherwise valid.
+        if name == "channelMs" {
+            valid["spells"][0]["channelTickMs"] = json!(1000);
+        }
+        let mut invalid = valid.clone();
+        invalid["spells"][0][name] = json!(12001);
         let error = time_fields::validate(&invalid, "school", 10).unwrap_err();
         assert!(error.contains(name));
-        assert!(time_fields::validate(&json!({"spells": [{name: 12000}]}), "school", 10).is_ok());
+        assert!(time_fields::validate(&valid, "school", 10).is_ok());
     }
 }
 
