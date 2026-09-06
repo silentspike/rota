@@ -79,7 +79,6 @@
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
-use std::fs;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -125,26 +124,8 @@ fn messdauer() -> Duration {
 /// Wie lange vor der Messung warmgelaufen wird, ohne dass es zaehlt.
 const AUFWAERMDAUER: Duration = Duration::from_secs(2);
 
-/// Obergrenze fuer `some avg10` aus `/proc/pressure/cpu`, in Prozent.
-///
-/// **PSI und nicht Load Average**, und das ist keine Geschmacksfrage: Der Load
-/// Average zaehlt auch Prozesse mit, die auf Platte warten, und mittelt ueber
-/// eine ganze Minute. Er meldet Druck, wenn er laengst vorbei ist, und
-/// verschweigt ihn, solange er frisch ist. `some avg10` sagt, welcher Anteil
-/// der letzten zehn Sekunden mindestens eine Aufgabe auf CPU warten liess —
-/// das ist genau die Groesse, die eine Durchsatzmessung verfaelscht.
-///
-/// 5 Prozent ist die Schwelle, unter der die Streuung in einer Vormessung
-/// unter 3 Prozent blieb. Sie ist eine **Wahl**, keine Naturkonstante, und
-/// steht deshalb hier oben mit ihrer Begruendung statt im Code verstreut.
-const PSI_CPU_MAX: f64 = 5.0;
-
-/// Obergrenze fuer `some avg10` aus `/proc/pressure/io` und `/memory`.
-///
-/// Grosszuegiger als die CPU-Schwelle: Ein Simulator, der nichts von der
-/// Platte liest und nichts nachfordert, vertraegt fremde Ein- und Ausgabe
-/// besser als fremde Rechenlast.
-const PSI_IO_MEM_MAX: f64 = 10.0;
+// Die beiden PSI-Schwellen stehen seit Issue #912 in `rota_sim::hostcaps` —
+// mitsamt ihrer Begruendung. Sie werden oben eingebunden.
 
 /// Wie stark die Rate zwischen den Abschnitten eines Laufs schwanken darf.
 ///
@@ -620,207 +601,20 @@ fn lns(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchResu
 // Systemdruck — gemessen, nicht geraten
 // ---------------------------------------------------------------------------
 
-/// Ein Drucksignal mit seinem Wert.
-struct Signal {
-    /// Wie es heisst.
-    name: &'static str,
-    /// Was gemessen wurde.
-    wert: f64,
-    /// Ab wo es zu viel ist.
-    grenze: f64,
-    /// Woher der Wert kommt — damit man ihn nachschlagen kann.
-    quelle: &'static str,
-}
-
-impl Signal {
-    fn ueberschritten(&self) -> bool {
-        self.wert > self.grenze
-    }
-}
-
-/// Liest `some avg10` aus einer PSI-Datei.
+/// Die Umgebungsmessung steht seit Issue #912 in der Bibliothek.
 ///
-/// Format (Linux, `/proc/pressure/cpu`):
+/// **Sie stand bis dahin hier, privat.** Ein Beispiel kann nichts exportieren;
+/// die Faehigkeitserhebung haette dieselben Funktionen ein zweites Mal gebaut —
+/// und ein Nachbau antwortet plausibel aus einer zweiten Quelle. Laufen beide
+/// auseinander, weiss niemand, welche recht hat.
 ///
-/// ```text
-/// some avg10=0.00 avg60=0.00 avg300=0.00 total=0
-/// ```
-///
-/// `None`, wenn die Datei fehlt — auf einem Kernel ohne PSI ist das kein
-/// Fehler, aber der Bericht muss es sagen, statt 0,0 zu drucken.
-fn psi_some_avg10(pfad: &str) -> Option<f64> {
-    psi_aus_text(&fs::read_to_string(pfad).ok()?)
-}
-
-/// Der Parser dazu, getrennt vom Dateizugriff.
-///
-/// **Damit er pruefbar ist.** Ein Parser, der nur ueber `/proc` erreichbar
-/// ist, laesst sich nur auf der Maschine pruefen, auf der er gerade laeuft —
-/// und dort steht immer derselbe Wert. Eine kaputte Zerlegung faellt so nie
-/// auf, weil sie zufaellig plausible Zahlen liefert.
-fn psi_aus_text(text: &str) -> Option<f64> {
-    let zeile = text.lines().find(|z| z.starts_with("some "))?;
-    let feld = zeile.split_whitespace().find(|f| f.starts_with("avg10="))?;
-    feld.trim_start_matches("avg10=").parse().ok()
-}
-
-/// Gesamtzahl der Kontextwechsel seit dem Systemstart.
-fn kontextwechsel() -> Option<u64> {
-    let text = fs::read_to_string("/proc/stat").ok()?;
-    let zeile = text.lines().find(|z| z.starts_with("ctxt "))?;
-    zeile.split_whitespace().nth(1)?.parse().ok()
-}
-
-/// Ein- und ausgelagerte Seiten seit dem Systemstart.
-fn auslagerung() -> Option<u64> {
-    let text = fs::read_to_string("/proc/vmstat").ok()?;
-    let hole = |name: &str| -> Option<u64> {
-        text.lines()
-            .find(|z| z.starts_with(name))?
-            .split_whitespace()
-            .nth(1)?
-            .parse()
-            .ok()
-    };
-    Some(hole("pswpin ")? + hole("pswpout ")?)
-}
-
-/// Mittlerer Takt der erlaubten Kerne, in MHz.
-///
-/// # Warum das mitgemessen wird
-///
-/// Auf dieser Maschine steht das Plattform-Profil auf `performance`, der
-/// Governor aber auf `powersave` (gemessen 2026-08-18 von Worker-2). Auf einem
-/// Laptop-Ryzen heisst das: Der Takt folgt der Last mit Verzoegerung und faellt
-/// in Pausen ab — gemessen 2386 MHz bei einer Obergrenze von 4680.
-///
-/// Genau das erzeugt Streuung zwischen IDENTISCHEN Laeufen: Der eine faengt
-/// bei hohem Takt an, der naechste bei niedrigem, und ein 20-Sekunden-Block
-/// ist kurz genug, dass die Rampe ins Ergebnis durchschlaegt.
-///
-/// **Gemessen wird nur, nicht gestellt.** Das Profil beruehrt die ganze
-/// Maschine und alle Sitzungen darauf.
-fn takt_mhz(kerne: &[usize]) -> Option<f64> {
-    let mut summe = 0f64;
-    let mut anzahl = 0usize;
-    for k in kerne {
-        let pfad = format!("/sys/devices/system/cpu/cpu{k}/cpufreq/scaling_cur_freq");
-        if let Ok(text) = fs::read_to_string(&pfad) {
-            if let Ok(khz) = text.trim().parse::<f64>() {
-                summe += khz / 1000.0;
-                anzahl += 1;
-            }
-        }
-    }
-    #[allow(clippy::cast_precision_loss)]
-    (anzahl > 0).then(|| summe / anzahl as f64)
-}
-
-/// Wie oft die CPU wegen Hitze gedrosselt hat.
-///
-/// Auf einem Laptop ist das der haeufigste Grund, warum derselbe Lauf zweimal
-/// verschieden schnell ist — und der einzige, den keine Lastmessung sieht.
-fn taktdrosselung() -> Option<u64> {
-    let mut summe = 0u64;
-    let mut gefunden = false;
-    let dir = fs::read_dir("/sys/devices/system/cpu").ok()?;
-    for eintrag in dir.flatten() {
-        let pfad = eintrag.path().join("thermal_throttle/core_throttle_count");
-        if let Ok(text) = fs::read_to_string(&pfad) {
-            if let Ok(n) = text.trim().parse::<u64>() {
-                summe += n;
-                gefunden = true;
-            }
-        }
-    }
-    gefunden.then_some(summe)
-}
-
-/// Nimmt alle Drucksignale auf.
-fn drucksignale() -> Vec<Signal> {
-    let mut v = Vec::new();
-    for (name, pfad, grenze) in [
-        ("PSI cpu some avg10", "/proc/pressure/cpu", PSI_CPU_MAX),
-        ("PSI io some avg10", "/proc/pressure/io", PSI_IO_MEM_MAX),
-        (
-            "PSI memory some avg10",
-            "/proc/pressure/memory",
-            PSI_IO_MEM_MAX,
-        ),
-    ] {
-        if let Some(wert) = psi_some_avg10(pfad) {
-            v.push(Signal {
-                name,
-                wert,
-                grenze,
-                quelle: pfad,
-            });
-        }
-    }
-    v
-}
-
-/// Welche Kerne dieser Prozess benutzen darf.
-///
-/// Liest `Cpus_allowed_list` aus `/proc/self/status`, zum Beispiel `0-7` oder
-/// `2,4,6`. Ohne Bindung stehen dort alle Kerne der Maschine.
-fn erlaubte_kerne() -> Option<Vec<usize>> {
-    let text = fs::read_to_string("/proc/self/status").ok()?;
-    let zeile = text.lines().find(|z| z.starts_with("Cpus_allowed_list:"))?;
-    kernliste(zeile.split(':').nth(1)?)
-}
-
-/// Zerlegt eine Kernliste der Form `0-7`, `2,4,6` oder `0-3,8-11`.
-///
-/// Getrennt vom Dateizugriff, aus demselben Grund wie [`psi_aus_text`]: Die
-/// gemischte Form mit Bereich UND Einzelwert kommt auf dieser Maschine nie
-/// vor, auf einer mit abgeschalteten Kernen aber sehr wohl.
-fn kernliste(liste: &str) -> Option<Vec<usize>> {
-    let mut kerne = Vec::new();
-    for teil in liste.trim().split(',') {
-        if let Some((a, b)) = teil.split_once('-') {
-            let (a, b): (usize, usize) = (a.trim().parse().ok()?, b.trim().parse().ok()?);
-            if b < a {
-                return None;
-            }
-            kerne.extend(a..=b);
-        } else {
-            kerne.push(teil.trim().parse().ok()?);
-        }
-    }
-    (!kerne.is_empty()).then_some(kerne)
-}
-
-/// Wie viele Kerne `present` auffuehrt, also hoechste Nummer plus eins.
-fn hoechste_kernnummer(text: &str) -> Option<usize> {
-    let letzte = text.trim().rsplit([',', '-']).next()?;
-    letzte.parse::<usize>().ok().map(|hoechste| hoechste + 1)
-}
-
-/// Wie viele Kerne die Maschine hat — **unabhaengig von der Bindung**.
-///
-/// # Warum nicht `available_parallelism`
-///
-/// Weil die Funktion die CPU-Affinitaet bereits beruecksichtigt. Unter
-/// `taskset -c 0-7` liefert sie auf einer 16-Kern-Maschine **8**, nicht 16.
-/// Ein Vergleich „erlaubte Kerne < alle Kerne" waere damit immer falsch, und
-/// der Laeufer meldete auch gebunden „keine Kernbindung".
-///
-/// Gemessen am 2026-08-18: `taskset -c 0-7` auf einem 5900HS ergab
-/// `available_parallelism() = 8` und `Cpus_allowed_list = 0-7` — beide Werte
-/// gebunden, der Vergleich also gegen sich selbst. Aufgefallen ist es erst im
-/// Lauf; uebersetzen liess sich beides.
-///
-/// `/sys/devices/system/cpu/present` fuehrt dagegen alle Kerne der Maschine,
-/// zum Beispiel `0-15`.
-fn kerne_gesamt() -> usize {
-    let aus_sysfs = fs::read_to_string("/sys/devices/system/cpu/present")
-        .ok()
-        .and_then(|text| hoechste_kernnummer(&text));
-    aus_sysfs.unwrap_or_else(|| {
-        std::thread::available_parallelism().map_or(0, std::num::NonZeroUsize::get)
-    })
-}
+/// Beim Heben ist genau das einmal beinahe passiert: `PSI_IO_MEM_MAX` stand in
+/// der neuen Fassung auf 20 statt auf den 10 von hier. Der Kommentar dort haelt
+/// es fest.
+use rota_sim::hostcaps::{
+    auslagerung, drucksignale, erlaubte_kerne, kerne_gesamt, kontextwechsel, psi_some_avg10,
+    takt_mhz, taktdrosselung, PSI_CPU_MAX,
+};
 
 /// Das CPU-Modell aus `/proc/cpuinfo`, für den Berichtskopf.
 ///
@@ -2619,6 +2413,11 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // **Die Parser stehen seit #912 in der Bibliothek, ihre Pruefaelle hier.**
+    // Das ist Absicht und keine Nachlaessigkeit: Sie sind an dieser Zeilenform
+    // gemessen worden, und wer sie mit umzieht, verliert die Faelle, die aus
+    // einem echten Vorfall stammen. `hostcaps` traegt eigene daneben.
+    use rota_sim::hostcaps::{hoechste_kernnummer, kernliste, psi_aus_text, Signal};
 
     /// Ein Blockwert zum Prüfen — die Zahlen sind beliebig, nur unterscheidbar.
     fn probe(rate: f64, zeit: f64) -> Blockwert {
