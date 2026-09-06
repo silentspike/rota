@@ -10,8 +10,32 @@ die Dateien vorher gesichert und danach zurückgestellt.
 
 import json
 import sys
+from pathlib import Path
 
-modus = sys.argv[1]
+
+def letzte_quelle():
+    """Die Quelle der letzten akzeptierten Kennung, nicht die einst letzte Datei.
+
+    test-cast.json war nur bis zum Hinzufügen der weiteren Prüfquellen die
+    letzte Quelle. Die Gegenprobe soll hinter der akzeptierten Reihenfolge
+    anfügen; deren letzte Kennung ist ihr vorhandener, unabhängiger Maßstab.
+    """
+    kennung = json.loads(Path('tests/unit/spell-order.json').read_text())[-1]
+    quellen = [p for p in sorted(Path('data/spells').glob('*.json'))
+               if any(s['id'] == kennung for s in json.loads(p.read_text())['spells'])]
+    if len(quellen) != 1:
+        raise RuntimeError(f'Letzte Kennung {kennung}: {len(quellen)} Quellen statt einer')
+    return str(quellen[0])
+
+
+def main():
+    modus = sys.argv[1]
+    if modus == '--letzte-datei':
+        print(letzte_quelle())
+        return
+    if modus not in {'vorne', 'hinten', 'eigene-datei'}:
+        raise SystemExit(f'Unbekannter Einfügemodus: {modus}')
+    einfuegen(modus)
 
 # Drei Fälle, und der dritte ist der lehrreiche (Issue #408):
 #
@@ -29,20 +53,19 @@ modus = sys.argv[1]
 # meldet die Verschiebung weiterhin, aber sie ist jetzt der Anlass,
 # `spell-order.json` nachzuziehen — kein Verbot. Der fünfte Fall im Skript
 # belegt, dass danach grün ist.
-ANHAENGEN_ANS_ENDE = {'hinten', 'eigene-datei'}
-pfad = (
-    'data/spells/test-cast.json' if modus == 'hinten' else 'data/spells/calcination.json'
-)
+def einfuegen(modus):
+    pfad = letzte_quelle() if modus == 'hinten' else 'data/spells/calcination.json'
+    daten = json.loads(Path(pfad).read_text(encoding='utf8'))
+    # Eine Kopie setzt alle Pflichtfelder; geprüft wird die Reihenfolge.
+    neu = dict(daten['spells'][0])
+    neu['id'] = 'gegenprobe-zauber'
+    neu['name'] = 'Gegenprobe'
+    if modus in {'hinten', 'eigene-datei'}:
+        daten['spells'] = daten['spells'] + [neu]
+    else:
+        daten['spells'] = [neu] + daten['spells']
+    Path(pfad).write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding='utf8')
 
-daten = json.load(open(pfad, encoding='utf8'))
-# Eine Kopie des ersten Eintrags, damit alle Pflichtfelder gesetzt sind — der
-# Zauber soll gültig sein, sonst bräche das Einlesen statt der Reihenfolge.
-neu = dict(daten['spells'][0])
-neu['id'] = 'gegenprobe-zauber'
-neu['name'] = 'Gegenprobe'
 
-if modus in ANHAENGEN_ANS_ENDE:
-    daten['spells'] = daten['spells'] + [neu]
-else:
-    daten['spells'] = [neu] + daten['spells']
-json.dump(daten, open(pfad, 'w', encoding='utf8'), ensure_ascii=False, indent=2)
+if __name__ == '__main__':
+    main()

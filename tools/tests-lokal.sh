@@ -72,8 +72,8 @@ bash "$(dirname "${BASH_SOURCE[0]}")/fenster-warnung.sh" || true
 # rote Namen, das groesste 164. Die Kappung unten ist fuer eine
 # Abgabe-Zusammenfassung richtig und fuer diese Auswertung toedlich.
 #
-# VORGABE UNVERAENDERT: Ohne den Schalter ist die Ausgabe byteweise dieselbe
-# wie vorher.
+# Ohne den Schalter werden höchstens drei echte Testnamen ausgegeben (#1054).
+# Die Ergebniszeile einer Suite ist kein Testname.
 ALLE_NAMEN=0
 if [ "${1:-}" = "--alle-namen" ]; then ALLE_NAMEN=1; shift; fi
 LOG=${1:?Log von 'cargo remote -c -- test --no-run' angeben}
@@ -132,8 +132,8 @@ for b in "${BINARIES[@]}"; do
   # Getrennt, nicht weggeworfen: In stderr stehen die Panics, also der Grund,
   # warum ein Ziel rot war. Zwei Ströme, zwei Zwecke — der eine wird gezählt,
   # der andere gelesen.
-  aus=$(mktemp /work/tmp/testlauf-XXXXXX.out)
-  err=$(mktemp /work/tmp/testlauf-XXXXXX.err)
+  aus=$(mktemp "${TMPDIR:-/tmp}/testlauf-XXXXXX.out")
+  err=$(mktemp "${TMPDIR:-/tmp}/testlauf-XXXXXX.err")
   (cd sim && "../$b" >"$aus" 2>"$err")
   code=$?
   suiten=$((suiten + 1))
@@ -171,11 +171,8 @@ for b in "${BINARIES[@]}"; do
       echo "      $anzahl rote Namen:"
       grep -E "^test .*FAILED$" "$aus" | sed 's/^/      /'
     else
-      # OHNE Zeilenende-Anker, woertlich wie vor #1045. Das Muster zaehlt die
-      # Ergebniszeile ("test result: FAILED. …") mit, wenn weniger als drei
-      # Faelle rot sind — ein Bestandsfehler, der hier NICHT behoben wird:
-      # Auflage aus #1045 ist, dass die Vorgabe-Ausgabe unveraendert bleibt.
-      grep -E "^test .*FAILED" "$aus" | head -3 | sed 's/^/      /'
+      # Der Anker schließt "test result: FAILED. …" aus (#1054).
+      grep -E "^test .*FAILED$" "$aus" | head -3 | sed 's/^/      /'
     fi
     grep -E "panicked at" "$err" | head -2 | sed 's/^/      /'
   fi
@@ -203,4 +200,4 @@ if [ "$gesamt" -eq 0 ]; then
   echo "NULL TESTS AUSGEFUEHRT — das gilt als FEHLGESCHLAGEN."
   exit 1
 fi
-[ "$rote" -eq 0 ] && [ "$fehlend" -eq 0 ]
+[ "$rote" -eq 0 ] && [ "$fehlend" -eq 0 ] && [ "$stumm" -eq 0 ]

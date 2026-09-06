@@ -39,7 +39,7 @@ cd "$(dirname "$0")/.."
 
 WAECHTER=tools/guide-abschnittsnummern.sh
 OPFER=docs/VERIFICATION.md
-SICHERUNG=$(mktemp /work/tmp/abschnittsnummern-gegenprobe-XXXXXX.md)
+SICHERUNG=$(mktemp)
 
 aufraeumen() {
   [ -s "$SICHERUNG" ] && cp "$SICHERUNG" "$OPFER"
