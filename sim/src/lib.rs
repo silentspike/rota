@@ -90,6 +90,8 @@ pub mod gear;
 pub mod gear_balance;
 // Issue #177: Tempo wirkt auf Zeiten.
 pub mod haste;
+/// Arbeitsbudget einer Kampagne, hardwareunabhaengig (#914).
+pub mod kampagne;
 pub mod log;
 // Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
 pub mod objective;
