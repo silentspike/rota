@@ -69,8 +69,8 @@ const EINSTIEGE = [
  *
  * **Exportiert für den Symbol-Wächter** (`tote-symbole-waechter.test.ts`): Was
  * hier steht, ist auf Dateiebene bereits erfasst. Ohne diesen Import meldete er
- * `runLiveMetrics` ein zweites Mal — dieselbe Sache, andere Ebene, und die
- * Ausnahme müsste an zwei Stellen gepflegt werden.
+ * ungenutzte Symbole darin ein zweites Mal — dieselbe Sache, andere Ebene, und
+ * die Ausnahme müsste an zwei Stellen gepflegt werden.
  */
 export const BEKANNT_UNERREICHBAR: readonly string[] = [
   // E7-5 (Issue #85) ist seit dem Anschluss des Archivs erreichbar: Die
@@ -83,12 +83,8 @@ export const BEKANNT_UNERREICHBAR: readonly string[] = [
   // NICHT in dieser Liste, weil der Waechter Dateien misst und ihre Datei
   // erreichbar ist — toter Code INNERHALB einer erreichbaren Datei faellt
   // durch sein Raster. Festgehalten, damit es nicht als gedeckt gilt.
-  // E7-4 zur Haelfte: Der Trainingsraum ist seit heute betretbar
-  // (`buildDummy` in app.ts), aber `runLiveMetrics` ist eine Bildschleife
-  // ueber laufende Kennzahlen und braucht einen aktiven Kampf. Im Player Home
-  // gaebe es nichts anzuzeigen; ein Ort, an dem nichts erscheint, ist
-  // schlechter als dieser Eintrag.
-  'src/analysis/training-view.ts',
+  // E7-4: Das Trainings-HUD ruft drawLiveMetrics im laufenden Canvas-Bild auf;
+  // training-view.ts ist damit ebenfalls vom Spieleinstieg aus erreichbar.
   // E6-4: Die Aufwertung braucht Material im Spielstand (`save-format.ts`)
   // und eine Wanderung. Eigener Auftrag, bewusst nicht hier.
   'src/loot/upgrade.ts',

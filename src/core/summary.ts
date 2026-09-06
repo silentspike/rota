@@ -256,6 +256,11 @@ export interface SummaryInput {
   readonly synergyAvailable: number;
 }
 
+/** The same measured idle share in the result and the live training readout. */
+export function lostTimeShareOf(lostTimeMs: number, elapsedMs: number): number {
+  return elapsedMs > 0 ? lostTimeMs / elapsedMs : 0;
+}
+
 /**
  * Die Kurzfassung ausrechnen.
  *
@@ -318,7 +323,7 @@ export function buildSummary(input: SummaryInput): RunSummary {
     lostTimeMs: input.lostTimeMs,
     lostTimeWithReadyMs: input.lostTimeWithReadyMs,
     lostTimeNothingReadyMs: input.lostTimeNothingReadyMs,
-    lostTimeShare: elapsedMs > 0 ? input.lostTimeMs / elapsedMs : 0,
+    lostTimeShare: lostTimeShareOf(input.lostTimeMs, elapsedMs),
     synergyUsed: input.synergyUsed,
     synergyAvailable: input.synergyAvailable,
     logEntries: log.length,

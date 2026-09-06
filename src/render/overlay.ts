@@ -76,8 +76,8 @@ export interface ResultView {
   readonly outcome: number;
   /** Verstrichene Kampfzeit in ms. */
   readonly elapsedMs: number;
-  /** Restzeit bis zum Überdruck in ms. Bei Sieg die Reserve. */
-  readonly remainingMs: number;
+  /** Restzeit bis zum Überdruck in ms. `null` for training without a deadline. */
+  readonly remainingMs: number | null;
   /**
    * Was einen Sieg vom anderen trennt, bei einem Boss mit umgekehrtem Ziel.
    *
@@ -373,7 +373,7 @@ export class Overlay {
     this.title = element('h1', 'rota-title');
     this.prepare.appendChild(this.title);
     this.prepare.appendChild(
-      element('p', 'rota-note', 'Prologue · no target until the run begins'),
+      element('p', 'rota-note', 'Prepare your composition, then begin when ready.'),
     );
     this.prepare.appendChild(
       element(
@@ -589,7 +589,10 @@ export class Overlay {
     // mit umgekehrtem Ziel ist die immer 0,00 s, weil der Sieg das Ablaufen
     // der Frist IST. Dort trennt der Ring-Rest die Siege.
     if (view.heldPercent === null) {
-      set('remaining', `${(view.remainingMs / 1000).toFixed(2)} s`);
+      set(
+        'remaining',
+        view.remainingMs === null ? '—' : `${(view.remainingMs / 1000).toFixed(2)} s`,
+      );
     } else {
       set('remaining', `${view.heldPercent.toFixed(1)} %`);
     }
