@@ -69,7 +69,9 @@ import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../analysis/help-data.js';
 import { markSeen, nextIntroduction } from '../analysis/help.js';
 import { buildArchive } from '../analysis/archive.js';
 import { ALL_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
-import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
+import { DEFAULT_DUMMY, buildDummy, type DummySettings } from '../analysis/training.js';
+import { buildTrainingSettings } from '../analysis/training-settings-view.js';
+import '../analysis/training.css';
 import '../analysis/history.css';
 import { pointsDisplayFor } from '../analysis/points-display.js';
 import type { RunSummary } from './summary.js';
@@ -234,6 +236,9 @@ export class App {
 
   /** Beute hat einen eigenen Startwert; die Kampf-Zufallsströme bleiben unverändert. */
   private lootSeed = newLootSeed();
+
+  /** The next training run's conditions; an active run keeps its own dummy. */
+  private trainingSettings: DummySettings = { ...DEFAULT_DUMMY };
 
   constructor(parent: HTMLElement) {
     const boss = startBoss();
@@ -457,10 +462,8 @@ export class App {
     // und hatte keinen Aufrufer — eine Puppe mit einer Milliarde Leben und
     // 24 Stunden Ueberdruck, die niemand betreten konnte.
     //
-    // Der Knopf startet mit `DEFAULT_DUMMY`. Das Einstellungs-Formular aus
-    // 19.2 (Widerstand, Gegenschlag, Wirkzauber) ist NICHT gebaut: Es gibt
-    // dafuer keine Ansicht, nur den Datentyp. Ein Knopf ohne Formular macht
-    // den Raum betretbar; ein Formular ohne Raum haette gar nichts gebracht.
+    // Die Bedingungen aus 15.5 werden vor dem Durchgang eingestellt. Ohne
+    // Eingriff gilt weiterhin DEFAULT_DUMMY: neutral, ohne Schaden und Zauber.
     this.home.addSection({
       id: 'training',
       title: 'Training',
@@ -871,28 +874,23 @@ export class App {
    * in keiner Datendatei, sie wird gerechnet.
    */
   private buildTrainingSection(): HTMLElement {
-    const wurzel = document.createElement('div');
-    wurzel.className = 'training-section';
-    const knopf = document.createElement('button');
-    knopf.type = 'button';
-    knopf.className = 'training-start';
-    // Spieltexte englisch (Design-Gesetz 5).
-    knopf.textContent = 'Enter Training Room';
-    knopf.addEventListener('click', () => {
-      this.startTraining();
-    });
-    wurzel.appendChild(knopf);
-    return wurzel;
+    return buildTrainingSettings(this.trainingSettings, this.combat.school.school, (settings) =>
+      this.startTraining(settings),
+    );
   }
 
   /** Einen Uebungsdurchgang gegen die Puppe beginnen. */
-  private startTraining(): void {
-    const puppe = buildDummy(DEFAULT_DUMMY, this.combat.school.school);
+  private startTraining(settings: DummySettings): boolean {
+    if (this.session.phase === PHASE_FIGHTING || this.session.phase === PHASE_COUNTDOWN)
+      return false;
+    const puppe = buildDummy(settings, this.combat.school.school);
+    this.trainingSettings = { ...settings };
     this.combat.switchBoss(puppe);
     this.overlay.setBoss(puppe.name, resistanceLines(puppe.resistances));
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
+    return true;
   }
 
   private buildLoadoutSection(): HTMLElement {

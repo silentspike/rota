@@ -81,6 +81,17 @@ function windows(ms: number, gcdMs: number): number {
   return gcdMs > 0 ? Math.round(ms / gcdMs) : 0;
 }
 
+/** Shared by the completed run and the live training readout. */
+export function missedCastWindowsFor(
+  lostTimeMs: number,
+  lostTimeWithReadyMs: number,
+  gcdMs: number,
+): number {
+  return lostTimeMs > 0
+    ? Math.round((windows(lostTimeMs, gcdMs) * lostTimeWithReadyMs) / lostTimeMs)
+    : 0;
+}
+
 export function analyzeRun(input: RunAnalysisInput): RunAnalysis {
   const { summary, gcdMs } = input;
 
@@ -95,10 +106,11 @@ export function analyzeRun(input: RunAnalysisInput): RunAnalysis {
   // und genau das verbietet AC7. Die Aufteilung folgt dem gemessenen
   // Verhältnis, die Summe steht durch die Konstruktion fest.
   const totalIdleWindows = windows(summary.lostTimeMs, gcdMs);
-  const missedCastWindows =
-    summary.lostTimeMs > 0
-      ? Math.round((totalIdleWindows * summary.lostTimeWithReadyMs) / summary.lostTimeMs)
-      : 0;
+  const missedCastWindows = missedCastWindowsFor(
+    summary.lostTimeMs,
+    summary.lostTimeWithReadyMs,
+    gcdMs,
+  );
   const idleWindows = totalIdleWindows - missedCastWindows;
 
   const averageDamagePerCast = summary.casts > 0 ? summary.damage / summary.casts : 0;
