@@ -30,9 +30,13 @@ zurückkehrt. Die positive Gegenprobe misst tatsächlich ausgeteilten Kanalschad
 
 Zwei neue Rust-Integrationstests prüfen den von `build.rs` verwendeten Validator:
 fehlender/nullwertiger Abstand wird abgelehnt; gültiger Kanal und Zauber ohne
-Kanal bleiben zulässig. **Die Remote-Ausführung dieser Rust-Tests und der
-vollständige Repository-Prüflauf stehen noch aus.** Diese gezielte Regression
-ersetzt auch nicht den vollständigen Durchgang über alle 60 Mutationsfelder.
+Kanal bleiben zulässig. Beide neuen Fälle und die drei bestehenden Zeitfeldtests
+bestanden remote (5 Tests, Exit 0). Der vollständige Integrationslauf bestand
+1.252 Rust-Tests regulär und 1.287 mit Diagnosefunktionen, jeweils bei sieben
+ignorierten Fällen. Die 2.743 TypeScript-Tests, Clippy und Formatprüfung bestanden
+ebenfalls. [PR #1114](https://github.com/silentspike/rota/pull/1114) brachte diese
+Korrektur nach vollständiger CI-Abnahme auf `main`. Diese Regression ersetzt
+nicht den vollständigen Durchgang über alle 60 Mutationsfelder.
 
 Die lokalen Vorher-/Nachher-Protokolle liegen unter
 `/work/tmp/rota-1055-20260906-full/channeltick-before.log`,
