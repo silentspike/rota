@@ -525,7 +525,10 @@ def suite_nachweis(code, ausgabe, sprache):
             passed = sum(int(p) for p, _ in summen)
             failed = sum(int(f) for _, f in summen)
             starts = re.findall(r"^running \d+ tests?\s*$", text, re.M)
-            targets = re.findall(r"^\s*Running .+ \([^\n]+\)\s*$", text, re.M)
+            # cargo-remote führt stdout/stderr zusammen. Eine Running-Zeile
+            # kann dadurch direkt hinter einer fertigen Suite-Summe stehen.
+            # Den Marker trotzdem zählen; fehlende Targets bleiben ein Fehler.
+            targets = re.findall(r"\bRunning [^\n]+? \([^\n)]+\)", text)
             # Cargo kann nach normalen roten Fällen einen weiteren Testprozess
             # durch ein Signal verlieren. Vorige Summen belegen dann NICHT den
             # gesamten Lauf. Nulltests sind bei bin/example-Zielen regulär;
@@ -552,7 +555,12 @@ def suite_nachweis(code, ausgabe, sprache):
         if len(zeilen) == 1:
             werte = dict((k, int(n)) for n, k in re.findall(r"(\d+) (passed|failed)", zeilen[0]))
             passed, failed = werte.get("passed", 0), werte.get("failed", 0)
-            vollstaendig = bool(werte)
+            unbehandelt = re.search(
+                r"^\s*(?:Errors\s+[1-9]\d* errors?\b|"
+                r"Vitest caught [1-9]\d* unhandled errors?\b|"
+                r"Vitest found [1-9]\d* errors? not related to your test files)",
+                text, re.M)
+            vollstaendig = bool(werte) and not unbehandelt and code in (0, 1)
     else:
         raise ValueError(f"Unbekannte Suite: {sprache}")
     stand = "ERROR"
@@ -816,7 +824,9 @@ def main():
     rust_bau = "cargo remote --no-copy-lock -- test --no-run --all-targets"
     bau_log = WURZEL / args.bau_log
     rust_lauf = "cargo remote --no-copy-lock -- test --all-targets --no-fail-fast"
-    ts = "npx --no-install vitest run"
+    # Dateisystem-/AST-Prüfungen überschritten unter Hostlast die Vitest-
+    # Vorgabe von 5 s. Nur die Laufzeitgrenze erhöhen, keine Fälle auslassen.
+    ts = "npx --no-install vitest run --testTimeout 30000"
 
     wo = blattfelder()
     # SELTENE FELDER ZUERST. Ein Feld, das 57 Zauber tragen, ist mit Sicherheit
