@@ -135,7 +135,7 @@ pub enum Traeger {
 // Die engste Kette der Schadensformel, mehrfach verwendet.
 const KETTE_SCHADEN: &str =
     "factors::compute_damage — base_damage als f64, acht Faktoren multipliziert, \
-     dann `value.round() as u32`; das SAETTIGT bei u32::MAX statt zu ueberlaufen, \
+     dann `round_js(value) as u32`; das SAETTIGT bei u32::MAX statt zu ueberlaufen, \
      und eine Saettigung ist eine stille falsche Zahl";
 
 /// Der groesste Wert, den [`crate::factors::compute_damage`] zurueckgeben kann.
