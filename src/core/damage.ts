@@ -88,6 +88,16 @@ export const NEUTRAL_FACTORS: DamageFactors = {
 };
 
 /**
+ * Gemeinsame Rundung mit `factors::round_js` im Simulator (#962).
+ * Nächste ganze Zahl; bei gleichem Abstand Richtung +∞, also -1,5 → -1.
+ * Negative Null bleibt erhalten. Diese Regel betrifft die Rundung, nicht den
+ * erlaubten Wertebereich einer Schadensmenge; siehe docs/RUNDUNGSVERTRAG.md.
+ */
+export function roundLikeJavaScript(value: number): number {
+  return Math.round(value);
+}
+
+/**
  * Schaden eines einzelnen Treffers.
  *
  * Gerundet wird **einmal am Ende**, nicht zwischendurch: Zwischenrundungen wären
@@ -104,7 +114,7 @@ export function computeDamage(baseDamage: number, factors: DamageFactors): numbe
   value *= factors.resistance;
   value *= factors.vulnerability;
   value *= factors.crit;
-  return Math.round(value);
+  return roundLikeJavaScript(value);
 }
 
 /**

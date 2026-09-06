@@ -106,6 +106,31 @@ impl DamageFactors {
     }
 }
 
+/// Rundet wie JavaScripts `Math.round`, auch fuer negative Werte (#962).
+///
+/// Naechste ganze Zahl, bei gleichem Abstand Richtung +unendlich:
+/// `-1.5 -> -1.0`, `-0.5 -> -0.0`. Null und Unendlich behalten ihr Vorzeichen;
+/// NaN bleibt NaN, ohne Vertrag ueber dessen Nutzlast.
+///
+/// Nicht `(value + 0.5).floor()`: Die Addition kann schon den Nachbarn unter
+/// einer Halbschwelle auf die Schwelle runden. `trunc` und die Restbildung
+/// vermeiden diese Zwischenrundung. Die Skalierung der Eingabe bleibt bestehen.
+#[must_use]
+pub fn round_js(value: f64) -> f64 {
+    if !value.is_finite() || value == 0.0 {
+        return value;
+    }
+    let integer = value.trunc();
+    let fraction = value - integer;
+    if fraction >= 0.5 {
+        integer + 1.0
+    } else if fraction < -0.5 {
+        integer - 1.0
+    } else {
+        integer
+    }
+}
+
 /// Schaden eines einzelnen Treffers.
 ///
 /// Gerundet wird **einmal am Ende**, nicht zwischendurch: Zwischenrundungen
@@ -114,10 +139,10 @@ impl DamageFactors {
 ///
 /// # Zur Rundung
 ///
-/// JavaScript rundet mit `Math.round` zur naechsten ganzen Zahl und die Haelfte
-/// **aufwaerts** (Richtung +∞). Rust rundet die Haelfte **vom Nullpunkt weg**.
-/// Fuer positive Werte ist das dasselbe; Schaden ist nie negativ, und
-/// `debug_assert` haelt das fest, falls sich das je aendert.
+/// [`round_js`] setzt die gemeinsame Regel beider Vorzeichen um. Der
+/// Schadensdatentyp bleibt davon getrennt: `u32` kann keine negativen Betraege
+/// tragen. Die bestehende Debug-Zusicherung prueft diese Vorbedingung; sie ist
+/// kein Beweis, dass eine beliebige oeffentliche Kampfkonfiguration sie erfuellt.
 #[must_use]
 pub fn compute_damage(base_damage: u32, factors: &DamageFactors) -> u32 {
     // Der haeufigste Fall in Schritt 1, und zugleich der wichtigste: Ohne
@@ -139,11 +164,11 @@ pub fn compute_damage(base_damage: u32, factors: &DamageFactors) -> u32 {
 
     debug_assert!(
         value >= 0.0,
-        "negativer Schaden — die Rundung wuerde von JavaScript abweichen"
+        "negativer Schaden — ein u32-Schaden kann diesen Wert nicht darstellen"
     );
     // `as u32` saettigt bei 0 und bei u32::MAX; beides waere ein Fehler weiter
     // oben, aber kein Grund, hier abzustuerzen.
-    value.round() as u32
+    round_js(value) as u32
 }
 
 #[cfg(test)]

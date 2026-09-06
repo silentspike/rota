@@ -12,7 +12,7 @@
 //! Was hier ersetzt wird, ist deshalb nicht der Kampf, sondern das **Mitteln
 //! über viele Durchgänge**, mit dem eine Balance-Zahl entsteht.
 //!
-//! # Die Rechnung, und warum sie exakt ist
+//! # Die Rechnung, und warum sie im Modell exakt ist
 //!
 //! Nicht den Erwartungswert in den Krit-Faktor setzen — das ist der
 //! naheliegende und falsche Weg, weil [`crate::compute_damage`] **je Treffer**
@@ -103,11 +103,18 @@ pub fn gewichtet(p: f64, mit_krit: f64, ohne_krit: f64) -> f64 {
     p * mit_krit + (1.0 - p) * ohne_krit
 }
 
-/// Der Erwartungswert des Schadens — exakt, ohne Monte-Carlo.
+/// Modellanalytischer Erwartungswert des Schadens, als binary64-Punktwert.
 ///
-/// Gibt `None` zurück, wenn die Voraussetzung nicht gilt. **Nicht** einen
-/// Näherungswert: Ein Ergebnis, das manchmal exakt und manchmal ungefähr ist,
-/// wäre schlimmer als keines, weil man ihm die Unterscheidung nicht ansieht.
+/// Das ist kein numerisch exaktes Ergebnis und kein Fehlerzertifikat nach
+/// #965: Diese Funktion kombiniert zwei Balance-Läufe; sie ist keine aus
+/// `Verteilung` abgeleitete Statistik. Die dortigen `*_grenze`-Methoden
+/// zertifizieren ausschließlich das feste Trefferfolgenmodell. Der Rundungs-
+/// und Modellfehler der beiden vollständigen Balance-Läufe wird hier nicht
+/// bestimmt und darf nicht aus den DP-Grenzen übernommen werden.
+///
+/// Gibt `None` zurück, wenn die geprüften Modellvoraussetzungen nicht gelten.
+/// Ein vorhandener Wert ist die binary64-Auswertung der analytischen Formel;
+/// er ist weder eine Monte-Carlo-Schätzung noch ein numerisches Zertifikat.
 #[must_use]
 pub fn erwarteter_schaden(config: &BalanceConfig, apl: &Apl) -> Option<f64> {
     // **Der Kontrollfluss hängt nicht nur an den Knoten, sondern auch am LAUF.**

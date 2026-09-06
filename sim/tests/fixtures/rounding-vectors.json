@@ -1,0 +1,504 @@
+{
+  "schema": 1,
+  "rule": "nearest integer, ties toward positive infinity; preserve signed zero",
+  "oracle": "exact input ratio: floor((2*numerator + denominator) / (2*denominator)), then preserve sign of zero",
+  "cases": [
+    {
+      "name": "0.5-below",
+      "input": "0.49999999999999994",
+      "inputBits": "3fdfffffffffffff",
+      "expected": "0.0",
+      "expectedBits": "0000000000000000"
+    },
+    {
+      "name": "0.5-tie",
+      "input": "0.5",
+      "inputBits": "3fe0000000000000",
+      "expected": "1.0",
+      "expectedBits": "3ff0000000000000"
+    },
+    {
+      "name": "0.5-above",
+      "input": "0.5000000000000001",
+      "inputBits": "3fe0000000000001",
+      "expected": "1.0",
+      "expectedBits": "3ff0000000000000"
+    },
+    {
+      "name": "-0.5-below",
+      "input": "-0.5000000000000001",
+      "inputBits": "bfe0000000000001",
+      "expected": "-1.0",
+      "expectedBits": "bff0000000000000"
+    },
+    {
+      "name": "-0.5-tie",
+      "input": "-0.5",
+      "inputBits": "bfe0000000000000",
+      "expected": "-0.0",
+      "expectedBits": "8000000000000000"
+    },
+    {
+      "name": "-0.5-above",
+      "input": "-0.49999999999999994",
+      "inputBits": "bfdfffffffffffff",
+      "expected": "-0.0",
+      "expectedBits": "8000000000000000"
+    },
+    {
+      "name": "1.5-below",
+      "input": "1.4999999999999998",
+      "inputBits": "3ff7ffffffffffff",
+      "expected": "1.0",
+      "expectedBits": "3ff0000000000000"
+    },
+    {
+      "name": "1.5-tie",
+      "input": "1.5",
+      "inputBits": "3ff8000000000000",
+      "expected": "2.0",
+      "expectedBits": "4000000000000000"
+    },
+    {
+      "name": "1.5-above",
+      "input": "1.5000000000000002",
+      "inputBits": "3ff8000000000001",
+      "expected": "2.0",
+      "expectedBits": "4000000000000000"
+    },
+    {
+      "name": "-1.5-below",
+      "input": "-1.5000000000000002",
+      "inputBits": "bff8000000000001",
+      "expected": "-2.0",
+      "expectedBits": "c000000000000000"
+    },
+    {
+      "name": "-1.5-tie",
+      "input": "-1.5",
+      "inputBits": "bff8000000000000",
+      "expected": "-1.0",
+      "expectedBits": "bff0000000000000"
+    },
+    {
+      "name": "-1.5-above",
+      "input": "-1.4999999999999998",
+      "inputBits": "bff7ffffffffffff",
+      "expected": "-1.0",
+      "expectedBits": "bff0000000000000"
+    },
+    {
+      "name": "2.5-below",
+      "input": "2.4999999999999996",
+      "inputBits": "4003ffffffffffff",
+      "expected": "2.0",
+      "expectedBits": "4000000000000000"
+    },
+    {
+      "name": "2.5-tie",
+      "input": "2.5",
+      "inputBits": "4004000000000000",
+      "expected": "3.0",
+      "expectedBits": "4008000000000000"
+    },
+    {
+      "name": "2.5-above",
+      "input": "2.5000000000000004",
+      "inputBits": "4004000000000001",
+      "expected": "3.0",
+      "expectedBits": "4008000000000000"
+    },
+    {
+      "name": "-2.5-below",
+      "input": "-2.5000000000000004",
+      "inputBits": "c004000000000001",
+      "expected": "-3.0",
+      "expectedBits": "c008000000000000"
+    },
+    {
+      "name": "-2.5-tie",
+      "input": "-2.5",
+      "inputBits": "c004000000000000",
+      "expected": "-2.0",
+      "expectedBits": "c000000000000000"
+    },
+    {
+      "name": "-2.5-above",
+      "input": "-2.4999999999999996",
+      "inputBits": "c003ffffffffffff",
+      "expected": "-2.0",
+      "expectedBits": "c000000000000000"
+    },
+    {
+      "name": "40.5-below",
+      "input": "40.49999999999999",
+      "inputBits": "40443fffffffffff",
+      "expected": "40.0",
+      "expectedBits": "4044000000000000"
+    },
+    {
+      "name": "40.5-tie",
+      "input": "40.5",
+      "inputBits": "4044400000000000",
+      "expected": "41.0",
+      "expectedBits": "4044800000000000"
+    },
+    {
+      "name": "40.5-above",
+      "input": "40.50000000000001",
+      "inputBits": "4044400000000001",
+      "expected": "41.0",
+      "expectedBits": "4044800000000000"
+    },
+    {
+      "name": "-40.5-below",
+      "input": "-40.50000000000001",
+      "inputBits": "c044400000000001",
+      "expected": "-41.0",
+      "expectedBits": "c044800000000000"
+    },
+    {
+      "name": "-40.5-tie",
+      "input": "-40.5",
+      "inputBits": "c044400000000000",
+      "expected": "-40.0",
+      "expectedBits": "c044000000000000"
+    },
+    {
+      "name": "-40.5-above",
+      "input": "-40.49999999999999",
+      "inputBits": "c0443fffffffffff",
+      "expected": "-40.0",
+      "expectedBits": "c044000000000000"
+    },
+    {
+      "name": "2.14748e+09-below",
+      "input": "2147483647.4999998",
+      "inputBits": "41dfffffffdfffff",
+      "expected": "2147483647.0",
+      "expectedBits": "41dfffffffc00000"
+    },
+    {
+      "name": "2.14748e+09-tie",
+      "input": "2147483647.5",
+      "inputBits": "41dfffffffe00000",
+      "expected": "2147483648.0",
+      "expectedBits": "41e0000000000000"
+    },
+    {
+      "name": "2.14748e+09-above",
+      "input": "2147483647.5000002",
+      "inputBits": "41dfffffffe00001",
+      "expected": "2147483648.0",
+      "expectedBits": "41e0000000000000"
+    },
+    {
+      "name": "-2.14748e+09-below",
+      "input": "-2147483647.5000002",
+      "inputBits": "c1dfffffffe00001",
+      "expected": "-2147483648.0",
+      "expectedBits": "c1e0000000000000"
+    },
+    {
+      "name": "-2.14748e+09-tie",
+      "input": "-2147483647.5",
+      "inputBits": "c1dfffffffe00000",
+      "expected": "-2147483647.0",
+      "expectedBits": "c1dfffffffc00000"
+    },
+    {
+      "name": "-2.14748e+09-above",
+      "input": "-2147483647.4999998",
+      "inputBits": "c1dfffffffdfffff",
+      "expected": "-2147483647.0",
+      "expectedBits": "c1dfffffffc00000"
+    },
+    {
+      "name": "4.29497e+09-below",
+      "input": "4294967294.4999995",
+      "inputBits": "41efffffffcfffff",
+      "expected": "4294967294.0",
+      "expectedBits": "41efffffffc00000"
+    },
+    {
+      "name": "4.29497e+09-tie",
+      "input": "4294967294.5",
+      "inputBits": "41efffffffd00000",
+      "expected": "4294967295.0",
+      "expectedBits": "41efffffffe00000"
+    },
+    {
+      "name": "4.29497e+09-above",
+      "input": "4294967294.5000005",
+      "inputBits": "41efffffffd00001",
+      "expected": "4294967295.0",
+      "expectedBits": "41efffffffe00000"
+    },
+    {
+      "name": "-4.29497e+09-below",
+      "input": "-4294967294.5000005",
+      "inputBits": "c1efffffffd00001",
+      "expected": "-4294967295.0",
+      "expectedBits": "c1efffffffe00000"
+    },
+    {
+      "name": "-4.29497e+09-tie",
+      "input": "-4294967294.5",
+      "inputBits": "c1efffffffd00000",
+      "expected": "-4294967294.0",
+      "expectedBits": "c1efffffffc00000"
+    },
+    {
+      "name": "-4.29497e+09-above",
+      "input": "-4294967294.4999995",
+      "inputBits": "c1efffffffcfffff",
+      "expected": "-4294967294.0",
+      "expectedBits": "c1efffffffc00000"
+    },
+    {
+      "name": "2.2518e+15-below",
+      "input": "2251799813685247.2",
+      "inputBits": "431ffffffffffffd",
+      "expected": "2251799813685247.0",
+      "expectedBits": "431ffffffffffffc"
+    },
+    {
+      "name": "2.2518e+15-tie",
+      "input": "2251799813685247.5",
+      "inputBits": "431ffffffffffffe",
+      "expected": "2251799813685248.0",
+      "expectedBits": "4320000000000000"
+    },
+    {
+      "name": "2.2518e+15-above",
+      "input": "2251799813685247.8",
+      "inputBits": "431fffffffffffff",
+      "expected": "2251799813685248.0",
+      "expectedBits": "4320000000000000"
+    },
+    {
+      "name": "-2.2518e+15-below",
+      "input": "-2251799813685247.8",
+      "inputBits": "c31fffffffffffff",
+      "expected": "-2251799813685248.0",
+      "expectedBits": "c320000000000000"
+    },
+    {
+      "name": "-2.2518e+15-tie",
+      "input": "-2251799813685247.5",
+      "inputBits": "c31ffffffffffffe",
+      "expected": "-2251799813685247.0",
+      "expectedBits": "c31ffffffffffffc"
+    },
+    {
+      "name": "-2.2518e+15-above",
+      "input": "-2251799813685247.2",
+      "inputBits": "c31ffffffffffffd",
+      "expected": "-2251799813685247.0",
+      "expectedBits": "c31ffffffffffffc"
+    },
+    {
+      "name": "positive-zero",
+      "input": "0.0",
+      "inputBits": "0000000000000000",
+      "expected": "0.0",
+      "expectedBits": "0000000000000000"
+    },
+    {
+      "name": "negative-zero",
+      "input": "-0.0",
+      "inputBits": "8000000000000000",
+      "expected": "-0.0",
+      "expectedBits": "8000000000000000"
+    },
+    {
+      "name": "positive-subnormal",
+      "input": "5e-324",
+      "inputBits": "0000000000000001",
+      "expected": "0.0",
+      "expectedBits": "0000000000000000"
+    },
+    {
+      "name": "negative-subnormal",
+      "input": "-5e-324",
+      "inputBits": "8000000000000001",
+      "expected": "-0.0",
+      "expectedBits": "8000000000000000"
+    },
+    {
+      "name": "positive-normal-min",
+      "input": "2.2250738585072014e-308",
+      "inputBits": "0010000000000000",
+      "expected": "0.0",
+      "expectedBits": "0000000000000000"
+    },
+    {
+      "name": "negative-normal-min",
+      "input": "-2.2250738585072014e-308",
+      "inputBits": "8010000000000000",
+      "expected": "-0.0",
+      "expectedBits": "8000000000000000"
+    },
+    {
+      "name": "integer-or-interior-0.1",
+      "input": "0.1",
+      "inputBits": "3fb999999999999a",
+      "expected": "0.0",
+      "expectedBits": "0000000000000000"
+    },
+    {
+      "name": "integer-or-interior--0.1",
+      "input": "-0.1",
+      "inputBits": "bfb999999999999a",
+      "expected": "-0.0",
+      "expectedBits": "8000000000000000"
+    },
+    {
+      "name": "integer-or-interior-1.25",
+      "input": "1.25",
+      "inputBits": "3ff4000000000000",
+      "expected": "1.0",
+      "expectedBits": "3ff0000000000000"
+    },
+    {
+      "name": "integer-or-interior--1.25",
+      "input": "-1.25",
+      "inputBits": "bff4000000000000",
+      "expected": "-1.0",
+      "expectedBits": "bff0000000000000"
+    },
+    {
+      "name": "integer-or-interior-1.75",
+      "input": "1.75",
+      "inputBits": "3ffc000000000000",
+      "expected": "2.0",
+      "expectedBits": "4000000000000000"
+    },
+    {
+      "name": "integer-or-interior--1.75",
+      "input": "-1.75",
+      "inputBits": "bffc000000000000",
+      "expected": "-2.0",
+      "expectedBits": "c000000000000000"
+    },
+    {
+      "name": "integer-or-interior-1.0",
+      "input": "1.0",
+      "inputBits": "3ff0000000000000",
+      "expected": "1.0",
+      "expectedBits": "3ff0000000000000"
+    },
+    {
+      "name": "integer-or-interior--1.0",
+      "input": "-1.0",
+      "inputBits": "bff0000000000000",
+      "expected": "-1.0",
+      "expectedBits": "bff0000000000000"
+    },
+    {
+      "name": "integer-or-interior-4503599627370495.5",
+      "input": "4503599627370495.5",
+      "inputBits": "432fffffffffffff",
+      "expected": "4503599627370496.0",
+      "expectedBits": "4330000000000000"
+    },
+    {
+      "name": "integer-or-interior--4503599627370495.5",
+      "input": "-4503599627370495.5",
+      "inputBits": "c32fffffffffffff",
+      "expected": "-4503599627370495.0",
+      "expectedBits": "c32ffffffffffffe"
+    },
+    {
+      "name": "integer-or-interior-4503599627370497.0",
+      "input": "4503599627370497.0",
+      "inputBits": "4330000000000001",
+      "expected": "4503599627370497.0",
+      "expectedBits": "4330000000000001"
+    },
+    {
+      "name": "integer-or-interior--4503599627370497.0",
+      "input": "-4503599627370497.0",
+      "inputBits": "c330000000000001",
+      "expected": "-4503599627370497.0",
+      "expectedBits": "c330000000000001"
+    },
+    {
+      "name": "integer-or-interior-9007199254740991.0",
+      "input": "9007199254740991.0",
+      "inputBits": "433fffffffffffff",
+      "expected": "9007199254740991.0",
+      "expectedBits": "433fffffffffffff"
+    },
+    {
+      "name": "integer-or-interior--9007199254740991.0",
+      "input": "-9007199254740991.0",
+      "inputBits": "c33fffffffffffff",
+      "expected": "-9007199254740991.0",
+      "expectedBits": "c33fffffffffffff"
+    },
+    {
+      "name": "integer-or-interior-9007199254740992.0",
+      "input": "9007199254740992.0",
+      "inputBits": "4340000000000000",
+      "expected": "9007199254740992.0",
+      "expectedBits": "4340000000000000"
+    },
+    {
+      "name": "integer-or-interior--9007199254740992.0",
+      "input": "-9007199254740992.0",
+      "inputBits": "c340000000000000",
+      "expected": "-9007199254740992.0",
+      "expectedBits": "c340000000000000"
+    },
+    {
+      "name": "integer-or-interior-9007199254740994.0",
+      "input": "9007199254740994.0",
+      "inputBits": "4340000000000001",
+      "expected": "9007199254740994.0",
+      "expectedBits": "4340000000000001"
+    },
+    {
+      "name": "integer-or-interior--9007199254740994.0",
+      "input": "-9007199254740994.0",
+      "inputBits": "c340000000000001",
+      "expected": "-9007199254740994.0",
+      "expectedBits": "c340000000000001"
+    },
+    {
+      "name": "integer-or-interior-1.7976931348623157e+308",
+      "input": "1.7976931348623157e+308",
+      "inputBits": "7fefffffffffffff",
+      "expected": "1.7976931348623157e+308",
+      "expectedBits": "7fefffffffffffff"
+    },
+    {
+      "name": "integer-or-interior--1.7976931348623157e+308",
+      "input": "-1.7976931348623157e+308",
+      "inputBits": "ffefffffffffffff",
+      "expected": "-1.7976931348623157e+308",
+      "expectedBits": "ffefffffffffffff"
+    },
+    {
+      "name": "positive-infinity",
+      "input": "inf",
+      "inputBits": "7ff0000000000000",
+      "expected": "inf",
+      "expectedBits": "7ff0000000000000"
+    },
+    {
+      "name": "negative-infinity",
+      "input": "-inf",
+      "inputBits": "fff0000000000000",
+      "expected": "-inf",
+      "expectedBits": "fff0000000000000"
+    },
+    {
+      "name": "nan",
+      "input": "nan",
+      "inputBits": "7ff8000000000000",
+      "expected": "nan",
+      "expectedBits": null
+    }
+  ]
+}
