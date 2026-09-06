@@ -25,10 +25,12 @@ PROBES = (
 
 def fingerprint(root):
     result = {}
+    files = [root / name for name in ('package.json', 'tsconfig.json', 'vite.config.ts')]
     for folder in ('data', 'src', 'docs', 'tools', 'tests'):
-        for file in sorted((root / folder).rglob('*')):
-            if file.is_file() and '__pycache__' not in file.parts:
-                result[str(file.relative_to(root))] = hashlib.sha256(file.read_bytes()).hexdigest()
+        files.extend((root / folder).rglob('*'))
+    for file in sorted(files):
+        if file.is_file() and '__pycache__' not in file.parts:
+            result[str(file.relative_to(root))] = hashlib.sha256(file.read_bytes()).hexdigest()
     return result
 
 
