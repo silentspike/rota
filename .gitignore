@@ -12,6 +12,9 @@
 
 # Abhängigkeiten und Bau-Ergebnisse
 node_modules
+
+# Local questionnaire and private answers; publication needs separate consent.
+fragen/
 dist/
 .vite/
 venv/

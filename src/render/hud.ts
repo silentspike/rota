@@ -16,8 +16,14 @@
  * Ein Zeichenvorgang je Bild (GAME-DESIGN 18.2): `Surface.beginFrame` läuft genau
  * einmal, danach wird nur noch in dieselbe Fläche gezeichnet.
  */
-import { heldOf, progressOf } from '../core/summary.js';
-import { analyzeRun, interruptDataFor, runDataFor } from '../analysis/run-analysis.js';
+import { heldOf, lostTimeShareOf, progressOf } from '../core/summary.js';
+import {
+  analyzeRun,
+  interruptDataFor,
+  missedCastWindowsFor,
+  runDataFor,
+} from '../analysis/run-analysis.js';
+import { drawLiveMetrics } from '../analysis/training-view.js';
 import type { RunAnalysis } from '../analysis/run-analysis.js';
 import type { EfficiencyTable } from '../analysis/efficiency.js';
 import { sampleDamageCurve, type ComparedMetric, type RunCurve } from '../analysis/run-compare.js';
@@ -200,6 +206,13 @@ export class HudRenderer {
    */
   private readonly mechanicSource: LoadoutSource;
   private readonly spellBar: SpellBar;
+  private readonly trainingMetrics = {
+    lostTimeMs: 0,
+    lostTimeShare: 0,
+    missedCasts: 0,
+    synergyUsed: 0,
+    synergyAvailable: 0,
+  };
   /** Ein einziges, wiederverwendetes Objekt — im Bild wird nichts erzeugt. */
   private readonly vesselView: {
     hpFraction: number;
@@ -213,7 +226,7 @@ export class HudRenderer {
   private readonly resultView: {
     outcome: number;
     elapsedMs: number;
-    remainingMs: number;
+    remainingMs: number | null;
     heldPercent: number | null;
     analysis: LossReport | null;
     efficiency: EfficiencyTable | null;
@@ -259,8 +272,7 @@ export class HudRenderer {
      *
      * Als Quelle und nicht als Wert: Die Anzeige fragt beim Wechsel in die
      * Auswertung, statt dass jemand sie hineinreicht und dabei vergisst, sie
-     * nachzuziehen. Dasselbe Muster wie `MetricsSource` im Trainingsraum --
-     * und die Vorgabe `null` haelt jeden bestehenden Aufruf gueltig.
+     * nachzuziehen. Die Vorgabe `null` haelt jeden bestehenden Aufruf gueltig.
      */
     private readonly markSource: () => MarkDisplay | null = () => null,
     /**
@@ -418,7 +430,8 @@ export class HudRenderer {
     const view = this.resultView;
     view.outcome = this.session.outcome;
     view.elapsedMs = this.session.fightElapsedMs(shownMs);
-    view.remainingMs = this.session.overpressureRemainingMs(shownMs);
+    view.remainingMs =
+      combat.boss.id === 'training-dummy' ? null : this.session.overpressureRemainingMs(shownMs);
     // Bei einem Boss mit umgekehrtem Ziel trennt der Ring-Rest die Siege, nicht
     // die Reserve — die ist dort immer null (Issue #256).
     view.heldPercent = heldOf(combat);
@@ -502,13 +515,15 @@ export class HudRenderer {
     const combat = this.session.combat;
     const phase = this.session.phase;
     const fighting = phase === PHASE_FIGHTING;
+    const training = combat.boss.id === 'training-dummy';
     // Die Restzeit kommt aus dem Ablauf, nicht aus dem Kampf: volle Zeit in der
     // Vorbereitung, laufend im Kampf, stehend nach dem Ende. Die Auswertung und
     // die Anzeige müssen dieselbe Zahl nennen.
     const remaining = this.session.overpressureRemainingMs(shownMs);
 
     this.vesselView.hpFraction = combat.bossHpFraction;
-    this.vesselView.overpressureRemainingMs = fighting ? remaining : Number.POSITIVE_INFINITY;
+    this.vesselView.overpressureRemainingMs =
+      fighting && !training ? remaining : Number.POSITIVE_INFINITY;
     this.vesselView.shownMs = shownMs;
     this.vesselView.finished = phase === PHASE_ENDED;
     this.vesselView.flash = this.impact.flashStrength(shownMs);
@@ -573,6 +588,13 @@ export class HudRenderer {
     // Überdruck-Timer oben links.
     ctx.font = FONT_SMALL;
     ctx.fillStyle = INK_DIM;
+    if (training) {
+      ctx.fillText('TRAINING', TIMER_LEFT, TIMER_TOP);
+      ctx.font = FONT_TEXT;
+      ctx.fillStyle = INK;
+      ctx.fillText('No time limit', TIMER_LEFT, TIMER_TOP + 44);
+      return;
+    }
     ctx.fillText(LABEL_OVERPRESSURE, TIMER_LEFT, TIMER_TOP);
     ctx.font = FONT_TIMER;
     ctx.fillStyle = fighting && remaining < 10_000 ? HEAT_MARK : INK;
@@ -989,6 +1011,25 @@ export class HudRenderer {
 
   private drawReadouts(ctx: CanvasRenderingContext2D, shownMs: number): void {
     const combat = this.session.combat;
+    if (combat.boss.id === 'training-dummy') {
+      if (this.session.phase === PHASE_FIGHTING) {
+        const metrics = this.trainingMetrics;
+        metrics.lostTimeMs = this.session.idleMs;
+        metrics.lostTimeShare = lostTimeShareOf(
+          metrics.lostTimeMs,
+          this.session.fightElapsedMs(shownMs),
+        );
+        metrics.missedCasts = missedCastWindowsFor(
+          metrics.lostTimeMs,
+          this.session.idleWithReadyMs,
+          GCD_MS,
+        );
+        metrics.synergyUsed = combat.synergyUsed;
+        metrics.synergyAvailable = combat.synergyAvailable;
+        drawLiveMetrics(ctx, metrics, READOUT_LEFT, READOUT_RIGHT, 660);
+      }
+      return;
+    }
     ctx.font = FONT_TEXT;
     ctx.textAlign = 'left';
     ctx.fillStyle = INK_DIM;

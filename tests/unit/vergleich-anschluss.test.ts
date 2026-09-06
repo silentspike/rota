@@ -30,6 +30,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../../src/core/app.js';
+import { DIFFICULTY_NORMAL } from '../../src/loot/rates.js';
 import { compareRuns } from '../../src/analysis/run-compare.js';
 import { comparableFromBest, curveFromBest, isWellFormed } from '../../src/analysis/best-run.js';
 import { buildComparisonView, buildCurveView } from '../../src/analysis/history-view.js';
@@ -110,7 +111,7 @@ describe('AC1 — die Ansicht ist gebaut und nimmt Zahlen an', () => {
   it('und zeigt einen Bestwert, wenn es einen gibt', () => {
     const best: BestRun = {
       bossId: 'first-crucible',
-      difficulty: 1,
+      difficulty: DIFFICULTY_NORMAL,
       metric: 'reserve',
       value: 19_490,
       gameVersion: '0.1.0',
@@ -329,7 +330,7 @@ describe('AC5 — der Verlauf im Player Home zeigt den EBEN gefahrenen Lauf', ()
    */
   const KONTEXT = {
     bossId: 'first-crucible',
-    difficulty: 1,
+    difficulty: DIFFICULTY_NORMAL,
     bossLevel: 1,
     gameVersion: '0.1.0',
     at: 1_800_000_000_000,
@@ -450,7 +451,7 @@ describe('AC1 — ZWEI Kurven: der Bestlauf bringt seine eigene mit', () => {
     const summary = { ...app.session.summary(5000), victory: true, heldPercent: null };
     const ergebnis = recordRun(app.persistence.state, summary, OUTCOME_VICTORY, {
       bossId: 'first-crucible',
-      difficulty: 1,
+      difficulty: DIFFICULTY_NORMAL,
       bossLevel: 1,
       gameVersion: '0.1.0',
       at: 1_800_000_000_000,
@@ -471,7 +472,7 @@ describe('AC1 — ZWEI Kurven: der Bestlauf bringt seine eigene mit', () => {
     // Schaden gemacht.
     const alt: BestRun = {
       bossId: 'first-crucible',
-      difficulty: 1,
+      difficulty: DIFFICULTY_NORMAL,
       metric: 'reserve',
       value: 19_490,
       gameVersion: '0.1.0',
@@ -486,7 +487,7 @@ describe('AC1 — ZWEI Kurven: der Bestlauf bringt seine eigene mit', () => {
     // ohne Punkte. Beides käme durch eine blosse Anwesenheitsprüfung.
     const grund: BestRun = {
       bossId: 'first-crucible',
-      difficulty: 1,
+      difficulty: DIFFICULTY_NORMAL,
       metric: 'reserve',
       value: 19_490,
       gameVersion: '0.1.0',
@@ -544,7 +545,7 @@ describe('AC1 — die mittlere Stufe: die Kurve des Bestlaufs kommt beim Spieler
       bestRuns: [
         {
           bossId: app.combat.boss.id,
-          difficulty: 1,
+          difficulty: DIFFICULTY_NORMAL,
           metric: 'reserve',
           value: 19_490,
           gameVersion: '0.1.0',

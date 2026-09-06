@@ -29,10 +29,10 @@ kein Widerspruch zu „ungeschützt", sondern die Erklärung: Wo nichts sich
 bewegt, kann auch keine Prüfung anschlagen (die Sorte „keine Lage").
 """
 
+import argparse
 import json
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -96,7 +96,7 @@ def laeufe_in(knoten):
         yield knoten
 
 
-def wirkungsbild():
+def wirkungsbild(aufzeichnungen=None):
     """Alle fünf Größen je LAUF — über alle drei Bauarten.
 
     **Nicht nur `damage`, und nicht nur eine Bauart.** Beides waren Fehler der
@@ -112,7 +112,7 @@ def wirkungsbild():
     Datei führt — und genau dort liegen die Koagulations-Lagen.
     """
     bild = {}
-    for pfad in sorted(AUFZ.glob('*.json')):
+    for pfad in sorted((AUFZ if aufzeichnungen is None else aufzeichnungen).glob('*.json')):
         roh = json.loads(pfad.read_text(encoding='utf8'))
         for n, lauf in enumerate(laeufe_in(roh)):
             # **Die Drücke gehören zum Bild.** Verschiebt eine Mutation sie,
@@ -149,18 +149,39 @@ def exportieren():
         raise RuntimeError(f'Export fehlgeschlagen (rc={e.returncode})\n{e.stderr[-600:]}')
 
 
-def main():
-    von, bis = int(sys.argv[1]), int(sys.argv[2])
+def offene_paare(messdatei):
+    """Liest die gemessenen offenen Paare, ohne Daten oder Aufzeichnungen zu ändern."""
     # Kommentar- und Leerzeilen fliegen raus, BEVOR gesplittet wird (#1094).
     # Die Datei trug bis zum 2026-08-22 keinen Kopf; seit sie die geprüfte
     # Richtung ausweist, hat sie einen. Ohne diesen Filter stünde `#` in z[0]
     # und ein Wort des Kopftextes in z[1] — der Zeilenfilter darunter griffe
     # heute zufällig nicht, weil der Kopf weder SCHWEIGT noch FRISCHE nennt.
     # Auf einen Zufall soll er sich nicht verlassen.
-    roh = (WURZEL / 'docs/groessen-abdeckung-messung.txt').read_text().splitlines()
+    roh = messdatei.read_text(encoding='utf8').splitlines()
     zeilen = [z.split() for z in roh if z.strip() and not z.lstrip().startswith('#')]
     # Nur die ungeschützten — für die geschützten ist die Rangfolge gegenstandslos.
-    offen = [(z[0], z[1]) for z in zeilen if 'SCHWEIGT' in z or 'FRISCHE' in ' '.join(z)]
+    offen = []
+    for z in zeilen:
+        if 'SCHWEIGT' in z or 'FRISCHE' in ' '.join(z):
+            if len(z) < 2:
+                raise ValueError(f'Unvollständige Messzeile: {" ".join(z)}')
+            offen.append((z[0], z[1]))
+    return offen
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('von', type=int, nargs='?')
+    parser.add_argument('bis', type=int, nargs='?')
+    parser.add_argument('--list', action='store_true', help='nur offene Paare als JSON lesen')
+    args = parser.parse_args()
+    if not args.list and (args.von is None or args.bis is None):
+        parser.error('von und bis sind für einen Messlauf erforderlich')
+    offen = offene_paare(WURZEL / 'docs/groessen-abdeckung-messung.txt')
+    if args.list:
+        print(json.dumps(offen, ensure_ascii=False))
+        return
+    von, bis = args.von, args.bis
 
     sicherung = Path(tempfile.mkdtemp(prefix='hebel-', dir='/work/tmp'))
     for d in DATEN:

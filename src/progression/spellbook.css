@@ -1,0 +1,38 @@
+.rota-result {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.spellbook {
+  color: #cfc8ba;
+  font-family: ui-monospace, monospace;
+}
+
+.spellbook-choice {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.7rem;
+  border: 1px solid #87592c;
+  background: #1b1b23;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spellbook-choice strong,
+.spellbook-choice span {
+  display: block;
+}
+
+.spellbook-choice span {
+  margin-top: 0.35rem;
+  font-size: 0.85em;
+}
+
+.spellbook-choice:hover,
+.spellbook-choice:focus-visible {
+  border-color: #d9a25f;
+  outline: 2px solid #d9a25f;
+  outline-offset: 2px;
+}

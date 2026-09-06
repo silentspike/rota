@@ -1757,6 +1757,22 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     if (wert === undefined) continue;
     if (wert <= 0) problems.push(`${where}: ${name} ${wert} ist nicht positiv.`);
     if (!Number.isInteger(wert)) problems.push(`${where}: ${name} ${wert} ist nicht ganzzahlig.`);
+    // **Auf dem Takt-Raster, wie jede andere Zeit** (Issue #1104). Bis zum
+    // 2026-08-22 waren dies die einzigen beiden `Ms`-Felder ohne diese
+    // Auflage — hier und in `sim/build.rs`, wo zwanzig andere Stellen sie
+    // erzwingen.
+    //
+    // Gemessen an `extendShieldMs = 12001`: Bau und beide Prüfsuiten liefen
+    // durch, und der Wert wirkte als 12010. `combat.ts` addiert ihn ohne
+    // `snapUp` und vergleicht gegen `seitBeginn`, das nur Vielfache von
+    // `TICK_MS` annimmt — 12000 und 12001 laufen beide erst bei 12010 ab.
+    // Die Angabe log um neun Millisekunden, und nichts sagte etwas.
+    else if (wert % TICK_MS !== 0) {
+      problems.push(
+        `${where}: ${name} ${wert} liegt nicht auf dem ${TICK_MS}-ms-Raster — ` +
+          `der Wert würde erst im nächsten Takt wirken.`,
+      );
+    }
   }
 
   const reduction = raw['cooldownReductionMs'];
@@ -1818,7 +1834,12 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     // (2) Ohne Raster gäbe es keine Teilwirkungen, und die Kanalisierung wäre
     // ein Cast mit anderem Namen.
     if (channelTickMs <= 0) {
-      problems.push(`${where}: Kanalisierung ohne channelTickMs — es gäbe keine Teilwirkungen.`);
+      problems.push(
+        `${where}: Kanalisierung benötigt channelTickMs > 0 — der Zauber wird nicht geladen.`,
+      );
+      // A reported problem alone leaves this spell usable through value.spells.
+      // A zero interval would keep Combat's channel loop at the same instant.
+      return null;
     } else if (channelTickMs % TICK_MS !== 0) {
       // (2b) **Zwei Rasterfragen, und bis Issue #1104 war nur eine
       // beantwortet.** Die Prüfung darunter stellt sicher, dass `channelMs`
@@ -1912,9 +1933,29 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   };
 }
 
+/** Every spell time is a scheduled duration unless explicitly a threshold (#1104). */
+function validateSpellTimes(raw: unknown, path: string, problems: string[]): void {
+  if (Array.isArray(raw)) {
+    raw.forEach((value, index) => validateSpellTimes(value, `${path}[${index}]`, problems));
+  } else if (isRecord(raw)) {
+    for (const [key, value] of Object.entries(raw)) {
+      const where = `${path}.${key}`;
+      if (key.endsWith('Ms')) {
+        if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+          problems.push(`${where}: Zeit muss eine nichtnegative, sichere Ganzzahl sein.`);
+        } else if (key !== 'cooldownReductionBelowMs' && value % TICK_MS !== 0) {
+          problems.push(`${where}: ${key} ${value} liegt nicht auf dem ${TICK_MS}-ms-Raster.`);
+        }
+      }
+      validateSpellTimes(value, where, problems);
+    }
+  }
+}
+
 export function parseSchool(raw: unknown): ParseResult<SchoolDef> {
   const problems: string[] = [];
   const source = isRecord(raw) ? raw : {};
+  validateSpellTimes(source, 'school', problems);
   const schema = number(source['schema'], 0);
   if (schema !== SUPPORTED_SCHEMA) {
     problems.push(`Unbekannte Fassung des Formats: ${schema} (erwartet ${SUPPORTED_SCHEMA}).`);

@@ -10,6 +10,7 @@
 #
 # Es fasst echte Datendateien an und stellt sie danach wieder her, auch wenn es
 # unterwegs abbricht.
+# CI startet es deshalb über gegenproben-ci.py in einer isolierten Kopie.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,7 +21,7 @@ bash tools/fenster-warnung.sh || true
 # **Zwei Dateien, nicht eine** — und das ist der Kern der Sache:
 #
 #   „vorne"  = an den Anfang der ERSTEN Quelle  (calcination.json)
-#   „hinten" = an das Ende der LETZTEN Quelle   (test-cast.json)
+#   „hinten" = hinter die letzte akzeptierte Kennung (Quelle wird gelesen)
 #
 # Meine erste Fassung fügte beides in calcination.json ein und meldete den
 # erlaubten Fall als Verstoß. Zu Recht: Diese Datei steht in der Mitte der
@@ -38,12 +39,14 @@ bash tools/fenster-warnung.sh || true
 # sein. Ohne ihn belegte Fall D nur, dass der Wächter meckert — nicht, dass man
 # weiterkommt.
 ERSTE=data/spells/calcination.json
-LETZTE=data/spells/test-cast.json
-S1=$(mktemp /work/tmp/erste-XXXXXX.json)
-S2=$(mktemp /work/tmp/letzte-XXXXXX.json)
+LETZTE=$(python3 tools/reihenfolge-einfuegen.py --letzte-datei) || exit 2
+S1=$(mktemp)
+S2=$(mktemp)
+S3=$(mktemp)
 cp "$ERSTE" "$S1"
 cp "$LETZTE" "$S2"
-trap 'cp "$S1" "$ERSTE"; cp "$S2" "$LETZTE"; rm -f "$S1" "$S2"' EXIT
+cp tests/unit/spell-order.json "$S3"
+trap 'cp "$S1" "$ERSTE"; cp "$S2" "$LETZTE"; cp "$S3" tests/unit/spell-order.json; rm -f "$S1" "$S2" "$S3"' EXIT
 
 einfuegen() { # $1 = vorne|hinten
   python3 tools/reihenfolge-einfuegen.py "$1"
@@ -54,9 +57,13 @@ waechter() {
   # vitest stirbt an SIGPIPE, und mit `pipefail` ist der Status dann ungleich
   # null — die Messung hätte IMMER „rot" gemeldet, auch unverändert.
   # Genau dafür steht der unveränderte Fall unten: Er hat es gefangen.
-  local ausgabe
-  ausgabe=$(npx vitest run tests/unit/spell-order.test.ts 2>&1)
-  if printf '%s' "$ausgabe" | grep -qE "Tests +[0-9]+ passed"; then
+  local ausgabe code
+  ausgabe=$(npx --no-install vitest run tests/unit/spell-order.test.ts 2>&1)
+  code=$?
+  if ! printf '%s' "$ausgabe" | grep -qE "Tests +[0-9]+ (passed|failed)"; then
+    printf '%s\n' "$ausgabe" >&2
+    echo 'FEHLER: keine Test-Ergebniszeile'
+  elif [ "$code" = 0 ] && printf '%s' "$ausgabe" | grep -qE "Tests +[0-9]+ passed"; then
     echo gruen
   else
     echo rot
@@ -102,8 +109,6 @@ cp "$S1" "$ERSTE"
 # **Der Weg heraus** — und ohne ihn belegte Fall D nur, dass der Wächter meckert,
 # nicht dass man weiterkommt. Derselbe Einschub, aber mit nachgezogener Liste.
 echo -n "  ... und Liste nachgezogen    -> "
-S3=$(mktemp /work/tmp/order-XXXXXX.json)
-cp tests/unit/spell-order.json "$S3"
 einfuegen eigene-datei
 python3 -c "
 import json
@@ -116,7 +121,6 @@ E=$(waechter)
 echo "$E"
 cp "$S1" "$ERSTE"
 cp "$S3" tests/unit/spell-order.json
-rm -f "$S3"
 
 echo
 if [ "$A" = gruen ] && [ "$B" = rot ] && [ "$C" = gruen ] && [ "$D" = rot ] && [ "$E" = gruen ]; then

@@ -15,6 +15,7 @@ import {
   bossById,
   instanceById,
   type BossDef,
+  type SpellDef,
 } from './data.js';
 import { buildBossSelect, mechanikenVon, waehlbareBosse } from '../progression/boss-select.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
@@ -26,6 +27,14 @@ import {
   sanitize,
 } from '../progression/bindings.js';
 import { buildComposition } from '../progression/composition-view.js';
+import {
+  chooseDraftSpell as takeDraftSpell,
+  legacySpellbook,
+  offerSpellDraft,
+  spellbookSpells,
+} from '../progression/spellbook.js';
+import { buildSpellbookView } from '../progression/spellbook-view.js';
+import '../progression/spellbook.css';
 import { buildGearView } from '../progression/gear-view.js';
 import { buildTalentView } from '../progression/talent-view.js';
 import { SLOT_COUNT } from '../input/keys.js';
@@ -39,6 +48,8 @@ import { Overlay } from '../render/overlay.js';
 import { PHASE_COUNTDOWN, PHASE_ENDED, PHASE_FIGHTING, PHASE_PREPARE } from './phases.js';
 import { RunPersistence } from '../analysis/run-persistence.js';
 import { recordRun, type RecordResult } from '../analysis/run-recorder.js';
+import { DIFFICULTY_NORMAL } from '../loot/rates.js';
+import { newLootSeed } from '../loot/stream.js';
 import { comparableFromBest, curveFromBest, usableBest } from '../analysis/best-run.js';
 import {
   compareRuns,
@@ -58,7 +69,9 @@ import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../analysis/help-data.js';
 import { markSeen, nextIntroduction } from '../analysis/help.js';
 import { buildArchive } from '../analysis/archive.js';
 import { ALL_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
-import { DEFAULT_DUMMY, buildDummy } from '../analysis/training.js';
+import { DEFAULT_DUMMY, buildDummy, type DummySettings } from '../analysis/training.js';
+import { buildTrainingSettings } from '../analysis/training-settings-view.js';
+import '../analysis/training.css';
 import '../analysis/history.css';
 import { pointsDisplayFor } from '../analysis/points-display.js';
 import type { RunSummary } from './summary.js';
@@ -221,6 +234,12 @@ export class App {
    */
   readonly home: PlayerHome;
 
+  /** Beute hat einen eigenen Startwert; die Kampf-Zufallsströme bleiben unverändert. */
+  private lootSeed = newLootSeed();
+
+  /** The next training run's conditions; an active run keeps its own dummy. */
+  private trainingSettings: DummySettings = { ...DEFAULT_DUMMY };
+
   constructor(parent: HTMLElement) {
     const boss = startBoss();
     this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
@@ -268,19 +287,16 @@ export class App {
     this.session.onFinish = (summary, outcome): void => {
       this.lastRecord = recordRun(this.persistence.state, summary, outcome, {
         bossId: this.combat.boss.id,
-        // Schritt 1 kennt eine Stufe. Die Zahl steht hier und nicht als
-        // Vorgabe im Rechner: Sobald es mehrere gibt, ist es diese Zeile.
-        difficulty: 1,
+        // Derselbe nullbasierte Schlüssel wie in Beute und gespeicherten Läufen.
+        difficulty: DIFFICULTY_NORMAL,
         // Die Stufe des BOSSES, aus seinem Datensatz — nicht die des
         // Spielers und nicht die Schwierigkeit (Issue #248).
         bossLevel: this.combat.boss.level,
         gameVersion: __ROTA_VERSION__,
         at: Date.now(),
-        // **Der Startwert dieses Kampfes** (Issue #447): Aus ihm leitet
-        // `lootStreamFor` den Beute-Strom ab — getrennt von den Kampfströmen,
-        // aber aus derselben Wurzel, damit eine aufgezeichnete Runde ihre
-        // Beute wiederholt.
-        seed: 0,
+        // Ein eigener Startwert je Versuch, im Verlauf für die Wiederholung
+        // gespeichert. Die festen Kampfströme bleiben davon unberührt.
+        seed: this.lootSeed,
         // **Die Instanz des Bosses, nicht mehr die feste 1** (#421c).
         //
         // Hier stand bis dahin `instance: 1` mit dem Vermerk „sobald es die
@@ -300,6 +316,7 @@ export class App {
         // Antwort darauf. `itemLevelOf` klemmt ohnehin auf `[1, INSTANCE_COUNT]`.
         instance: instanceById(this.combat.boss.instance)?.number ?? 1,
         endlessLevel: 0,
+        rewardEligible: instanceById(this.combat.boss.instance) !== undefined,
         // **Der Schadensverlauf dieses Laufs** (Issue #82, AC1 „zwei Kurven
         // übereinander"). HIER und nicht im Rechner: Dies ist die Stelle, an
         // der Kampfprotokoll und Spielstand zusammenkommen — `recordRun` sieht
@@ -315,8 +332,26 @@ export class App {
       });
       // Ein misslungenes Ablegen ist ein Verlust, aber kein Grund, den Ablauf
       // anzuhalten -- der Rueckgabewert wird bewusst nicht geprueft.
-      if (this.lastRecord.counted) this.persistence.persist(this.lastRecord);
-      this.lastMark = markDisplayFor(this.lastRecord, summary, this.combat.boss.id);
+      if (this.lastRecord.counted) {
+        const book =
+          summary.victory && instanceById(this.combat.boss.instance) !== undefined
+            ? offerSpellDraft(
+                this.persistence.spellbook,
+                this.lastRecord.level,
+                this.combat.spells,
+                this.lootSeed,
+              )
+            : this.persistence.spellbook;
+        // Lauf und bereits gezogenes Angebot werden zusammen gespeichert.
+        this.persistence.persist(this.lastRecord, book);
+        this.refreshSpellDraft();
+      }
+      this.lastMark = markDisplayFor(
+        this.lastRecord,
+        summary,
+        this.combat.boss.id,
+        DIFFICULTY_NORMAL,
+      );
       this.lastSummary = summary;
       this.showUnlockedEntry(this.lastRecord);
     };
@@ -375,6 +410,11 @@ export class App {
     // entscheidet diese Datei. So bleibt die Zusage von `player-home.ts`
     // wörtlich gültig, dass jener Bildschirm den Kampf nicht anfasst.
     this.home.addSection({
+      id: 'spellbook',
+      title: 'Spellbook',
+      content: this.buildSpellDraft(),
+    });
+    this.home.addSection({
       id: 'targets',
       title: 'Targets',
       content: this.buildBossSection(),
@@ -422,10 +462,8 @@ export class App {
     // und hatte keinen Aufrufer — eine Puppe mit einer Milliarde Leben und
     // 24 Stunden Ueberdruck, die niemand betreten konnte.
     //
-    // Der Knopf startet mit `DEFAULT_DUMMY`. Das Einstellungs-Formular aus
-    // 19.2 (Widerstand, Gegenschlag, Wirkzauber) ist NICHT gebaut: Es gibt
-    // dafuer keine Ansicht, nur den Datentyp. Ein Knopf ohne Formular macht
-    // den Raum betretbar; ein Formular ohne Raum haette gar nichts gebracht.
+    // Die Bedingungen aus 15.5 werden vor dem Durchgang eingestellt. Ohne
+    // Eingriff gilt weiterhin DEFAULT_DUMMY: neutral, ohne Schaden und Zauber.
     this.home.addSection({
       id: 'training',
       title: 'Training',
@@ -524,7 +562,7 @@ export class App {
           levelUp: levelUpDisplayFor(
             record.leveledUp,
             this.persistence.state.level,
-            this.combat.spells,
+            this.ownedSpells(),
           ),
         };
       },
@@ -573,6 +611,37 @@ export class App {
     this.boundUiKey = (event: KeyboardEvent): void => {
       this.handleUiKey(event);
     };
+    this.refreshSpellDraft();
+    if (this.persistence.spellbook.pendingSpellIds.length > 0) this.home.show();
+  }
+
+  private ownedSpells(): readonly SpellDef[] {
+    return spellbookSpells(this.persistence.spellbook, this.combat.spells);
+  }
+
+  private buildSpellDraft(): HTMLElement {
+    return buildSpellbookView(this.persistence.spellbook, this.combat.spells, (spellId) =>
+      this.chooseDraftSpell(spellId),
+    );
+  }
+
+  private refreshSpellDraft(): void {
+    this.home.replaceSection('spellbook', this.buildSpellDraft());
+    this.overlay.setSpellDraft(
+      this.persistence.spellbook.pendingSpellIds.length > 0 ? this.buildSpellDraft() : null,
+    );
+  }
+
+  chooseDraftSpell(spellId: string): boolean {
+    if (this.session.phase === PHASE_FIGHTING || this.session.phase === PHASE_COUNTDOWN)
+      return false;
+    const next = takeDraftSpell(this.persistence.spellbook, spellId);
+    if (next === null) return false;
+    this.persistence.persistSpellbook(next);
+    this.applyBindings();
+    this.refreshSpellDraft();
+    this.refreshLoadout();
+    return true;
   }
 
   // ------------------------------------------------------------ Kampfablauf
@@ -600,11 +669,11 @@ export class App {
    */
   private applyBindings(): void {
     const stand = this.persistence.state;
-    const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.ownedSpells());
     const belegung =
       Object.keys(gespeichert).length > 0
         ? gespeichert
-        : defaultBindings(stand.level, this.combat.spells);
+        : defaultBindings(stand.level, this.ownedSpells());
 
     applyBindings(
       belegung,
@@ -633,10 +702,10 @@ export class App {
    */
   bindSpellToSlot(spellId: string, slot: number): boolean {
     const stand = this.persistence.state;
-    const vorher = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const vorher = sanitize(this.persistence.save.bindings, stand.level, this.ownedSpells());
     const gefuellt =
-      Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.combat.spells);
-    const nachher = bindSpell(gefuellt, spellId, slot, stand.level, this.combat.spells);
+      Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.ownedSpells());
+    const nachher = bindSpell(gefuellt, spellId, slot, stand.level, this.ownedSpells());
     if (nachher === gefuellt) return false;
 
     this.persistence.persistBindings(nachher);
@@ -805,42 +874,37 @@ export class App {
    * in keiner Datendatei, sie wird gerechnet.
    */
   private buildTrainingSection(): HTMLElement {
-    const wurzel = document.createElement('div');
-    wurzel.className = 'training-section';
-    const knopf = document.createElement('button');
-    knopf.type = 'button';
-    knopf.className = 'training-start';
-    // Spieltexte englisch (Design-Gesetz 5).
-    knopf.textContent = 'Enter Training Room';
-    knopf.addEventListener('click', () => {
-      this.startTraining();
-    });
-    wurzel.appendChild(knopf);
-    return wurzel;
+    return buildTrainingSettings(this.trainingSettings, this.combat.school.school, (settings) =>
+      this.startTraining(settings),
+    );
   }
 
   /** Einen Uebungsdurchgang gegen die Puppe beginnen. */
-  private startTraining(): void {
-    const puppe = buildDummy(DEFAULT_DUMMY, this.combat.school.school);
+  private startTraining(settings: DummySettings): boolean {
+    if (this.session.phase === PHASE_FIGHTING || this.session.phase === PHASE_COUNTDOWN)
+      return false;
+    const puppe = buildDummy(settings, this.combat.school.school);
+    this.trainingSettings = { ...settings };
     this.combat.switchBoss(puppe);
     this.overlay.setBoss(puppe.name, resistanceLines(puppe.resistances));
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
+    return true;
   }
 
   private buildLoadoutSection(): HTMLElement {
     const stand = this.persistence.state;
-    const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const gespeichert = sanitize(this.persistence.save.bindings, stand.level, this.ownedSpells());
     const belegung =
       Object.keys(gespeichert).length > 0
         ? gespeichert
-        : defaultBindings(stand.level, this.combat.spells);
+        : defaultBindings(stand.level, this.ownedSpells());
 
     return buildComposition({
       bindings: belegung,
       level: stand.level,
-      spells: this.combat.spells,
+      spells: this.ownedSpells(),
       onBind: (spellId, slot) => {
         const ok = spellId === null ? this.clearSlotAt(slot) : this.bindSpellToSlot(spellId, slot);
         // Der Bereich wird neu gebaut, damit die Anzeige und der Kampf
@@ -966,6 +1030,14 @@ export class App {
 
   setPlayerLevel(level: number): void {
     this.persistence.persistLevel(level);
+    // Das Entwicklungswerkzeug soll weiterhin jedes Kit der gewählten Stufe
+    // prüfen können. Im Spieler-Aufstieg entscheidet ausschließlich der Draft.
+    if (__ROTA_DEVTOOLS__) {
+      this.persistence.persistSpellbook(
+        legacySpellbook(level, this.combat.spells, this.persistence.save.bindings),
+      );
+      this.refreshSpellDraft();
+    }
     // Der Kampf rechnet ab jetzt mit der neuen Stufe (Issue #289).
     this.combat.setPlayerLevel(level);
     this.applyBindings();
@@ -986,9 +1058,9 @@ export class App {
    */
   clearSlotAt(slot: number): boolean {
     const stand = this.persistence.state;
-    const vorher = sanitize(this.persistence.save.bindings, stand.level, this.combat.spells);
+    const vorher = sanitize(this.persistence.save.bindings, stand.level, this.ownedSpells());
     const gefuellt =
-      Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.combat.spells);
+      Object.keys(vorher).length > 0 ? vorher : defaultBindings(stand.level, this.ownedSpells());
     const nachher = clearSlot(gefuellt, slot);
     if (Object.keys(nachher).length === Object.keys(gefuellt).length) return false;
 
@@ -1124,6 +1196,11 @@ export class App {
   }
 
   ready(): boolean {
+    if (this.persistence.spellbook.pendingSpellIds.length > 0) {
+      this.openHome();
+      this.home.root.scrollTop = 0;
+      return false;
+    }
     // „Ready" ist eine Nutzergeste, und zwar die erste des Kampfes. Erst danach
     // gibt der Browser den Klang-Kontext frei — geschähe das erst beim ersten
     // Zauber, bliebe der Countdown stumm.
@@ -1133,7 +1210,9 @@ export class App {
     // der Stufe, die beim Programmstart galt, und der Aufstieg wäre erst nach
     // einem Neuladen spürbar.
     this.combat.setPlayerLevel(this.persistence.state.level);
-    return this.session.beginCountdown(this.loop.timeMs);
+    const started = this.session.beginCountdown(this.loop.timeMs);
+    if (started) this.lootSeed = newLootSeed();
+    return started;
   }
 
   /** Esc-Menü öffnen oder schließen. Nur während des Kampfes sinnvoll. */
@@ -1178,7 +1257,7 @@ export class App {
     const { entry } = usableBest(
       this.persistence.state.bestRuns,
       this.combat.boss.id,
-      1,
+      DIFFICULTY_NORMAL,
       summary.heldPercent === null ? 'reserve' : 'held',
     );
     return compareRuns(summary, comparableFromBest(entry));
@@ -1207,7 +1286,7 @@ export class App {
     const { entry } = usableBest(
       this.persistence.state.bestRuns,
       this.combat.boss.id,
-      1,
+      DIFFICULTY_NORMAL,
       summary.heldPercent === null ? 'reserve' : 'held',
     );
     return curveFromBest(entry);

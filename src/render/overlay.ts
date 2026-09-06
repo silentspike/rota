@@ -76,8 +76,8 @@ export interface ResultView {
   readonly outcome: number;
   /** Verstrichene Kampfzeit in ms. */
   readonly elapsedMs: number;
-  /** Restzeit bis zum Überdruck in ms. Bei Sieg die Reserve. */
-  readonly remainingMs: number;
+  /** Restzeit bis zum Überdruck in ms. `null` for training without a deadline. */
+  readonly remainingMs: number | null;
   /**
    * Was einen Sieg vom anderen trennt, bei einem Boss mit umgekehrtem Ziel.
    *
@@ -296,6 +296,7 @@ export class Overlay {
   private readonly gearCard: HTMLElement;
   /** Der Beute-Moment (Issue E6-4). */
   private readonly lootPanel: HTMLElement;
+  private readonly spellDraftPanel: HTMLElement;
   /** Sein Zustand — hier, weil das Überspringen an der Anzeige hängt. */
   readonly loot = new LootMoment();
   private readonly analysisButton: HTMLButtonElement;
@@ -372,7 +373,7 @@ export class Overlay {
     this.title = element('h1', 'rota-title');
     this.prepare.appendChild(this.title);
     this.prepare.appendChild(
-      element('p', 'rota-note', 'Prologue · no target until the run begins'),
+      element('p', 'rota-note', 'Prepare your composition, then begin when ready.'),
     );
     this.prepare.appendChild(
       element(
@@ -437,7 +438,7 @@ export class Overlay {
     this.root.appendChild(this.pause);
 
     // --- Auswertung: dieselbe für alle vier Ausgänge ------------------------
-    this.result = element('div', 'rota-panel');
+    this.result = element('div', 'rota-panel rota-result');
     this.resultHeadline = element('h2', 'rota-title', '');
     this.result.appendChild(this.resultHeadline);
     for (const [key, label] of [
@@ -508,6 +509,9 @@ export class Overlay {
     this.detail = element('div', 'rota-detail');
     this.result.appendChild(this.detail);
 
+    this.spellDraftPanel = element('div', 'rota-spell-draft');
+    this.spellDraftPanel.hidden = true;
+    this.result.appendChild(this.spellDraftPanel);
     this.result.appendChild(button('Retry', actions.onRestart));
     this.analysisButton = button('View Analysis', () => {
       this.toggleDetail();
@@ -523,6 +527,15 @@ export class Overlay {
 
   dispose(): void {
     this.root.remove();
+  }
+
+  setSpellDraft(content: HTMLElement | null): void {
+    this.spellDraftPanel.replaceChildren();
+    this.spellDraftPanel.hidden = content === null;
+    if (content !== null) {
+      this.spellDraftPanel.appendChild(element('h3', 'rota-spell-draft-title', 'Choose a spell'));
+      this.spellDraftPanel.appendChild(content);
+    }
   }
 
   /** Ist das Esc-Menü offen? */
@@ -576,7 +589,10 @@ export class Overlay {
     // mit umgekehrtem Ziel ist die immer 0,00 s, weil der Sieg das Ablaufen
     // der Frist IST. Dort trennt der Ring-Rest die Siege.
     if (view.heldPercent === null) {
-      set('remaining', `${(view.remainingMs / 1000).toFixed(2)} s`);
+      set(
+        'remaining',
+        view.remainingMs === null ? '—' : `${(view.remainingMs / 1000).toFixed(2)} s`,
+      );
     } else {
       set('remaining', `${view.heldPercent.toFixed(1)} %`);
     }

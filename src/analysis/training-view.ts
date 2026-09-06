@@ -23,15 +23,6 @@
  */
 import type { LiveMetrics } from './training.js';
 
-/**
- * Woher die Zahlen kommen.
- *
- * Ein Aufruf je Bild. Was dahintersteckt — heute `Session`, spaeter die
- * Verlustrechnung aus #81 — ist dieser Datei gleichgueltig, und das ist der
- * Zweck.
- */
-export type MetricsSource = () => LiveMetrics;
-
 function element(tag: string, className?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   if (className !== undefined) node.className = className;
@@ -45,6 +36,42 @@ function seconds(ms: number): string {
 
 function percent(share: number): string {
   return `${(share * 100).toFixed(0)} %`;
+}
+
+const IDLE_LABEL = 'IDLE';
+const MISSED_LABEL = 'MISSED CASTS';
+const SYNERGY_LABEL = 'SYNERGY';
+
+function idleText(metrics: LiveMetrics): string {
+  return `${seconds(metrics.lostTimeMs)} · ${percent(metrics.lostTimeShare)}`;
+}
+
+function synergyText(metrics: LiveMetrics): string {
+  return metrics.synergyAvailable > 0
+    ? `${metrics.synergyUsed} / ${metrics.synergyAvailable}`
+    : 'n/a';
+}
+
+/** The production HUD draws these in its existing Canvas pass (§18.2). */
+export function drawLiveMetrics(
+  ctx: CanvasRenderingContext2D,
+  metrics: LiveMetrics,
+  left: number,
+  right: number,
+  top: number,
+): void {
+  ctx.font = '24px ui-monospace, "DejaVu Sans Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#61616e';
+  ctx.fillText(IDLE_LABEL, left, top);
+  ctx.fillText(MISSED_LABEL, left, top + 44);
+  ctx.fillText(SYNERGY_LABEL, left, top + 88);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#d5d5de';
+  ctx.fillText(idleText(metrics), right, top);
+  ctx.fillText(String(metrics.missedCasts), right, top + 44);
+  ctx.fillText(synergyText(metrics), right, top + 88);
+  ctx.textAlign = 'left';
 }
 
 /** Eine Kennzahl mit Beschriftung — englisch, steht im Spiel. */
@@ -76,16 +103,16 @@ export class LiveMetricsView {
     };
     this.readouts = {
       // Die drei aus GAME-DESIGN 15.1, in derselben Reihenfolge.
-      idle: make('idle', 'IDLE'),
-      missed: make('missed', 'MISSED CASTS'),
-      synergy: make('synergy', 'SYNERGY'),
+      idle: make('idle', IDLE_LABEL),
+      missed: make('missed', MISSED_LABEL),
+      synergy: make('synergy', SYNERGY_LABEL),
     };
   }
 
   update(metrics: LiveMetrics): void {
     const idle = this.readouts['idle'];
     if (idle !== undefined) {
-      idle.value.textContent = `${seconds(metrics.lostTimeMs)} · ${percent(metrics.lostTimeShare)}`;
+      idle.value.textContent = idleText(metrics);
     }
     const missed = this.readouts['missed'];
     if (missed !== undefined) {
@@ -96,38 +123,7 @@ export class LiveMetricsView {
       // Ohne moegliche Synergien bleibt die Ausbeute unbestimmt. Hier eine
       // Zahl zu erfinden hiesse, dem Spieler etwas vorzurechnen — in Schritt 1
       // gibt es nur eine Schule und damit keine schulübergreifenden Fenster.
-      synergy.value.textContent =
-        metrics.synergyAvailable > 0
-          ? `${metrics.synergyUsed} / ${metrics.synergyAvailable}`
-          : 'n/a';
+      synergy.value.textContent = synergyText(metrics);
     }
   }
-}
-
-/**
- * Die Anzeige an eine Quelle haengen.
- *
- * Gibt eine Funktion zum Loesen zurueck — ohne sie liefe die Schleife nach dem
- * Abbrechen weiter und liesse eine tote Anzeige mitlaufen.
- */
-export function runLiveMetrics(
-  view: LiveMetricsView,
-  source: MetricsSource,
-  schedule: (callback: () => void) => number = (cb) => window.requestAnimationFrame(cb),
-  cancel: (handle: number) => void = (h) => {
-    window.cancelAnimationFrame(h);
-  },
-): () => void {
-  let handle = 0;
-  let stopped = false;
-  const tick = (): void => {
-    if (stopped) return;
-    view.update(source());
-    handle = schedule(tick);
-  };
-  handle = schedule(tick);
-  return () => {
-    stopped = true;
-    cancel(handle);
-  };
 }

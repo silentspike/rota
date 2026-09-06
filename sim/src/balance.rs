@@ -710,6 +710,16 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
     run_intern(config, apl, true)
 }
 
+/// Runs the same seed set with a runtime limit checked before each complete fight.
+/// Scheduling settings never enter the combat configuration or result identity.
+pub fn run_controlled(
+    config: &BalanceConfig,
+    apl: &Apl,
+    control: &crate::drosselung::RuntimeControl,
+) -> BalanceResult {
+    run_with_control(config, apl, true, Some(control))
+}
+
 /// Wie [`run`], aber die Reduktion aus #908 lässt sich abschalten.
 ///
 /// **Der Bezugslauf für AC3.** „Bitgleich wie vorher" ist keine Aussage über
@@ -717,6 +727,15 @@ pub fn run(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
 /// und den zweiten kann nur erzeugen, wer die Reduktion ausschalten kann. Ohne
 /// diesen Schalter bliebe die Gleichheit behauptet.
 pub(crate) fn run_intern(config: &BalanceConfig, apl: &Apl, reduktion: bool) -> BalanceResult {
+    run_with_control(config, apl, reduktion, None)
+}
+
+fn run_with_control(
+    config: &BalanceConfig,
+    apl: &Apl,
+    reduktion: bool,
+    control: Option<&crate::drosselung::RuntimeControl>,
+) -> BalanceResult {
     let threads = config.threads.max(1);
     let iterations = config.iterations;
 
@@ -730,7 +749,7 @@ pub(crate) fn run_intern(config: &BalanceConfig, apl: &Apl, reduktion: bool) -> 
         // Die Bedingung ist abgeleitet, nicht `purity == 0`: Sobald irgendetwas
         // wuerfelt, faellt sie von selbst auf `false` zurueck. Siehe
         // [`crate::durchgaenge`].
-        let (einer, casts_eines, wuerfe) = run_range(config, apl, 0, 1);
+        let (einer, casts_eines, wuerfe) = run_range(config, apl, 0, 1, control);
 
         // **Die Voraussetzung wird nachgeprueft, nicht geglaubt** (Auflage 2).
         // Beschreibt ein Effekt seine Quelle falsch, reduziert die Ableitung
@@ -757,7 +776,7 @@ pub(crate) fn run_intern(config: &BalanceConfig, apl: &Apl, reduktion: bool) -> 
             })
             .collect()
     } else if threads == 1 || iterations < 2 {
-        let (s, c, _) = run_range(config, apl, 0, iterations);
+        let (s, c, _) = run_range(config, apl, 0, iterations, control);
         casts_total = c;
         s
     } else {
@@ -784,7 +803,9 @@ pub(crate) fn run_intern(config: &BalanceConfig, apl: &Apl, reduktion: bool) -> 
         thread::scope(|scope| {
             let handles: Vec<_> = ranges
                 .iter()
-                .map(|&(offset, len)| scope.spawn(move || run_range(config, apl, offset, len)))
+                .map(|&(offset, len)| {
+                    scope.spawn(move || run_range(config, apl, offset, len, control))
+                })
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
             for handle in handles {
@@ -867,6 +888,7 @@ fn run_range(
     apl: &Apl,
     offset: u32,
     len: u32,
+    control: Option<&crate::drosselung::RuntimeControl>,
 ) -> (Vec<Sample>, [u32; crate::data::SPELL_COUNT], u32) {
     let mut fight = Fight::new(FightConfig {
         seed: config.base_seed.wrapping_add(offset),
@@ -955,6 +977,7 @@ fn run_range(
     // hat, sondern der, dass ihre Voraussetzung wirklich galt.
     let mut wuerfe = 0u32;
     for index in 0..len {
+        let _permit = control.map(crate::drosselung::RuntimeControl::acquire);
         let seed = config.base_seed.wrapping_add(offset + index);
         fight.reset(seed);
         let result = fight.run_apl(apl);

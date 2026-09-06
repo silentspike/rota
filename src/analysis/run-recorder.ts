@@ -95,12 +95,11 @@ export interface RecordContext {
   /** Zeitpunkt in ms seit 1970. */
   readonly at: number;
   /**
-   * Startwert der Zufallsströme dieses Kampfes (Issue #447).
+   * Startwert des getrennten Beute-Stroms dieses Versuchs.
    *
    * **Für die Beute, nicht für den Kampf.** `lootStreamFor` leitet daraus einen
-   * eigenen Strom ab — aus demselben Startwert, damit eine aufgezeichnete Runde
-   * auch ihre Beute wiederholt, aber getrennt, damit sie nichts verschiebt
-   * (`rng.ts`).
+   * eigenen Strom ab. Der Verlauf hält den Startwert fest, damit der Fund
+   * nachrechenbar bleibt; die Kampfströme werden davon nicht verändert.
    */
   readonly seed: number;
   /**
@@ -115,6 +114,8 @@ export interface RecordContext {
   readonly instance: number;
   /** Stufe im Endlos-Modus, 0 ausserhalb. */
   readonly endlessLevel: number;
+  /** Trainings- und Prüfziele erhalten Auswertung, aber keinen Spielfortschritt. */
+  readonly rewardEligible?: boolean;
   /**
    * Der Schadensverlauf dieses Laufs (Issue #82, AC1 „zwei Kurven").
    *
@@ -294,10 +295,12 @@ export function recordRun(
   // Zeile, an der die ganze Marke kippt.
   const attempt = attemptFrom(summary, context);
   const mark = recordAttempt(state.progressMarks, attempt);
+  const grantsRewards = summary.victory && context.rewardEligible !== false;
 
   const entry: RunHistoryEntry = {
     bossId: context.bossId,
     difficulty: context.difficulty,
+    lootSeed: context.seed,
     at: context.at,
     gameVersion: context.gameVersion,
     victory: summary.victory,
@@ -313,7 +316,7 @@ export function recordRun(
   // **Erfahrung nur für den Sieg** (Issue #248). Sie hängt an der Stufe des
   // BOSSES; der abnehmende Ertrag über den Stufenabstand steckt seit Issue
   // #276 in `xpForVictory` und stammt aus derselben Kurve wie bei den Punkten.
-  const xpGained = summary.victory ? xpForVictory(context.bossLevel, state.level) : 0;
+  const xpGained = grantsRewards ? xpForVictory(context.bossLevel, state.level) : 0;
   const nachher = grantXp({ level: state.level, xp: state.experience }, xpGained);
 
   // **Punkte hier und nicht in der Zusammenfassung** (Issue #276): Sie brauchen
@@ -377,7 +380,7 @@ export function recordRun(
   // begründet die Trennung — „Beute wird beim Sieg gewürfelt, nicht im Kampf,
   // sie kann nichts verschieben, und nichts kann sie verschieben". Wer hier
   // einen Kampfstrom nähme, bräche die Bitgleichheit still.
-  const drop = summary.victory
+  const drop = grantsRewards
     ? rollLoot(lootStreamFor(context.seed), {
         instance: context.instance,
         difficulty: context.difficulty,
@@ -386,11 +389,14 @@ export function recordRun(
       })
     : null;
 
-  const pointsGained = pointsForRun(
-    summary,
-    { bossLevel: context.bossLevel, playerLevel: state.level },
-    best?.previous ?? null,
-  );
+  const pointsGained =
+    context.rewardEligible === false
+      ? 0
+      : pointsForRun(
+          summary,
+          { bossLevel: context.bossLevel, playerLevel: state.level },
+          best?.previous ?? null,
+        );
 
   // **Der Archiv-Eintrag zum ersten Sieg** (GAME-DESIGN 17.4, Issue #85).
   //
@@ -402,7 +408,7 @@ export function recordRun(
   // **Nur bei einem Sieg**, wie 17.4 es sagt: „nach jedem ersten Boss-Sieg".
   // Eine Niederlage schaltet nichts frei; sie ist kein erster Sieg.
   const archivZustand = { unlockedEntryIds: state.unlockedEntryIds };
-  const neuerEintrag = summary.victory
+  const neuerEintrag = grantsRewards
     ? nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, archivZustand, {
         trigger: 'afterFirstKill',
         // **Die Kennung des Bosses, nicht `context.instance`.** Zwei
@@ -460,7 +466,7 @@ export function recordRun(
       state.defeatedBosses,
       context.bossId,
       context.difficulty,
-      summary.victory,
+      grantsRewards,
     ),
     level: nachher.level,
     experience: nachher.xp,
