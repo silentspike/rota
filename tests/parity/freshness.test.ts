@@ -46,6 +46,7 @@ import eingecheckterWisp from './recordings/wisp-verkuerzung.json';
 import eingecheckterAlembic from './recordings/alembic-zwei-ladungen.json';
 import eingecheckterDeckel from './recordings/deckel-gefallen.json';
 import eingecheckterPhasen from './recordings/phasen-bindung.json';
+import productionPhases from './recordings/production-phase-bindings.json';
 import eingecheckteAusruestung from './recordings/gear.json';
 import eingecheckteSaetze from './recordings/sets.json';
 import eingecheckterSpielerSchaden from './recordings/player-damage.json';
@@ -142,6 +143,7 @@ import {
   alembicPayload,
   deckelPayload,
   phasenPayload,
+  productionPhasesPayload,
   misplaysPayload,
   playerDamagePayload,
   coagulationPayload,
@@ -210,6 +212,10 @@ const HINWEIS =
   'Der Diff zeigt dann, welche Regel sich geändert hat.';
 
 describe('Gemeinsame Vergleichsdateien', () => {
+  it('die Produktionsbosse behalten ihre gemessenen Phasenbindungen', () => {
+    expect(productionPhases, HINWEIS).toEqual(productionPhasesPayload());
+  });
+
   it('die aufgezeichnete Runde entspricht dem heutigen Spielstand', () => {
     expect(eingecheckteAufzeichnung, HINWEIS).toEqual(recordingPayload());
   });
@@ -932,6 +938,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'alembic-zwei-ladungen',
   'deckel-gefallen',
   'phasen-bindung',
+  'production-phase-bindings',
   'gear',
   'sets',
   'player-damage',
