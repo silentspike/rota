@@ -262,3 +262,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# Intentional #1100 CI negative control; never merge this branch.
+def broken(:
