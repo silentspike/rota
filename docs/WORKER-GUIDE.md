@@ -392,14 +392,18 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 
 ### `--test SUITE` beim Arbeiten, `--all-targets` erst vor der Fertigmeldung
 
-> **`cargo remote` BAUT, es FÄHRT NICHT.** rustbuild hat kein AVX2/FMA — ein Lauf
-> dort misst eine andere Maschine als die, für die gebaut wird. Erlaubt sind
-> `build`, `test --no-run`, `clippy` und `cargo-remote-fmt`; ausgeführt wird
-> lokal. Die Regel mit ihren Messwerten steht in `/work/.claude/CLAUDE.md` unter
-> „Rust — Remote-Build", der Wächter dazu ist `tools/remote-nur-bauen.sh`.
+> **Aktuelle Vorgabe vom 6. September 2026: Rust wird remote gebaut, getestet,
+> gelintet und formatiert.** `cargo remote` führt den Cargo-Befehl auf dem
+> konfigurierten Buildserver aus. Mehrere große Aufrufe werden nacheinander
+> gefahren; Exit-Code und tatsächlich ausgeführte Testzahl gehören zum Nachweis.
+> Für reine Prüfungen ist kein Artefakt-Copyback nötig; `--no-copy-lock` bewahrt
+> das lokale Lockfile. Formatierung erfolgt über `cargo-remote-fmt`.
 >
-> Am 2026-08-21 standen 28 Stellen im Repository, die das Gegenteil empfahlen —
-> acht davon in diesem Dokument, zwei in diesem Abschnitt (#1040).
+> Das frühere pauschale Verbot von Remote-Testläufen und sein CI-Wächter sind
+> aufgehoben. **Hardwaremessungen bleiben an den gemessenen Rechner gebunden:**
+> Ein Durchsatz des Buildservers qualifiziert weder den Laptop noch dessen
+> Vektorpfade. Die datierten Messungen weiter unten beschreiben ihren damaligen
+> Versuchsaufbau.
 
 > **Beim Läufer mit `--apl` ist der Pfad `sim/apl/…`, nicht `apl/…`** — er startet im
 > Workspace-Root. Die Fehlermeldung nennt den übergebenen Pfad und sieht deshalb aus
@@ -419,10 +423,11 @@ gezielt gelaufen, hätte er **30 Minuten** gespart — bei gleichem Ergebnis, de
 gezielter Lauf prüft, woran man gerade arbeitet.
 
 ```bash
-cargo remote -c -- test --no-run --test meine_suite > /work/tmp/bau.log     # beim Arbeiten
-bash tools/tests-lokal.sh /work/tmp/bau.log
-cargo remote -c -- test --no-run --all-targets > /work/tmp/bau.log          # einmal, vor der Fertigmeldung
-bash tools/tests-lokal.sh /work/tmp/bau.log
+cargo remote --no-copy-lock -- test --test meine_suite
+cargo remote --no-copy-lock -- test --workspace --no-fail-fast
+cargo remote --no-copy-lock -- test --workspace --all-targets --features diagnostics --no-fail-fast
+cargo remote --no-copy-lock -- clippy --workspace --all-targets -- -D warnings
+cargo-remote-fmt --check
 ```
 
 **Die Zeile für Worker-3 ist der Grund, warum das keine Pflicht ist**: Bei ihm war gezielt

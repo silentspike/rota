@@ -42,6 +42,7 @@
 import { SLOT_COUNT } from '../gear/slots.js';
 import { isWellFormed as isBestRunWellFormed } from './best-run.js';
 import type { ProgressMarkEntry, RunHistoryEntry } from './save-format.js';
+import { isSpellbookState } from '../progression/spellbook.js';
 
 /** Ein endlicher Zahlenwert — `NaN` und `Infinity` sind keine Messwerte. */
 function istZahl(wert: unknown): boolean {
@@ -63,6 +64,14 @@ function istKennung(wert: unknown): boolean {
 export function isRunHistoryEntry(entry: unknown): entry is RunHistoryEntry {
   if (entry === null || typeof entry !== 'object') return false;
   const roh = entry as Record<string, unknown>;
+  if (
+    roh['lootSeed'] !== undefined &&
+    (!Number.isInteger(roh['lootSeed']) ||
+      (roh['lootSeed'] as number) < 0 ||
+      (roh['lootSeed'] as number) > 0xffffffff)
+  ) {
+    return false;
+  }
   if (!istKennung(roh['bossId'])) return false;
   if (!istZahl(roh['difficulty'])) return false;
   if (!istZahl(roh['at'])) return false;
@@ -239,6 +248,13 @@ export function cleanSave(data: unknown): CleanResult {
   }
   const roh = { ...(data as Record<string, unknown>) };
   const dropped: Record<string, number> = {};
+  if (
+    roh['spellbook'] !== undefined &&
+    roh['spellbook'] !== null &&
+    !isSpellbookState(roh['spellbook'])
+  ) {
+    return { data: null, dropped, unequipped: 0, rejected: 'Zauberbuch ist beschädigt' };
+  }
 
   for (const [name, guard] of Object.entries(LIST_GUARDS)) {
     const wert = roh[name];

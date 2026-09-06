@@ -138,6 +138,21 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+      # #1100: Python is not covered by tsc, eslint or the game unit suite.
+      # No tool is imported for the syntax check: paid APIs and asset writers
+      # receive no credentials and cannot run as a side effect of discovery.
+      - name: Python tools syntax and behavior
+        run: python3 -B tools/python-check.py --tests
+
+      - name: Simulator planning registry
+        run: python3 -B tools/sim-registry.py --check
+
+      # #1051: The probes deliberately damage inputs. They run the real guards
+      # in a disposable copy, with SHA-256 readback after each probe, rather
+      # than mutating the checkout used by subsequent checks.
+      - name: Guard counterexamples in isolated checkout
+        run: python3 -B tools/gegenproben-ci.py
+
       # CVE-2021-42574 (Trojan Source): unsichtbare Steuerzeichen können den
       # Quelltext anders aussehen lassen, als der Compiler ihn liest.
       - name: Versteckte Unicode-Steuerzeichen
@@ -171,18 +186,6 @@ jobs:
       - name: Interne Verweise in den Dokumenten
         shell: bash
         run: bash tools/guide-anker.sh
-
-      # Ein Lauf auf dem Bauserver misst eine andere Maschine als die, fuer die
-      # gebaut wird (rustbuild hat kein AVX2/FMA). Am 2026-08-21 standen 28
-      # Stellen im Repository, die genau das empfahlen — acht davon im
-      # WORKER-GUIDE selbst. Steht hier und nicht in einem eigenen Job: Der
-      # Schritt liest Dateien und braucht keine Voraussetzung.
-      #
-      # Exit 1 = es gibt Laeufe, 2 = der Suchraum war zu eng, 3 = eine geduldete
-      # Ausnahme ist ueberholt. Alle drei sollen die CI anhalten.
-      - name: Kein Lauf auf dem Bauserver
-        shell: bash
-        run: bash tools/remote-nur-bauen.sh
 
   typecheck:
     needs: changes

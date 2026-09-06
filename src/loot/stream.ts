@@ -58,10 +58,18 @@ export const LOOT_STREAM_INDEX = 3;
 /**
  * Der Beute-Strom eines Kampfes.
  *
- * Aus demselben Startwert abgeleitet wie die Kampf-Ströme, damit eine
- * aufgezeichnete Runde auch ihre Beute exakt wiederholt. Ohne das wäre der
- * getrennte Strom tatsächlich der schlechtere Weg.
+ * Aus dem aufgezeichneten Startwert abgeleitet, damit der Fund exakt
+ * nachgerechnet werden kann, ohne die Kampf-Zufallsströme zu verändern.
  */
 export function lootStreamFor(fightSeed: number): RandomStream {
   return new RandomStream(seedForStream(fightSeed, LOOT_STREAM_INDEX));
+}
+
+/**
+ * Ein neuer Beute-Startwert je begonnenem Spieler-Versuch. Er wird im Verlauf
+ * gespeichert und berührt keinen Kampfstrom. Auch nach dem Neuladen beginnt
+ * damit nicht wieder dieselbe Fundfolge bei null.
+ */
+export function newLootSeed(): number {
+  return globalThis.crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
 }

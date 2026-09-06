@@ -27,6 +27,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+mod time_fields;
+
 /// Wie viele Verstaerkungs-Arten es gibt — **eine Kopie von
 /// `sim/src/buffs.rs`** (Issue #420).
 ///
@@ -49,6 +51,14 @@ const BUFF_KIND_CAPACITY: usize = 8;
 
 /// Pfad zur Zauber-Datei, relativ zum Paketverzeichnis `sim/`.
 const SPELLS_JSON: &str = "../data/spells/calcination.json";
+/// Derselbe Name ohne Pfad — er steht in jeder Beanstandung, die diese Datei
+/// betrifft.
+///
+/// **Getrennt, weil `const` nicht rechnen kann**, nicht weil es zwei Wahrheiten
+/// sein sollen: `SPELLS_JSON.rsplit('/')` ist in einem `const`-Ausdruck nicht
+/// erlaubt. Gegen die Drift steht die Zusicherung in [`main`], die prüft, dass
+/// der Pfad auf diesen Namen endet.
+const SPELLS_DATEI: &str = "calcination.json";
 /// Die schulunabhaengigen Sonderzauber (GAME-DESIGN 7.4), relativ zu `sim/`.
 ///
 /// Getrennt von der Schule, weil sie **keiner** angehoeren: Ein Boss-Zauber
@@ -121,6 +131,17 @@ const DEFAULT_BOSS_ID: &str = "first-crucible";
 const EXPECTED_SCHEMA: u64 = 1;
 
 fn main() {
+    // **Die beiden Schreibweisen desselben Namens bleiben beieinander.**
+    // `SPELLS_DATEI` steht in jeder Beanstandung zu dieser Datei; wer den Pfad
+    // umbenennt und den kurzen Namen vergisst, verschickt ab dann wieder
+    // Meldungen, die in die falsche Datei zeigen. Genau das war der Fehler,
+    // den diese Konstante behebt — er soll nicht auf einem anderen Weg
+    // zurueckkommen.
+    assert!(
+        SPELLS_JSON.ends_with(SPELLS_DATEI),
+        "SPELLS_JSON {SPELLS_JSON:?} endet nicht auf SPELLS_DATEI {SPELLS_DATEI:?} — \
+         die Beanstandungen nennten dann eine andere Datei als die gelesene"
+    );
     // Ohne diese beiden Zeilen merkt Cargo eine geaenderte Zauber-Datei nicht und
     // baut mit veralteten Werten weiter — der unangenehmste Fehler ueberhaupt,
     // weil er sich wie ein Rechenfehler anfuehlt.
@@ -199,6 +220,9 @@ fn main() {
         // IST die Zauberreihenfolge (#408).
         ("test-channel-shield.json", &test_channel_shield),
     ];
+    for (name, data) in std::iter::once(("calcination.json", &spells)).chain(weitere) {
+        time_fields::validate(data, name, RASTER_MS).unwrap_or_else(|problem| panic!("{problem}"));
+    }
     emit_spells(&mut out, &spells, &weitere);
 
     // **Vor allem anderen, was die Ressource betrifft** (Issue #506).
@@ -233,7 +257,7 @@ fn main() {
     // Funktion ausgelagert hat.
     let spell_ids: Vec<String> = zauber_liste(&spells, &weitere)
         .iter()
-        .map(|(spell, _)| text(spell, "id", "calcination.json/spells[]").to_owned())
+        .map(|(spell, _, datei)| text(spell, "id", &format!("{datei}/spells[]")).to_owned())
         .collect();
     emit_recordings(&mut out, &spell_ids);
 
@@ -428,10 +452,29 @@ fn emit_resource(out: &mut String, spells: &Value) {
 /// Zauber-Tabelle, [`emit_effects`] fuer die Wirkungsbeschreibung (Issue #911)
 /// und [`emit_recordings`] fuer die Belegung der Aufzeichnungen (Issue #970). Zwei getrennte Aufbauten waeren zwei Listen, die auseinanderlaufen
 /// koennen — und genau diese Sorte Drift ist der Anlass fuer #911.
+/// **Die DATEI wird mitgegeben, nicht später erraten.**
+///
+/// Bis zum 2026-08-22 gab diese Funktion nur `(Zauber, Schule)` zurück, und
+/// `emit_spell` baute seinen Meldungstext mit einem eingebrannten
+/// `calcination.json`. Jede Beanstandung nannte damit dieselbe Datei, aus
+/// welcher der sechs der Zauber auch stammte:
+///
+/// ```text
+/// calcination.json/spells[harden]: extendShieldMs 12001 …   harden steht in coagulation.json
+/// calcination.json/spells[decay]/decayWard: …               decay steht in putrefaction.json
+/// ```
+///
+/// Beide Meldungen schicken den Leser in die falsche Datei — und die zweite
+/// hat es bis in ein Issue geschafft, bevor jemand nachgesehen hat.
+///
+/// **Aus der Schule ableiten wäre der falsche Weg gewesen:** `common.json`
+/// trägt keine, und die fünf `test-*.json` bräuchten je einen Sonderfall.
+/// Der Aufrufer *kennt* den Dateinamen; ihn durchzureichen ist gelesen statt
+/// geraten.
 fn zauber_liste<'a>(
     spells: &'a Value,
-    weitere: &[(&str, &'a Value)],
-) -> Vec<(&'a Value, Option<&'a str>)> {
+    weitere: &[(&'a str, &'a Value)],
+) -> Vec<(&'a Value, Option<&'a str>, &'a str)> {
     let list = spells
         .get("spells")
         .and_then(Value::as_array)
@@ -447,7 +490,10 @@ fn zauber_liste<'a>(
     // QUENCH von Platz 3 auf Platz 6 zu schieben deutete jede alte
     // Aufzeichnung still um, ohne dass ein Prueffall es meldet.
     let eigene_schule = spells.get("school").and_then(Value::as_str);
-    let mut list: Vec<(&Value, Option<&str>)> = list.iter().map(|s| (s, eigene_schule)).collect();
+    let mut list: Vec<(&Value, Option<&str>, &str)> = list
+        .iter()
+        .map(|s| (s, eigene_schule, SPELLS_DATEI))
+        .collect();
     for (datei, quelle) in weitere {
         let eintraege = quelle
             .get("spells")
@@ -456,7 +502,7 @@ fn zauber_liste<'a>(
         // Die Schule steht an der DATEI, nicht am Zauber — `common.json` traegt
         // keine, und seine Zauber gehoeren deshalb keiner an.
         let schule = quelle.get("school").and_then(Value::as_str);
-        list.extend(eintraege.iter().map(|s| (s, schule)));
+        list.extend(eintraege.iter().map(|s| (s, schule, *datei)));
     }
     list
 }
@@ -483,15 +529,15 @@ fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
          /// die Reihenfolge ist Teil des Determinismus (GAME-DESIGN 18.3)."
     );
     let _ = writeln!(out, "pub static SPELLS: [Spell; SPELL_COUNT] = [");
-    for (spell, schule) in &list {
-        emit_spell(out, spell, resource_id, *schule);
+    for (spell, schule, datei) in &list {
+        emit_spell(out, spell, resource_id, *schule, datei);
     }
     let _ = writeln!(out, "];\n");
 
     // Benannte Indizes, damit Rotationen nicht mit nackten Zahlen hantieren.
     // Auch sie stammen aus der Datei, nicht aus dieser Quelldatei.
-    for (index, (spell, _)) in list.iter().enumerate() {
-        let id = text(spell, "id", "calcination.json/spells[]");
+    for (index, (spell, _, datei)) in list.iter().enumerate() {
+        let id = text(spell, "id", &format!("{datei}/spells[]"));
         let konst = id.to_uppercase().replace(['-', ' '], "_");
         let _ = writeln!(out, "/// Index von `{id}` in [`SPELLS`].");
         let _ = writeln!(out, "pub const {konst}: usize = {index};");
@@ -499,9 +545,15 @@ fn emit_spells(out: &mut String, spells: &Value, weitere: &[(&str, &Value)]) {
     out.push('\n');
 }
 
-fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option<&str>) {
-    let id = text(spell, "id", "calcination.json/spells[]");
-    let whose = format!("calcination.json/spells[{id}]");
+fn emit_spell(
+    out: &mut String,
+    spell: &Value,
+    resource_id: &str,
+    school: Option<&str>,
+    datei: &str,
+) {
+    let id = text(spell, "id", &format!("{datei}/spells[]"));
+    let whose = format!("{datei}/spells[{id}]");
 
     let _ = writeln!(out, "    Spell {{");
     let _ = writeln!(out, "        id: {id:?},");
@@ -696,7 +748,7 @@ fn emit_spell(out: &mut String, spell: &Value, resource_id: &str, school: Option
     emit_buff(out, spell, &whose);
     emit_spender(out, spell, &whose, resource_id);
     emit_coagulation(out, spell, &whose);
-    emit_putrefaction(out, spell);
+    emit_putrefaction(out, spell, &whose);
     emit_synergy(out, spell);
     emit_fixation(out, spell, &whose);
     emit_convert(out, spell, &whose);
@@ -1859,7 +1911,7 @@ fn emit_levels(out: &mut String, levels: &Value) {
 /// die Felder gar nicht. Die drei Kalzinations-Zauber und der Unterbrecher
 /// fuehren keines davon.
 /// Die Felder der PUTREFACTION (Issue #97). Fehlen sie, stehen sie auf 0.
-fn emit_putrefaction(out: &mut String, spell: &Value) {
+fn emit_putrefaction(out: &mut String, spell: &Value, whose: &str) {
     let stapel = spell
         .get("decay")
         .and_then(|d| d.get("stacks"))
@@ -1892,14 +1944,40 @@ fn emit_putrefaction(out: &mut String, spell: &Value) {
         .unwrap_or(false);
     let _ = writeln!(out, "        consumes_decay_stacks: {stapel_weg},");
     // HARDEN und SEPSIS (#523).
+    //
+    // **NULL IST HIER DER RICHTIGE VORGABEWERT, und das ist entschieden, nicht
+    // uebersehen** (#1104): Die allermeisten Zauber verlaengern nichts und
+    // sollen das Feld gar nicht erst nennen muessen. `uint()` waere falsch, es
+    // machte das Feld zur Pflicht fuer alle sechzig Zauber. Null heisst
+    // "verlaengert nicht" und wird unten in `combat.rs` genau so gelesen —
+    // anders als bei einer GROESSE, wo eine stille Null wie eine gesetzte
+    // aussaehe.
+    //
+    // **DIE RASTERPRUEFUNG DAGEGEN HAT GEFEHLT.** Bis zum 2026-08-22 waren
+    // dies die einzigen beiden `Ms`-Felder ohne sie, waehrend zwanzig andere
+    // Stellen `is_multiple_of(RASTER_MS)` erzwingen. Gemessen an
+    // `extendShieldMs = 12001`: Bau und beide Pruefsuiten liefen durch, und
+    // der Wert wirkte als 12010 — `combat.ts` vergleicht gegen `seitBeginn`,
+    // das nur Vielfache des Rasters annimmt. Die Angabe log um neun
+    // Millisekunden, und nichts sagte etwas.
     let schild_ms = spell
         .get("extendShieldMs")
         .and_then(Value::as_u64)
         .unwrap_or(0);
+    assert!(
+        schild_ms.is_multiple_of(RASTER_MS),
+        "{whose}: extendShieldMs {schild_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         — der Wert wuerde erst im naechsten Takt wirken"
+    );
     let stapel_ms = spell
         .get("extendDecayMs")
         .and_then(Value::as_u64)
         .unwrap_or(0);
+    assert!(
+        stapel_ms.is_multiple_of(RASTER_MS),
+        "{whose}: extendDecayMs {stapel_ms} liegt nicht auf dem {RASTER_MS}-ms-Raster \
+         — der Wert wuerde erst im naechsten Takt wirken"
+    );
     let _ = writeln!(out, "        extend_shield_ms: {schild_ms},");
     let _ = writeln!(out, "        extend_decay_ms: {stapel_ms},");
 }
@@ -2387,7 +2465,7 @@ fn emit_effects(
     pruefe_zuordnung_vollstaendig();
 
     let mut knoten: Vec<Knoten> = Vec::new();
-    for (spell, _) in zauber_liste(spells, weitere) {
+    for (spell, _, _) in zauber_liste(spells, weitere) {
         let vorher = knoten.len();
         knoten_fuer_zauber(&mut knoten, spell);
         // Sofort nach dem Erzeugen und nicht am Ende: So nennt die Meldung den

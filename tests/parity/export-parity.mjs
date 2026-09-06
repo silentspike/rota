@@ -164,6 +164,8 @@ import {
   DECKEL_NAME,
   phasenPayload,
   PHASEN_NAME,
+  productionPhasesPayload,
+  PRODUCTION_PHASES_NAME,
   TIMELINE_LOOP_NAME,
   primitivesPayload,
   recordingPayload,
@@ -578,6 +580,10 @@ writeFileSync(sublimationPath, serialize(sublimation), 'utf8');
 const phasen = phasenPayload();
 const phasenPath = join(here, 'recordings', `${PHASEN_NAME}.json`);
 writeFileSync(phasenPath, serialize(phasen), 'utf8');
+
+const productionPhases = productionPhasesPayload();
+const productionPhasesPath = join(here, 'recordings', `${PRODUCTION_PHASES_NAME}.json`);
+writeFileSync(productionPhasesPath, serialize(productionPhases), 'utf8');
 console.log(`geschrieben: ${phasenPath}`);
 console.log(
   `  Phasen-Bindung         hoechste Phase ${phasen.expected.hoechstePhase}, ` +

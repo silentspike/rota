@@ -1,12 +1,30 @@
 ---
 id: streich-mutation-wirkfelder
-status: Stable
+status: Historical
 ssot: false
 refs:
   docs: [GAME-DESIGN.md]
 ---
 
 # Streich-Mutationen über die Wirkfelder der Zauberdaten
+
+**Stand 2026-09-06 — historische Messung, keine abgeschlossene Rust-Abnahme.**
+Die folgende Tabelle stammt vom 13.08. und enthält einen inzwischen belegten
+Klassifikationsfehler (#1055): Ein Panic in `build.rs` konnte als ROT erscheinen,
+obwohl keine Rust-Suite lief. Rote TypeScript-Fälle wurden dabei mit Rust-Namen
+zusammengezählt. Beim dokumentierten Gegenversuch mit `dot.refreshMode` waren
+sämtliche 185 Namen aus TypeScript; der Rust-Bau endete mit Exit 101.
+
+Die Exit-Code-Erkennung ist inzwischen korrigiert. Wie viele der historischen
+58 Felder als BAU neu einzuordnen sind, verlangt weiterhin einen vollständigen
+neuen Durchgang. Der aktuelle Bestand enthält **60 Wirkfelder**; hinzu kamen
+`channelMs` und `channelTickMs`. Eine leere BAU-Spalte belegt deshalb weder
+„kein Baubruch“ noch Rust-Testdeckung. Verfahren, getrennte Nachweise und der
+noch ausstehende Messlauf stehen in [STREICH-MUTATION-ABNAHME.md](STREICH-MUTATION-ABNAHME.md).
+
+Der folgende Wortlaut bleibt als historischer Bericht erhalten. Seine
+Deckungsurteile dürfen nicht als aktueller Nachweis für beide Implementierungen
+verwendet werden.
 
 **Die Frage.** Ein Feld kann geparst und danach ignoriert werden. Dass sein Name in
 `sim/src` vorkommt, belegt keine Wirkung — das war die Einschränkung meiner eigenen
@@ -20,9 +38,9 @@ beide Suiten vollständig laufen lassen (`cargo test --no-fail-fast --all-target
 `vitest run`), Namen aller gefärbten Fälle aufzeichnen, Datensatz zurücksetzen.
 Werkzeug: `tools/streich-mutation.py`.
 
-## Ergebnis
+## Historisches Ergebnis vom 13.08.
 
-**Alle 58 Wirkfelder sind abgesichert.** 57 durch mindestens eine Prüfung, die
+**Das damalige Urteil lautete: alle 58 Wirkfelder seien abgesichert.** 57 durch mindestens eine Prüfung, die
 spezifisch auf dieses Feld anspricht; eines (`spender.consumesAll`) durch die
 Erzeugung statt durch eine Prüfung — begründet, siehe unten.
 
