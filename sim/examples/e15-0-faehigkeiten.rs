@@ -203,7 +203,28 @@ fn main() {
 
     // ------------------------------------------------------------- gemeldet
     let caps = HostCaps::erheben();
-    let schluessel = schluessel_erheben(env!("CARGO_PKG_VERSION"));
+    // Eine Paketversion identifiziert keinen Bau: zwei verschiedene Binaries
+    // können beide 0.1.0 heißen. Das Profil gehört zu den tatsächlichen Bytes.
+    let artefakt = std::env::current_exe()
+        .and_then(|pfad| {
+            let ausgabe = std::process::Command::new("sha256sum").arg(pfad).output()?;
+            let text = String::from_utf8_lossy(&ausgabe.stdout);
+            let hash = text.split_whitespace().next().unwrap_or("");
+            if !ausgabe.status.success()
+                || hash.len() != 64
+                || !hash.bytes().all(|b| b.is_ascii_hexdigit())
+            {
+                return Err(std::io::Error::other(
+                    "Artefakt-Hash konnte nicht erhoben werden",
+                ));
+            }
+            Ok(hash.to_owned())
+        })
+        .unwrap_or_else(|fehler| {
+            eprintln!("Kein gültiger Profilschlüssel: {fehler}");
+            std::process::exit(1);
+        });
+    let schluessel = schluessel_erheben(&artefakt);
     println!("== Was die Maschine MELDET ==");
     println!("  Rechner                {}", schluessel.host);
     println!("  Kernel                 {}", schluessel.kernel);
@@ -539,24 +560,13 @@ fn main() {
         .filter(|(a, r)| r.reason.brauchbar() && !abgewichen.contains(a))
         .copied()
         .collect();
-    let uebernommen: Vec<(Arbeitsart, RateModel)> = Arbeitsart::alle()
-        .into_iter()
-        .filter(|a| !stabile.iter().any(|(s, _)| s == a))
-        .filter_map(|a| {
-            let alt = vorher.as_deref().and_then(|t| gespeicherte_rate(t, a))?;
-            let r = vektor.rate(a)?;
-            Some((
-                a,
-                RateModel {
-                    rate_per_s: alt,
-                    ..*r
-                },
-            ))
-        })
-        .collect();
     let mut zum_ablegen = profil.clone();
-    zum_ablegen.raten = stabile.iter().chain(uebernommen.iter()).copied().collect();
+    zum_ablegen.raten = stabile.clone();
     zum_ablegen.raten.sort_by_key(|(a, _)| a.schluessel());
+    let profiltext = zum_ablegen.speichern_mit_vorherigem(vorher.as_deref());
+    let uebernommen = Profil::raten_lesen(&profiltext)
+        .len()
+        .saturating_sub(stabile.len());
 
     if stabile.is_empty() {
         println!(
@@ -564,19 +574,19 @@ fn main() {
              \x20 Ein vorhandenes Profil bleibt unberuehrt."
         );
     } else if std::fs::create_dir_all(&verzeichnis).is_ok()
-        && std::fs::write(&pfad, zum_ablegen.speichern()).is_ok()
+        && std::fs::write(&pfad, &profiltext).is_ok()
     {
         println!(
             "  abgelegt: {} neue Rate(n), {} aus dem alten Profil uebernommen.",
             stabile.len(),
-            uebernommen.len()
+            uebernommen
         );
     } else {
         println!("  NICHT ABGELEGT — das Verzeichnis liess sich nicht anlegen oder beschreiben.");
     }
     println!();
     println!("  Der Inhalt:");
-    for zeile in zum_ablegen.speichern().lines() {
+    for zeile in profiltext.lines() {
         println!("    {zeile}");
     }
     println!();

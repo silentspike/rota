@@ -164,27 +164,18 @@ fn der_selbsttest_sagt_was_er_nicht_prueft() {
     ] {
         assert!(stdout.contains(satz), "'{satz}' fehlt in:\n{stdout}");
     }
-    // Und die Zahlen, die den Umfang beziffern: geprüfte von vorhandenen.
-    //
-    // **Diese Zeile prüft die falsche Sache, und das ist bekannt.** Die
-    // Fehlermeldung darunter sagt, worum es geht: dass eine Bezugsgröße genannt
-    // wird. Festgenagelt ist aber die ZAHL — und die wächst mit jeder neuen
-    // Aufzeichnung. Am 2026-08-22 stand hier 86 und die Instanz-5-Bosse machten
-    // 90 daraus; der Fall wurde rot, ohne dass an der geprüften Eigenschaft
-    // etwas fehlte.
-    //
-    // Ein Muster wie `der \d+ Dateien` prüfte dasselbe und überlebte den
-    // nächsten Zauber. Der Umbau ist **Issue #1097** und steht hier bewusst
-    // nicht drin: Wer eine Prüfung im selben Zug ändert, in dem er ihre Ursache
-    // beseitigt, hat sie danach nicht mehr geprüft.
-    //
-    // Dieselbe Klasse traf am selben Tag `wertungsmenge.rs:67` — dort stand ein
-    // Beispielwert (`instance-5`), wo eine Eigenschaft gemeint war. Von den
-    // sechs `contains`-Zusicherungen dieser Datei ist diese hier die einzige
-    // mit einer festgenagelten Zahl (gezählt am 2026-08-22 gegen `origin/main`).
+    // Die Bezugsgröße wird unabhängig aus dem Dateibestand gelesen. Neue
+    // Aufzeichnungen dürfen diese Prüfung nicht durch eine alte Konstante
+    // brechen; eine falsche Zahl in der CLI-Ausgabe muss weiter auffallen.
+    let gesamt = std::fs::read_dir(gemeinsam::wurzel().join("tests/parity/recordings"))
+        .expect("Aufzeichnungen fehlen")
+        .map(Result::unwrap)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
+        .count();
+    assert!(gesamt > 0, "keine Aufzeichnungen gefunden");
     assert!(
-        stdout.contains("der 90 Dateien"),
-        "die Bezugsgroesse fehlt — 'x geprueft' ohne 'von wie vielen':\n{stdout}"
+        stdout.contains(&format!("der {gesamt} Dateien")),
+        "die Bezugsgroesse fehlt oder stimmt nicht mit dem Dateibestand ueberein:\n{stdout}"
     );
 }
 

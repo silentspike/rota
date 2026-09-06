@@ -636,7 +636,7 @@ use rota_sim::hostcaps::{
 /// `None`, wenn `/proc/cpuinfo` fehlt oder keine `model name`-Zeile trägt.
 /// Auf ARM ist das der Normalfall und kein Fehler.
 fn maschine() -> Option<String> {
-    let text = fs::read_to_string("/proc/cpuinfo").ok()?;
+    let text = std::fs::read_to_string("/proc/cpuinfo").ok()?;
     let modell = modell_aus_text(&text)?;
     Some(format!("{modell} ({} Kerne)", kerne_gesamt()))
 }

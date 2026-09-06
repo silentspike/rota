@@ -21,9 +21,11 @@
 //! Schlag zuzuordnen — mit einem beliebigen anderen Boss als Kontrolle wäre er
 //! es nicht.
 
+use rota_sim::apl::Apl;
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, SPELLS};
 use rota_sim::rotation_search::{all_candidates, greedy, SearchResult};
+use rota_sim::{Fight, FightConfig};
 
 /// Der Boss, an dem der Schlag unabwendbar ist (18400 gegen eine gemessene
 /// Obergrenze von 9200).
@@ -39,6 +41,20 @@ const UEBERLEBBAR: &str = "test-survivable-strike";
 /// die Liste voll ist, bevor die Einzelzüge aufhören zu tragen.
 const MAX_LEN: usize = 10;
 
+/// Kleinster positiver Wert der am 2026-08-21 gemessenen Reihe aus #797:
+/// 1, 2, 5, 10, 20, 50 und 100 trennten die Zwillinge (PIN + BIND nur am
+/// tödlichen Boss), 0 nicht. Die ganze Reihe bleibt unten als Messwerkzeug.
+const PREVENTED_WEIGHT: f64 = 1.0;
+
+fn konfiguration(boss_id: &str, prevented_weight: f64) -> BalanceConfig {
+    BalanceConfig {
+        boss: boss_by_id(boss_id).unwrap_or_else(|| panic!("{boss_id} fehlt im Datensatz")),
+        stop_on_kill: false,
+        prevented_weight,
+        ..BalanceConfig::default()
+    }
+}
+
 /// Führt die Suche gegen einen Boss und gibt das Ergebnis zurück.
 ///
 /// `prevented_weight` ist **kein Beiwerk**: Acht von elf FIXATION-Zaubern
@@ -46,17 +62,26 @@ const MAX_LEN: usize = 10;
 /// auf 0, sind sie in jeder Runde der schlechteste Zug, und die Suche *kann*
 /// sie nicht wählen — unabhängig davon, was sie verhindern.
 fn suche_gegen(boss_id: &str, prevented_weight: f64) -> SearchResult {
-    let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("{boss_id} fehlt im Datensatz"));
-    let config = BalanceConfig {
-        boss,
-        // **Ausdrücklich, nicht geerbt.** Siehe Dateikopf: Die Voreinstellung
-        // ist `true` und machte den Nachweis bedeutungslos, ohne dass es
-        // auffiele.
-        stop_on_kill: false,
-        prevented_weight,
-        ..BalanceConfig::default()
-    };
+    let config = konfiguration(boss_id, prevented_weight);
     greedy(&config, &all_candidates(), MAX_LEN)
+}
+
+/// Dieselbe Umgebung wie bei der Suche, insbesondere dieselbe Abbruchregel.
+/// Der Nachlauf liest tatsächliche Treffer und Unterbrechungen; eine
+/// `kill_time_ms`-Statistik sagt nicht, ob der Spieler den Schlag erlebt hat.
+fn nachlauf(boss_id: &str, apl: &Apl) -> Fight {
+    let config = konfiguration(boss_id, PREVENTED_WEIGHT);
+    let mut fight = Fight::new(FightConfig {
+        boss: config.boss,
+        seed: config.base_seed,
+        duration_ms: config.duration_ms,
+        stop_on_kill: config.stop_on_kill,
+        factors: config.factors,
+        worn: config.worn,
+        ..FightConfig::default()
+    });
+    let _ = fight.run_apl(apl);
+    fight
 }
 
 /// Die FIXATION-Zauber in einer gefundenen Rotation, beim Namen.
@@ -79,34 +104,80 @@ fn fixation_zeilen(ergebnis: &SearchResult) -> Vec<&'static str> {
 /// Sie ist zugleich der Wächter über `stop_on_kill`: Stellt jemand künftig auf
 /// `true` zurück, wird dieser Fall **rot** statt stillschweigend bedeutungslos.
 ///
-/// # Was hier noch fehlt
-///
-/// Die Messgröße ist `kill_time_ms` aus einem `BalanceResult`. Wie sich
-/// `Statistics` verhält, wenn `kills == 0` ist — ob `mean` dann 0, NaN oder
-/// die Kampfdauer trägt —, ist **nicht gemessen**. Eine Zusicherung auf eine
-/// Vermutung darüber wäre entweder immer wahr oder aus dem falschen Grund rot;
-/// beides ist schlechter als eine Lücke, die laut ist.
-///
-/// `unimplemented!()` bricht laut. Ein plausibler Platzhalter liefe still durch.
+/// Ohne Spieleraktionen trifft der Schlag in beiden Kämpfen, aber nur der
+/// größere tötet. Der Zeitpunkt wird aus der Zeitleiste gelesen, nicht in
+/// eine Suchbedingung geschrieben.
 #[test]
-#[ignore = "unfertig: Messgroesse nach dem ersten Lauf festlegen, nicht vorher raten"]
 fn ac5_der_schlag_faellt_ueberhaupt() {
-    unimplemented!(
-        "kill_time_ms bei kills == 0 erst messen, dann zusichern — \
-         siehe Doc-Kommentar"
+    let leer = Apl {
+        name: "ac5-ohne-eingriff".to_owned(),
+        rules: Vec::new(),
+    };
+    let toedlich = nachlauf(TOEDLICH, &leer);
+    let zwilling = nachlauf(UEBERLEBBAR, &leer);
+    for (boss_id, fight) in [(TOEDLICH, &toedlich), (UEBERLEBBAR, &zwilling)] {
+        let boss = boss_by_id(boss_id).expect("Prüfboss fehlt");
+        assert_eq!(boss.timeline.len(), 1, "{boss_id}: kein einzelner Schlag");
+        assert!(
+            fight.time() >= boss.timeline[0].at_ms && fight.damage_taken() > 0,
+            "{boss_id}: Schlag nicht erlebt (Zeit {}, Schaden {})",
+            fight.time(),
+            fight.damage_taken()
+        );
+        assert_eq!(fight.interrupts_landed(), 0);
+    }
+    assert!(
+        toedlich.player_dead(),
+        "der ungeschützte Spieler überlebt den tödlichen Schlag"
+    );
+    assert!(
+        !zwilling.player_dead(),
+        "der Kontrollschlag tötet bereits ohne Suchentscheidung"
     );
 }
 
 /// AC5: Am Boss mit dem unabwendbaren Schlag wählt die Suche FIXATION.
 ///
-/// Das Gewicht ist hier **kein gewählter Wert**, sondern einer aus dem
-/// Fenster, das `die_gewichtsreihe_zeigt_ein_fenster` sucht. Steht dort keines,
-/// ist dieser Fall rot — und das ist dann ein Befund über die Fähigkeit, nicht
-/// über die Zahl.
+/// Die gefundenen Kontrollzeilen müssen im Nachlauf tatsächlich den Schlag
+/// abwenden. Werden ausschließlich diese Zeilen entfernt, tötet er wieder.
+/// So genügt kein unbenutzter FIXATION-Eintrag in einer ansonsten siegreichen
+/// Liste; die Suche muss die Fähigkeit gefunden haben.
 #[test]
-#[ignore = "unfertig: PREVENTED_WEIGHT aus der Gewichtsreihe einsetzen"]
 fn ac5_die_suche_waehlt_fixation_wenn_der_schlag_unabwendbar_ist() {
-    unimplemented!("Gewicht aus der gemessenen Reihe einsetzen, nicht raten");
+    let gefunden = suche_gegen(TOEDLICH, PREVENTED_WEIGHT);
+    let fixation = fixation_zeilen(&gefunden);
+    assert!(
+        !fixation.is_empty(),
+        "Gewicht {PREVENTED_WEIGHT}: keine FIXATION-Zeile am tödlichen Boss"
+    );
+    let mit = nachlauf(TOEDLICH, &gefunden.best.apl);
+    assert!(
+        !mit.player_dead() && mit.interrupts_landed() > 0,
+        "FIXATION {fixation:?} wendet den Schlag nicht ab: tot={}, Unterbrechungen={}",
+        mit.player_dead(),
+        mit.interrupts_landed()
+    );
+
+    let mut ohne_fixation = gefunden.best.apl.clone();
+    ohne_fixation
+        .rules
+        .retain(|regel| SPELLS[regel.spell].school != Some("FIXATION"));
+    assert!(
+        !ohne_fixation.rules.is_empty(),
+        "die Gegenprobe muss die übrige gefundene Rotation behalten"
+    );
+    let ohne = nachlauf(TOEDLICH, &ohne_fixation);
+    assert!(
+        ohne.player_dead() && ohne.damage_taken() > 0,
+        "ohne FIXATION überlebt dieselbe Rotation — die Wahl belegt keine nötige Kontrolle"
+    );
+    println!(
+        "Gewicht {PREVENTED_WEIGHT}, {TOEDLICH}: FIXATION {fixation:?}, \
+         Unterbrechungen {}, tot mit/ohne FIXATION {}/{}",
+        mit.interrupts_landed(),
+        mit.player_dead(),
+        ohne.player_dead()
+    );
 }
 
 /// **Die Träger-Zusicherung aus AC5**: ohne den Schlag bleibt FIXATION draußen.
@@ -116,9 +187,32 @@ fn ac5_die_suche_waehlt_fixation_wenn_der_schlag_unabwendbar_ist() {
 /// überall zu ziehen — dann wäre die Suche geändert und nicht die Fähigkeit,
 /// und genau davor warnt die Auflage im Issue.
 #[test]
-#[ignore = "unfertig: PREVENTED_WEIGHT aus der Gewichtsreihe einsetzen"]
 fn ac5_ohne_den_schlag_bleibt_fixation_draussen() {
-    unimplemented!("Gewicht aus der gemessenen Reihe einsetzen, nicht raten");
+    let gefunden = suche_gegen(UEBERLEBBAR, PREVENTED_WEIGHT);
+    assert!(
+        !gefunden.chosen.is_empty(),
+        "die Suche findet am Zwilling keine Rotation"
+    );
+    assert!(
+        fixation_zeilen(&gefunden).is_empty(),
+        "Gewicht {PREVENTED_WEIGHT}: FIXATION wird auch ohne tödlichen Schlag gewählt"
+    );
+    let fight = nachlauf(UEBERLEBBAR, &gefunden.best.apl);
+    assert!(
+        !fight.player_dead(),
+        "die gefundene Kontrollrotation stirbt"
+    );
+    assert!(
+        fight.damage_taken() + fight.shield_absorbed() > 0,
+        "der Zwilling hat nie getroffen — Überleben allein wäre keine Gegenprobe"
+    );
+    println!(
+        "Gewicht {PREVENTED_WEIGHT}, {UEBERLEBBAR}: FIXATION [], \
+         Schaden {}, absorbiert {}, tot {}",
+        fight.damage_taken(),
+        fight.shield_absorbed(),
+        fight.player_dead()
+    );
 }
 
 /// Sucht das Gewichtsfenster und **gibt die ganze Reihe aus**, nicht nur den

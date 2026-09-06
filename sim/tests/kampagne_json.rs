@@ -15,8 +15,8 @@
 
 use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    CpuReservation, DeadlinePolicy, HostRequirement, Mission, ProjectionSet, QualityTargets,
-    ReferenceProfile, WorkUnits,
+    CpuReservation, DeadlinePolicy, HostRequirement, JsonError, Mission, ProjectionSet,
+    QualityTargets, ReferenceProfile, WorkUnits,
 };
 
 static HOSTS: &[HostRequirement] = &[
@@ -75,7 +75,7 @@ fn kampagne() -> CampaignDefinition {
 #[test]
 fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     let k = kampagne();
-    let text = k.to_json();
+    let text = k.to_json().expect("gültiger Vertrag");
     let v: serde_json::Value =
         serde_json::from_str(&text).unwrap_or_else(|e| panic!("kein gültiges JSON: {e}\n{text}"));
 
@@ -111,7 +111,7 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
 /// ersten die dritte.
 #[test]
 fn ein_fehlender_wert_wird_null_und_nicht_null_komma_null() {
-    let text = kampagne().to_json();
+    let text = kampagne().to_json().expect("gültiger Vertrag");
     let v: serde_json::Value = serde_json::from_str(&text).expect("kein gültiges JSON");
 
     assert!(
@@ -138,7 +138,8 @@ fn ein_fehlender_wert_wird_null_und_nicht_null_komma_null() {
     // null. Das ist die Richtung, die beim Schreiben am leichtesten kippt.
     let mut mit_null = kampagne();
     mit_null.quality_targets.maximum_bound_gap = Some(0.0);
-    let v2: serde_json::Value = serde_json::from_str(&mit_null.to_json()).unwrap();
+    let v2: serde_json::Value =
+        serde_json::from_str(&mit_null.to_json().expect("gültiger Vertrag")).unwrap();
     assert_eq!(
         v2["maximumBoundGap"], 0.0,
         "Eine ausdrücklich verlangte Schranke von 0.0 wurde zu null."
@@ -150,7 +151,8 @@ fn ein_fehlender_wert_wird_null_und_nicht_null_komma_null() {
 #[test]
 fn ohne_frist_steht_null_im_vertrag() {
     let v0 = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance, 7_200_000);
-    let v: serde_json::Value = serde_json::from_str(&v0.to_json()).expect("kein gültiges JSON");
+    let v: serde_json::Value =
+        serde_json::from_str(&v0.to_json().expect("gültiger Vertrag")).expect("kein gültiges JSON");
 
     assert!(
         v["hardDeadline"].is_null(),
@@ -183,8 +185,10 @@ fn beide_fristarten_stehen_unterscheidbar_im_text() {
         remaining_ms: 7_200_000,
     });
 
-    let a: serde_json::Value = serde_json::from_str(&wanduhr.to_json()).unwrap();
-    let b: serde_json::Value = serde_json::from_str(&rechenzeit.to_json()).unwrap();
+    let a: serde_json::Value =
+        serde_json::from_str(&wanduhr.to_json().expect("gültiger Vertrag")).unwrap();
+    let b: serde_json::Value =
+        serde_json::from_str(&rechenzeit.to_json().expect("gültiger Vertrag")).unwrap();
 
     assert_eq!(a["hardDeadline"]["kind"], "wallClockUtc");
     assert_eq!(a["hardDeadline"]["deadlineUnixS"], 1_800_000_000_i64);
@@ -208,7 +212,8 @@ fn jede_mission_steht_unterscheidbar_im_text() {
     .into_iter()
     .map(|m| {
         let vertrag = CampaignRunContract::from_campaign(&k, m, 7_200_000);
-        serde_json::from_str(&vertrag.to_json()).expect("kein gültiges JSON")
+        serde_json::from_str(&vertrag.to_json().expect("gültiger Vertrag"))
+            .expect("kein gültiges JSON")
     })
     .collect();
 
@@ -221,4 +226,141 @@ fn jede_mission_steht_unterscheidbar_im_text() {
     // Die drei Missionen dürfen nicht denselben Text ergeben.
     assert_ne!(texte[0]["mission"], texte[1]["mission"]);
     assert_ne!(texte[1]["mission"], texte[2]["mission"]);
+}
+
+/// Alle JSON-Steuerzeichen, Anführungszeichen, Backslash und nicht-ASCII
+/// müssen bytegetreu rücklesbar bleiben. Rusts Debug-Format kann das nicht.
+#[test]
+fn namen_mit_steuerzeichen_und_unicode_sind_gueltige_json_strings() {
+    const NAME: &str = concat!(
+        "\0\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}\u{8}\t\n\u{b}\u{c}\r\u{e}\u{f}",
+        "\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}",
+        "\u{18}\u{19}\u{1a}\u{1b}\u{1c}\u{1d}\u{1e}\u{1f}",
+        "\"\\/ä🎵\u{7f}\u{2028}"
+    );
+    let host = HostRequirement {
+        name: NAME,
+        ..HOSTS[0]
+    };
+    let text = host.to_json().expect("endliche Quote");
+    let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Hostname");
+    assert_eq!(gelesen["name"].as_str(), Some(NAME));
+
+    let vertrag = CampaignRunContract::from_campaign(
+        &kampagne(),
+        Mission::SingleBoss { boss: NAME },
+        7_200_000,
+    );
+    let text = vertrag.to_json().expect("endlicher Vertrag");
+    let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Bossname");
+    assert_eq!(gelesen["mission"]["boss"].as_str(), Some(NAME));
+}
+
+/// Ungültige Zahlen werden nicht zu `null`: Das hieße bei maximumBoundGap,
+/// die Schranke aufzuheben, statt einen fehlerhaften Vertrag zurückzuweisen.
+#[test]
+fn nichtendliche_qualitaetsvorgaben_werden_mit_feldname_abgelehnt() {
+    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let mut k = kampagne();
+        k.quality_targets.minimum_niche_coverage = wert;
+        assert_eq!(
+            k.to_json(),
+            Err(JsonError::NonFinite {
+                field: "minimumNicheCoverage"
+            })
+        );
+
+        let mut k = kampagne();
+        k.quality_targets.maximum_bound_gap = Some(wert);
+        assert_eq!(
+            k.to_json(),
+            Err(JsonError::NonFinite {
+                field: "maximumBoundGap"
+            })
+        );
+
+        let mut k = kampagne();
+        k.quality_targets.confidence_requirement.level = wert;
+        assert_eq!(
+            k.to_json(),
+            Err(JsonError::NonFinite {
+                field: "confidence"
+            })
+        );
+
+        // Der Laufvertrag ist öffentlich veränderbar. Seine Ausgabe darf
+        // sich deshalb nicht allein auf die vorherige Kampagne verlassen.
+        let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance, 1);
+        let mut vertrag = basis;
+        vertrag.minimum_niche_coverage = wert;
+        assert_eq!(
+            vertrag.to_json(),
+            Err(JsonError::NonFinite {
+                field: "minimumNicheCoverage"
+            })
+        );
+        let mut vertrag = basis;
+        vertrag.maximum_bound_gap = Some(wert);
+        assert_eq!(
+            vertrag.to_json(),
+            Err(JsonError::NonFinite {
+                field: "maximumBoundGap"
+            })
+        );
+        let mut vertrag = basis;
+        vertrag.confidence_requirement.level = wert;
+        assert_eq!(
+            vertrag.to_json(),
+            Err(JsonError::NonFinite {
+                field: "confidence"
+            })
+        );
+    }
+}
+
+#[test]
+fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
+    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let host = HostRequirement {
+            guaranteed_cpu_quota: Some(wert),
+            ..HOSTS[0]
+        };
+        assert_eq!(
+            host.to_json(),
+            Err(JsonError::NonFinite {
+                field: "guaranteedCpuQuota"
+            })
+        );
+    }
+    static UNGUELTIG: &[HostRequirement] = &[HostRequirement {
+        guaranteed_cpu_quota: Some(f64::NAN),
+        ..HOSTS[0]
+    }];
+    let mut k = kampagne();
+    k.reference_profile.hosts = UNGUELTIG;
+    assert_eq!(
+        k.to_json(),
+        Err(JsonError::NonFinite {
+            field: "guaranteedCpuQuota"
+        })
+    );
+}
+
+#[test]
+fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
+    for wert in [0.0, -0.0, f64::MIN_POSITIVE, f64::MAX] {
+        let host = HostRequirement {
+            guaranteed_cpu_quota: Some(wert),
+            ..HOSTS[0]
+        };
+        let gelesen: serde_json::Value = serde_json::from_str(&host.to_json().unwrap()).unwrap();
+        let quote = gelesen["guaranteedCpuQuota"]
+            .as_f64()
+            .expect("Zahl statt null");
+        assert!(quote.is_finite());
+        assert_eq!(quote.to_bits(), wert.to_bits());
+        assert_eq!(gelesen["physicalCores"], 8);
+        assert_eq!(gelesen["threadsPerCore"], 2);
+        assert_eq!(gelesen["reservedPhysicalCores"], 2);
+    }
 }

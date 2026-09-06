@@ -1928,9 +1928,29 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
   };
 }
 
+/** Every spell time is a scheduled duration unless explicitly a threshold (#1104). */
+function validateSpellTimes(raw: unknown, path: string, problems: string[]): void {
+  if (Array.isArray(raw)) {
+    raw.forEach((value, index) => validateSpellTimes(value, `${path}[${index}]`, problems));
+  } else if (isRecord(raw)) {
+    for (const [key, value] of Object.entries(raw)) {
+      const where = `${path}.${key}`;
+      if (key.endsWith('Ms')) {
+        if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+          problems.push(`${where}: Zeit muss eine nichtnegative, sichere Ganzzahl sein.`);
+        } else if (key !== 'cooldownReductionBelowMs' && value % TICK_MS !== 0) {
+          problems.push(`${where}: ${key} ${value} liegt nicht auf dem ${TICK_MS}-ms-Raster.`);
+        }
+      }
+      validateSpellTimes(value, where, problems);
+    }
+  }
+}
+
 export function parseSchool(raw: unknown): ParseResult<SchoolDef> {
   const problems: string[] = [];
   const source = isRecord(raw) ? raw : {};
+  validateSpellTimes(source, 'school', problems);
   const schema = number(source['schema'], 0);
   if (schema !== SUPPORTED_SCHEMA) {
     problems.push(`Unbekannte Fassung des Formats: ${schema} (erwartet ${SUPPORTED_SCHEMA}).`);

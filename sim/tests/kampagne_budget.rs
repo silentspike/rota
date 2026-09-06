@@ -31,7 +31,7 @@ const LAPTOP: CpuReservation = CpuReservation {
     reserved_physical_cores: 2,
 };
 
-static PROFIL_HOSTS: &[HostRequirement] = &[HostRequirement {
+const REFERENZ_HOST: HostRequirement = HostRequirement {
     name: "laptop",
     guaranteed_cpu_quota: Some(1.0),
     guaranteed_memory_mib: 4096,
@@ -39,7 +39,9 @@ static PROFIL_HOSTS: &[HostRequirement] = &[HostRequirement {
     max_rtt_ms: 5,
     min_bandwidth_mibit_s: 100,
     thermal_throttling: false,
-}];
+};
+
+static PROFIL_HOSTS: &[HostRequirement] = &[REFERENZ_HOST];
 
 fn kampagne() -> CampaignDefinition {
     CampaignDefinition {
@@ -103,7 +105,7 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
     // ZUSICHERUNG: Die drei Deployments müssen sich WIRKLICH unterscheiden.
     // Ohne sie verglichen wir dreimal dasselbe, und die Gleichheit wäre trivial
     // wahr — der Fall bliebe grün, auch wenn jemand alle drei gleich baut.
-    let stränge: Vec<u32> = d.iter().map(RunDeployment::total_compute_threads).collect();
+    let stränge: Vec<u64> = d.iter().map(RunDeployment::total_compute_threads).collect();
     assert_eq!(
         stränge,
         vec![12, 12 + 20, 12 + 20 + 28],
@@ -265,22 +267,21 @@ fn ac4_die_reservierung_nimmt_die_smt_geschwister_mit() {
     assert_eq!(ohne_smt.compute_threads(), 6);
 }
 
-/// **AC4** — die Nummern stehen in der Ausgabe, nicht nur im Kommentar.
+/// Die Struktur kennt nur Anzahlen. AC4s tatsächliche CPU-IDs bleiben ohne
+/// Topologie und Affinitätsnachweis offen; die Anzeige darf sie nicht erfinden.
 #[test]
-fn ac4_die_anzeige_nennt_konkrete_nummern() {
+fn ac4_die_anzeige_trennt_rechenvorgabe_von_unbekannter_kernbindung() {
     let text = LAPTOP.describe();
+    assert!(text.contains("12 Stränge (rechnerisch)"), "{text}");
     assert!(
-        text.contains("CPUs 0-11"),
-        "Die Anzeige nennt den Compute-Bereich nicht konkret: {text}"
+        text.contains("2 von 8 physischen Kernen samt SMT-Geschwistern"),
+        "{text}"
     );
     assert!(
-        text.contains("physische Kerne 6-7"),
-        "Die Anzeige nennt die reservierten Kerne nicht konkret: {text}"
+        text.contains("CPU-IDs und tatsächliche Kernbindung: nicht ermittelt"),
+        "{text}"
     );
-    assert!(
-        text.contains("SMT"),
-        "Die Anzeige sagt nicht, dass die Geschwister mitgehen: {text}"
-    );
+    assert!(!text.contains("0-11") && !text.contains("6-7"), "{text}");
 }
 
 /// **AC5** — ein Zeitabbruch ist nicht die Voreinstellung.
@@ -464,4 +465,178 @@ fn ac3_das_referenzprofil_nennt_mindestressourcen() {
             h.name
         );
     }
+}
+
+/// Eine gleiche Versionsnummer darf geänderte Herkunftsdaten nicht verdecken.
+/// Jeder einzelne Inhalt des Referenzrechners beeinflusst die Identität;
+/// das aktuelle Deployment gehört weiterhin nicht dazu (Kontrolle oben).
+#[test]
+fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
+    static VARIANTEN: &[(&str, HostRequirement)] = &[
+        (
+            "name",
+            HostRequirement {
+                name: "proxmox",
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "quota",
+            HostRequirement {
+                guaranteed_cpu_quota: Some(2.0),
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "best effort",
+            HostRequirement {
+                guaranteed_cpu_quota: None,
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "memory",
+            HostRequirement {
+                guaranteed_memory_mib: 8192,
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "physical cores",
+            HostRequirement {
+                cpu: CpuReservation {
+                    physical_cores: 9,
+                    ..LAPTOP
+                },
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "threads per core",
+            HostRequirement {
+                cpu: CpuReservation {
+                    threads_per_core: 1,
+                    ..LAPTOP
+                },
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "reserved cores",
+            HostRequirement {
+                cpu: CpuReservation {
+                    reserved_physical_cores: 1,
+                    ..LAPTOP
+                },
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "rtt",
+            HostRequirement {
+                max_rtt_ms: 6,
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "bandwidth",
+            HostRequirement {
+                min_bandwidth_mibit_s: 101,
+                ..REFERENZ_HOST
+            },
+        ),
+        (
+            "throttling",
+            HostRequirement {
+                thermal_throttling: true,
+                ..REFERENZ_HOST
+            },
+        ),
+    ];
+    let basis = kampagne();
+    for (feld, host) in VARIANTEN {
+        let mut anders = basis;
+        anders.reference_profile.hosts = std::slice::from_ref(host);
+        assert_ne!(
+            anders.fingerprint(),
+            basis.fingerprint(),
+            "Referenzfeld {feld} fehlt"
+        );
+        assert_eq!(anders.canonical_work_budget, basis.canonical_work_budget);
+    }
+}
+
+#[test]
+fn ac2_referenzrechner_anzahl_und_fehlende_quote_bleiben_unterscheidbar() {
+    static DOPPELT: &[HostRequirement] = &[REFERENZ_HOST, REFERENZ_HOST];
+    static OHNE_QUOTE: &[HostRequirement] = &[HostRequirement {
+        guaranteed_cpu_quota: None,
+        ..REFERENZ_HOST
+    }];
+    static NULL_QUOTE: &[HostRequirement] = &[HostRequirement {
+        guaranteed_cpu_quota: Some(0.0),
+        ..REFERENZ_HOST
+    }];
+    let basis = kampagne();
+    let mut doppelt = basis;
+    doppelt.reference_profile.hosts = DOPPELT;
+    assert_ne!(doppelt.fingerprint(), basis.fingerprint());
+    let mut leer = basis;
+    leer.reference_profile.hosts = &[];
+    assert_ne!(leer.fingerprint(), basis.fingerprint());
+    let mut ohne = basis;
+    ohne.reference_profile.hosts = OHNE_QUOTE;
+    let mut null = basis;
+    null.reference_profile.hosts = NULL_QUOTE;
+    assert_ne!(ohne.fingerprint(), null.fingerprint());
+}
+
+#[test]
+fn ac4_leere_und_ueberreservierte_vorgaben_erfinden_keine_cpu_bereiche() {
+    for (kerne, reserviert) in [(0, 0), (8, 8), (8, 9), (0, u16::MAX)] {
+        let cpu = CpuReservation {
+            physical_cores: kerne,
+            threads_per_core: 2,
+            reserved_physical_cores: reserviert,
+        };
+        assert_eq!(cpu.compute_threads(), 0);
+        let text = cpu.describe();
+        assert!(text.contains("Compute: 0 Stränge (rechnerisch)"), "{text}");
+        assert!(!text.contains("CPUs 0-"), "{text}");
+        assert_eq!(
+            text.contains("mehr Kerne reserviert als vorhanden"),
+            reserviert > kerne
+        );
+    }
+    let ohne_smt_anzahl = CpuReservation {
+        threads_per_core: 0,
+        ..LAPTOP
+    };
+    assert!(ohne_smt_anzahl.describe().contains("null Stränge"));
+    let ohne_reservierung = CpuReservation {
+        reserved_physical_cores: 0,
+        ..LAPTOP
+    };
+    assert!(ohne_reservierung
+        .describe()
+        .contains("0 von 8 physischen Kernen"));
+}
+
+#[test]
+fn ac4_strangzahlen_werden_vor_der_multiplikation_verbreitert() {
+    let cpu = CpuReservation {
+        physical_cores: u16::MAX,
+        threads_per_core: u16::MAX,
+        reserved_physical_cores: 0,
+    };
+    assert_eq!(cpu.total_threads(), 4_294_836_225);
+    assert_eq!(cpu.compute_threads(), 4_294_836_225);
+    assert!(cpu.describe().contains("4294836225 Stränge"));
+    let mut host = host("gross", 1);
+    host.cpu = cpu;
+    let deployment = RunDeployment {
+        available_hosts: vec![host, host],
+        estimated_eta_ms: 0,
+    };
+    assert_eq!(deployment.total_compute_threads(), 8_589_672_450);
 }

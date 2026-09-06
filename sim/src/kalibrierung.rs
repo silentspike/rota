@@ -189,7 +189,11 @@ impl RateModel {
     /// steht, und 25 Prozent nach oben wären etwas anderes als 25 nach unten.
     #[must_use]
     pub fn weicht_ab(&self, erwartet: f64) -> bool {
-        if erwartet <= 0.0 {
+        if !erwartet.is_finite()
+            || erwartet <= 0.0
+            || !self.rate_per_s.is_finite()
+            || self.rate_per_s <= 0.0
+        {
             return true;
         }
         (self.rate_per_s - erwartet).abs() / erwartet > NEUERHEBUNG_AB
@@ -742,10 +746,54 @@ impl Profil {
                 continue;
             };
             if let Ok(b) = u64::from_str_radix(bits, 16) {
-                out.push((name.to_owned(), f64::from_bits(b)));
+                let rate = f64::from_bits(b);
+                if rate.is_finite() && rate > 0.0 {
+                    out.push((name.to_owned(), rate));
+                }
             }
         }
         out
+    }
+
+    /// Ergänzt fehlende Raten aus demselben Profil, ohne deren Messbeleg
+    /// durch Metadaten eines verworfenen neuen Laufs zu ersetzen (#912).
+    #[must_use]
+    pub fn speichern_mit_vorherigem(&self, vorher: Option<&str>) -> String {
+        let mut text = self.speichern();
+        let Some(vorher) = vorher else { return text };
+        let schluessel = format!("schluessel {}", self.schluessel.zeile());
+        if vorher.lines().next() != Some("rota-profil 1")
+            || !vorher.lines().any(|zeile| zeile == schluessel)
+        {
+            return text;
+        }
+        let mut vorhanden: Vec<String> = self
+            .raten
+            .iter()
+            .map(|(art, _)| art.schluessel().to_owned())
+            .collect();
+        for zeile in vorher.lines() {
+            let felder: Vec<&str> = zeile.split_whitespace().collect();
+            if felder.len() != 7
+                || felder[0] != "rate"
+                || vorhanden.iter().any(|name| name == felder[1])
+                || !Arbeitsart::alle()
+                    .iter()
+                    .any(|art| art.schluessel() == felder[1])
+                || Self::raten_lesen(zeile).len() != 1
+                || !felder[4]
+                    .parse::<f64>()
+                    .is_ok_and(|v| v.is_finite() && v >= 0.0)
+                || !felder[5].parse::<usize>().is_ok_and(|v| v > 0)
+                || felder[6].parse::<Timestamp>().is_err()
+            {
+                continue;
+            }
+            text.push_str(zeile);
+            text.push('\n');
+            vorhanden.push(felder[1].to_owned());
+        }
+        text
     }
 }
 
@@ -1055,6 +1103,97 @@ mod tests {
             "die kaputte Zeile wurde nicht uebersprungen"
         );
         assert_eq!(gelesen[0].0, "crit_dp");
+    }
+
+    #[test]
+    fn ungueltige_raten_werden_nie_bestaetigt() {
+        for ungueltig in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 0.0, -1.0] {
+            let mut rate = RateModel {
+                rate_per_s: ungueltig,
+                spread: 0.0,
+                samples: 4,
+                duration_ms: 5000,
+                reason: Abbruchgrund::Stabil,
+                measured_at: 42,
+                psi_cpu: None,
+                takt_drift: None,
+            };
+            assert!(rate.weicht_ab(100.0));
+            rate.rate_per_s = 100.0;
+            assert!(rate.weicht_ab(ungueltig));
+            let text = format!("rate crit_dp {:016x} 0 0 4 42\n", ungueltig.to_bits());
+            assert!(Profil::raten_lesen(&text).is_empty());
+        }
+    }
+
+    #[test]
+    fn alter_messbeleg_bleibt_beim_teilweisen_erneuern_unveraendert() {
+        let mut profil = Profil {
+            schluessel: Profilschluessel {
+                host: "h".to_owned(),
+                artefakt: "bau-a".to_owned(),
+                kernel: "k".to_owned(),
+                taktregime: "t".to_owned(),
+            },
+            caps: HostCaps::erheben(),
+            raten: vec![],
+        };
+        let alte_zeile = "rate scalar_full_fight 4059000000000000 100.000 0.01234 17 42";
+        let vorher = format!("{}{}\n", profil.speichern(), alte_zeile);
+        profil.raten.push((
+            Arbeitsart::CritDp,
+            RateModel {
+                rate_per_s: 200.0,
+                spread: 0.02,
+                samples: 9,
+                duration_ms: 6000,
+                reason: Abbruchgrund::Stabil,
+                measured_at: 999,
+                psi_cpu: None,
+                takt_drift: None,
+            },
+        ));
+        let text = profil.speichern_mit_vorherigem(Some(&vorher));
+        assert!(text.lines().any(|zeile| zeile == alte_zeile));
+        assert_eq!(Profil::raten_lesen(&text).len(), 2);
+        // Ein anderer Bau darf den alten Messwert samt Herkunft nicht erben.
+        profil.schluessel.artefakt = "bau-b".to_owned();
+        let anderer_bau = profil.speichern_mit_vorherigem(Some(&vorher));
+        assert_eq!(Profil::raten_lesen(&anderer_bau).len(), 1);
+        assert!(!anderer_bau.contains(alte_zeile));
+    }
+
+    #[test]
+    fn neue_rate_ersetzt_den_gesamten_alten_messbeleg() {
+        let profil = Profil {
+            schluessel: Profilschluessel {
+                host: "h".to_owned(),
+                artefakt: "a".to_owned(),
+                kernel: "k".to_owned(),
+                taktregime: "t".to_owned(),
+            },
+            caps: HostCaps::erheben(),
+            raten: vec![(
+                Arbeitsart::CritDp,
+                RateModel {
+                    rate_per_s: 200.0,
+                    spread: 0.02,
+                    samples: 9,
+                    duration_ms: 6000,
+                    reason: Abbruchgrund::Stabil,
+                    measured_at: 999,
+                    psi_cpu: None,
+                    takt_drift: None,
+                },
+            )],
+        };
+        let vorher = "rota-profil 1\nschluessel h|a|k|t\nrate crit_dp 4059000000000000 100.000 0.01234 17 42\n";
+        let text = profil.speichern_mit_vorherigem(Some(vorher));
+        let raten = Profil::raten_lesen(&text);
+        assert_eq!(raten.len(), 1);
+        assert_eq!(raten[0].1, 200.0);
+        assert!(text.contains("0.02000 9 999"));
+        assert!(!text.contains("0.01234 17 42"));
     }
 
     #[test]
