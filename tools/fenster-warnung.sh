@@ -16,35 +16,15 @@
 #   fühlt es sich außerhalb der Regel an. Für die fremden Zahlen ist das
 #   gleichgültig.
 #
-# ═══════════════════════════════════════════════════════════════════════════
-#  WAS DIESE WARNUNG NICHT ERREICHT
-# ═══════════════════════════════════════════════════════════════════════════
+# npm-pre*-Skripte und Projektläufer rufen diese direkte Warnung auf.
+# Zusätzlich ist tools/fenster-hook.py als PreToolUse/Bash-Hook registriert
+# (#1049). Er erfasst auch die gemeldeten direkten npx-prettier- und
+# jq-recordings-Aufrufe. Dokumentation, gemessene Kosten und Analysegrenzen:
+# docs/FENSTER-HOOK.md.
 #
-# Sie hängt an zwei Stellen: an `pre*`-Skripten in package.json und an den
-# Läufern unter tools/. Beides ist PROJEKTCODE. Ein Hook, der jeden
-# Bash-Aufruf abfängt, wäre vollständig — er bräuchte aber eine Änderung an
-# `.claude/settings.json`, und das ist eine Entscheidung des Auftraggebers,
-# nicht des Teams.
-#
-# Folglich schweigt sie bei:
-#
-#   npx prettier --write <datei>   geht an package.json vorbei
-#   npx <irgendwas>                dito
-#   jq über die Aufzeichnungen
-#   git worktree add/remove, git push
-#   cargo/rustc direkt aufgerufen (nicht über tools/)
-#   alles, was direkt gestartet wird statt über `npm run`
-#
-# DER ERSTE DER VIER VORFÄLLE — `npx prettier --write` auf den Guide — FÄLLT
-# ALSO DURCH. Das steht hier, weil eine Abhilfe, die vollständig aussieht,
-# gefährlicher ist als gar keine: Wer glaubt, gewarnt zu werden, sieht nicht
-# mehr selbst nach.
-#
-# ═══════════════════════════════════════════════════════════════════════════
-#
-# Sie BLOCKIERT NICHT (Fertig-Kriterium 5). Wer in einem fremden Fenster
-# rechnen muss, darf das — er soll es nur nicht versehentlich tun. Exit ist
-# immer 0.
+# In Shells ohne diesen Hook bleibt die direkte Warnung auf ihre Aufrufer
+# beschränkt. Keine der beiden Formen blockiert einen Befehl oder erteilt
+# eine Ausführungsberechtigung.
 
 set -u
 
