@@ -180,10 +180,7 @@
       "source": "https://github.com/silentspike/rota/issues/891",
       "dependency_evidence": {
         "issue_context": "",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "43-e11-simulator-architektur"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "43-e11-simulator-architektur"],
         "original_table_rows": []
       },
       "writes": [],
@@ -290,17 +287,12 @@
       "source": "https://github.com/silentspike/rota/issues/896",
       "dependency_evidence": {
         "issue_context": "Gehört zum Epic „Simulator-Architektur\" (#891). **Keine Vorbedingung** — dies ist zusammen mit\n#897 eines der beiden ersten Issues dieser Reihe. Zwei spätere Issues (Fortschrittsanzeige und\nEngpassdiagnose) lesen die Zähler, die hier entstehen.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e110-belastbare-messumgebung"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e110-belastbare-messumgebung"],
         "original_table_rows": [
           "| E11.0 · E11.0b                  | —                                                        | Einstieg                                                                                                                                     |"
         ]
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "A0b",
@@ -330,9 +322,7 @@
         "original_table_rows": []
       },
       "writes": [],
-      "do_not_touch": [
-        "sim/src/fight.rs"
-      ],
+      "do_not_touch": ["sim/src/fight.rs"],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "A0b",
       "epic": "E20",
@@ -353,10 +343,7 @@
       "source": "https://github.com/silentspike/rota/issues/898",
       "dependency_evidence": {
         "issue_context": "",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "44-e12-der-balance-optimierer"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "44-e12-der-balance-optimierer"],
         "original_table_rows": []
       },
       "writes": [],
@@ -379,10 +366,7 @@
       "source": "https://github.com/silentspike/rota/issues/899",
       "dependency_evidence": {
         "issue_context": "",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e13-die-cuda-pipeline-konkretisiert"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e13-die-cuda-pipeline-konkretisiert"],
         "original_table_rows": [
           "| E13                             | **E14**, E11.7                                           | ohne Festkomma ist der GPU-Pfad offen                                                                                                        |"
         ]
@@ -426,9 +410,7 @@
       "id": "E17",
       "kind": "epic",
       "title": "Lauf-Zustand: Pause, Absturz und bitgleiche Fortsetzung",
-      "depends_on": [
-        "E15.5"
-      ],
+      "depends_on": ["E15.5"],
       "normative_section": "e17-lauf-zustand-pause-absturz-und-fortsetzung",
       "section_scope": "shared_section",
       "status": "described",
@@ -457,10 +439,7 @@
       "id": "E18",
       "kind": "epic",
       "title": "Sparsame Ledger-Auswertung und frühe Schranken im laufenden Kampf",
-      "depends_on": [
-        "E11.3a",
-        "E11.5b"
-      ],
+      "depends_on": ["E11.3a", "E11.5b"],
       "normative_section": "e18-zwei-nicht-simulations-verfahren-die-noch-fehlen",
       "section_scope": "shared_section",
       "status": "described",
@@ -498,10 +477,7 @@
       "source": "https://github.com/silentspike/rota/issues/903",
       "dependency_evidence": {
         "issue_context": "",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e19-drei-caches-statt-einem"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e19-drei-caches-statt-einem"],
         "original_table_rows": [
           "| E19                             | —                                                        | **je später, desto teurer**                                                                                                                  |"
         ]
@@ -526,10 +502,7 @@
       "source": "https://github.com/silentspike/rota/issues/904",
       "dependency_evidence": {
         "issue_context": "",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "46-e15-betriebsarchitektur"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "46-e15-betriebsarchitektur"],
         "original_table_rows": []
       },
       "writes": [],
@@ -543,9 +516,7 @@
       "id": "E11.0b",
       "kind": "task",
       "title": "Sechs Endausbau-Lastprofile statt eines, je getrennt ausgewiesen",
-      "depends_on": [
-        "E11.0"
-      ],
+      "depends_on": ["E11.0"],
       "normative_section": "e110b-zwei-endausbau-lastprofile-nicht-eines",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -607,10 +578,7 @@
       "source": "https://github.com/silentspike/rota/issues/906",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst, was der Auftraggeber tatsächlich erlebt: die Zeit einer vollständigen\nKampagne, von vorn bis hinten. Es setzt voraus, dass die Messumgebung steht — ohne\nreproduzierbare Einzelmessungen ist eine Gesamtmessung nicht deutbar.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e110c-core-pflicht"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e110c-core-pflicht"],
         "original_table_rows": [
           "| **E11.0c-core**                 | E11.0 · E11.4b/c · E15.0–E15.5 · E17 · E19 · E21.0–E21.7 | **PFLICHT.** CPU-only · ein und drei Rechner · Drosselung · Rechnerausfall · Fortsetzen · Cache kalt und warm                                |"
         ]
@@ -627,10 +595,7 @@
       "id": "E11.0c-gpu",
       "kind": "task",
       "title": "Kampagnenmessung mit Grafikeinheit (BEDINGT)",
-      "depends_on": [
-        "E11.0c-core",
-        "E13"
-      ],
+      "depends_on": ["E11.0c-core", "E13"],
       "normative_section": "e110c-gpu-bedingt",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -641,10 +606,7 @@
       "source": "https://github.com/silentspike/rota/issues/907",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst die Kampagnenzeit mit Grafikeinheit — **bedingt**. Es wird erst begonnen,\nwenn der Grafikeinheit-Auswerter seinen Gewinnpunkt-Vertrag bestanden hat. Ohne diese\nVorbedingung ist die Messung sinnlos, weil sie einen Pfad misst, der sich nicht lohnt.\n\nDie verpflichtende Kampagnenmessung läuft nur auf dem Hauptprozessor und ist ein eigenes\nIssue. Sie darf nicht daran hängen, dass eine Grafikeinheit ihren Gewinnpunkt erreicht.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e110c-gpu-bedingt"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e110c-gpu-bedingt"],
         "original_table_rows": [
           "| **E11.0c-gpu**                  | E11.0c-core · **E13**                                    | **BEDINGT** — nur wenn E13 seinen Break-even-Vertrag bestanden hat. Eine nie rentable GPU darf die Standardkampagne nicht unabnehmbar machen |"
         ]
@@ -661,10 +623,7 @@
       "id": "E11.1",
       "kind": "task",
       "title": "Vier exakte Gewinne, die keine Spielregel ändern",
-      "depends_on": [
-        "E11.0",
-        "E16.0"
-      ],
+      "depends_on": ["E11.0", "E16.0"],
       "normative_section": "e111-die-kostenlosen-exakten-gewinne",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -675,17 +634,12 @@
       "source": "https://github.com/silentspike/rota/issues/908",
       "dependency_evidence": {
         "issue_context": "Dieses Issue hebt vier Gewinne, die keine Spielregel ändern und alle belegt sind. Der größte\ndavon — ein Durchgang statt fünfzig bis zweihundert — hängt an einer Bedingung, die **nicht**\nvon Hand formuliert werden darf. Warum, steht unter „Acceptance criteria\".\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e111-die-kostenlosen-exakten-gewinne"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e111-die-kostenlosen-exakten-gewinne"],
         "original_table_rows": [
           "| E11.1 · E11.1b                  | E11.0 · **E16** (`StochasticSourceMask`) · RNG-Vertrag   | „keine aktive Zufallsquelle\" ist eine ABGELEITETE Bedingung                                                                                  |"
         ]
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "C",
@@ -697,9 +651,7 @@
       "id": "E11.2",
       "kind": "task",
       "title": "Der Kernel: 39,9 Prozent der Zyklen liegen an zwei Stellen",
-      "depends_on": [
-        "E11.0b"
-      ],
+      "depends_on": ["E11.0b"],
       "normative_section": "e112-der-kernel-wo-die-zyklen-wirklich-liegen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -718,9 +670,7 @@
           "| E11.2                           | E11.0b (Kapazität aus dem Lastprofil)                    |                                                                                                                                              |"
         ]
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "D",
@@ -732,9 +682,7 @@
       "id": "E11.3",
       "kind": "task",
       "title": "Trace-Stabilität bei Zahlenänderungen, bevor der Ledger gebaut wird",
-      "depends_on": [
-        "E11.0"
-      ],
+      "depends_on": ["E11.0"],
       "normative_section": "e113-trace-stabilität-messen-bevor-der-ledger-gebaut-wird",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -783,9 +731,7 @@
         "original_table_rows": []
       },
       "writes": [],
-      "do_not_touch": [
-        "sim/src/fight.rs"
-      ],
+      "do_not_touch": ["sim/src/fight.rs"],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "B",
       "epic": "E16",
@@ -839,16 +785,11 @@
       "source": "https://github.com/silentspike/rota/issues/913",
       "dependency_evidence": {
         "issue_context": "Dieses Issue trennt rohe Kampfergebnisse von ihrer Bewertung. Es hat **keine Vorbedingung**\nund sollte **früh** laufen: Wer die Trennung erst nachrüstet, nachdem die Zielfunktion\nfeststeht, hat sie einmal zu spät gebaut.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e19-drei-caches-statt-einem"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e19-drei-caches-statt-einem"],
         "original_table_rows": []
       },
       "writes": [],
-      "do_not_touch": [
-        "sim/src/fight.rs"
-      ],
+      "do_not_touch": ["sim/src/fight.rs"],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "B",
       "epic": "E19",
@@ -880,9 +821,7 @@
         ]
       },
       "writes": [],
-      "do_not_touch": [
-        "sim/src/fight.rs"
-      ],
+      "do_not_touch": ["sim/src/fight.rs"],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "G",
       "epic": "E21",
@@ -893,10 +832,7 @@
       "id": "E11.1b",
       "kind": "task",
       "title": "Exakte Krit-Verteilung und gestaffelte Stichprobe, wenn der Zufall zurück ist",
-      "depends_on": [
-        "E11.0",
-        "E16.0"
-      ],
+      "depends_on": ["E11.0", "E16.0"],
       "normative_section": "e111b-was-bleibt-wenn-der-krit-wirklich-würfelt",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -927,10 +863,7 @@
       "id": "E11.3a",
       "kind": "task",
       "title": "Trace-Regionen beweisen statt stichprobenweise messen",
-      "depends_on": [
-        "E11.0",
-        "E11.3"
-      ],
+      "depends_on": ["E11.0", "E11.3"],
       "normative_section": "e113a-der-breakpoint-compiler-trace-regionen-statt-stichproben",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -961,9 +894,7 @@
       "id": "E11.4",
       "kind": "task",
       "title": "Inkrementelle Auswertung: der Startpunkt wird berechnet, nicht abgeleitet",
-      "depends_on": [
-        "E11.2"
-      ],
+      "depends_on": ["E11.2"],
       "normative_section": "e114-inkrementelle-auswertung-für-rotationsmutationen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -982,9 +913,7 @@
           "| E11.4                           | E11.2                                                    | enthält `SearchFight`/`AuditFight`                                                                                                           |"
         ]
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "D",
@@ -996,11 +925,7 @@
       "id": "E11.4b",
       "kind": "task",
       "title": "Auswertungs-Verteiler und kanonischer Ergebnisspeicher",
-      "depends_on": [
-        "E11.4d",
-        "E19.0",
-        "E19.1"
-      ],
+      "depends_on": ["E11.4d", "E19.0", "E19.1"],
       "normative_section": "e114b-der-evaluator-router-und-der-kanonische-ergebnis-cache",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1042,10 +967,7 @@
       "source": "https://github.com/silentspike/rota/issues/919",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut die Arbeitsverteilung **innerhalb einer Maschine**: wie die Kerne während\neiner echten Suche ausgelastet werden. Es hat keine Vorbedingung innerhalb dieses Epics, wird\naber vom Ressourcen-Balancer und von der Verteilung auf mehrere Rechner vorausgesetzt.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e114c-der-produktions-scheduler"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e114c-der-produktions-scheduler"],
         "original_table_rows": [
           "| E11.4c                          | —                                                        | wird von E15.1 und E15.5 vorausgesetzt                                                                                                       |"
         ]
@@ -1062,9 +984,7 @@
       "id": "E11.4d",
       "kind": "task",
       "title": "Übersetzte Zusammenstellung: einmal falten, Abhängigkeiten ableiten",
-      "depends_on": [
-        "E16.0"
-      ],
+      "depends_on": ["E16.0"],
       "normative_section": "e114d-compiledbuild-einmal-falten-statt-je-kampf",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1083,9 +1003,7 @@
           "| E11.4d                          | **E16**                                                  | die Abhängigkeitsmaske wird erzeugt, nicht gepflegt                                                                                          |"
         ]
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "D",
@@ -1097,9 +1015,7 @@
       "id": "E11.4f",
       "kind": "task",
       "title": "Verhaltensgleiche Rotationen einmal rechnen, mit ausgewiesenem Geltungsgrad",
-      "depends_on": [
-        "E11.4"
-      ],
+      "depends_on": ["E11.4"],
       "normative_section": "e114f-policy-äquivalenz-verhaltensgleiche-rotationen-einmal-rechnen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1130,9 +1046,7 @@
       "id": "E11.4e",
       "kind": "task",
       "title": "Fortschritts-Simulation: die Schleife über dem Kampf",
-      "depends_on": [
-        "E11.4b"
-      ],
+      "depends_on": ["E11.4b"],
       "normative_section": "e114e-fortschritts-simulation-die-schleife-über-dem-kampf",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1174,10 +1088,7 @@
       "source": "https://github.com/silentspike/rota/issues/923",
       "dependency_evidence": {
         "issue_context": "Dieses Issue stellt die Suche auf ein Verfahren um, das messbar bessere Ergebnisse liefert:\nZerstören und Reparieren großer Nachbarschaften statt gieriger Einfügung. **Es ist durch\nDesign-Entscheidungen des Auftraggebers blockiert** — siehe „Stop conditions\".\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e115-die-suche-auf-lns-umstellen"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e115-die-suche-auf-lns-umstellen"],
         "original_table_rows": [
           "| E11.5                           | Zielvertrag und Nischen-Achsen aus 6.1                   | beide entschieden, kein Blocker mehr                                                                                                         |"
         ]
@@ -1194,9 +1105,7 @@
       "id": "E11.5a",
       "kind": "task",
       "title": "Operatoren benennen und ihr Budget reproduzierbar messen",
-      "depends_on": [
-        "E11.5"
-      ],
+      "depends_on": ["E11.5"],
       "normative_section": "e115a-adaptive-lns-operatoren-benennen-und-ihr-budget-messen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1227,9 +1136,7 @@
       "id": "E11.5b",
       "kind": "task",
       "title": "Exakte Löser je Projektion und ein Optimum-Orakel mit sicherer Schranke",
-      "depends_on": [
-        "E16.0"
-      ],
+      "depends_on": ["E16.0"],
       "normative_section": "e115b-exakte-löser-für-die-projektionen-plus-ein-optimum-orakel",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1260,11 +1167,7 @@
       "id": "E11.5d",
       "kind": "task",
       "title": "Exakter Prioritätslisten-Löser als Zertifizierungsorakel",
-      "depends_on": [
-        "E11.5b",
-        "E11.4f",
-        "E16.0"
-      ],
+      "depends_on": ["E11.5b", "E11.4f", "E16.0"],
       "normative_section": "e115d-der-exakte-prioritätslisten-löser",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1275,10 +1178,7 @@
       "source": "https://github.com/silentspike/rota/issues/926",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut einen Löser, der das Optimum **innerhalb der Sprache der Prioritätslisten**\nbestimmt — nicht das eines freien Aktionsplans. Es setzt das Optimum-Orakel, die\nVerhaltensäquivalenz und die typisierte Wirkungsbeschreibung voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e115d-der-exakte-prioritätslisten-löser"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e115d-der-exakte-prioritätslisten-löser"],
         "original_table_rows": [
           "| **E11.5d**                      | E11.5b · E11.4f · **E16**                                | exakter APL-Löser — **Voraussetzung für jedes `CertifiedOptimal`/`CertifiedNecessary`**                                                      |"
         ]
@@ -1326,9 +1226,7 @@
       "id": "E11.6",
       "kind": "task",
       "title": "Übersetzer-Optimierung: Stufen, Zielprofile und profilgeführter Bau",
-      "depends_on": [
-        "E11.0"
-      ],
+      "depends_on": ["E11.0"],
       "normative_section": "e116-compiler-optimierung",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1339,10 +1237,7 @@
       "source": "https://github.com/silentspike/rota/issues/928",
       "dependency_evidence": {
         "issue_context": "Dieses Issue holt heraus, was der Übersetzer ohne Codeänderung hergibt: Optimierungsstufen,\nprofilgeführte Übersetzung und das passende Zielprofil je Rechner. Es misst gegen dieselbe\nGrundlage wie alle anderen Leistungs-Issues.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e116-compiler-optimierung"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e116-compiler-optimierung"],
         "original_table_rows": [
           "| E11.6 → E11.7 → E11.7b → E11.7c | E11.0                                                    | jede Stufe misst gegen dieselbe Baseline                                                                                                     |"
         ]
@@ -1359,10 +1254,7 @@
       "id": "E11.7",
       "kind": "task",
       "title": "Vektorpfad, aber nur wo die Arbeit homogen ist",
-      "depends_on": [
-        "E11.6",
-        "E11.4"
-      ],
+      "depends_on": ["E11.6", "E11.4"],
       "normative_section": "e117-avx2-aber-nur-wo-es-homogen-ist",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1373,10 +1265,7 @@
       "source": "https://github.com/silentspike/rota/issues/929",
       "dependency_evidence": {
         "issue_context": "Dieses Issue vektorisiert die Teile der Arbeit, die homogen genug dafür sind — und nur diese.\nEs kommt nach der inkrementellen Auswertung und der Übersetzer-Optimierung, weil beide\ngrößere Gewinne bei geringerem Risiko bringen.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e117-avx2-aber-nur-wo-es-homogen-ist"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e117-avx2-aber-nur-wo-es-homogen-ist"],
         "original_table_rows": [
           "| E11.6 → E11.7 → E11.7b → E11.7c | E11.0                                                    | jede Stufe misst gegen dieselbe Baseline                                                                                                     |"
         ]
@@ -1393,10 +1282,7 @@
       "id": "E11.7b",
       "kind": "task",
       "title": "Die Kernelsignatur muss einen Kernel auswählen",
-      "depends_on": [
-        "E11.7",
-        "E11.4d"
-      ],
+      "depends_on": ["E11.7", "E11.4d"],
       "normative_section": "e117b-kernel_signature-muss-einen-kernel-auswählen-sonst-ist-sie-ein-totes-feld",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1415,9 +1301,7 @@
           "| E11.6 → E11.7 → E11.7b → E11.7c | E11.0                                                    | jede Stufe misst gegen dieselbe Baseline                                                                                                     |"
         ]
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "H",
@@ -1429,10 +1313,7 @@
       "id": "E11.7c",
       "kind": "task",
       "title": "Gestufte Spezialisierung zur Laufzeit (optional, mit Auslöser)",
-      "depends_on": [
-        "E11.7b",
-        "E11.6"
-      ],
+      "depends_on": ["E11.7b", "E11.6"],
       "normative_section": "e117c-gestufte-spezialisierung-zur-laufzeit-optional",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1463,9 +1344,7 @@
       "id": "E15.1",
       "kind": "task",
       "title": "Drosseln ohne abzubrechen und ohne das Ergebnis zu ändern",
-      "depends_on": [
-        "E11.4c"
-      ],
+      "depends_on": ["E11.4c"],
       "normative_section": "e151-der-ressourcen-balancer-drosseln-ohne-abzubrechen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1496,9 +1375,7 @@
       "id": "E15.2",
       "kind": "task",
       "title": "Fortschritt, zwei Durchsatzzahlen und eine ehrliche Restzeit",
-      "depends_on": [
-        "E11.0"
-      ],
+      "depends_on": ["E11.0"],
       "normative_section": "e152-fortschritt-durchsatz-und-eine-ehrliche-eta",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1529,9 +1406,7 @@
       "id": "E15.3",
       "kind": "task",
       "title": "Engpasserkennung: eine Diagnose, keine Zahlenliste",
-      "depends_on": [
-        "E15.2"
-      ],
+      "depends_on": ["E15.2"],
       "normative_section": "e153-engpasserkennung-nicht-zahlen-sondern-eine-diagnose",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1562,9 +1437,7 @@
       "id": "E15.4",
       "kind": "task",
       "title": "Was bei welcher Änderung neu gerechnet werden muss",
-      "depends_on": [
-        "E11.4b"
-      ],
+      "depends_on": ["E11.4b"],
       "normative_section": "e154-was-bei-welcher-änderung-neu-gerechnet-werden-muss",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1595,10 +1468,7 @@
       "id": "E15.5",
       "kind": "task",
       "title": "Verteilung 1+n, mit Ausfall als Normalfall",
-      "depends_on": [
-        "E15.0",
-        "E11.4c"
-      ],
+      "depends_on": ["E15.0", "E11.4c"],
       "normative_section": "e155-verteilung-1-n-mit-ausfall-als-normalfall",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1658,10 +1528,7 @@
       "id": "E15.0b",
       "kind": "task",
       "title": "Haupt- und Grafikprozessor gemeinsam kalibrieren",
-      "depends_on": [
-        "E15.0",
-        "E13.0"
-      ],
+      "depends_on": ["E15.0", "E13.0"],
       "normative_section": "e150b-gemeinsame-cpu-gpu-kalibrierung",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1672,10 +1539,7 @@
       "source": "https://github.com/silentspike/rota/issues/938",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst Haupt- und Grafikprozessor **gemeinsam** statt einzeln. Es setzt die\nFähigkeitserhebung und einen lauffähigen Grafikeinheit-Auswerter voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e150b-gemeinsame-cpu-gpu-kalibrierung"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e150b-gemeinsame-cpu-gpu-kalibrierung"],
         "original_table_rows": [
           "| **E15.0b**                      | E15.0, E13                                               | gemeinsame CPU-/GPU-Kalibrierung                                                                                                             |"
         ]
@@ -1721,10 +1585,7 @@
       "id": "E12.1",
       "kind": "task",
       "title": "Parameterdomänen mit abgeleitetem Monotonie-Zertifikat",
-      "depends_on": [
-        "E16.0",
-        "E14.0"
-      ],
+      "depends_on": ["E16.0", "E14.0"],
       "normative_section": "e121-parameterdomänen-ohne-sie-ist-das-äußere-problem-undefiniert",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1753,10 +1614,7 @@
       "id": "E12.2",
       "kind": "task",
       "title": "Einen Parameter exakt lösen statt zu suchen",
-      "depends_on": [
-        "E11.3a",
-        "E12.1"
-      ],
+      "depends_on": ["E11.3a", "E12.1"],
       "normative_section": "e122-ein-parameter-exakt-lösen-statt-suchen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1785,12 +1643,7 @@
       "id": "E12.2b",
       "kind": "task",
       "title": "Die parametrische Herausforderer-Hülle",
-      "depends_on": [
-        "E11.5",
-        "E12.1",
-        "E11.3a",
-        "E12.0"
-      ],
+      "depends_on": ["E11.5", "E12.1", "E11.3a", "E12.0"],
       "normative_section": "e122b-die-parametrische-herausforderer-hülle",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1819,9 +1672,7 @@
       "id": "E12.3",
       "kind": "task",
       "title": "Mehrere gekoppelte Parameter ohne Gradienten",
-      "depends_on": [
-        "E12.2"
-      ],
+      "depends_on": ["E12.2"],
       "normative_section": "e123-mehrere-gekoppelte-parameter",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1832,10 +1683,7 @@
       "source": "https://github.com/silentspike/rota/issues/943",
       "dependency_evidence": {
         "issue_context": "Dieses Issue behandelt den Fall, dass mehrere Balance-Parameter gleichzeitig bewegt werden und\nsich gegenseitig beeinflussen. Es setzt die exakte Einparameter-Lösung voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e123-mehrere-gekoppelte-parameter"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e123-mehrere-gekoppelte-parameter"],
         "original_table_rows": []
       },
       "writes": [],
@@ -1850,10 +1698,7 @@
       "id": "E12.4",
       "kind": "task",
       "title": "Warmstart: das Archiv ist die eigentliche Investition",
-      "depends_on": [
-        "E11.5a",
-        "E15.4"
-      ],
+      "depends_on": ["E11.5a", "E15.4"],
       "normative_section": "e124-warm-start-das-archiv-ist-die-eigentliche-investition",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1882,9 +1727,7 @@
       "id": "E12.5",
       "kind": "task",
       "title": "Bedingungserzeugung über Bosse, mit vollständiger Abschlussprüfung",
-      "depends_on": [
-        "E11.5c"
-      ],
+      "depends_on": ["E11.5c"],
       "normative_section": "e125-encounter-constraint-generation",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1895,10 +1738,7 @@
       "source": "https://github.com/silentspike/rota/issues/945",
       "dependency_evidence": {
         "issue_context": "Dieses Issue nimmt nur **verletzte** Bosse ins aktive Set auf, statt gegen alle zu prüfen —\nund lässt die Abschlussprüfung trotzdem gegen die vollständige Menge laufen. Es setzt das\naktive Bossset voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e125-encounter-constraint-generation"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e125-encounter-constraint-generation"],
         "original_table_rows": []
       },
       "writes": [],
@@ -1913,10 +1753,7 @@
       "id": "E12.6",
       "kind": "task",
       "title": "Viabilität: sechs Befunde statt einer, und nur einer ist ein Balance-Befund",
-      "depends_on": [
-        "E12.0",
-        "E11.5d"
-      ],
+      "depends_on": ["E12.0", "E11.5d"],
       "normative_section": "e126-viabilität-keine-elite-gefunden-ist-kein-urteil",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1945,9 +1782,7 @@
       "id": "E12.7",
       "kind": "task",
       "title": "Der Herausforderer: gezielt nach Gegenbeispielen suchen",
-      "depends_on": [
-        "E12.6"
-      ],
+      "depends_on": ["E12.6"],
       "normative_section": "e127-der-herausforderer-gezielt-nach-gegenbeispielen-suchen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -1998,10 +1833,7 @@
       "source": "https://github.com/silentspike/rota/issues/948",
       "dependency_evidence": {
         "issue_context": "Dieses Issue ist die Abschlussprüfung eines Balance-Laufs. Es setzt alle übrigen Bauteile des\nBalance-Epics voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e128-abschluss"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e128-abschluss"],
         "original_table_rows": []
       },
       "writes": [],
@@ -2016,10 +1848,7 @@
       "id": "E21.0b",
       "kind": "task",
       "title": "Machbarkeitsprüfung: lieber melden als still weniger prüfen",
-      "depends_on": [
-        "E21.0",
-        "E15.0"
-      ],
+      "depends_on": ["E21.0", "E15.0"],
       "normative_section": "e210b-die-machbarkeitsprüfung-lieber-melden-als-still-weniger-prüfen",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2050,9 +1879,7 @@
       "id": "E21.1",
       "kind": "task",
       "title": "Beschränkte Wechselwirkungsabdeckung mit Herkunftsnachweis",
-      "depends_on": [
-        "E16.0"
-      ],
+      "depends_on": ["E16.0"],
       "normative_section": "e211-beschränkte-t-wege-abdeckung-statt-der-rest-bleibt-stichprobe",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2083,9 +1910,7 @@
       "id": "E21.1b",
       "kind": "task",
       "title": "Unabhängiger Verifizierer für die Abdeckungsmatrix",
-      "depends_on": [
-        "E21.1"
-      ],
+      "depends_on": ["E21.1"],
       "normative_section": "e211-beschränkte-t-wege-abdeckung-statt-der-rest-bleibt-stichprobe",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2117,10 +1942,7 @@
       "id": "E21.2",
       "kind": "task",
       "title": "Globaler Budgetverteiler mit eingefrorenem Kostenmodell",
-      "depends_on": [
-        "E11.4b",
-        "E11.5a"
-      ],
+      "depends_on": ["E11.4b", "E11.5a"],
       "normative_section": "e212-ein-globaler-budgetverteiler-nicht-nur-ein-bandit-je-lns-operator",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2151,11 +1973,7 @@
       "id": "E21.3",
       "kind": "task",
       "title": "Das Qualitätszertifikat: ein Lauf meldet nicht fertig",
-      "depends_on": [
-        "E12.6",
-        "E21.1",
-        "E11.5c"
-      ],
+      "depends_on": ["E12.6", "E21.1", "E11.5c"],
       "normative_section": "e213-das-qualitätszertifikat-ein-lauf-meldet-nicht-fertig",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2186,9 +2004,7 @@
       "id": "E21.3b",
       "kind": "task",
       "title": "Campaignweite statistische Fehlerkontrolle",
-      "depends_on": [
-        "E21.3"
-      ],
+      "depends_on": ["E21.3"],
       "normative_section": "e213-das-qualitätszertifikat-ein-lauf-meldet-nicht-fertig",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2220,9 +2036,7 @@
       "id": "E21.4",
       "kind": "task",
       "title": "Kampagnenprofile statt freier Parameter",
-      "depends_on": [
-        "E20.0"
-      ],
+      "depends_on": ["E20.0"],
       "normative_section": "e214-kampagnenprofile-statt-freier-parameter",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2282,9 +2096,7 @@
       "id": "E21.6",
       "kind": "task",
       "title": "Fortschritt exakt statt gewürfelt, wo es beweisbar ist",
-      "depends_on": [
-        "E11.4e"
-      ],
+      "depends_on": ["E11.4e"],
       "normative_section": "e216-fortschritt-exakt-statt-gewürfelt",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2295,10 +2107,7 @@
       "source": "https://github.com/silentspike/rota/issues/957",
       "dependency_evidence": {
         "issue_context": "Dieses Issue löst die Fortschrittsschleife **exakt**, wo sie exakt lösbar ist — statt\nzehntausend Spielerlaufbahnen zu würfeln. Es setzt die Fortschritts-Simulation voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e216-fortschritt-exakt-statt-gewürfelt"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e216-fortschritt-exakt-statt-gewürfelt"],
         "original_table_rows": [
           "| E21.6                           | E11.4e                                                   |                                                                                                                                              |"
         ]
@@ -2315,10 +2124,7 @@
       "id": "E21.7",
       "kind": "task",
       "title": "Der dauerhafte Ergebnisspeicher über Läufe hinweg",
-      "depends_on": [
-        "E19.0",
-        "E15.4"
-      ],
+      "depends_on": ["E19.0", "E15.4"],
       "normative_section": "e217-der-dauerhafte-ergebnisspeicher-wichtiger-als-10-cpu",
       "section_scope": "own_heading",
       "status": "acceptance_ready",
@@ -2381,9 +2187,7 @@
       "id": "E14.1",
       "kind": "task",
       "title": "Skalierung je Datentyp: welche Größe trägt wie viele Nachkommastellen",
-      "depends_on": [
-        "E14.0"
-      ],
+      "depends_on": ["E14.0"],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2413,10 +2217,7 @@
       "id": "E14.2",
       "kind": "task",
       "title": "Maschinenprüfbarer Überlaufbeweis je Rechenkette",
-      "depends_on": [
-        "E14.0",
-        "E14.1"
-      ],
+      "depends_on": ["E14.0", "E14.1"],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2446,9 +2247,7 @@
       "id": "E14.3",
       "kind": "task",
       "title": "Rundungsregel einschließlich negativer Werte",
-      "depends_on": [
-        "E14.1"
-      ],
+      "depends_on": ["E14.1"],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2478,9 +2277,7 @@
       "id": "E14.4",
       "kind": "task",
       "title": "Die Browser-Grenze: welcher der drei Wege",
-      "depends_on": [
-        "E14.2"
-      ],
+      "depends_on": ["E14.2"],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2510,12 +2307,7 @@
       "id": "E14.5",
       "kind": "task",
       "title": "Parität über skalaren Code, Vektorpfade, Grafikeinheit und Browser",
-      "depends_on": [
-        "E14.0",
-        "E14.1",
-        "E14.2",
-        "E14.3"
-      ],
+      "depends_on": ["E14.0", "E14.1", "E14.2", "E14.3"],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2545,10 +2337,7 @@
       "id": "E14.6",
       "kind": "task",
       "title": "Numerischer Fehler der Krit-Verteilung und aller abgeleiteten Statistiken",
-      "depends_on": [
-        "E11.1b",
-        "E14.1"
-      ],
+      "depends_on": ["E11.1b", "E14.1"],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2580,9 +2369,7 @@
       "id": "E16.1",
       "kind": "task",
       "title": "Vollständige Knoten-Semantik statt bloßer Bausteinliste",
-      "depends_on": [
-        "E16.0"
-      ],
+      "depends_on": ["E16.0"],
       "normative_section": "e16-die-wirkungs-ir-der-abhängigkeitsgraph-darf-nicht-von-hand-gepflegt-werden",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2614,9 +2401,7 @@
       "id": "E19.1",
       "kind": "task",
       "title": "Durchgänge ergänzbar speichern statt fertig",
-      "depends_on": [
-        "E19.0"
-      ],
+      "depends_on": ["E19.0"],
       "normative_section": "e114d-compiledbuild-einmal-falten-statt-je-kampf",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2648,9 +2433,7 @@
       "id": "E20.1",
       "kind": "task",
       "title": "Eine Hilfe, die die Frage beantwortet statt die Syntax",
-      "depends_on": [
-        "E20.0"
-      ],
+      "depends_on": ["E20.0"],
       "normative_section": "e20-ein-kommandozeilenwerkzeug-das-man-ohne-quelltextlektüre-bedienen-kann",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2680,10 +2463,7 @@
       "id": "E20.2",
       "kind": "task",
       "title": "Trockenlauf: was würde dieser Lauf tun",
-      "depends_on": [
-        "E20.0",
-        "E11.4d"
-      ],
+      "depends_on": ["E20.0", "E11.4d"],
       "normative_section": "e20-ein-kommandozeilenwerkzeug-das-man-ohne-quelltextlektüre-bedienen-kann",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2713,10 +2493,7 @@
       "id": "E20.3",
       "kind": "task",
       "title": "Selbsttest: habe ich richtig gemessen",
-      "depends_on": [
-        "E20.0",
-        "E11.0"
-      ],
+      "depends_on": ["E20.0", "E11.0"],
       "normative_section": "e20-ein-kommandozeilenwerkzeug-das-man-ohne-quelltextlektüre-bedienen-kann",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2746,10 +2523,7 @@
       "id": "E13.0",
       "kind": "task",
       "title": "Die Grafikeinheit-Pipeline mit vorher festgelegter Mindestmarge",
-      "depends_on": [
-        "E14",
-        "E11.7"
-      ],
+      "depends_on": ["E14", "E11.7"],
       "normative_section": "e13-die-cuda-pipeline-konkretisiert",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2760,10 +2534,7 @@
       "source": "https://github.com/silentspike/rota/issues/971",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut den Grafikeinheit-Auswerter für die Teile der Arbeit, die homogen genug\ndafür sind. Es setzt den numerischen Vertrag und den Vektorpfad voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "e13-die-cuda-pipeline-konkretisiert"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "e13-die-cuda-pipeline-konkretisiert"],
         "original_table_rows": []
       },
       "writes": [],
@@ -2779,9 +2550,7 @@
       "id": "E15.3b",
       "kind": "task",
       "title": "Diagnose-Grundlage je Rechner, Kernklasse und Lastprofil",
-      "depends_on": [
-        "E15.3"
-      ],
+      "depends_on": ["E15.3"],
       "normative_section": "e153-engpasserkennung-nicht-zahlen-sondern-eine-diagnose",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2843,9 +2612,7 @@
       "id": "E17.1",
       "kind": "task",
       "title": "Geordnetes Anhalten in sieben Schritten",
-      "depends_on": [
-        "E17.0"
-      ],
+      "depends_on": ["E17.0"],
       "normative_section": "e17-lauf-zustand-pause-absturz-und-fortsetzung",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2875,11 +2642,7 @@
       "id": "E17.2",
       "kind": "task",
       "title": "Fortsetzen mit Bitgleichheits-Nachweis an fünf Abbruchstellen",
-      "depends_on": [
-        "E17.0",
-        "E17.1",
-        "E15.5"
-      ],
+      "depends_on": ["E17.0", "E17.1", "E15.5"],
       "normative_section": "e17-lauf-zustand-pause-absturz-und-fortsetzung",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2939,10 +2702,7 @@
       "id": "E18.1",
       "kind": "task",
       "title": "Frühe Schranken im laufenden Kampf, gegen den eingefrorenen Amtsinhaber",
-      "depends_on": [
-        "E11.3a",
-        "E16.0"
-      ],
+      "depends_on": ["E11.3a", "E16.0"],
       "normative_section": "e18-zwei-nicht-simulations-verfahren-die-noch-fehlen",
       "section_scope": "shared_section",
       "status": "acceptance_ready",
@@ -2959,9 +2719,7 @@
         ],
         "original_table_rows": []
       },
-      "writes": [
-        "sim/src/fight.rs"
-      ],
+      "writes": ["sim/src/fight.rs"],
       "do_not_touch": [],
       "ownership_evidence": "https://github.com/silentspike/rota/issues/895 — Zuteilungsregel zum gemeinsamen Kampfkern; keine vollständige Schreibmengen-Ableitung.",
       "phase": "E",
@@ -2985,10 +2743,7 @@
       "source": "https://github.com/silentspike/rota/issues/981",
       "dependency_evidence": {
         "issue_context": "Dieses Issue entscheidet, **welche Bosse überhaupt in eine Wertung eingehen** und **wie sie zu\nGruppen gehören**. Es ist Voraussetzung für jede Aussage über Eliten, Viabilität und\nAbdeckung — ohne es ist keine dieser Aussagen definiert.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
-        "plan_sections": [
-          "41-woran-jedes-issue-hängt",
-          "zusammenfassung-über-bosse"
-        ],
+        "plan_sections": ["41-woran-jedes-issue-hängt", "zusammenfassung-über-bosse"],
         "original_table_rows": []
       },
       "writes": [],
