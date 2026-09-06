@@ -34,7 +34,7 @@ den Rückbau, es ersetzt keinen Mutationsdurchgang des Spiels.
 
 Vor der Messung wird der zu prüfende Stand vollständig committed und in einen
 isolierten Checkout übernommen. Dort müssen die Node-Abhängigkeiten installiert
-sein. Der durchgehend serialisierte Lauf gehört in ein eigenes Rust-Messfenster;
+sein. Der Durchgang gehört in ein eigenes Rust-Messfenster;
 währenddessen darf kein anderer Remote-Cargo-Lauf starten. Der echte Arbeitsbaum
 darf nicht das Mutationsziel sein.
 
@@ -61,9 +61,21 @@ Suite-Summen ohne `--nocapture`; ein abgebrochener weiterer Target-Prozess macht
 auch vorherige echte rote Summen zu einem unvollständigen Lauf. Reguläre leere
 Binär-Harnesses sind erlaubt, zählen aber als null ausgeführte Fälle.
 
-Ein Timeout stoppt den Durchgang, beendet die eigene Prozessgruppe und
+Je Mutation läuft die vollständige lokale TS-Suite parallel zum Rust-Zweig.
+Remote-Bau und Remote-Tests bleiben strikt nacheinander; beide Zweige lesen
+denselben unveränderten Mutationsstand. Erst nach Abschluss beider Zweige werden
+die Daten zurückgesetzt. Beginn und Dauer jeder Stufe stehen im JSON-Nachweis.
+Die Nullprobe bleibt seriell.
+
+Ein Timeout stoppt den Durchgang, beendet die eigenen Prozessgruppen und
 stellt die sechs Datendateien wieder her. Der Nachweis bleibt ausdrücklich
 unvollständig. Vor einem erneuten Lauf ist der Abbruchgrund zu untersuchen.
+Bei Timeout, SIGTERM oder einem Fehler eines parallelen Zweigs werden beide
+eigenen Prozessgruppen beendet und der TS-Thread vor dem Rückbau abgewartet.
+Das Ende eines lokalen SSH-Prozesses belegt noch nicht das Ende von Remote-Cargo:
+Nach einem solchen Abbruch muss vor einem Neustart zusätzlich der Zustand auf
+dem Buildserver geprüft werden. Der abgebrochene Durchgang startet kein weiteres
+Feld.
 
 Die Abnahme verlangt `completed` und `historical_comparison.full_pass`, alle
 60 aktuellen Felder, keine ungemessenen historischen Felder und einen geprüften
