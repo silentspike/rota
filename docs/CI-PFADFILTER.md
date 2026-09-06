@@ -9,8 +9,9 @@ affects: [.github/workflows]
 
 # Welche Änderung löst welche CI-Stufe aus?
 
-Erhoben am 2026-08-22 für Issue #1100, AC4. Gelesen aus
-`.github/workflows/`, ohne Lauf.
+Erhoben am 2026-08-22 für Issue #1100, AC4. Am 2026-09-06 um die
+Python-Prüfung und die isolierten Gegenproben im stets laufenden `lint`-Job
+ergänzt. Der Prüfvertrag steht in [PYTHON-WERKZEUGE.md](PYTHON-WERKZEUGE.md).
 
 > ### ⚠ Die Tabelle unten ist ein DATUM. Der Ist-Stand steht in einem Befehl
 >
@@ -100,13 +101,13 @@ und startet vier Stufen. Der Kommentar darüber sagt „Reine Doku-Änderungen
 den Kommentar liest, rechnet mit dem Gegenteil, und beim nächsten Umbau des
 Musters ist unklar, was Absicht war.
 
-### 2. `tools/` löst keine Stufe aus, die es prüft
+### 2. Python-Werkzeuge werden im stets laufenden `lint`-Job geprüft
 
-Eine Änderung an einem der 21 Skripte startet `typecheck`, `unit`, `build` und
-`parity` — keine davon sieht Python an. Ausnahme ist `tools/step1-check.py`, das
-`parity` als ersten Schritt fährt.
-
-Das ist der Kern von #1100 und hier nur der Vollständigkeit halber vermerkt.
+Der ursprüngliche Befund vom 22.08. war eine fehlende Python-Prüfung trotz
+laufender TypeScript-Jobs. Seit dem 06.09. übersetzt `lint` alle
+`tools/**/*.py` mit `py_compile` und fährt `tests/tools/` sowie die drei
+isolierten Gegenproben. Die Einstufung jedes Python-Werkzeugs benennt, welches
+Verhalten dabei geprüft wird und welches bewusst nicht automatisch läuft.
 
 ### 3. `nightly.yml` steht nicht im `sim`-Muster, `ci.yml` schon
 
@@ -130,8 +131,9 @@ sind es sechs Pfadmuster. Eine Stufe, die nie läuft, sähe in der Übersicht au
 wie eine, die immer grün ist — die Frage gehört deshalb gestellt, auch wenn die
 Antwort hier beruhigend ist.
 
-Was es **gibt**, ist die Umkehrung: Stufen, die laufen und nichts ansehen. Bei
-einer reinen `tools/*.py`-Änderung sind das vier von zehn.
+Die zusätzlichen TypeScript-Jobs laufen bei einer reinen `tools/*.py`-Änderung
+weiterhin. Die Python-Änderung selbst ist jetzt durch die Werkzeugprüfung in
+`lint` abgedeckt.
 
 ## Was hier nicht gemessen ist
 

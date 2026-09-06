@@ -29,9 +29,13 @@ fi
 echo "Bezugspunkt: $(git rev-parse --short "$BASIS")  $(git log -1 --format=%s "$BASIS" | cut -c1-60)"
 
 STRIP='walk(if type=="object" then del(.checksums,.sequenceChecksum,.finalChecksum) else . end)'
+# Jeder Aufruf hat eigene Dateien; auch CI und parallele Gegenproben brauchen
+# weder /work/tmp noch einen gemeinsam überschriebenen ac6-a.json-Stand.
+AC6_TMP=$(mktemp -d) || exit 2
+trap 'rm -rf "$AC6_TMP"' EXIT
 schuldig=0
 for p in tests/parity/recordings/*.json; do
-  git show "$BASIS:$p" 2>/dev/null | jq -S "$STRIP" > /work/tmp/ac6-a.json || {
+  git show "$BASIS:$p" 2>/dev/null | jq -S "$STRIP" > "$AC6_TMP/a.json" || {
     # Neue Datei im Zweig: es gibt nichts zu vergleichen, das ist kein Fehler.
     git cat-file -e "$BASIS:$p" 2>/dev/null || {
       # "Neu im Zweig" heisst nicht "ungeprueft". Ohne diese Zeile springt der
@@ -42,8 +46,8 @@ for p in tests/parity/recordings/*.json; do
         || { echo "ABBRUCH lesen $p (neu im Zweig, aber unlesbar)"; exit 2; }
       echo "  neu im Zweig: $(basename "$p")"; continue; }
     echo "ABBRUCH lesen $p"; exit 2; }
-  jq -S "$STRIP" "$p" > /work/tmp/ac6-b.json || { echo "ABBRUCH lesen $p"; exit 2; }
-  bewegt=$(jq -rn --slurpfile a /work/tmp/ac6-a.json --slurpfile b /work/tmp/ac6-b.json \
+  jq -S "$STRIP" "$p" > "$AC6_TMP/b.json" || { echo "ABBRUCH lesen $p"; exit 2; }
+  bewegt=$(jq -rn --slurpfile a "$AC6_TMP/a.json" --slurpfile b "$AC6_TMP/b.json" \
            -f "$HIER/ac6-vergleich.jq") || { echo "ABBRUCH vergleichen $p"; exit 2; }
   [ -n "$bewegt" ] && { printf "%-26s %s\n" "$(basename "$p")" "$bewegt"; schuldig=1; }
 done

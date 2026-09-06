@@ -36,7 +36,7 @@ cd "$(dirname "$0")/.."
 REC=tests/parity/recordings
 VORLAGE="$REC/aether-fenster.json"
 OPFER="$VORLAGE"                       # für Fall D
-SICHERUNG=$(mktemp /work/tmp/ac6-gegenprobe-XXXXXX.json)
+SICHERUNG=$(mktemp)
 NEU_GUELTIG="$REC/zzz-gegenprobe-gueltig.json"
 NEU_KAPUTT="$REC/zzz-gegenprobe-kaputt.json"
 
@@ -52,7 +52,7 @@ cp "$VORLAGE" "$SICHERUNG"
 # Ein Bezugspunkt, der NICHT HEAD ist — sonst bricht ac6.sh vorher ab
 # ("Bezugspunkt ist HEAD selbst"). Das ist kein Trick, sondern derselbe Weg,
 # den ac6.sh selbst anbietet.
-BASIS=$(git rev-parse HEAD~5 2>/dev/null) || {
+BASIS=$(git rev-parse "${AC6_BASIS:-HEAD~5}" 2>/dev/null) || {
   echo "ABBRUCH: kein HEAD~5 vorhanden — dieser Zweig ist zu flach fuer die Gegenprobe."
   exit 2
 }
