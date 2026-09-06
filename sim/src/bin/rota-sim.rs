@@ -33,12 +33,14 @@
 
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig, BalanceResult};
 use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
+use rota_sim::drosselung::{ControlFileWatcher, ControlSettings, RuntimeControl};
 use rota_sim::replay::EmbeddedRecording;
 use rota_sim::rotation_search::{all_candidates, greedy, paar_zuege, Candidate, SearchResult};
 // Nachbereitung #897: die Klassifikation aus #981 statt einer eigenen Zaehlung.
@@ -257,6 +259,12 @@ OPTIONEN
   --max-len <n>      wie viele Zeilen die gesuchte Rotation hoechstens hat.
   --iterations <n>   wie viele Kaempfe je Messung gerechnet werden.
   --threads <n>      ueber wie viele Straenge gerechnet wird.
+  --control-file <p> JSON-Steuerdatei fuer --search none oder --apl.
+                     Alle Felder sind Pflicht: cpu_threads, cpu_percent, paused.
+                     Beispielinhalt: {\"cpu_threads\":2,\"cpu_percent\":50,\"paused\":false}
+                     Aenderungen werden alle 50 ms gelesen. Ein laufender Kampf
+                     endet vor dem Parken. cpu_threads 0 oder paused true pausiert.
+                     CPU-Prozent ist kooperativer Arbeits-/Pausentakt, keine cgroup-Quote.
   --seed <n>         Startwert des ersten Durchgangs.
   --json             Ausgabe als JSON statt als Text. Dieselben Zahlen.
   --help             dieser Text.
@@ -560,6 +568,7 @@ fn fehler_mit_ausweg(was: &str, vorschlag: Option<String>, ausweg: &str) -> Stri
 struct RunOptionen {
     boss_id: Option<String>,
     apl_pfad: Option<String>,
+    control_file: Option<String>,
     suche: Suchart,
     max_len: usize,
     iterations: u32,
@@ -583,6 +592,7 @@ impl Default for RunOptionen {
         Self {
             boss_id: None,
             apl_pfad: None,
+            control_file: None,
             suche: Suchart::Greedy,
             // Vier Zeilen sind die Laenge, mit der die Suchguete-Reihe misst.
             max_len: 4,
@@ -636,6 +646,13 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
     // Eine eigene Datei heisst immer "messen", nie "suchen" — sonst wuerde der
     // Aufruf die Datei stillschweigend ignorieren.
     let sucht = optionen.suche == Suchart::Greedy && optionen.apl_pfad.is_none();
+    if sucht && optionen.control_file.is_some() {
+        return Err(fehler_mit_ausweg(
+            "'--control-file' ist noch nicht an die adaptive Suche angeschlossen.",
+            Some("Eine vorhandene Rotation steuern: --search none oder --apl DATEI".to_owned()),
+            "Steuerdatei und Grenzen: rota-sim run --help",
+        ));
+    }
 
     let start = Instant::now();
     if sucht {
@@ -649,7 +666,57 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         }
     } else {
         let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
-        let ergebnis = rechne_lauf(&config, &apl);
+        let mut runtime = if let Some(path) = &optionen.control_file {
+            let max_workers = config.threads.max(1);
+            let control = Arc::new(
+                RuntimeControl::new(
+                    max_workers,
+                    ControlSettings {
+                        cpu_threads: max_workers,
+                        cpu_percent: 100,
+                        paused: false,
+                    },
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            let watcher = ControlFileWatcher::start_with_error_handler(
+                path,
+                Arc::clone(&control),
+                Duration::from_millis(50),
+                |error| {
+                    eprintln!(
+                        "Control-file update rejected: {error}; previous valid settings retained."
+                    );
+                },
+            )
+            .map_err(|e| format!("Steuerdatei {path}: {e}; Format: rota-sim run --help"))?;
+            eprintln!(
+                "Runtime control active: {path}; polling every 50 ms between complete fights."
+            );
+            Some((control, watcher))
+        } else {
+            None
+        };
+        let ergebnis = if let Some((control, _)) = &runtime {
+            zaehle(u64::from(config.iterations));
+            rota_sim::balance::run_controlled(&config, &apl, control)
+        } else {
+            rechne_lauf(&config, &apl)
+        };
+        if let Some((control, watcher)) = &mut runtime {
+            watcher.stop().map_err(|e| e.to_string())?;
+            let state = control.snapshot();
+            let changes = watcher.status();
+            eprintln!(
+                "Runtime control: {} jobs completed, peak {} workers, {} accepted / {} rejected file updates; longest job {:.3} ms.",
+                state.completed_jobs, state.peak_active_workers,
+                changes.applied_updates, changes.rejected_updates,
+                state.max_job_time.as_secs_f64() * 1000.0,
+            );
+            if let Some(error) = changes.last_error {
+                eprintln!("Last control-file error (previous valid settings retained): {error}");
+            }
+        }
         let dauer = start.elapsed().as_secs_f64();
         if optionen.json {
             println!(
@@ -675,6 +742,7 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
             "--json" => optionen.json = true,
             "--boss" => optionen.boss_id = Some(hole_wert(argumente, &mut i, name)?),
             "--apl" => optionen.apl_pfad = Some(hole_wert(argumente, &mut i, name)?),
+            "--control-file" => optionen.control_file = Some(hole_wert(argumente, &mut i, name)?),
             "--search" => {
                 let wert = hole_wert(argumente, &mut i, name)?;
                 optionen.suche = match wert.as_str() {
@@ -715,9 +783,10 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
 }
 
 /// Die Angaben, die `run` kennt — Grundlage fuer den Vorschlag bei Tippfehlern.
-const ANGABEN_RUN: [&str; 10] = [
+const ANGABEN_RUN: [&str; 11] = [
     "--boss",
     "--apl",
+    "--control-file",
     "--search",
     "--max-len",
     "--iterations",
