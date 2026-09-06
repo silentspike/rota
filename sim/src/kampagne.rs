@@ -40,7 +40,30 @@
 //! Machbarkeitsprüfung („passt die Pflichtarbeit ins Budget?"), der
 //! Budgetverteiler und das Qualitätszertifikat sind eigene Issues.
 
+use std::fmt::Write;
+
 use crate::checksum::{mix_int, FNV_OFFSET};
+
+/// Ein Vertragswert, den JSON nicht als Zahl darstellen kann.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JsonError {
+    /// NaN oder Unendlich an der benannten Stelle. `None` ist davon getrennt
+    /// und bleibt bei optionalen Angaben das gültige JSON `null`.
+    NonFinite {
+        /// Feld des Vertrags oder Referenzrechners.
+        field: &'static str,
+    },
+}
+
+impl std::fmt::Display for JsonError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NonFinite { field } => write!(f, "{field}: Zahl muss endlich sein"),
+        }
+    }
+}
+
+impl std::error::Error for JsonError {}
 
 /// Eine Arbeitseinheit — die hardwareunabhängige Währung dieses Moduls.
 ///
@@ -170,7 +193,7 @@ impl RuntimeAccounting {
     };
 }
 
-/// Welche CPUs ein Lauf benutzt und welche er freilässt (AC4).
+/// Wie viele physische Kerne für einen Lauf vorgesehen sind (AC4).
 ///
 /// # Warum „Kerne minus zwei" nicht genügt
 ///
@@ -179,8 +202,9 @@ impl RuntimeAccounting {
 /// Letzte — zwei physische Kerne **samt ihren SMT-Geschwistern**, also zwölf
 /// nutzbare Stränge.
 ///
-/// Die Angabe steht als Zahlenbereich in der Ausgabe und nicht nur als
-/// Kommentar im Quelltext, weil ein Kommentar nicht mitläuft.
+/// Dies ist eine rechnerische Vorgabe für homogene SMT-Topologien. Die Struktur
+/// kennt weder CPU-IDs noch Geschwisterzuordnungen und setzt keine Affinität.
+/// Die tatsächliche Kernbindung muss der spätere Verteiler nachweisen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CpuReservation {
     /// Physische Kerne der Maschine.
@@ -194,8 +218,8 @@ pub struct CpuReservation {
 impl CpuReservation {
     /// Wie viele Stränge die Maschine insgesamt hat.
     #[must_use]
-    pub const fn total_threads(self) -> u16 {
-        self.physical_cores * self.threads_per_core
+    pub const fn total_threads(self) -> u32 {
+        self.physical_cores as u32 * self.threads_per_core as u32
     }
 
     /// Wie viele Stränge dem Rechnen bleiben.
@@ -204,23 +228,33 @@ impl CpuReservation {
     /// SMT-Geschwister mit. Genau hier entsteht der Unterschied zwischen zwölf
     /// und vierzehn.
     #[must_use]
-    pub const fn compute_threads(self) -> u16 {
+    pub const fn compute_threads(self) -> u32 {
         let frei = self
             .physical_cores
             .saturating_sub(self.reserved_physical_cores);
-        frei * self.threads_per_core
+        frei as u32 * self.threads_per_core as u32
     }
 
-    /// Die Anzeige, die AC4 verlangt — konkrete Nummern, keine Rechenregel.
+    /// Rechnerische Aufteilung ohne Behauptung einer tatsächlichen Kernbindung.
+    /// Auch eine leere oder widersprüchliche Vorgabe bleibt darstellbar; eine
+    /// übergroße Reservierung wird ausdrücklich als ungültig ausgewiesen.
     #[must_use]
     pub fn describe(self) -> String {
-        let compute_last = self.compute_threads().saturating_sub(1);
-        let reserved_first = self.physical_cores - self.reserved_physical_cores;
-        let reserved_last = self.physical_cores - 1;
-        format!(
-            "Compute:     CPUs 0-{compute_last}\n\
-             Reserviert:  physische Kerne {reserved_first}-{reserved_last} samt SMT-Geschwistern"
-        )
+        let mut text = format!(
+            "Compute: {} Stränge (rechnerisch)\n\
+             Reservierung: {} von {} physischen Kernen samt SMT-Geschwistern\n\
+             CPU-IDs und tatsächliche Kernbindung: nicht ermittelt",
+            self.compute_threads(),
+            self.reserved_physical_cores,
+            self.physical_cores,
+        );
+        if self.reserved_physical_cores > self.physical_cores {
+            text.push_str("\nUngültig: mehr Kerne reserviert als vorhanden");
+        }
+        if self.physical_cores > 0 && self.threads_per_core == 0 {
+            text.push_str("\nUngültig: vorhandene Kerne haben null Stränge");
+        }
+        text
     }
 }
 
@@ -334,11 +368,31 @@ impl CampaignDefinition {
     /// Gleitkommawerte gehen über ihre **Bits** ein: Zwei Zahlen, die sich im
     /// letzten Bit unterscheiden, drucken dieselbe Zeile und müssen trotzdem
     /// verschiedene Fingerabdrücke ergeben.
+    ///
+    /// Format 2 bindet auch den vollständigen Inhalt des Referenzprofils ein,
+    /// einschließlich Reihenfolge und Anzahl seiner Rechner. Die Herkunft ist
+    /// Teil der versionierten Definition; die aktuelle Hardware im Deployment
+    /// bleibt ausgeschlossen. Das ändert weder Budget noch Arbeitsmenge.
     #[must_use]
     pub fn fingerprint(&self) -> u32 {
-        let mut h = FNV_OFFSET;
+        let mut h = mix_int(FNV_OFFSET, 2);
         h = mix_int(h, self.profile_version as i32);
         h = mix_int(h, self.reference_profile.version as i32);
+        h = mix_u64(h, self.reference_profile.hosts.len() as u64);
+        for host in self.reference_profile.hosts {
+            h = mix_text(h, host.name);
+            h = match host.guaranteed_cpu_quota {
+                Some(quota) => mix_f64(mix_int(h, 1), quota),
+                None => mix_int(h, 0),
+            };
+            h = mix_int(h, host.guaranteed_memory_mib as i32);
+            h = mix_int(h, i32::from(host.cpu.physical_cores));
+            h = mix_int(h, i32::from(host.cpu.threads_per_core));
+            h = mix_int(h, i32::from(host.cpu.reserved_physical_cores));
+            h = mix_int(h, host.max_rtt_ms as i32);
+            h = mix_int(h, host.min_bandwidth_mibit_s as i32);
+            h = mix_int(h, i32::from(host.thermal_throttling));
+        }
         h = mix_u64(h, self.canonical_work_budget.get());
         h = mix_int(h, i32::from(self.exact_obligations.required));
         h = mix_int(h, i32::from(self.coverage_spec.strength));
@@ -372,23 +426,26 @@ impl CampaignDefinition {
     /// Fliesskommazahlen stehen in der kürzesten verlustfrei rücklesbaren Form
     /// (`{:?}`). Zu runden wäre hier falsch: Die letzte Stelle ist die, an der
     /// sich eine veränderte Vorgabe verrät.
-    #[must_use]
-    pub fn to_json(&self) -> String {
+    ///
+    /// # Errors
+    /// Nichtendliche Zahlen werden mit Feldname abgelehnt. Sie dürfen weder
+    /// ungültiges JSON erzeugen noch als fehlende Vorgabe (`null`) erscheinen.
+    pub fn to_json(&self) -> Result<String, JsonError> {
         let hosts = self
             .reference_profile
             .hosts
             .iter()
             .map(HostRequirement::to_json)
-            .collect::<Vec<_>>()
+            .collect::<Result<Vec<_>, _>>()?
             .join(",");
         let q = &self.quality_targets;
-        format!(
+        Ok(format!(
             "{{\"profileVersion\":{},\"fingerprint\":{},\
              \"referenceProfile\":{{\"version\":{},\"hosts\":[{}]}},\
              \"canonicalWorkBudget\":{},\"exactObligations\":{},\
-             \"coverageStrength\":{},\"minimumNicheCoverage\":{:?},\
+             \"coverageStrength\":{},\"minimumNicheCoverage\":{},\
              \"independentRestarts\":{},\"plateauWorkUnits\":{},\
-             \"maximumBoundGap\":{},\"confidence\":{:?},\"finalAudit\":{:?}}}",
+             \"maximumBoundGap\":{},\"confidence\":{},\"finalAudit\":{:?}}}",
             self.profile_version,
             self.fingerprint(),
             self.reference_profile.version,
@@ -396,45 +453,45 @@ impl CampaignDefinition {
             self.canonical_work_budget.get(),
             self.exact_obligations.required,
             self.coverage_spec.strength,
-            q.minimum_niche_coverage,
+            json_number(q.minimum_niche_coverage, "minimumNicheCoverage")?,
             q.independent_restarts,
             q.plateau_work_units.get(),
             // `null` und eine Zahl sind verschiedene Aussagen — "keine Schranke
             // verlangt" gegen "Schranke muss exakt sein". Eine 0.0 an dieser
             // Stelle waere die zweite, gemeint ist beim fehlenden Wert die erste.
-            match q.maximum_bound_gap {
-                Some(g) => format!("{g:?}"),
-                None => "null".to_string(),
-            },
-            q.confidence_requirement.level,
+            json_optional_number(q.maximum_bound_gap, "maximumBoundGap")?,
+            json_number(q.confidence_requirement.level, "confidence")?,
             audit_name(q.final_audit),
-        )
+        ))
     }
 }
 
 impl HostRequirement {
     /// Einen Rechner des Referenzprofils als JSON.
-    #[must_use]
-    pub fn to_json(&self) -> String {
-        format!(
-            "{{\"name\":{:?},\"guaranteedCpuQuota\":{},\
+    ///
+    /// # Errors
+    /// Eine vorhandene CPU-Quote muss endlich sein.
+    pub fn to_json(&self) -> Result<String, JsonError> {
+        Ok(format!(
+            "{{\"name\":{},\"guaranteedCpuQuota\":{},\
              \"guaranteedMemoryMib\":{},\"computeThreads\":{},\
-             \"totalThreads\":{},\"maxRttMs\":{},\
+             \"totalThreads\":{},\"physicalCores\":{},\"threadsPerCore\":{},\
+             \"reservedPhysicalCores\":{},\"maxRttMs\":{},\
              \"minBandwidthMibitS\":{},\"thermalThrottling\":{}}}",
-            self.name,
+            json_string(self.name),
             // `null` heisst hier ausdruecklich "best effort", nicht "unbekannt".
             // Eine 0.0 waere die dritte, ganz andere Aussage: garantiert nichts.
-            match self.guaranteed_cpu_quota {
-                Some(q) => format!("{q:?}"),
-                None => "null".to_string(),
-            },
+            json_optional_number(self.guaranteed_cpu_quota, "guaranteedCpuQuota")?,
             self.guaranteed_memory_mib,
             self.cpu.compute_threads(),
             self.cpu.total_threads(),
+            self.cpu.physical_cores,
+            self.cpu.threads_per_core,
+            self.cpu.reserved_physical_cores,
             self.max_rtt_ms,
             self.min_bandwidth_mibit_s,
             self.thermal_throttling,
-        )
+        ))
     }
 }
 
@@ -444,16 +501,18 @@ impl CampaignRunContract {
     /// `campaignDefinitionHash` ist das Feld, das später belegt, **gegen welche
     /// Arbeitsmenge** ein Ergebnis entstanden ist. Ein Ergebnis ohne diese Zahl
     /// ist mit keinem anderen vergleichbar.
-    #[must_use]
-    pub fn to_json(&self) -> String {
-        format!(
+    ///
+    /// # Errors
+    /// Nichtendliche Qualitätsvorgaben werden mit Feldname abgelehnt.
+    pub fn to_json(&self) -> Result<String, JsonError> {
+        Ok(format!(
             "{{\"mission\":{},\"targetWallTimeMs\":{},\
              \"campaignDefinitionHash\":{},\"deterministicWorkBudget\":{},\
              \"hardDeadline\":{},\"runtimeAccounting\":{},\
              \"exactObligations\":{},\"coverageStrength\":{},\
-             \"minimumNicheCoverage\":{:?},\"independentRestarts\":{},\
+             \"minimumNicheCoverage\":{},\"independentRestarts\":{},\
              \"plateauWorkUnits\":{},\"maximumBoundGap\":{},\
-             \"confidence\":{:?},\"finalAudit\":{:?}}}",
+             \"confidence\":{},\"finalAudit\":{:?}}}",
             mission_json(self.mission),
             self.target_wall_time_ms,
             self.campaign_definition_hash,
@@ -477,16 +536,13 @@ impl CampaignRunContract {
             ),
             self.exact_obligations.required,
             self.interaction_coverage.strength,
-            self.minimum_niche_coverage,
+            json_number(self.minimum_niche_coverage, "minimumNicheCoverage")?,
             self.independent_restarts,
             self.plateau_work_units.get(),
-            match self.maximum_bound_gap {
-                Some(g) => format!("{g:?}"),
-                None => "null".to_string(),
-            },
-            self.confidence_requirement.level,
+            json_optional_number(self.maximum_bound_gap, "maximumBoundGap")?,
+            json_number(self.confidence_requirement.level, "confidence")?,
             audit_name(self.final_audit),
-        )
+        ))
     }
 }
 
@@ -498,8 +554,40 @@ fn mission_json(m: Mission) -> String {
             format!("{{\"kind\":\"singleInstance\",\"instance\":{instance}}}")
         }
         Mission::SingleBoss { boss } => {
-            format!("{{\"kind\":\"singleBoss\",\"boss\":{boss:?}}}")
+            format!("{{\"kind\":\"singleBoss\",\"boss\":{}}}", json_string(boss))
         }
+    }
+}
+
+/// Rusts Debug-Escapes (`\\0`, `\\u{...}`) sind kein JSON. Nur die
+/// vorgeschriebenen Steuerzeichen werden maskiert; Unicode bleibt UTF-8.
+fn json_string(value: &str) -> String {
+    let mut out = String::from("\"");
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{0000}'..='\u{001f}' => {
+                write!(out, "\\u{:04x}", ch as u32).expect("String ist beschreibbar");
+            }
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn json_number(value: f64, field: &'static str) -> Result<String, JsonError> {
+    if !value.is_finite() {
+        return Err(JsonError::NonFinite { field });
+    }
+    Ok(format!("{value:?}"))
+}
+
+fn json_optional_number(value: Option<f64>, field: &'static str) -> Result<String, JsonError> {
+    match value {
+        Some(number) => json_number(number, field),
+        None => Ok("null".to_owned()),
     }
 }
 
@@ -517,6 +605,15 @@ const fn mix_u64(hash: u32, value: u64) -> u32 {
     let low = value as u32;
     let high = (value >> 32) as u32;
     mix_int(mix_int(hash, low as i32), high as i32)
+}
+
+/// Länge und UTF-8-Bytes binden auch leere Namen und Feldgrenzen eindeutig.
+fn mix_text(hash: u32, value: &str) -> u32 {
+    value
+        .bytes()
+        .fold(mix_u64(hash, value.len() as u64), |h, byte| {
+            mix_int(h, i32::from(byte))
+        })
 }
 
 /// Eine Fliesskommazahl über ihre Bits einrühren.
@@ -567,10 +664,10 @@ pub struct RunDeployment {
 impl RunDeployment {
     /// Die Summe der nutzbaren Stränge über alle Rechner.
     #[must_use]
-    pub fn total_compute_threads(&self) -> u32 {
+    pub fn total_compute_threads(&self) -> u64 {
         self.available_hosts
             .iter()
-            .map(|h| u32::from(h.cpu.compute_threads()))
+            .map(|h| u64::from(h.cpu.compute_threads()))
             .sum()
     }
 }
