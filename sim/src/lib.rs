@@ -92,11 +92,14 @@ pub mod gear_balance;
 pub mod haste;
 // Issue #912: was ein Rechner meldet — und was er wirklich leistet.
 pub mod hostcaps;
+// Issue #932: kooperative Laufzeitsteuerung zwischen vollständigen Kämpfen.
+pub mod drosselung;
 // Issue #912: was dieser Rechner je Arbeitsart leistet, gemessen.
 pub mod kalibrierung;
 /// Arbeitsbudget einer Kampagne, hardwareunabhaengig (#914).
 pub mod kampagne;
 pub mod log;
+pub mod machbarkeit;
 // Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
 pub mod objective;
 pub mod replay;
