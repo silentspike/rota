@@ -67,6 +67,23 @@ class FensterHookTests(unittest.TestCase):
                     if rule.get('matcher') == 'Bash' for hook in rule['hooks']]
         self.assertIn('python3 -B "${CLAUDE_PROJECT_DIR}/tools/fenster-hook.py"', commands)
 
+    def test_configured_command_resolves_project_paths_with_spaces(self):
+        scripts = self.base / 'project with spaces' / 'tools'
+        scripts.mkdir(parents=True)
+        (scripts / HOOK.name).write_bytes(HOOK.read_bytes())
+        (self.bin / 'python3').symlink_to(sys.executable)
+        settings = json.loads((ROOT / '.claude/settings.json').read_text())
+        command = next(hook['command'] for rule in settings['hooks']['PreToolUse']
+                       if rule.get('matcher') == 'Bash' for hook in rule['hooks'])
+        result = subprocess.run(['/bin/bash', '-c', command], input=json.dumps({
+            'tool_name': 'Bash', 'tool_input': {'command': 'npm run lint'},
+            'session_id': 'other', 'cwd': str(self.base),
+        }), text=True, capture_output=True, env={
+            **self.env, 'CLAUDE_PROJECT_DIR': str(scripts.parent),
+        }, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')  # same owning session
+
     def test_incident_commands_warn_with_owner_purpose_and_time(self):
         for command in [
             'npm run lint', 'npx prettier --write docs/WORKER-GUIDE.md',
@@ -83,6 +100,7 @@ class FensterHookTests(unittest.TestCase):
     def test_quiet_commands_in_the_same_foreign_window(self):
         for command in ['git status --short', 'cat docs/README.md', 'pwd',
                         'echo "npm run lint; npx prettier"', "printf '%s' 'cargo test'",
+                        "echo '&&' npm run lint", 'command -v npm', 'command -V cargo',
                         "jq '.name' package.json", 'npm --version',
                         "python3 -c 'print(\"npm run lint\")'"]:
             with self.subTest(command=command):
@@ -90,6 +108,10 @@ class FensterHookTests(unittest.TestCase):
 
     def test_own_free_and_released_windows_are_quiet(self):
         self.assertIsNone(self.call(session='other'))
+        self.state(kennung='session-12345678')
+        self.assertIsNone(self.call(session='12345678-abcd-1234-5678-123456789abc'))
+        self.state(inhaber='LocalReview', kennung='session-different')
+        self.assertIn('MESSFENSTER', self.call())
         self.state(inhaber='LocalReview', kennung=None)
         self.assertIsNone(self.call())
         self.state(inhaber=None, zweck=None, seit=None, kennung=None)
@@ -114,6 +136,9 @@ class FensterHookTests(unittest.TestCase):
     def test_wrappers_pipelines_and_command_substitution_are_classified(self):
         for command in ['cd sim && cargo remote -- test', 'FOO=bar npm run lint',
                         'env FOO=bar npx prettier --write docs/README.md',
+                        'FOO="a b" npm run lint', 'env -u NODE_OPTIONS npm run lint',
+                        'env -C /work/rota npm run lint', '/usr/bin/time -f %E npm run lint',
+                        'git -C /work/rota push',
                         'bash -lc "npm run lint"',
                         "cat tests/recordings/* | jq '.casts'",
                         'echo $(npm run lint)', 'true\nnpx prettier --check docs/README.md']:
