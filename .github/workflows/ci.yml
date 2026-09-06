@@ -131,6 +131,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Simulator planning registry
+        run: python3 -B tools/sim-registry.py --check
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -143,9 +146,6 @@ jobs:
       # receive no credentials and cannot run as a side effect of discovery.
       - name: Python tools syntax and behavior
         run: python3 -B tools/python-check.py --tests
-
-      - name: Simulator planning registry
-        run: python3 -B tools/sim-registry.py --check
 
       # #1051: The probes deliberately damage inputs. They run the real guards
       # in a disposable copy, with SHA-256 readback after each probe, rather
