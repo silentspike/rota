@@ -24,11 +24,10 @@
  * ununterbrochen CANKER und BLIGHT wirft. PUTRID BLOOM kostet selbst einen
  * GCD — bleiben **sieben**.
  *
- * Damit ist die Acht ohne eine zweite Stapelquelle strukturell unerreichbar,
- * egal wann man wirft und wie lange man misst. Der bestehende Fall
- * `putrefaction-fenster.test.ts:140` bleibt bei `bonus` 3 aus genau diesem
- * Grund grün: Es ist keine Eigenart seiner Messpunkte, sondern eine Grenze des
- * Kits.
+ * Diese Rechnung beschrieb nur die damalige CANKER/BLIGHT/BLOOM-Folge.
+ * Sie ist KEIN Beweis für alle heutigen Kits: Die Produktionsmessung zu #1102
+ * erreicht mit SEPSIS und gültigem Cap-Talent acht Stapel OHNE ROT.
+ * Siehe docs/STACK-CAPACITY-MEASUREMENT.md für Messweg und Gegenproben.
  *
  * ROT liefert die zweite Quelle, und zwar **ohne GCD**:
  *
@@ -36,9 +35,10 @@
  *   rot   dot.decayPerTick 1, tickIntervalMs 1000, durationMs 4000, cd 4000
  * ```
  *
- * Ein Stapel je Sekunde aus den DoT-Ticks, dauerhaft haltbar (Laufzeit gleich
- * Abklingzeit). Die Rate steigt von rund 0,67 auf rund 1,4 Stapel je Sekunde —
- * acht gleichzeitig liegende sind dann erreichbar statt ausgeschlossen.
+ * ROTs Würfe kosten selbst GCDs. Die frühere Schätzung von rund 1,4 Stapeln/s
+ * ist deshalb ersetzt: #1102 misst ohne BLOOM 1,3333 Quellenstapel/s aus ROT
+ * und Direktfüllern, mit wiederholtem BLOOM 1,2222/s. Der heutige Deckel von
+ * sieben begrenzt die tatsächlich aufgenommenen Stapel zusätzlich.
  *
  * # Warum es diese Datei überhaupt gibt
  *
@@ -112,8 +112,8 @@ interface Messung {
  * liegenden und beobachtet den Stand über das ganze Fenster.
  *
  * **ROT hat Vorrang**, weil sein Beitrag nicht am GCD hängt: Ein Wurf kostet
- * einen, liefert aber vier Stapel über seine Ticks. Ohne ihn ist die Acht
- * unerreichbar, siehe Kopf.
+ * einen, liefert aber vier Stapel über seine Ticks. Die enge Gegenprobe ohne
+ * ihn bleibt bei sieben; andere Produktionskits sind im Kopf verlinkt.
  *
  * `test-onslaught` ist derselbe Träger wie im bestehenden Fall — nicht, weil
  * seine Schläge hier gebraucht würden, sondern damit beide Dateien dieselbe
