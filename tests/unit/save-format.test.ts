@@ -25,6 +25,7 @@ function save(): SaveData {
     talentPoints: { calcination: 5, fixation: 2 },
     items: [{ itemId: 'ember-band', upgradeSteps: 3, equippedSlot: 2 }],
     bindings: { '0': 'kindle', '1': 'smoulder', '2': 'pyre' },
+    spellbook: { knownSpellIds: ['kindle', 'smoulder', 'pyre'], pendingSpellIds: [] },
     bestRuns: [
       {
         bossId: 'first-crucible',

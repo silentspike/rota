@@ -120,8 +120,8 @@ function echterWeg(stand: Record<string, unknown>): Record<string, unknown> {
 describe('AC4 — jedes zusammengesetzte Feld steht in ergaenzt() einzeln', () => {
   const FELDER = zusammengesetzteFelder();
 
-  it('es sind neun, und der Wächter kennt sie ohne Pflege', () => {
-    // Sieben Listen und zwei Objekte. Die Zahl steht hier, damit ein Zuwachs
+  it('es sind zehn, und der Wächter kennt sie ohne Pflege', () => {
+    // Sieben Listen und drei Objekte. Die Zahl steht hier, damit ein Zuwachs
     // sichtbar wird — nicht als Bedingung, sondern als Merkposten: Wer sie
     // ändert, hat gerade ein Feld hinzugefügt oder entfernt und liest die
     // Prüfung darunter.
@@ -135,6 +135,7 @@ describe('AC4 — jedes zusammengesetzte Feld steht in ergaenzt() einzeln', () =
       'talentPoints',
       'items',
       'bindings',
+      'spellbook',
       'bestRuns',
       'defeatedBosses',
       // Issue #85: die freigeschalteten Archiv-Einträge. Die Reihenfolge

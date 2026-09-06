@@ -50,7 +50,10 @@
  * Der Verlust WAERE still: `cleanSave` filtert nur, was seine Formpruefung
  * nicht besteht, und ein Bestlauf ohne `curve` besteht sie.
  */
-export const SAVE_SCHEMA = 3;
+// 3 -> 4: Normal ist wie im Beutesystem 0; alte Spieler-Läufe mit 1 werden
+// beim Laden migriert. Der Verlauf hält außerdem den Beute-Startwert fest.
+// 4 -> 5: Das Zauberbuch hält erworbene Zauber und eine ausstehende Auswahl.
+export const SAVE_SCHEMA = 5;
 
 /**
  * Der Schadensverlauf eines Laufs (Issue #82).
@@ -61,6 +64,7 @@ export const SAVE_SCHEMA = 3;
  * ablegt.
  */
 import type { RunCurve } from './run-compare.js';
+import type { SpellbookState } from '../progression/spellbook.js';
 
 /**
  * Welche Groesse ein Bestwert traegt (Issue #377).
@@ -223,6 +227,8 @@ export interface OwnedItem {
 export interface RunHistoryEntry {
   readonly bossId: string;
   readonly difficulty: number;
+  /** Beute-Startwert für das Nachrechnen eines Fundes; ältere Läufe haben keinen. */
+  readonly lootSeed?: number;
   /** Zeitpunkt in ms seit 1970 — der Verlauf braucht eine Reihenfolge. */
   readonly at: number;
   /** Fassung des Spiels. Ohne sie ist der Eintrag nicht vergleichbar. */
@@ -273,6 +279,8 @@ export interface SaveData {
    * der Spieler entschieden hat, nicht wo es gerade steht.
    */
   readonly bindings: Readonly<Record<string, string>>;
+  /** Erwerb und offenes Angebot; ohne Feld ist dies ein Stand vor dem Draft. */
+  readonly spellbook?: SpellbookState;
   /**
    * HIER STANDEN `unlockedSpells` UND `unlockedInstances` (bis Issue #435).
    *
@@ -353,6 +361,7 @@ export const ALLOWED_TOP_LEVEL: readonly string[] = [
   'talentPoints',
   'items',
   'bindings',
+  'spellbook',
   'bestRuns',
   'defeatedBosses',
   'unlockedEntryIds',

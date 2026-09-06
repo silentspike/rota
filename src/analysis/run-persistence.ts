@@ -21,6 +21,15 @@
 import { SaveStore, SLOT_COUNT, type KeyValueStore } from './save-store.js';
 import { SAVE_SCHEMA, type OwnedItem, type SaveData } from './save-format.js';
 import type { RecordedState } from './run-recorder.js';
+import { DIFFICULTY_NORMAL } from '../loot/rates.js';
+import { bossIdOfMarkKey, markKey } from './progress-mark.js';
+import { CALCINATION } from '../core/data.js';
+import {
+  legacySpellbook,
+  newSpellbook,
+  reconcileSpellbook,
+  type SpellbookState,
+} from '../progression/spellbook.js';
 
 /**
  * Ein Spielstand, wie er entsteht, wenn es noch keinen gibt.
@@ -39,6 +48,7 @@ export function emptySave(gameVersion: string, now: number): SaveData {
     talentPoints: {},
     items: [],
     bindings: {},
+    spellbook: newSpellbook(CALCINATION.value.spells),
     bestRuns: [],
     defeatedBosses: [],
     unlockedEntryIds: [],
@@ -68,7 +78,7 @@ export function emptySave(gameVersion: string, now: number): SaveData {
 function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): SaveData {
   const leer = emptySave(gameVersion, now);
   if (geladen === null) return leer;
-  return {
+  const ergaenzt: SaveData = {
     ...leer,
     ...geladen,
     // **JEDES nicht primitive Feld steht hier einzeln**, weil der Streu-Operator
@@ -114,6 +124,31 @@ function ergaenzt(geladen: SaveData | null, gameVersion: string, now: number): S
     // Wächter, der nur Arrays prüft, liesse sie stehen.
     talentPoints: geladen.talentPoints ?? leer.talentPoints,
     bindings: geladen.bindings ?? leer.bindings,
+    spellbook:
+      geladen.spellbook === undefined || geladen.spellbook === null
+        ? legacySpellbook(geladen.level, CALCINATION.value.spells, geladen.bindings ?? {})
+        : reconcileSpellbook(geladen.spellbook, CALCINATION.value.spells),
+  };
+  if (geladen.schema >= 4) return { ...ergaenzt, schema: SAVE_SCHEMA };
+
+  // Bis Schema 3 gab es im Spiel nur Normal, unter dem falschen Schlüssel 1.
+  // Beute verwendet 0 für Normal. Historie, Bestwerte und Freischaltungen
+  // ziehen gemeinsam um; Besitz, Erfahrung und erreichte Werte bleiben erhalten.
+  const normal = <T extends { readonly difficulty: number }>(entry: T): T =>
+    entry.difficulty === 1 ? { ...entry, difficulty: DIFFICULTY_NORMAL } : entry;
+  return {
+    ...ergaenzt,
+    schema: SAVE_SCHEMA,
+    runHistory: ergaenzt.runHistory.map(normal),
+    bestRuns: ergaenzt.bestRuns.map(normal),
+    progressMarks: ergaenzt.progressMarks.map(normal),
+    defeatedBosses: [
+      ...new Set(
+        ergaenzt.defeatedBosses.map((key) =>
+          key.endsWith('\0' + '1') ? markKey(bossIdOfMarkKey(key), DIFFICULTY_NORMAL) : key,
+        ),
+      ),
+    ],
   };
 }
 
@@ -194,6 +229,14 @@ export class RunPersistence {
 
   get save(): SaveData {
     return this.data;
+  }
+
+  get spellbook(): SpellbookState {
+    return this.data.spellbook ?? newSpellbook(CALCINATION.value.spells);
+  }
+
+  persistSpellbook(spellbook: SpellbookState): boolean {
+    return this.persist(this.state, spellbook);
   }
 
   /**
@@ -367,7 +410,7 @@ export class RunPersistence {
    * misslungenes Schreiben ist ein Verlust, aber kein Grund, den Kampf
    * anzuhalten.
    */
-  persist(next: RecordedState): boolean {
+  persist(next: RecordedState, spellbook: SpellbookState = this.spellbook): boolean {
     this.data = {
       ...this.data,
       // Die Fassung des Standes zieht mit: Er ist unter dieser hier
@@ -375,6 +418,7 @@ export class RunPersistence {
       // war (GAME-DESIGN 18.6).
       gameVersion: this.gameVersion,
       savedAt: this.now(),
+      spellbook,
       runHistory: next.runHistory,
       progressMarks: next.progressMarks,
       // **Was ERREICHT wurde, nicht was gerechnet wurde** (Issue #377): Der
