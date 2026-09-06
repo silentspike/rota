@@ -795,7 +795,7 @@ export function installDevTools(app: App): void {
 
   const tools: DevTools = {
     marker: '__ROTA_DEVTOOLS__',
-    version: () => '0.1.0',
+    version: () => __ROTA_VERSION__,
     perf: () => ({
       frameTimes: perf.frameWork.toArray(),
       frameIntervals: perf.frameInterval.toArray(),
