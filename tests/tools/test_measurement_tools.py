@@ -110,7 +110,7 @@ class MeasurementTools(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, 'nicht lesbar'):
                 self.streich.raster_ms()
 
-    def test_failed_build_never_runs_stale_rust_binaries_and_restores_data(self):
+    def test_failed_remote_build_skips_remote_tests_and_restores_data(self):
         (self.root / 'data/spells').mkdir(parents=True)
         originals = {}
         for school in self.streich.SCHULEN:
@@ -124,8 +124,10 @@ class MeasurementTools(unittest.TestCase):
             # tool selects fields, mutates files, classifies, writes and restores.
             changed = 'amount' not in json.loads((self.root / 'data/spells/common.json').read_text())['spells'][0]['heal']
             calls.append((command, changed))
-            if command.startswith('cargo') and changed:
+            if command.startswith('cargo') and '--no-run' in command and changed:
                 return 101, 'failed to run custom build command: panicked at sim/build.rs'
+            if command.startswith('npx'):
+                return 0, 'Tests 1 passed (1)\n'
             return 0, 'test result: ok. 1 passed; 0 failed'
 
         previous_handler = signal.getsignal(signal.SIGTERM)
@@ -138,8 +140,11 @@ class MeasurementTools(unittest.TestCase):
              contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(self.streich.main(), 0)
         self.assertIn('| `heal.amount` | 6 | BAU |', (self.root / 'result.md').read_text())
-        self.assertFalse(any('tests-lokal.sh' in command and changed for command, changed in calls))
-        self.assertTrue(any('tests-lokal.sh' in command and not changed for command, changed in calls))
+        self.assertFalse(any('--no-fail-fast' in command and changed for command, changed in calls))
+        self.assertTrue(any('--no-fail-fast' in command and not changed for command, changed in calls))
+        self.assertTrue(all(command.startswith('cargo remote --no-copy-lock -- test ')
+                            for command, _ in calls if command.startswith('cargo')))
+        self.assertFalse(any('tests-lokal.sh' in command for command, _ in calls))
         for school, content in originals.items():
             self.assertEqual((self.root / f'data/spells/{school}.json').read_text(), content)
 
