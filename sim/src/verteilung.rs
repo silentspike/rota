@@ -1,4 +1,4 @@
-//! Exakte Krit-Verteilung und zählerbasierter Zufall (Issue #915).
+//! Modell-exakte Krit-Verteilung und zählerbasierter Zufall (Issues #915, #965).
 //!
 //! # Was hier entsteht, und was bewusst NICHT
 //!
@@ -38,6 +38,9 @@
 //! Die letzte Umformung gilt, weil `x` ganzzahlig ist. Ob `p · 2³²` seinerseits
 //! exakt gerechnet wird, hängt an `p` — und genau das prüft
 //! `schwelle_trifft_denselben_ausgang_wie_der_gleitkomma_vergleich`.
+
+mod numerik;
+pub use numerik::{MassenNachweis, NumerikFehler, QuantilGrenze, StatistikGrenze};
 
 /// Die ganzzahlige Schwelle zu einer Wahrscheinlichkeit.
 ///
@@ -250,6 +253,9 @@ pub struct Zustand {
 #[derive(Debug, Clone, Default)]
 pub struct Verteilung {
     masse: std::collections::BTreeMap<Zustand, f64>,
+    // None for Default (an empty, uncertified distribution). Only transitions
+    // from the exact initial mass construct a numerical certificate.
+    numerik: Option<numerik::Fortpflanzung>,
 }
 
 impl Verteilung {
@@ -264,7 +270,10 @@ impl Verteilung {
             },
             1.0,
         );
-        Self { masse }
+        Self {
+            masse,
+            numerik: Some(numerik::Fortpflanzung::default()),
+        }
     }
 
     /// Wie viele Zustände geführt werden.
@@ -273,7 +282,8 @@ impl Verteilung {
         self.masse.len()
     }
 
-    /// Die Gesamtmasse — muss 1 sein (AC6, Nachweis 2).
+    /// Binary64 point estimate; [`Self::massen_nachweis`] checks conservation
+    /// against the propagated error instead of a fixed epsilon.
     #[must_use]
     pub fn gesamtmasse(&self) -> f64 {
         self.masse.values().sum()
@@ -290,13 +300,14 @@ impl Verteilung {
             .sum()
     }
 
-    /// Der Erwartungswert des Schadens (AC6, Nachweis 3).
+    /// Binary64 point estimate. Use [`Self::erwarteter_schaden_grenze`] for a
+    /// certified absolute-error bound (including integer conversion).
     #[must_use]
     pub fn erwarteter_schaden(&self) -> f64 {
         self.masse.iter().map(|(z, m)| m * z.schaden as f64).sum()
     }
 
-    /// Die Varianz des Schadens (AC6, Nachweis 3).
+    /// Binary64 point estimate. Use [`Self::varianz_grenze`] for its enclosure.
     #[must_use]
     pub fn varianz(&self) -> f64 {
         let mittel = self.erwarteter_schaden();
@@ -320,33 +331,112 @@ impl Verteilung {
     /// es tut.
     #[must_use]
     pub fn nach_treffer(&self, treffer: Treffer, p: f64, phasen_bei: &[u64]) -> Verteilung {
+        self.nach_treffer_geprueft(treffer, p, phasen_bei)
+            .expect("valid probabilities, damage ranges and binary64 DP contract")
+    }
+
+    /// Checked transition preserving the old point masses and their order.
+    /// `p` is the exact real value of the supplied binary64 number, not the
+    /// quantized probability `schwelle(p) / 2^32` of a modeled uniform u32
+    /// draw. Neither uniformity nor independence of an actual RNG is proved.
+    pub fn nach_treffer_geprueft(
+        &self,
+        treffer: Treffer,
+        p: f64,
+        phasen_bei: &[u64],
+    ) -> Result<Verteilung, NumerikFehler> {
+        numerik::wahrscheinlichkeit(p)?;
+        let alt = self.massen_nachweis()?;
+        u32::try_from(phasen_bei.len()).map_err(|_| NumerikFehler::Zahlenbereich)?;
+        let mut nachweis = numerik::Fortpflanzung {
+            fehler: alt.l1_fehler,
+            schritte: alt
+                .schritte
+                .checked_add(1)
+                .ok_or(NumerikFehler::Zahlenbereich)?,
+            uebergaenge: alt.zustandsuebergaenge,
+        };
+        let komplement = 1.0 - p;
+        let komplement_fehler = if p == 0.0 || p == 1.0 {
+            0.0
+        } else {
+            numerik::rundungsfehler(komplement)?
+        };
         let mut neu: std::collections::BTreeMap<Zustand, f64> = std::collections::BTreeMap::new();
         for (z, m) in &self.masse {
+            // A true stochastic transition is L1-nonexpansive. Only the
+            // rounded complement and the local multiply/merge operations add
+            // error; see the induction in docs/KRIT-DP-NUMERIK.md.
+            nachweis.fehler =
+                numerik::add_oben(nachweis.fehler, numerik::mul_oben(*m, komplement_fehler)?)?;
             for (schaden, anteil) in [
                 (u64::from(treffer.mit_krit), p),
-                (u64::from(treffer.ohne_krit), 1.0 - p),
+                (u64::from(treffer.ohne_krit), komplement),
             ] {
                 if anteil == 0.0 {
                     continue;
                 }
-                let summe = z.schaden + schaden;
+                nachweis.uebergaenge = nachweis
+                    .uebergaenge
+                    .checked_add(1)
+                    .ok_or(NumerikFehler::Zahlenbereich)?;
+                let summe = z
+                    .schaden
+                    .checked_add(schaden)
+                    .ok_or(NumerikFehler::Zahlenbereich)?;
                 let phase = phasen_bei.iter().filter(|&&s| summe >= s).count() as u32;
-                *neu.entry(Zustand {
-                    schaden: summe,
-                    phase,
-                })
-                .or_insert(0.0) += m * anteil;
+                let ziel = neu
+                    .entry(Zustand {
+                        schaden: summe,
+                        phase,
+                    })
+                    .or_insert(0.0);
+                let produkt = m * anteil;
+                let merged = *ziel + produkt;
+                let produkt_fehler = if *m == 0.0 || anteil == 1.0 {
+                    0.0
+                } else {
+                    numerik::rundungsfehler(produkt)?
+                };
+                let merge_fehler = if *ziel == 0.0 || produkt == 0.0 {
+                    0.0
+                } else {
+                    numerik::rundungsfehler(merged)?
+                };
+                nachweis.fehler = numerik::add_oben(
+                    nachweis.fehler,
+                    numerik::add_oben(produkt_fehler, merge_fehler)?,
+                )?;
+                *ziel = merged;
             }
         }
-        Verteilung { masse: neu }
+        let ergebnis = Verteilung {
+            masse: neu,
+            numerik: Some(nachweis),
+        };
+        ergebnis.massen_nachweis()?;
+        Ok(ergebnis)
     }
 }
 
 /// Die ganze Trefferfolge durchrechnen.
 #[must_use]
 pub fn verteilung_ueber(treffer: &[Treffer], p: f64, phasen_bei: &[u64]) -> Verteilung {
-    treffer.iter().fold(Verteilung::am_anfang(), |v, &t| {
-        v.nach_treffer(t, p, phasen_bei)
+    verteilung_ueber_geprueft(treffer, p, phasen_bei)
+        .expect("valid probabilities, damage ranges and binary64 DP contract")
+}
+
+/// Checked fixed-hit Bernoulli distribution; does not change combat/RNG code.
+pub fn verteilung_ueber_geprueft(
+    treffer: &[Treffer],
+    p: f64,
+    phasen_bei: &[u64],
+) -> Result<Verteilung, NumerikFehler> {
+    numerik::wahrscheinlichkeit(p)?;
+    numerik::umgebung()?;
+    u32::try_from(phasen_bei.len()).map_err(|_| NumerikFehler::Zahlenbereich)?;
+    treffer.iter().try_fold(Verteilung::am_anfang(), |v, &t| {
+        v.nach_treffer_geprueft(t, p, phasen_bei)
     })
 }
 
@@ -557,7 +647,10 @@ mod dp_tests {
             let phase = phasen_bei.iter().filter(|&&s| schaden >= s).count() as u32;
             *masse.entry(Zustand { schaden, phase }).or_insert(0.0) += wahrscheinlichkeit;
         }
-        Verteilung { masse }
+        Verteilung {
+            masse,
+            ..Verteilung::default()
+        }
     }
 
     fn gleiche_treffer(n: usize, ohne: u32, mit: u32) -> Vec<Treffer> {
@@ -616,7 +709,10 @@ mod dp_tests {
         let phasen = [215u64, 245];
         let p = 0.25;
 
-        let dp = verteilung_ueber(&treffer, p, &phasen);
+        // Exercise the retained incremental point API against enumeration.
+        let dp = treffer.iter().fold(Verteilung::am_anfang(), |v, &t| {
+            v.nach_treffer(t, p, &phasen)
+        });
         let roh = aufzaehlung(&treffer, p, &phasen);
 
         assert!(
