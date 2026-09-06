@@ -311,6 +311,9 @@ import shlex
 import subprocess
 import sys
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 
 WURZEL = pathlib.Path(__file__).resolve().parent.parent
 SCHULEN = [
@@ -628,9 +631,19 @@ def schreibe(ziel, ergebnisse):
 BAU_LOG = "/work/tmp/e1-1045-bau.log"
 
 
-# Der gerade laufende Kindprozess, damit der SIGTERM-Handler ihn erreicht.
-# Ohne diese Verbindung weiß der Handler nicht, was er aufräumen soll.
-_LAUFEND = None
+# TS darf parallel zum seriellen Rust-Zweig laufen. Beide eigenen Gruppen
+# müssen vor jedem Rückbau beendet und vom Executor abgewartet werden.
+_LAUFEND = set()
+_LAUFEND_LOCK = threading.RLock()
+_ABBRUCH = threading.Event()
+_SIGTERM = False
+
+
+def _unterbrechung_pruefen():
+    if _SIGTERM:
+        raise SystemExit(143)
+    if _ABBRUCH.is_set():
+        raise InterruptedError("Ein anderer Prüfzweig wurde abgebrochen")
 
 
 def lauf(befehl, timeout):
@@ -646,44 +659,85 @@ def lauf(befehl, timeout):
     # die Gruppe des eigenen Kindes KANN keinen fremden Prozess treffen. Ein
     # Muster-basiertes Aufräumen (`pkill node`) könnte es, und auf dieser
     # Maschine laufen sechs Claude-Sitzungen und der Browser des Auftraggebers.
-    global _LAUFEND
-    p = subprocess.Popen(befehl, shell=True, cwd=WURZEL, text=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         start_new_session=True)
-    _LAUFEND = p
+    p = None
     try:
+        with _LAUFEND_LOCK:
+            _unterbrechung_pruefen()
+            p = subprocess.Popen(befehl, shell=True, cwd=WURZEL, text=True,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 start_new_session=True)
+            _LAUFEND.add(p)
+        # SIGTERM kann während Popen eintreffen, bevor es eine PID im Register
+        # gibt. Der Handler wirft nicht; erst nach der Registrierung aufräumen.
+        _unterbrechung_pruefen()
         aus, _ = p.communicate(timeout=timeout)
+        _unterbrechung_pruefen()
     except subprocess.TimeoutExpired:
         # Auch der Timeout muss die GRUPPE treffen. Am 2026-08-22 überlebten
         # vier vitest-Worker mit je 99 % CPU den Tod ihres Vaters und rechneten
         # in einer Endlosschleife weiter.
-        _gruppe_beenden(p)
+        _alle_beenden()
+        raise
+    except BaseException:
+        _alle_beenden()
         raise
     finally:
-        _LAUFEND = None
+        if p is not None and p.stdout is not None:
+            p.stdout.close()
+        with _LAUFEND_LOCK:
+            _LAUFEND.discard(p)
     return p.returncode, (aus or "")
 
 
 def _gruppe_beenden(p):
     """Beendet die Prozessgruppe eines Kindes, erst freundlich, dann hart."""
-    if p is None or p.poll() is not None:
-        return
-    try:
-        gid = os.getpgid(p.pid)
-    except ProcessLookupError:
+    if p is None:
         return
     for signal_nr, gnade in ((signal.SIGTERM, 5), (signal.SIGKILL, 0)):
         try:
-            os.killpg(gid, signal_nr)
+            # start_new_session setzt PGID=PID. Die Gruppe kann noch leben,
+            # nachdem die Shell endet; deshalb nicht vorher p.poll() prüfen.
+            os.killpg(p.pid, signal_nr)
         except ProcessLookupError:
-            return
-        if not gnade:
-            return
+            break
+        if gnade:
+            try:
+                p.wait(timeout=gnade)
+            except subprocess.TimeoutExpired:
+                pass
+    p.wait()
+
+
+def _alle_beenden():
+    with _LAUFEND_LOCK:
+        _ABBRUCH.set()  # Kein spät startender Thread darf noch ein Kind erzeugen.
+        kinder = list(_LAUFEND)
+    for kind in kinder:
+        _gruppe_beenden(kind)
+
+
+@contextmanager
+def ts_nebenbei(arbeit):
+    """Ein TS-Zweig; auch bei Fehler/SIGTERM erst joinen, dann Daten rückbauen."""
+    def geschuetzt():
         try:
-            p.wait(timeout=gnade)
-            return
-        except subprocess.TimeoutExpired:
-            continue
+            return arbeit()
+        except BaseException:
+            _alle_beenden()
+            raise
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        zukunft = pool.submit(geschuetzt)
+        try:
+            yield zukunft
+            zukunft.result()
+            _unterbrechung_pruefen()
+        except BaseException as error:
+            zukunft.cancel()
+            _alle_beenden()
+            if isinstance(error, InterruptedError) and not zukunft.cancelled():
+                zukunft.result()  # Den ursprünglichen TS-Fehler erhalten.
+            raise
 
 
 def main():
@@ -704,8 +758,16 @@ def main():
     # werden, und die nächste Messung wäre gegen eine Maschine unter Volllast
     # gelaufen.
     def _abbruch(*_):
-        _gruppe_beenden(_LAUFEND)
-        sys.exit(143)
+        global _SIGTERM
+        _SIGTERM = True
+        # Niemals wait()/Locks im Handler: communicate kann gerade den
+        # internen, nicht-reentranten Popen-Waitlock halten. Nur signalisieren;
+        # lauf räumt nach dem Unwinden auf und wartet die Kinder dort ab.
+        for kind in list(_LAUFEND):
+            try:
+                os.killpg(kind.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
     signal.signal(signal.SIGTERM, _abbruch)
 
@@ -801,6 +863,7 @@ def main():
 
     def stufe(probe, name, befehl):
         log = protokolle / f"{probe}.{name}.log"
+        begonnen, uhr = time.time(), time.monotonic()
         try:
             code, ausgabe = lauf(befehl, args.timeout)
         except subprocess.TimeoutExpired:
@@ -811,11 +874,24 @@ def main():
         log.write_text(ausgabe)
         eintrag = ({"exit": code, "status": "FAIL" if bau_gebrochen(code, ausgabe) else "PASS"}
                    if name == "build" else suite_nachweis(code, ausgabe, name))
-        eintrag["log"] = str(log)
+        eintrag.update(log=str(log), started_unix=begonnen, seconds=time.monotonic() - uhr)
         return code, ausgabe, eintrag
 
     def bauen(probe):
         return stufe(probe, "build", f"{rust_bau} > {shlex.quote(str(bau_log))} 2>&1")
+
+    def messen(probe, eintrag):
+        # Der Datensatz bleibt bis zum Ende BEIDER Zweige unverändert.
+        # Nur TS überlappt; Remote-Bau und Remote-Tests bleiben seriell.
+        with ts_nebenbei(lambda: stufe(probe, "ts", ts)) as ts_ergebnis:
+            rc_bau, aus_bau, eintrag["build"] = bauen(probe)
+            if bau_gebrochen(rc_bau, aus_bau):
+                rc_r, aus_r = rc_bau, aus_bau
+                eintrag["rust"] = {"status": "SKIPPED", "reason": "build-failure", "executed": 0}
+            else:
+                rc_r, aus_r, eintrag["rust"] = stufe(probe, "rust", rust_lauf)
+            rc_t, aus_t, eintrag["ts"] = ts_ergebnis.result()
+        return rc_bau, aus_bau, rc_r, aus_r, rc_t, aus_t
 
     speichern()
 
@@ -914,6 +990,7 @@ def main():
     ergebnisse = []
     roh = {}
     for i, feld in enumerate(felder, 1):
+        _unterbrechung_pruefen()
         teile = feld.split(".")
         eintrag = {"status": "UNGEPRUEFT", "mutated_spells": 0}
         nachweis["fields"][feld] = eintrag
@@ -1008,7 +1085,10 @@ def main():
             # Wuerde `gebrochen` die LAUF-Ausgabe pruefen, saehe ein Feld,
             # dessen Mutation den Bau bricht, aus wie eines, das nichts bewirkt —
             # also wie totes Gewicht, das man entfernen kann.
-            rc_bau, aus_bau, eintrag["build"] = bauen(probe)
+            if args.nur_bau:
+                rc_bau, aus_bau, eintrag["build"] = bauen(probe)
+            else:
+                rc_bau, aus_bau, rc_r, aus_r, rc_t, aus_t = messen(probe, eintrag)
             gebrochen = bau_gebrochen(rc_bau, aus_bau)
 
             # BRICHT DER BAU, WIRD NICHT GEFAHREN. Der Rust-Nachweis bleibt
@@ -1040,14 +1120,9 @@ def main():
                 print(f"[{i}/{len(felder)}] {feld:<38} {stand:<6} {getroffen:>2} Zauber  "
                       f"{detail}  ({dauer:.0f} s)", flush=True)
                 schreibe(WURZEL / args.aus, ergebnisse)
+                _unterbrechung_pruefen()
                 continue
 
-            if gebrochen:
-                rc_r, aus_r = rc_bau, aus_bau
-                eintrag["rust"] = {"status": "SKIPPED", "reason": "build-failure", "executed": 0}
-            else:
-                rc_r, aus_r, eintrag["rust"] = stufe(probe, "rust", rust_lauf)
-            rc_t, aus_t, eintrag["ts"] = stufe(probe, "ts", ts)
             dauer = time.monotonic() - t0
 
             if gebrochen:
@@ -1134,6 +1209,7 @@ def main():
             # Felder dauert Stunden, und ein Abbruch in Stunde drei darf nicht
             # alles Gemessene verwerfen.
             schreibe(WURZEL / args.aus, ergebnisse)
+            _unterbrechung_pruefen()
         except BaseException as error:
             eintrag.update(status="ABBRUCH", detail=f"{type(error).__name__}: {error}")
             raise
@@ -1143,8 +1219,10 @@ def main():
             eintrag["restored"] = all(p.read_bytes() == sicherung[s] for s, p in pfade.items())
             speichern()
 
+    _unterbrechung_pruefen()
     ziel = WURZEL / args.aus
     schreibe(ziel, ergebnisse)
+    _unterbrechung_pruefen()
     nachweis["completed"] = len(ergebnisse) == len(felder)
     fehler = any(e.get("status") in ("FEHLER", "ABBRUCH")
                  or any(e.get(sprache, {}).get("status") == "ERROR" for sprache in ("rust", "ts"))
