@@ -17,3 +17,10 @@ tests/parity/recordings/
 # (tools/bilder-entscheidung.py) und wird nie von Hand bearbeitet. Prettier
 # wuerde sie bei jedem Lauf neu umbrechen und den Diff verrauschen.
 docs/bilder-entscheidung/
+
+# Den Abschnitt zwischen den cargo-remote-v2-Marken verwaltet der Client von
+# cargo remote v2: Bei jedem Abgleich ersetzt er ihn wörtlich durch seine
+# Vorlage. Prettier verlangt dort eine Leerzeile nach der Anfangsmarke
+# (gemessen am 2026-10-23) — eine Umformatierung hielte nur bis zum nächsten
+# Abgleich.
+AGENTS.md
