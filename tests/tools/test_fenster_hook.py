@@ -290,7 +290,8 @@ class FensterHookTests(unittest.TestCase):
         # $( ) and backquotes also run inside double quotes; single quotes are text.
         for command in ['echo "lint: $(npm run lint 2>&1 | tail -1)"', 'echo "a `npm run lint` b"',
                         'rm -f x  # comment\nnpx prettier --write docs/README.md',
-                        'bash <(git show origin/main:tools/ac6-gegenprobe.sh)']:
+                        'bash <(git show origin/main:tools/ac6-gegenprobe.sh)',
+                        'bash -o pipefail -c "npm run lint | tail -1"', 'bash - tools/ac6.sh']:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
         for command in ["echo 'a `npm run lint` b'", 'echo hi  # npm run lint',
@@ -301,6 +302,33 @@ class FensterHookTests(unittest.TestCase):
         warning = self.report('B=$(ls -t target/debug/deps/x-* | head -1)\n(cd sim && "../$B")',
                               'UNBEKANNT')
         self.assertIn('OtherReview', warning)
+
+    def test_configured_command_loads_classifier_next_to_hook_only_when_needed(self):
+        scripts = self.base / 'project with spaces' / 'tools'
+        scripts.mkdir(parents=True)
+        for source in (ROOT / 'tools').glob('fenster*.py'):
+            (scripts / source.name).write_bytes(source.read_bytes())
+        (self.bin / 'python3').symlink_to(sys.executable)
+        settings = json.loads((ROOT / '.claude/settings.json').read_text())
+        command = next(hook['command'] for rule in settings['hooks']['PreToolUse']
+                       if rule.get('matcher') == 'Bash' for hook in rule['hooks'])
+
+        def run(shell_command):
+            result = subprocess.run(['/bin/bash', '-c', command], input=json.dumps({
+                'tool_name': 'Bash', 'tool_input': {'command': shell_command},
+                'session_id': 'local', 'cwd': str(self.base),
+            }), text=True, capture_output=True, env={
+                **self.env, 'CLAUDE_PROJECT_DIR': str(scripts.parent),
+            }, timeout=5)
+            self.assertEqual((result.returncode, result.stderr), (0, ''))
+            return json.loads(result.stdout)['systemMessage'] if result.stdout else None
+
+        self.assertIn('belasten', run('timeout 60 npm run lint'))
+        self.assertFalse((scripts / '__pycache__').exists())
+        (scripts / 'fenster_lastpruefung.py').unlink()
+        self.assertIn('UNBEKANNT', run('timeout 60 npm run lint'))   # never a traceback
+        self.state(abgabe='2026-09-06 09:01:00')
+        self.assertIsNone(run('timeout 60 npm run lint'))           # free: classifier unused
 
 
 if __name__ == '__main__':
