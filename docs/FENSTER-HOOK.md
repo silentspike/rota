@@ -144,9 +144,14 @@ bashlex gequotete Begrenzer nicht kennt und Bash sie wörtlich liest. Für die
 22.545 von bashlex zerlegbaren Befehle fand diese Gegenprobe keinen
 Lastbefehl. Die Regeln selbst prüft sie nicht; deren Wirkung zeigen die
 Ursachen der Wechsel oben. Die 46 neu stillen Befehle, die bashlex nicht
-zerlegen konnte, wurden einzeln gelesen. Sie enthalten Lastwörter nur in
-`echo`-Texten, `grep`- und `case`-Mustern, Schleifenwörtern, Python-Code ohne
-Start und Gegenproben-Skripten außerhalb von `tools/`.
+zerlegen konnte, wurden vollständig gelesen, gequotete Datenkörper
+eingeklappt. Sie enthalten Lastwörter nur in `echo`-Texten, `grep`- und
+`case`-Mustern, Schleifenwörtern, Python-Code ohne Start und
+Gegenproben-Skripten außerhalb von `tools/`. Einer von ihnen belastet die
+Maschine trotzdem: eine Schleife mit bis zu 3.200 `git grep`-Aufrufen über
+`origin/main`. Last aus vielen einzeln leichten Befehlen liegt außerhalb der
+Regeln; die alte Fassung meldete diesen Befehl nur deshalb als unbekannt, weil
+ihre Zerlegung scheiterte.
 
 Die Korpusprüfung hat die Regel für Python- und Node-Code geschärft. 48
 Befehle enthalten Code, der über `subprocess` oder `exec` ein namentlich
@@ -196,8 +201,9 @@ Tabelle. Rohwerte und Quellhashes liegen in den lokalen Abnahmebelegen
 
 Dies ist eine Warnung für sichtbare Bash-Aufrufe in Claude Code. Sie ist kein
 vollständiger Shell-Interpreter und keine Lastsperre. Aliase, Funktionen aus
-früheren Aufrufen, Skripte außerhalb von `tools/` und Programme, die
-Python- oder Node-Code aus berechneten Listen startet, bleiben unerkannt. Die
+früheren Aufrufen, Skripte außerhalb von `tools/`, Programme, die Python- oder
+Node-Code aus berechneten Listen startet, und Last aus Schleifen einzeln
+leichter Befehle, etwa tausendfaches `git grep`, bleiben unerkannt. Die
 `jq`-Regel braucht `recordings/` mit Schrägstrich, `cd tests/parity/recordings`
 gefolgt von `jq` erkennt sie nicht. `watch`, `parallel`, `flock` und `chrt`
 werden nicht ausgepackt; im Korpus kamen sie nicht als Befehl vor. Außerhalb
