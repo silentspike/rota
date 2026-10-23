@@ -263,7 +263,9 @@ class FensterHookTests(unittest.TestCase):
             'setsid nohup cargo-remote-fmt --check &',
             'timeout 600 nice -n 5 python3 tools/streich-mutation.py',
             '{ time cargo remote -c -- test; } 2>&1', 'if git push origin HEAD; then echo ok; fi',
-            'run() { npx vitest run; }; run',
+            'run() { npx vitest run; }; run', 'sudo -u root npm run lint',
+            "find docs -name '*.md' -exec npx prettier --check {} +", "eval 'npm run lint'",
+            'source tools/env.sh', '. tools/env.sh', 'xargs -I{} sh -c "cargo remote -- test {}"',
         ]:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
@@ -302,6 +304,10 @@ class FensterHookTests(unittest.TestCase):
         warning = self.report('B=$(ls -t target/debug/deps/x-* | head -1)\n(cd sim && "../$B")',
                               'UNBEKANNT')
         self.assertIn('OtherReview', warning)
+        # So is code that reaches an interpreter through a pipe.
+        for command in ['cat run.sh | bash', "echo 'npm run lint' | sh"]:
+            with self.subTest(command=command):
+                self.report(command, 'UNBEKANNT')
 
     def test_configured_command_loads_classifier_next_to_hook_only_when_needed(self):
         scripts = self.base / 'project with spaces' / 'tools'
@@ -321,14 +327,14 @@ class FensterHookTests(unittest.TestCase):
                 **self.env, 'CLAUDE_PROJECT_DIR': str(scripts.parent),
             }, timeout=5)
             self.assertEqual((result.returncode, result.stderr), (0, ''))
-            return json.loads(result.stdout)['systemMessage'] if result.stdout else None
+            return json.loads(result.stdout)['systemMessage'] if result.stdout else ''
 
         self.assertIn('belasten', run('timeout 60 npm run lint'))
         self.assertFalse((scripts / '__pycache__').exists())
         (scripts / 'fenster_lastpruefung.py').unlink()
         self.assertIn('UNBEKANNT', run('timeout 60 npm run lint'))   # never a traceback
         self.state(abgabe='2026-09-06 09:01:00')
-        self.assertIsNone(run('timeout 60 npm run lint'))           # free: classifier unused
+        self.assertEqual(run('timeout 60 npm run lint'), '')        # free: classifier unused
 
 
 if __name__ == '__main__':
