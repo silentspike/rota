@@ -510,8 +510,33 @@ def bau_gebrochen(code, ausgabe):
     #1055: Ohne den Code wurde ein echter Bauabbruch als ROT verbucht; nach
     getrenntem Bauen/Fahren könnten sogar alte Testbinaries gefahren werden.
     Ein BAU ist kein Nachweis über die Wirkung oder Deckung eines Feldwerts.
+
+    Die Ausgänge in DIENST_AUSGAENGE kommen hier nie an — `stufe()` hält sie
+    vorher an, denn sie heißen „nicht gebaut", nicht „Bau gebrochen".
     """
     return code != 0 or "error: could not compile" in ausgabe or "error[E" in ausgabe
+
+
+# Diese Ausgänge stammen vom cargo-remote-v2-CLIENT, nicht von cargo: Gebaut
+# oder gemessen wurde nichts, oder das Ergebnis kam nicht an. cargo selbst endet
+# bei Bau- und Testfehlern mit 101.
+#
+# Gemessen am 2026-10-23: Ein echter Abweis — Exit 75, "This workspace already
+# has an active job" — galt `bau_gebrochen()` als gebrochener Bau. Im Feldlauf
+# hätte das Feld damit BAU geheißen, ohne dass ein einziger Compiler lief. Und
+# seit v2 parallele Worktrees zulässt, ist Exit 75 ein Alltagsfall: Der Server
+# reiht nichts ein, er lehnt ab, wenn sein Budget voll ist.
+DIENST_AUSGAENGE = {
+    75: "kein Platz auf dem Bau-Dienst oder Arbeitsbereich belegt — nichts eingereiht",
+    70: "Verbindung oder Ausführer des Bau-Dienstes verloren",
+    74: "Artefakte nicht übertragbar",
+    130: "abgebrochen",
+    2: "Aufruf oder Projektkonfiguration vom Client abgelehnt",
+}
+
+
+class NichtGelaufen(RuntimeError):
+    """Der Bau-Dienst hat den Schritt nicht ausgeführt; es gibt nichts zu verbuchen."""
 
 
 def suite_nachweis(code, ausgabe, sprache):
@@ -808,9 +833,11 @@ def main():
     # Die Unterscheidung "Frische färbte" gegen "Wirkung färbte auch" braucht
     # die VOLLSTÄNDIGE Liste der roten Fälle. Deshalb laufen beide Suiten hier
     # bis zum Ende durch, und die Auswertung erfolgt über die Namen.
-    # Zwei serialisierte REMOTE-Schritte gemäß aktueller Rechnerregel: zuerst
-    # nur bauen, dann dort testen. Keine lokalen Rust-Binaries starten, keine
-    # Artefakte und insbesondere keine Cargo.lock vom Buildserver kopieren.
+    # Zwei REMOTE-Schritte nacheinander: zuerst nur bauen, dann dort testen.
+    # Nacheinander schon deshalb, weil cargo remote v2 je Arbeitsverzeichnis nur
+    # EINEN aktiven Job zulässt — ein zweiter bekäme Exit 75 (gemessen am
+    # 2026-10-23). Keine lokalen Rust-Binaries starten, keine Artefakte und
+    # insbesondere keine Cargo.lock vom Buildserver kopieren.
     # Cargo gibt standardmäßig alle Fallnamen aus; --no-fail-fast verhindert,
     # dass ein rotes Target die Prüfung der übrigen Targets abschneidet.
     rust_bau = "cargo remote --no-copy-lock -- test --no-run --all-targets"
@@ -872,6 +899,10 @@ def main():
         if name == "build" and bau_log.exists():
             ausgabe += bau_log.read_text()
         log.write_text(ausgabe)
+        if name in ("build", "rust") and code in DIENST_AUSGAENGE:
+            # Kein Urteil über das Feld: Der Lauf hat nicht stattgefunden.
+            raise NichtGelaufen(f"{probe}/{name}: Exit {code} — {DIENST_AUSGAENGE[code]}. "
+                                f"Protokoll: {log}")
         eintrag = ({"exit": code, "status": "FAIL" if bau_gebrochen(code, ausgabe) else "PASS"}
                    if name == "build" else suite_nachweis(code, ausgabe, name))
         eintrag.update(log=str(log), started_unix=begonnen, seconds=time.monotonic() - uhr)
@@ -1269,4 +1300,13 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except NichtGelaufen as grund:
+        # Exit 2 wie die übrigen „nicht gemessen"-Ausgänge dieses Werkzeugs.
+        # Das betroffene Feld steht im Nachweis als ABBRUCH, sein Datensatz ist
+        # zurückgestellt (`finally` der Feldschleife).
+        print(f"NICHT GELAUFEN: {grund}", file=sys.stderr)
+        print("  Kein Feld wurde deswegen verbucht. Erst `cargo remote --status` ansehen,"
+              " dann mit --ab <feld> fortsetzen.", file=sys.stderr)
+        sys.exit(2)
