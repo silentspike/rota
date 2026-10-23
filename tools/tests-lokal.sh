@@ -18,7 +18,7 @@
 #
 # Der Weg stammt aus der Klarstellung des Auftraggebers (Nachricht 8258):
 # rustbuild baut, die Zielmaschine führt aus. Ein fertiges Binary zu starten
-# ist kein cargo-Aufruf.
+# ist kein cargo-Aufruf. (Bau-Dienst seit 2026-10-23: cargo remote v2.)
 #
 # **DOC-TESTS SIND HIER NICHT ENTHALTEN — und zwar bauartbedingt.**
 #
@@ -92,12 +92,76 @@ cd "$WURZEL" || exit 1
 #
 # Die Meldung "171 von 171 Suiten" war dabei jedes Mal wahr — sie zaehlte nur
 # eine Menge, die das Skript selbst zugeschnitten hatte.
+#
+# **Zwei Schreibweisen, EIN Ort** (seit cargo remote v2, 2026-10-23). Der
+# v2-Dienst baut mit CARGO_TARGET_DIR=/target/current, ausserhalb der
+# Quellkopie; cargo druckt den Pfad dann absolut:
+#
+#     Running tests/x.rs (/target/current/debug/deps/x-hash)
+#
+# `cargo remote -c` legt genau diese Datei lokal unter target/debug/deps/ ab.
+# Das alte Muster fand in einem solchen Protokoll kein einziges Binary
+# (gemessen am 2026-10-23). Die alte Form bleibt lesbar, damit ein aelteres
+# Protokoll nicht stumm durchfaellt.
 mapfile -t BINARIES < <(tr '\r' '\n' < "$LOG" \
-  | grep -oE '\(target/debug/(deps|examples)/[^)]+\)' \
+  | grep -oE '\((target|/target/current)/debug/(deps|examples)/[^)]+\)' \
   | tr -d '()' \
+  | sed 's#^/target/current/#target/#' \
   | sort -u)
+QUELLE="dem Log"
 
-echo "Aus dem Log gelesen: ${#BINARIES[@]} Testbinaries"
+# **Bei `--no-run` nennt das v2-Protokoll die Binaries GAR NICHT** (gemessen
+# am 2026-10-23). Der Dienst erzwingt --message-format=json-render-diagnostics,
+# und in diesem Format druckt cargo keine "Executable"-Zeilen; die Pfade stehen
+# nur in den JSON-Meldungen, und die blendet der Client aus. Was `-c`
+# zurueckkopiert hat, steht dann allein im Job-Ergebnis, das der Client lokal
+# ablegt — das ist sein Zustand, keine zugesicherte Schnittstelle; fehlt die
+# Datei, bricht das Skript deshalb laut ab statt zu raten.
+#
+# Daraus zaehlen nur Dateien mit 16-stelliger Hash-Endung unter deps/ und
+# examples/: So heissen Testbinaries (auch Beispiele im Testmodus). Das
+# Programm selbst (target/debug/rota-sim) und gewoehnliche Beispiele
+# (examples/<name>) tragen keinen Hash — sie wuerden sonst mit ihrem main()
+# gestartet. Beide Formen gemessen am 2026-10-23.
+if [ "${#BINARIES[@]}" -eq 0 ]; then
+  JOB=$(grep -oE '^cargo-remote: job [0-9a-f]+' "$LOG" | head -1 | cut -d' ' -f3)
+  if [ -n "$JOB" ]; then
+    ERGEBNIS="$HOME/.local/state/cargo-remote/jobs/$JOB/result.json"
+    if [ ! -f "$ERGEBNIS" ]; then
+      echo "v2-Protokoll ohne Binary-Zeilen, und das Job-Ergebnis fehlt:"
+      echo "  $ERGEBNIS"
+      echo "  Ohne -c kommt nichts zurueck: cargo remote -c -- test --no-run …"
+      exit 1
+    fi
+    LISTE=$(mktemp "${TMPDIR:-/tmp}/testlauf-XXXXXX.liste")
+    python3 - "$ERGEBNIS" >"$LISTE" <<'PY'
+import json
+import re
+import sys
+
+ergebnis = json.load(open(sys.argv[1], encoding="utf-8"))
+argumente = ergebnis.get("args") or []
+if argumente[:1] != ["test"]:
+    sys.exit(f"  kein Testbau: cargo {' '.join(argumente)}")
+if ergebnis.get("exit_code") != 0:
+    sys.exit(f"  der Bau endete mit Exit {ergebnis.get('exit_code')} — keine Binaries ausgefuehrt")
+for datei in ergebnis.get("files", []):
+    if re.fullmatch(r"target/debug/(deps|examples)/[^/]+-[0-9a-f]{16}", datei.get("path", "")):
+        print(datei["path"])
+PY
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "Job $JOB taugt nicht als Quelle (siehe oben)."
+      rm -f "$LISTE"
+      exit 1
+    fi
+    mapfile -t BINARIES < <(sort -u "$LISTE")
+    rm -f "$LISTE"
+    QUELLE="dem Job-Ergebnis $JOB"
+  fi
+fi
+
+echo "Aus $QUELLE gelesen: ${#BINARIES[@]} Testbinaries"
 if [ "${#BINARIES[@]}" -eq 0 ]; then
   echo "KEIN BINARY GEFUNDEN — der Lauf hat nicht stattgefunden."
   exit 1

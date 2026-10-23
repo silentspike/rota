@@ -57,7 +57,13 @@ def spiel_rot():
 
 
 def rust_rot():
-    e = lauf(['cargo', 'remote', '-c', '--', 'test'], cwd=WURZEL / 'sim')
+    # **Aus der Wurzel, ohne `-c`** (cargo remote v2, 2026-10-23). Aus `sim/`
+    # heraus findet der v2-Client keine Konfiguration und reicht an den alten
+    # Client weiter; der scheiterte hier an der lokalen Rust-Sperre — gemessen:
+    # "cargo test hat nicht gemessen (rc=101, stdout 0 B, …)". Und `-c` holt
+    # unter v2 jede ausführbare Datei des Laufs zurück — bei `cargo test` also
+    # jedes Testbinary —, obwohl diese Stufe nur die Ausgabe liest.
+    e = lauf(['cargo', 'remote', '--no-copy-lock', '--', 'test'])
     text = (e.stdout + '\n' + e.stderr).replace('\r', '\n')
     if 'test result:' not in text:
         # **Die Meldung muss den Zustand zeigen, nicht nur behaupten.** Eine
