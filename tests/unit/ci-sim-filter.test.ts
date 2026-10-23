@@ -143,4 +143,15 @@ describe('Der Pfad-Filter der sim-Stufe (#173)', () => {
     expect(muster.test('tests/parity/recordings/fixation.json')).toBe(true);
     expect(muster.test('tests/parity/recordings/log-parity.json')).toBe(true);
   });
+
+  it('fasst den Compiler-Pin als Rust-Eingabe auf', () => {
+    // Seit cargo remote v2 (2026-10-23) bestimmt rust-toolchain.toml den
+    // Compiler der sim-Stufe. Ein Versionswechsel, der die Stufe nicht
+    // auslöst, wäre ein grüner PR für einen Compiler, auf dem nie geprüft
+    // wurde. Der Anker zählt: Eine gleichnamige Datei tiefer im Baum ist nicht
+    // der Pin des Workspace.
+    const muster = simMuster();
+    expect(muster.test('rust-toolchain.toml')).toBe(true);
+    expect(muster.test('docs/rust-toolchain.toml.md')).toBe(false);
+  });
 });

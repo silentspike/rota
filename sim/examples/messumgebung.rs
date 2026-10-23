@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! # BAUEN — entfernt:
-//! cargo remote -c --manifest-path sim/Cargo.toml -- \
+//! cargo remote -c -- \
 //!   build --release --features diagnostics --example messumgebung
 //!
 //! # FAHREN — hier, auf der Maschine, die die Baseline nennt,
