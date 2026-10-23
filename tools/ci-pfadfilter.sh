@@ -48,6 +48,8 @@ STANDARD=(
   data/spells/calcination.json
   data/bosses/boss-1-1.json
   Cargo.toml
+  rust-toolchain.toml
+  .cargo-remote.toml
   tools/step1-check.py
   tools/groessen-hebel.py
   .github/workflows/ci.yml
