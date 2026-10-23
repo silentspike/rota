@@ -87,7 +87,9 @@ class FensterHookTests(unittest.TestCase):
     def test_incident_commands_warn_with_owner_purpose_and_time(self):
         for command in [
             'npm run lint', 'npx prettier --write docs/WORKER-GUIDE.md',
-            "jq '.casts' tests/recordings/*", 'cargo remote --no-copy-lock -- test',
+            "jq '.casts' tests/parity/recordings/*",
+            "jq -s length /work/rota/tests/parity/recordings/*.json",
+            'cargo remote --no-copy-lock -- test',
             'cargo-remote-fmt --check', 'bash tools/gegenprobe-grid.sh',
             'python3 tools/streich-mutation.py', 'git worktree add /tmp/unused branch',
         ]:
@@ -140,7 +142,7 @@ class FensterHookTests(unittest.TestCase):
                         'env -C /work/rota npm run lint', '/usr/bin/time -f %E npm run lint',
                         'git -C /work/rota push',
                         'bash -lc "npm run lint"',
-                        "cat tests/recordings/* | jq '.casts'",
+                        "cat tests/parity/recordings/* | jq '.casts'",
                         'echo $(npm run lint)', 'true\nnpx prettier --check docs/README.md']:
             with self.subTest(command=command):
                 self.assertIn('MESSFENSTER', self.call(command))
