@@ -17,3 +17,12 @@ tests/parity/recordings/
 # (tools/bilder-entscheidung.py) und wird nie von Hand bearbeitet. Prettier
 # wuerde sie bei jedem Lauf neu umbrechen und den Diff verrauschen.
 docs/bilder-entscheidung/
+
+# Der Abschnitt zwischen den cargo-remote-v2-Marken ist der Wortlaut der
+# Vorlage, die `cargo remote --init` geschrieben hat (Client 20261004-r30,
+# project.py: managed_instructions). Er wird nicht von Hand gepflegt; der
+# installierte Client schreibt ihn bei späteren Läufen auch nicht neu (gelesen
+# am 2026-10-24: bootstrap() kehrt bei vorhandener v2-Konfiguration sofort
+# zurück). Prettier verlangt nach der Anfangsmarke eine Leerzeile (gemessen am
+# 2026-10-23); eine Umformatierung wiche vom Wortlaut der Vorlage ab.
+AGENTS.md

@@ -213,7 +213,7 @@ BEISPIELE
 
 WO DAS PROGRAMM LAEUFT
   Der Bau laeuft auf einem entfernten Rechner:
-    cargo remote -c --manifest-path sim/Cargo.toml -- build --release
+    cargo remote -c -- build --release
   Danach liegt das Programm unter target/release/rota-sim.
   Im Debug-Bau ist der Kern rund achtzehnmal langsamer — fuer einen Blick
   genuegt das, fuer tausend Durchgaenge nicht.";

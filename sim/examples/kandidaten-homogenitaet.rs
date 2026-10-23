@@ -1,7 +1,7 @@
 //! Messung B: Wie gleichfoermig sind die Rotationen einer Suchrunde?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
+//! cargo remote -c -- build --release \
 //!   --example kandidaten-homogenitaet
 //! ./target/release/examples/kandidaten-homogenitaet
 //! ```
