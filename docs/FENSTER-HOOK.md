@@ -3,7 +3,7 @@
 Der in `.claude/settings.json` registrierte `PreToolUse`-Hook liest den geplanten
 Bash-Befehl und den Messfensterstand. Er warnt bei den drei gemeldeten Fällen:
 `npm run lint`, `npx prettier --write docs/WORKER-GUIDE.md` und
-`jq '.casts' tests/recordings/*`. Auch sichtbare Cargo-, Test- und Werkzeugläufe,
+`jq '.casts' tests/parity/recordings/*`. Auch sichtbare Cargo-, Test- und Werkzeugläufe,
 die üblichen `env`-/`time`-Hüllen und Git-Worktree-Änderungen werden erkannt.
 `git status`, das Lesen einzelner Dokumente und bloß zitierte Befehle bleiben
 im selben fremden Fenster still.
