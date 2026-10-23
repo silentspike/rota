@@ -68,8 +68,14 @@ pub fn wurzel() -> PathBuf {
         }
         kandidat = eltern;
     }
-    // Rückfall auf den eingebauten Pfad — dann scheitert der Test mit einer
-    // Meldung, die den gesuchten Ort nennt, statt mit einem leeren Ergebnis.
+    // Rückfall auf den eingebauten Pfad. Auf dem Bau-Dienst (cargo remote v2)
+    // ist das der Weg, der trägt: Dort liegt das Testbinary unter
+    // /target/current/…, außerhalb der Quellkopie unter /workspace/ — die Suche
+    // aufwärts findet nichts, `CARGO_MANIFEST_DIR` ist /workspace/sim (Pfade aus
+    // dem v2-Protokoll vom 2026-10-23). Liegt ein Binary dagegen an einem Ort
+    // ohne Quellen darüber und gibt es den eingebauten Pfad nicht, scheitert der
+    // Test hier mit einer Meldung, die den gesuchten Ort nennt, statt mit einem
+    // leeren Ergebnis.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map(Path::to_path_buf)
