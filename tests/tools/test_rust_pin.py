@@ -91,6 +91,16 @@ class RustPin(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("1.98.10", result.stderr)
 
+    def test_pre_release_suffix_is_not_the_pin(self):
+        # Den Fall oben faengt schon das gierige \d+. Die Wortgrenze im Muster
+        # traegt erst hier: "1.98.1-beta.3" beginnt mit der gepinnten Version und
+        # ist doch ein anderer Compiler. Gemessen am 2026-10-24: Ohne die Grenze
+        # blieben alle uebrigen Faelle dieser Datei gruen.
+        paar = (KETTE.format(kanal="1.98.1"), DIENST.format(kanal="1.98.1"))
+        result = self.run_tool(*paar, "--rustc", "rustc 1.98.1-beta.3 (0123456ab 2026-08-20)")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("keine lesbare Version", result.stderr)
+
     def test_unreadable_rustc_output_fails(self):
         paar = (KETTE.format(kanal="1.98.1"), DIENST.format(kanal="1.98.1"))
         result = self.run_tool(*paar, "--rustc", "")

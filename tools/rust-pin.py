@@ -75,8 +75,9 @@ def befunde(wurzel, rustc=None):
                           f"{dienst.get('toolchain')!r} — CI und Bau-Dienst bauten verschieden")
 
     if rustc is not None and kanal is not None:
-        # Die Version muss als GANZES Wort stehen: "rustc 1.98.10 (…)" ist
-        # nicht 1.98.1, auch wenn die Zeichenkette damit beginnt.
+        # Die Version muss als GANZES Wort stehen: "rustc 1.98.1-beta.3 (…)"
+        # beginnt mit 1.98.1 und ist doch ein anderer Compiler. ("1.98.10"
+        # faengt schon das gierige \d+; die Grenze traegt erst beim Suffix.)
         gefunden = re.match(r"rustc (\d+\.\d+\.\d+)(?:\s|$)", rustc.strip())
         if not gefunden:
             fehler.append(f"rustc meldet keine lesbare Version: {rustc.strip()!r}")

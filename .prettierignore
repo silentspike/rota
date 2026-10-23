@@ -18,9 +18,11 @@ tests/parity/recordings/
 # wuerde sie bei jedem Lauf neu umbrechen und den Diff verrauschen.
 docs/bilder-entscheidung/
 
-# Den Abschnitt zwischen den cargo-remote-v2-Marken verwaltet der Client von
-# cargo remote v2: Bei jedem Abgleich ersetzt er ihn wörtlich durch seine
-# Vorlage. Prettier verlangt dort eine Leerzeile nach der Anfangsmarke
-# (gemessen am 2026-10-23) — eine Umformatierung hielte nur bis zum nächsten
-# Abgleich.
+# Der Abschnitt zwischen den cargo-remote-v2-Marken ist der Wortlaut der
+# Vorlage, die `cargo remote --init` geschrieben hat (Client 20261004-r30,
+# project.py: managed_instructions). Er wird nicht von Hand gepflegt; der
+# installierte Client schreibt ihn bei späteren Läufen auch nicht neu (gelesen
+# am 2026-10-24: bootstrap() kehrt bei vorhandener v2-Konfiguration sofort
+# zurück). Prettier verlangt nach der Anfangsmarke eine Leerzeile (gemessen am
+# 2026-10-23); eine Umformatierung wiche vom Wortlaut der Vorlage ab.
 AGENTS.md

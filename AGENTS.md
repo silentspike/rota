@@ -1,9 +1,9 @@
 # ROTA — Hinweise für Agenten
 
 Die Projektregeln stehen in [CLAUDE.md](CLAUDE.md). Diese Datei trägt nur den Abschnitt zu
-cargo remote v2, und den verwaltet dessen Client: Er ersetzt alles zwischen den beiden Marken
-durch seine Vorlage. Deshalb steht die Datei in `.prettierignore` — eine Umformatierung hielte
-nur bis zum nächsten Abgleich.
+cargo remote v2. Alles zwischen den beiden Marken ist der Wortlaut der Vorlage, die
+`cargo remote --init` geschrieben hat, und wird nicht von Hand gepflegt. Deshalb steht die
+Datei in `.prettierignore` — eine Umformatierung wiche vom Wortlaut der Vorlage ab.
 
 <!-- cargo-remote-v2:begin -->
 ## Cargo Remote
