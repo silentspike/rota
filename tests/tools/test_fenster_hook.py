@@ -155,6 +155,153 @@ class FensterHookTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 self.assertIn('UNBEKANNT', self.call(raw=payload))
 
+    def report(self, command, expected, **kwargs):
+        message = self.call(command, **kwargs)
+        self.assertIsNotNone(message, f'quiet, but {expected!r} was expected')
+        self.assertIn(expected, message)
+        return message
+
+    # B1: the switch decides first. Nobody else holds the window, so nothing is
+    # reported -- not even for input the classifier cannot split (#1049 point 2).
+    UNSPLITTABLE = ["cat <<'EOF' | wc -l\nIt's data\nEOF", "echo 'unterminated",
+                    'npm run lint "unterminated']
+
+    def assert_window_silent(self, session='local', env=None):
+        for command in self.UNSPLITTABLE + ['npm run lint']:
+            with self.subTest(command=command, session=session):
+                self.assertIsNone(self.call(command, session=session, env=env))
+
+    def test_free_window_never_reports_even_unsplittable_input(self):
+        self.state(inhaber=None, zweck=None, seit=None, kennung=None)
+        self.assert_window_silent()
+        self.assertIsNone(self.call(raw='{broken'))
+
+    def test_released_window_never_reports_even_unsplittable_input(self):
+        self.state(abgabe='2026-09-06 09:01:00')
+        self.assert_window_silent()
+        self.assertIsNone(self.call(raw='{broken'))
+
+    def test_own_window_never_reports_even_unsplittable_input(self):
+        self.assert_window_silent(session='other')
+        self.state(kennung='session-12345678')
+        self.assert_window_silent(session='12345678-abcd-1234-5678-123456789abc')
+        self.state(inhaber='LocalReview', kennung=None)    # old switch: verified role
+        self.assert_window_silent()
+
+    def test_absent_window_tool_never_reports_even_unsplittable_input(self):
+        env = {**self.env, 'PATH': str(self.base / 'missing-bin')}
+        env.pop('ROTA_FENSTER_STAND')
+        self.assert_window_silent(env=env)
+
+    def test_unsplittable_input_in_foreign_window_names_holder(self):
+        for command in ["echo 'unterminated", 'echo "unterminated', 'echo `unterminated']:
+            with self.subTest(command=command):
+                warning = self.report(command, 'UNBEKANNT')
+                for detail in ['OtherReview', 'Isolated measurement', '2026-09-06 09:00:00']:
+                    self.assertIn(detail, warning)
+        # Bash runs earlier lines before it reaches a syntax error.
+        self.report("npm run lint\necho 'unterminated", 'belasten')
+
+    # B2: heredoc bodies are data unless an interpreter reads them as code or the
+    # unquoted delimiter lets the shell expand $( ) and backquotes in them.
+    def test_heredoc_bodies_are_data(self):
+        for command in [
+            "cat <<'EOF' | wc -l\nIt's data\nEOF",
+            "git commit -F - <<'EOF'\nnpm run lint\nEOF",
+            'git commit -m "$(cat <<\'EOF\'\nfix: don\'t run npm run lint twice\nEOF\n)"',
+            "rota-ipc senden Orchestrator - <<'ENDE'\nnpx prettier --write docs/WORKER-GUIDE.md "
+            "lief, cargo remote -- test auch\nENDE",
+            "gh pr create --title t --body-file - <<'EOF'\n## Checks\n\nnpm run lint     clean\n"
+            "cargo remote -c -- test   0 FAILED\nEOF",
+            "python3 - <<'EOF'\nprint('npm run lint')\nEOF",
+            "python3 - <<'EOF'\npath = 'tools/ac6.sh'\ntext = open(path).read()\nEOF",
+            "if true; then\n\tcat <<-'EOF'\n\tnpm run lint\n\tEOF\nfi",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
+
+    def test_heredocs_that_run_code_warn(self):
+        for command in [
+            "bash <<'EOF'\nnpm run lint\nEOF",
+            'sh -s <<EOF\ncargo remote -- test\nEOF',
+            "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['npx', 'vitest', 'run'])\nEOF",
+            "python3 - <<'EOF'\nimport importlib.util\n"
+            "spec = importlib.util.spec_from_file_location('m', 'tools/streich-mutation.py')\nEOF",
+            'cat <<EOF\n$(npm run lint)\nEOF',
+            'cat > notes.md <<EOF\nRun `npm run lint`\nEOF',
+            "cat <<'EOF'\ntext\nEOF\nnpm run lint",
+            "cat <<'EOF' && npx prettier --check docs/README.md\ntext\nEOF",
+        ]:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+
+    def test_long_heredoc_stays_within_configured_hook_timeout(self):
+        # Re-splitting an open quote token by token took 6 s for this message.
+        settings = json.loads((ROOT / '.claude/settings.json').read_text())
+        limit = next(hook['timeout'] for rule in settings['hooks']['PreToolUse']
+                     if rule.get('matcher') == 'Bash' for hook in rule['hooks'])
+        body = "It's the report.\n" + '\n'.join(f'line {i}: value {i}, no deviation' for i in range(200))
+        command = f"rota-ipc senden Orchestrator - <<'ENDE'\n{body}\nENDE"
+        payload = json.dumps({'tool_name': 'Bash', 'session_id': 'local', 'cwd': str(self.base),
+                              'tool_input': {'command': command}})
+        try:
+            result = subprocess.run([sys.executable, '-B', str(HOOK)], input=payload, text=True,
+                                    capture_output=True, env=self.env, timeout=limit)
+        except subprocess.TimeoutExpired:
+            self.fail(f'hook exceeded its configured {limit} s timeout; the warning would be lost')
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+
+    # B3: process wrappers start the command they are given.
+    def test_process_wrappers_are_unwrapped(self):
+        for command in [
+            'timeout 1800 cargo remote -c -- test --no-run', 'timeout -k 5 60 npm run lint',
+            'timeout --signal=KILL 5m npx prettier --check docs/README.md',
+            'nice -n 10 cargo remote -- test', 'nohup npm run lint > /work/tmp/lint.log 2>&1 &',
+            'stdbuf -oL npm run lint', 'ionice -c3 npm run lint',
+            'taskset -c 0-3 cargo remote -- test',
+            'git diff --name-only | xargs -r npx prettier --check',
+            'setsid nohup cargo-remote-fmt --check &',
+            'timeout 600 nice -n 5 python3 tools/streich-mutation.py',
+            '{ time cargo remote -c -- test; } 2>&1', 'if git push origin HEAD; then echo ok; fi',
+            'run() { npx vitest run; }; run',
+        ]:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+        for command in ['timeout 5 git status --short', 'nohup sleep 1 &', 'ls | xargs echo',
+                        'taskset -p 1234', 'ionice -p 1234', 'timeout --help']:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
+
+    # B4: help and version forms start no build, test or format run -- also with
+    # a subcommand. Cargo Remote v2 uses -h for --sync-hidden, which still builds.
+    def test_help_and_version_forms_are_quiet(self):
+        for command in ['cargo remote --help', 'cargo remote --version', 'cargo test --help',
+                        'cargo help build', 'cargo --version', 'npx prettier --help',
+                        'npx vitest --version', 'npm run lint --help', 'rustc -V',
+                        'cargo-remote-fmt --help']:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
+        for command in ['cargo remote -h -- build', 'cargo-remote-fmt -h', 'npm run lint -- --help',
+                        'cargo test -- --help', 'npx tsx tools/x.ts --help', 'yarn lint --help']:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+
+    def test_commands_hidden_in_quotes_comments_and_names(self):
+        # $( ) and backquotes also run inside double quotes; single quotes are text.
+        for command in ['echo "lint: $(npm run lint 2>&1 | tail -1)"', 'echo "a `npm run lint` b"',
+                        'rm -f x  # comment\nnpx prettier --write docs/README.md',
+                        'bash <(git show origin/main:tools/ac6-gegenprobe.sh)']:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+        for command in ["echo 'a `npm run lint` b'", 'echo hi  # npm run lint',
+                        'exec -a /work/rota/target/debug/deps/probe_1 sleep 1']:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
+        # A program named only at run time is undecidable, not quiet.
+        warning = self.report('B=$(ls -t target/debug/deps/x-* | head -1)\n(cd sim && "../$B")',
+                              'UNBEKANNT')
+        self.assertIn('OtherReview', warning)
+
 
 if __name__ == '__main__':
     unittest.main()
