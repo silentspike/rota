@@ -82,6 +82,12 @@ WURZEL=${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 echo "Wurzel: $WURZEL"
 cd "$WURZEL" || exit 1
 
+# Zwischendateien gehoeren auf diesem Rechner nach /work/tmp, nicht nach /tmp
+# (eine kleine tmpfs, die schon vollgelaufen ist). TMPDIR geht vor; wo es
+# /work/tmp nicht gibt, etwa auf dem CI-Runner, bleibt /tmp.
+ZWISCHEN=${TMPDIR:-/work/tmp}
+[ -d "$ZWISCHEN" ] || ZWISCHEN=/tmp
+
 # Die Pfade stehen im Log als "Executable src/lib.rs (target/debug/deps/name-hash)".
 #
 # **`deps/` UND `examples/`.** Bis zum 2026-08-19 stand hier nur `deps/`, und
@@ -133,7 +139,7 @@ if [ "${#BINARIES[@]}" -eq 0 ]; then
       echo "  Ohne -c kommt nichts zurueck: cargo remote -c -- test --no-run …"
       exit 1
     fi
-    LISTE=$(mktemp "${TMPDIR:-/tmp}/testlauf-XXXXXX.liste")
+    LISTE=$(mktemp "$ZWISCHEN/testlauf-XXXXXX.liste")
     python3 - "$ERGEBNIS" >"$LISTE" <<'PY'
 import json
 import re
@@ -196,8 +202,8 @@ for b in "${BINARIES[@]}"; do
   # Getrennt, nicht weggeworfen: In stderr stehen die Panics, also der Grund,
   # warum ein Ziel rot war. Zwei Ströme, zwei Zwecke — der eine wird gezählt,
   # der andere gelesen.
-  aus=$(mktemp "${TMPDIR:-/tmp}/testlauf-XXXXXX.out")
-  err=$(mktemp "${TMPDIR:-/tmp}/testlauf-XXXXXX.err")
+  aus=$(mktemp "$ZWISCHEN/testlauf-XXXXXX.out")
+  err=$(mktemp "$ZWISCHEN/testlauf-XXXXXX.err")
   (cd sim && "../$b" >"$aus" 2>"$err")
   code=$?
   suiten=$((suiten + 1))
