@@ -1,7 +1,7 @@
 //! Kommt ein Zauber in seiner BESTEN Bedingung dran? (#419 AC3, Vorarbeit)
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
+//! cargo remote -c -- build --release \
 //!   --example tote-zauber-419
 //! ./target/release/examples/tote-zauber-419
 //! ```

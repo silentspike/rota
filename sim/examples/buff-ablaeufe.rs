@@ -1,7 +1,7 @@
 //! Wie oft laeuft ueberhaupt eine Verstaerkung ab? (Vorarbeit zu expire_buffs)
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
+//! cargo remote -c -- build --release \
 //!   --example buff-ablaeufe
 //! ./target/release/examples/buff-ablaeufe
 //! ```

@@ -2,7 +2,7 @@
 //! `purge` daran?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
+//! cargo remote -c -- build --release \
 //!   --example doomsayer-mechaniken-672
 //! ./target/release/examples/doomsayer-mechaniken-672
 //! ```

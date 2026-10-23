@@ -1,7 +1,7 @@
 //! Wie weit darf man an den Zahlen drehen, bevor die Cast-Folge kippt? (#910)
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- \
+//! cargo remote -c -- \
 //!   build --release --example trace-stabilitaet
 //! cd sim && ../target/release/examples/trace-stabilitaet
 //! ```
