@@ -5538,6 +5538,15 @@ ersten Schritt eine Versionsangleichung — und die Projektregel „Rust-Projekt
 `cargo fmt --check`. **Alles, was Code ausführt — Tests, Simulationen, Messungen — läuft auf
 dem Laptop.** Der Simulator ist ein Binary; getestet wird, was kompiliert wurde.
 
+> **Nachtrag 2026-10-23.** Die Testregel ist durch die Vorgabe vom 6. September 2026 abgelöst
+> (WORKER-GUIDE, Abschnitt „`--test SUITE` beim Arbeiten, `--all-targets` erst vor der
+> Fertigmeldung"): Rust wird remote gebaut und getestet, Hardwaremessungen bleiben an den
+> gemessenen Rechner gebunden. Der Bau-Dienst ist seit 2026-10-23 **cargo remote v2**
+> (`rustbuild-ovh` auf node3) statt CT 155; CI und Bau-Dienst fahren denselben Pin aus
+> `rust-toolchain.toml`. Der Symlink-Schritt unten gehört zum alten Dienst. Unter v2 liegen die
+> Testbinaries remote unter `/target/current/`, nach `-c` lokal unter `target/` —
+> `tools/tests-lokal.sh` liest beide Formen.
+
 Der Weg, der beides erfüllt, ohne die lokale cargo-Sperre zu berühren:
 
 ```
