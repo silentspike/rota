@@ -2512,6 +2512,7 @@ for f in data/spells/*.json; do echo -n "$(basename $f .json): "; jq '.spells|le
 jq '.items|length' data/items.json
 jq -r 'select(.instance | startswith("instance-") or . == "prologue") | .id' data/bosses/*.json | wc -l
 jq -r '[.trees[].paths[]] | map(select(.!="trunk")) | length' data/player/talents.json
+jq -r '[.trees[].talents[] | select(.keystone != null)] | length' data/player/talents.json
 jq -r '.instances | length' data/instances.json
 ```
 
@@ -2521,7 +2522,7 @@ jq -r '.instances | length' data/instances.json
 | Talentbäume                 |          5 Schulen + global |                              **6** | 12.5                       |
 | Talentwege                  |     18 (sechs Bäume à drei) |                    **18** — gebaut | `docs/TALENT-RASTER.md`    |
 | — im Simulator geprüft      |            12 Talent-Felder |           **12** (#738 abgenommen) | #738, PR #751              |
-| Schlüsseltalente            |                           5 |                **1** (CALCINATION) | #418                       |
+| Schlüsseltalente            |                           5 |      **5** (je Schul-Baum, 24.10.) | #418                       |
 | **Ausrüstung**              |     zehn Plätze, vier Töpfe | **20 spielbare** + 7 Prüf-Einträge | 13.0, 13.1b                |
 | — Topf 4 (Sätze, Legendäre) |               angeschlossen |        **angeschlossen** (PR #748) | 13.1b                      |
 | — Satz-Katalog              |   sechs Sätze à drei Stufen |    **6 definiert**, **1 anlegbar** | `docs/SATZ-KATALOG.md`     |
