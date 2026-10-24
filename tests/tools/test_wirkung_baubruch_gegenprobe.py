@@ -173,8 +173,15 @@ if (ARGS[3:] if REMOTE else ARGS) != ['check', '--lib']:
     print('fake cargo: unexpected arguments ' + ' '.join(ARGS), file=sys.stderr)
     sys.exit(1)
 if schalter('FAKE_AUSGANG'):
-    print('cargo-remote: Build budget unavailable; no job was queued', file=sys.stderr)
-    sys.exit(int(schalter('FAKE_AUSGANG')))
+    code = int(schalter('FAKE_AUSGANG'))
+    # 75 and 2 are refused before a job exists; the others end a reserved job.
+    if code not in (75, 2):
+        print(f'cargo-remote: job {JOB} | linux-gnu-bookworm | Rust 1.98.1 | normal | workspace 00ff')
+    print('cargo-remote: simulated client failure', file=sys.stderr)
+    sys.exit(code)
+if schalter('FAKE_ECHT_AENDERN'):
+    with open(os.environ['FAKE_ECHTE_DATEI'], 'a') as stream:
+        stream.write('changed during the run\n')
 if schalter('FAKE_SCHLAF'):
     time.sleep(float(schalter('FAKE_SCHLAF')))
 
@@ -219,7 +226,7 @@ for datei, text in texte.items():
         if offen and not (auffang and os.environ.get('FAKE_BLIND') != '1'):
             stellen.append(ort + (offen[0],))
 
-if os.environ.get('FAKE_IMMER') == 'gruen':
+if os.environ.get('FAKE_IMMER') == 'gruen' or schalter('FAKE_GRUEN'):
     stellen = []
 elif os.environ.get('FAKE_IMMER') == 'rot' and not stellen:
     stellen = [alle[0] + ('DealDamage',)]
@@ -227,7 +234,7 @@ if stellen and os.environ.get('FAKE_NICHTLOKAL') == '1':
     stellen = [ort + (stellen[0][3],) for ort in alle]
 
 ausgabe = []
-if REMOTE:
+if REMOTE and not schalter('FAKE_OHNE_KOPF'):
     ausgabe.append(f'cargo-remote: job {JOB} | linux-gnu-bookworm | Rust 1.98.1 | normal | workspace 00ff')
 ausgabe.append(f'    Checking fixture v0.1.0 ({os.getcwd()}/sim)')
 fehler = 0
@@ -239,6 +246,10 @@ for datei, zeile, spalte, variante in stellen:
 if schalter('FAKE_FREMD'):
     fehler += 1
     ausgabe += ['error[E0308]: mismatched types', '   --> sim/src/lib.rs:1:1']
+if schalter('FAKE_FREMDE_VARIANTE'):
+    fehler += 1
+    ausgabe += ['error[E0004]: non-exhaustive patterns: `Trigger::Neu` not covered',
+                '   --> sim/src/effects/passes.rs:18:15']
 code = 101 if fehler else 0
 if fehler:
     ausgabe.append(f'error: could not compile `fixture` (lib) due to {fehler} previous errors')
@@ -294,15 +305,17 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
         self.assertEqual(text.count(old), 1, f'fixture anchor {old!r} is not unique in {name}')
         path.write_text(text.replace(old, new))
 
-    def run_tool(self, *args, **switches):
+    def run_tool(self, *args, real_tree_may_change=False, **switches):
         before = self.snapshot()
         env = {k: v for k, v in os.environ.items() if not k.startswith('FAKE_')}
         env.update(PATH=f'{self.bin}{os.pathsep}{os.environ.get("PATH", "")}', TMPDIR=str(self.tmp),
-                   FAKE_PROTOKOLL=str(self.log), PYTHONDONTWRITEBYTECODE='1')
+                   FAKE_PROTOKOLL=str(self.log), FAKE_ECHTE_DATEI=str(self.root / 'data/spells/x.json'),
+                   PYTHONDONTWRITEBYTECODE='1')
         env.update({f'FAKE_{key.upper()}': value for key, value in switches.items()})
         result = subprocess.run([sys.executable, '-B', str(self.root / TOOL), *args], env=env,
                                 text=True, capture_output=True, check=False, timeout=120)
-        self.assertEqual(before, self.snapshot(), 'The real input checkout was mutated')
+        if not real_tree_may_change:
+            self.assertEqual(before, self.snapshot(), 'The real input checkout was mutated')
         self.assertEqual(list(self.tmp.iterdir()), [], 'The disposable copy was left behind')
         return result
 
@@ -368,15 +381,22 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('Ergebnis: BEFUND', result.stdout)
         findings = self.findings(result)
-        self.assertTrue(findings)
-        self.assertTrue(all('DritterPass' in line for line in findings), findings)
+        # Both steps that can see the gap name it: the missing E0004 in M0 and
+        # the per-pass mutation that has nothing left to open.
+        self.assertEqual(len(findings), 2, findings)
+        self.assertTrue(findings[0].startswith('BEFUND: M0: DritterPass bricht den Bau NICHT'), findings)
+        self.assertTrue(findings[1].startswith('BEFUND: Mutation je Pass: DritterPass'), findings)
         self.assertFalse(any('ErsterPass' in line or 'ZweiterPass' in line for line in findings), findings)
 
     def test_a_mutation_that_never_breaks_the_build_is_a_finding(self):
         result = self.run_tool('--befehl', 'cargo', immer='gruen')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('Ergebnis: BEFUND', result.stdout)
-        self.assertTrue(any('M0' in line for line in self.findings(result)), result.stdout)
+        # The specific verdict, not the fallback "no E0004 to attribute": both end
+        # in exit 1, only one says what happened.
+        self.assertEqual(len(self.findings(result)), 1, result.stdout)
+        self.assertTrue(self.findings(result)[0].startswith('BEFUND: M0: der Bau bricht NICHT'),
+                        result.stdout)
         # Nothing broke, so there is nothing to attribute or to classify.
         self.assertEqual(len(self.calls()), 2)
 
@@ -387,15 +407,28 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
         self.assertEqual(len(self.calls()), 1)
 
     def test_client_exits_that_mean_nothing_ran_end_with_exit_2(self):
-        for code in (75, 70, 74, 130, 2):
+        # The reason names the client's meaning of the exit, not merely its number:
+        # a missing header or final line would also end in exit 2, for another reason.
+        reasons = {75: 'nichts eingereiht', 70: 'Verbindung', 74: 'Artefakte', 130: 'abgebrochen',
+                   2: 'abgelehnt'}
+        for code, reason in reasons.items():
             with self.subTest(code=code):
                 self.log.unlink(missing_ok=True)
                 result = self.run_tool('--befehl', 'remote', ausgang=f'2:{code}')
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-                self.assertIn(f'Exit {code}', result.stdout)
+                self.assertIn(f'NICHT GELAUFEN: Exit {code} — ', result.stdout)
+                self.assertIn(reason, result.stdout)
                 self.assertIn('Ergebnis: NICHT GELAUFEN', result.stdout)
                 self.assertEqual(self.findings(result), [])
                 self.assertEqual(len(self.calls()), 2)
+
+    def test_the_same_exits_from_plain_cargo_are_not_a_verdict_either(self):
+        for code in (75, 2):
+            with self.subTest(code=code):
+                self.log.unlink(missing_ok=True)
+                result = self.run_tool('--befehl', 'cargo', ausgang=f'1:{code}')
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn(f'unerwarteter Exit {code}', result.stdout)
 
     def test_a_missing_final_client_line_is_not_a_build(self):
         result = self.run_tool('--befehl', 'remote', ohne_abschluss='1')
@@ -408,6 +441,18 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn('Abschlusszeile', result.stdout)
 
+    def test_a_result_without_the_client_header_is_not_a_build(self):
+        result = self.run_tool('--befehl', 'remote', ohne_kopf='1')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Kopfzeile', result.stdout)
+
+    def test_an_e0004_for_another_type_is_not_the_probe(self):
+        result = self.run_tool('--befehl', 'cargo', fremde_variante='2')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        findings = self.findings(result)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertIn('Trigger::Neu', findings[0])
+
     def test_exit_0_without_finished_is_not_a_build(self):
         result = self.run_tool('--befehl', 'cargo', ohne_finished='1')
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
@@ -416,8 +461,12 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
     def test_counter_check_fails_when_a_catch_all_does_not_remove_the_break(self):
         result = self.run_tool('--befehl', 'cargo', blind='1')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertTrue(any('Gegenprobe der Gegenprobe' in line for line in self.findings(result)),
-                        result.stdout)
+        findings = self.findings(result)
+        self.assertEqual(len(findings), 1, findings)
+        # The catch-all pass itself is named as still broken, not merely a
+        # mismatch in the list of the others.
+        self.assertIn('Gegenprobe der Gegenprobe: mit Auffangzweig in ErsterPass meldet die '
+                      'Auswertung ihn weiter als gebrochen', findings[0])
 
     def test_diagnostics_outside_the_open_pass_fail_the_per_pass_mutation(self):
         result = self.run_tool('--befehl', 'cargo', nichtlokal='1')
@@ -428,6 +477,30 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
         result = self.run_tool('--befehl', 'cargo', fremd='2')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertTrue(any('E0308' in line for line in self.findings(result)), result.stdout)
+
+    def test_a_control_that_does_not_build_after_classification_is_a_finding(self):
+        # Invocation 3 is K1: the variant classified everywhere M0 reported it.
+        result = self.run_tool('--befehl', 'cargo', fremd='3')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        findings = self.findings(result)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertTrue(findings[0].startswith('BEFUND: K1:'), findings)
+
+    def test_an_open_pass_that_does_not_break_alone_is_a_finding(self):
+        # Invocation 4 is the first per-pass mutation: only ErsterPass is open.
+        result = self.run_tool('--befehl', 'cargo', gruen='4')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        findings = self.findings(result)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertIn('nur ErsterPass offen, und der Bau bricht NICHT', findings[0])
+
+    def test_a_change_to_the_real_tree_during_the_run_is_a_finding(self):
+        result = self.run_tool('--befehl', 'cargo', real_tree_may_change=True, echt_aendern='1')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        findings = self.findings(result)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertIn('echte Arbeitsbaum', findings[0])
+        self.assertIn('data/spells/x.json', findings[0])
 
     def test_a_registered_pass_without_impl_is_a_finding(self):
         self.edit('sim/src/effects/passes.rs', '    DritterPass,\n}', '    DritterPass,\n    FuenfterPass,\n}')
