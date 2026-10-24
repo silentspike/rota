@@ -101,7 +101,10 @@ function aufloesen(verzeichnis: string, relativ: string): string {
 function simJob(): string {
   const zeilen = ciYaml.split('\n');
   const anfang = zeilen.findIndex((z) => z === '  sim:');
-  expect(anfang, 'im Workflow steht kein Job "sim" mehr — dann belegt diese Prüfung nichts').toBeGreaterThan(-1);
+  expect(
+    anfang,
+    'im Workflow steht kein Job "sim" mehr — dann belegt diese Prüfung nichts',
+  ).toBeGreaterThan(-1);
   const rest = zeilen.slice(anfang + 1);
   const ende = rest.findIndex((z) => /^ {2}[a-z][\w-]*:\s*$/.test(z));
   const abschnitt = (ende === -1 ? rest : rest.slice(0, ende)).join('\n');
@@ -212,6 +215,8 @@ describe('Der Pfad-Filter der sim-Stufe (#173)', () => {
     // jeder registrierten Analyse — nachgewiesen bei JEDER sim-Änderung mit dem
     // echten Übersetzer, nicht einmal im PR-Text. Ohne diesen Schritt wäre das
     // Werkzeug eine Leitung ohne Anschluss.
-    expect(simJob()).toMatch(/run: python3 -B tools\/wirkung-baubruch-gegenprobe\.py --befehl cargo\b/);
+    expect(simJob()).toMatch(
+      /run: python3 -B tools\/wirkung-baubruch-gegenprobe\.py --befehl cargo\b/,
+    );
   });
 });

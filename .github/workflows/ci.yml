@@ -99,7 +99,15 @@ jobs:
             # auf dem nie geprueft wurde. .cargo-remote.toml braucht es hier
             # nicht: Dass beide Dateien dieselbe Version nennen, prueft der
             # lint-Job, und der laeuft ohne Filter.
-            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$)')"
+            #
+            # Jedes Werkzeug, das der sim-Job selbst faehrt, MUSS dabei sein
+            # (#892): Es ist Teil der Pruefung wie diese Datei. Ohne es im Muster
+            # aendert jemand die Baubruch-Gegenprobe oder das Lesen des
+            # Rust-Pins, die Stufe laeuft NICHT, und ci-pass meldet gruen.
+            # Welche Werkzeuge das sind, liest tests/unit/ci-sim-filter.test.ts
+            # aus dem Job selbst — als die Pruefung dazukam, fehlte
+            # tools/rust-pin.py bereits.
+            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$|tools/rust-pin\.py$|tools/wirkung-baubruch-gegenprobe\.py$)')"
             # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
             # "code": alles außer reiner Dokumentation.
             #
@@ -328,6 +336,18 @@ jobs:
       # etwas zu rechnen BEKOMMT. Die 7 in diagnostics.rs prüfen nur, dass sie
       # rechnet — und blieben grün, wenn der Kampf die Zähler nie füttert.
       - run: cargo test --all-targets --features diagnostics
+
+      # #892: Ein neuer Effekt-Baustein muss den Bau an JEDER registrierten
+      # Analyse brechen, bis er dort eingeordnet ist. Das ist ein
+      # Übersetzungsfehler und lässt sich aus keinem Prüffall heraus zeigen —
+      # deshalb baut dieser Schritt eine Wegwerfkopie mit genau diesem Compiler:
+      # Kontrolle, Baustein ohne Einordnung, Kontrolle eingeordnet, je Pass eine
+      # Mutation, die nur ihn offen lässt, und eine Gegenprobe der Gegenprobe
+      # mit Auffangzweig. Der Arbeitsbaum bleibt unberührt (SHA-256-Rücklesung).
+      # Exit 1 ist ein Befund, Exit 2 heißt „nicht gelaufen“ — beides bricht die
+      # Stufe.
+      - name: Wirkungs-Baubruch-Gegenprobe
+        run: python3 -B tools/wirkung-baubruch-gegenprobe.py --befehl cargo
 
   # ------------------------------------------------------------------- Parität
   # Aufgezeichnete Runden müssen in Spiel UND Simulator denselben Wert ergeben
