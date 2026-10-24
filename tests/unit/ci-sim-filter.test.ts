@@ -91,6 +91,38 @@ function aufloesen(verzeichnis: string, relativ: string): string {
   return teile.join('/');
 }
 
+/**
+ * Der Abschnitt des `sim`-Jobs, roh — von seiner Kopfzeile bis zum nächsten Job.
+ *
+ * Text statt YAML-Baum: Das Projekt führt keinen YAML-Leser. Die Jobs stehen in
+ * `ci.yml` als Schlüssel mit genau zwei Leerzeichen Einzug, ihre Schritte
+ * tiefer; die Trennkommentare zwischen den Jobs beginnen mit `#`.
+ */
+function simJob(): string {
+  const zeilen = ciYaml.split('\n');
+  const anfang = zeilen.findIndex((z) => z === '  sim:');
+  expect(anfang, 'im Workflow steht kein Job "sim" mehr — dann belegt diese Prüfung nichts').toBeGreaterThan(-1);
+  const rest = zeilen.slice(anfang + 1);
+  const ende = rest.findIndex((z) => /^ {2}[a-z][\w-]*:\s*$/.test(z));
+  const abschnitt = (ende === -1 ? rest : rest.slice(0, ende)).join('\n');
+  // **Zusicherung in den Datensatz.** Träfe die Suche den falschen Abschnitt,
+  // fände sie dort keine Werkzeuge, und der Fall darunter wäre grün.
+  expect(abschnitt, 'der gelesene Abschnitt ist nicht der Rust-Job').toContain('cargo test');
+  return abschnitt;
+}
+
+/** Die Werkzeuge unter `tools/`, die der `sim`-Job selbst aufruft — Kommentare zählen nicht. */
+function simWerkzeuge(): string[] {
+  const gefunden = new Set<string>();
+  for (const zeile of simJob().split('\n')) {
+    if (/^\s*#/.test(zeile)) continue;
+    for (const treffer of zeile.matchAll(/\btools\/[\w./-]+\.(?:py|sh|mjs)\b/g)) {
+      gefunden.add(treffer[0]);
+    }
+  }
+  return [...gefunden].sort();
+}
+
 /** Was die Rust-Quellen per `include_str!` einbinden, als Pfade ab der Wurzel. */
 function eingebundeneDateien(): string[] {
   const gefunden = new Set<string>();
@@ -153,5 +185,33 @@ describe('Der Pfad-Filter der sim-Stufe (#173)', () => {
     const muster = simMuster();
     expect(muster.test('rust-toolchain.toml')).toBe(true);
     expect(muster.test('docs/rust-toolchain.toml.md')).toBe(false);
+  });
+
+  it('fasst jedes Werkzeug, das die sim-Stufe selbst ausführt, als Eingabe auf (#892)', () => {
+    // Dieselbe Klasse wie `ci.yml` im Muster, eine Ebene tiefer: Ein Werkzeug,
+    // das der sim-Job ausführt, IST Teil der Prüfung. Fällt es durch den Filter,
+    // ändert jemand die Prüfung, die Stufe läuft nicht, und ci-pass meldet grün.
+    // Die Liste kommt aus dem Job selbst, nicht aus einer Abschrift.
+    const muster = simMuster();
+    const werkzeuge = simWerkzeuge();
+    expect(
+      werkzeuge.length,
+      'der sim-Job ruft kein einziges Werkzeug unter tools/ auf — dann sucht diese Prüfung an der falschen Stelle',
+    ).toBeGreaterThan(0);
+    const fehlend = werkzeuge.filter((w) => !muster.test(w));
+    expect(
+      fehlend,
+      'diese Werkzeuge fährt der sim-Job selbst, sie fallen aber durch den sim-Filter — ' +
+        'eine Änderung an ihnen ließe genau die Stufe nicht laufen, die sie benutzt:\n  ' +
+        fehlend.join('\n  '),
+    ).toEqual([]);
+  });
+
+  it('führt die Baubruch-Gegenprobe der Wirkungsbeschreibung im sim-Job aus (#892)', () => {
+    // Die Abnahme aus Epic #892: Ein neuer Effekt-Baustein bricht den Bau an
+    // jeder registrierten Analyse — nachgewiesen bei JEDER sim-Änderung mit dem
+    // echten Übersetzer, nicht einmal im PR-Text. Ohne diesen Schritt wäre das
+    // Werkzeug eine Leitung ohne Anschluss.
+    expect(simJob()).toMatch(/run: python3 -B tools\/wirkung-baubruch-gegenprobe\.py --befehl cargo\b/);
   });
 });
