@@ -13,9 +13,17 @@
 //! cargo remote -c -- build --release --example e1027-operator-measure
 //! M=./target/release/examples/e1027-operator-measure
 //! $M > a.jsonl                                  # messen
+//! $M proben > proben-a.jsonl                    # nur die Wurfproben
 //! $M kreuz a.jsonl b.jsonl > kreuz-a.jsonl      # feste Listen unter dieser Fassung
 //! $M vergleich a.jsonl b.jsonl kreuz-a.jsonl kreuz-b.jsonl
+//! $M pfad a.jsonl > pfad-a.jsonl                # Weg der Suche dieser Fassung
+//! $M pfadkreuz pfad-a.jsonl pfad-b.jsonl > pfadkreuz-a.jsonl
+//! $M pfadvergleich pfad-a.jsonl pfad-b.jsonl pfadkreuz-a.jsonl pfadkreuz-b.jsonl
+//! $M nachbarn a.jsonl kreuz-a.jsonl kreuz-b.jsonl
 //! ```
+//!
+//! `pfad` braucht die Messung DIESES Baus (A mit dem A-Bau, B mit dem B-Bau),
+//! `kreuz` und `pfadkreuz` laufen mit jedem Bau über dieselben Eingaben.
 //!
 //! Der Messteil liest `sim/apl/*.apl` und zählt `data/bosses/*.json`. Aus
 //! `sim/` heraus bricht er ab, statt mit leerem Bestand zu messen.
@@ -33,6 +41,11 @@
 //! | `bestand` | jede Datei aus `sim/apl/` gegen jeden Boss |
 //! | `search` | die gierige Suche je Boss in zwei Einstellungen |
 //! | `search_le` | dieselbe Suche, die Nachlege-Kandidaten mit `<=` statt `<` |
+//!
+//! Die Unterbefehle schreiben eigene Arten: `kreuz` (feste Listen), `pfad` (der
+//! Weg jeder Suche, Schritt für Schritt) und `pfadkreuz` (die erste Gabelung
+//! zweier Wege, samt Takt-Referenz); `vergleich`, `pfadvergleich` und
+//! `nachbarn` geben je eine Zusammenfassung aus.
 //!
 //! **Keine Laufzeiten in der Ausgabe.** Zwei Läufe derselben Fassung müssen
 //! bytegleich sein; das ist die Determinismus-Probe, und eine Uhrzeit im
@@ -196,11 +209,11 @@ fn ergebnis(fight: &Fight, result: &RunResult) -> Json {
     })
 }
 
-/// Dieselbe Liste, ergänzt um eine Zeile, die nie greift und an jedem Takt
-/// in `[von, bis)` weckt (siehe Kopfkommentar).
-fn mit_takt_referenz(apl: &Apl, von: u32, bis: u32) -> Apl {
+/// Die Gruppen der Takt-Referenz: je Takt in `[von, bis)` einmal
+/// `time >= t and time < 0` (siehe Kopfkommentar).
+fn takt_gruppen(von: u32, bis: u32) -> Vec<Vec<Term>> {
     assert_eq!(von % TICK_MS, 0, "Referenzfenster beginnt neben dem Takt");
-    let groups = (von..bis)
+    (von..bis)
         .step_by(TICK_MS as usize)
         .map(|t| {
             vec![
@@ -216,7 +229,13 @@ fn mit_takt_referenz(apl: &Apl, von: u32, bis: u32) -> Apl {
                 },
             ]
         })
-        .collect();
+        .collect()
+}
+
+/// Dieselbe Liste, ergänzt um eine Zeile, die nie greift und an jedem Takt
+/// in `[von, bis)` weckt (siehe Kopfkommentar).
+fn mit_takt_referenz(apl: &Apl, von: u32, bis: u32) -> Apl {
+    let groups = takt_gruppen(von, bis);
     let mut dicht = apl.clone();
     dicht.rules.push(Rule {
         spell: zauber("kindle"),
@@ -225,6 +244,18 @@ fn mit_takt_referenz(apl: &Apl, von: u32, bis: u32) -> Apl {
     });
     dicht.name = format!("{} + Takt-Referenz", apl.name);
     dicht
+}
+
+/// Die Referenzzeile als Kandidat, damit `measure` eine Liste samt Referenz
+/// durch dieselbe Formel bewertet wie in der Suche — statt sie nachzurechnen.
+fn referenz_kandidat(von: u32, bis: u32) -> Candidate {
+    Candidate {
+        spell: zauber("kindle"),
+        condition: Condition {
+            groups: takt_gruppen(von, bis),
+        },
+        origin: Origin::Always,
+    }
 }
 
 fn ausgeben(record: &Json) {
@@ -1157,6 +1188,31 @@ fn wurfreihe(fight: &Fight) -> Vec<Json> {
         .collect()
 }
 
+/// Genau die Listen, die der nächste Suchschritt ansähe, in fester Reihenfolge:
+/// erst jede Zeile einmal entfernt, dann jeder übrige Kandidat an jeder Stelle
+/// eingefügt. `kreuz` bewertet sie, `nachbarn` ordnet sie nach ihrem Aufbau —
+/// beide über diese eine Funktion, damit die Reihenfolge, an der die Zuordnung
+/// hängt, nicht zweimal gebaut wird.
+fn nachbarschaft(liste: &[Candidate], alle: &[Candidate]) -> Vec<Vec<Candidate>> {
+    let mut umgebung: Vec<Vec<Candidate>> = Vec::new();
+    for i in 0..liste.len() {
+        let mut v = liste.to_vec();
+        v.remove(i);
+        umgebung.push(v);
+    }
+    for kandidat in alle {
+        if liste.contains(kandidat) {
+            continue;
+        }
+        for stelle in 0..=liste.len() {
+            let mut v = liste.to_vec();
+            v.insert(stelle, kandidat.clone());
+            umgebung.push(v);
+        }
+    }
+    umgebung
+}
+
 /// Bewertet die gefundenen Listen beider Fassungen und die Nachbarschaft der
 /// Liste aus `a` — alles feste Listen, unabhängig davon, was DIESER Bau suchen
 /// würde. So wird „dieselbe Rotation zählt anders" von „die Suche wählt eine
@@ -1200,23 +1256,10 @@ fn kreuz(pfad_a: &str, pfad_b: &str) {
         let wert_von =
             |gewaehlt: &[Candidate]| measure(&bewertet, "kreuz", gewaehlt).mean.to_bits();
 
-        let mut nachbarn: Vec<Vec<Candidate>> = Vec::new();
-        for i in 0..liste_a.len() {
-            let mut v = liste_a.clone();
-            v.remove(i);
-            nachbarn.push(v);
-        }
-        for kandidat in &alle {
-            if liste_a.contains(kandidat) {
-                continue;
-            }
-            for stelle in 0..=liste_a.len() {
-                let mut v = liste_a.clone();
-                v.insert(stelle, kandidat.clone());
-                nachbarn.push(v);
-            }
-        }
-        let nachbar_werte: Vec<u64> = nachbarn.iter().map(|v| wert_von(v.as_slice())).collect();
+        let nachbar_werte: Vec<u64> = nachbarschaft(&liste_a, &alle)
+            .iter()
+            .map(|v| wert_von(v.as_slice()))
+            .collect();
         let apl_aus = |gewaehlt: &[Candidate]| measure(&bewertet, "kreuz", gewaehlt).apl;
         let (nach_a, _, _) = nachlauf(&config, &apl_aus(&liste_a));
         let (nach_b, _, _) = nachlauf(&config, &apl_aus(&liste_b));
@@ -1282,6 +1325,24 @@ fn abseits_summe(alle: &BTreeMap<(String, String), Json>) -> u64 {
         }
     }
     summe
+}
+
+/// Der erste Wurf, an dem zwei Wurfreihen auseinandergehen, mit den vier
+/// gemeinsamen davor und je drei danach. `None`, wenn beide gleich sind.
+fn erste_abweichung(reihe_a: &[Json], reihe_b: &[Json]) -> Option<Json> {
+    (0..reihe_a.len().max(reihe_b.len()))
+        .find(|&i| reihe_a.get(i) != reihe_b.get(i))
+        .map(|i| {
+            let ausschnitt = |reihe: &[Json], von: usize, bis: usize| -> Vec<Json> {
+                reihe[von.min(reihe.len())..bis.min(reihe.len())].to_vec()
+            };
+            json!({
+                "index": i,
+                "common_before": ausschnitt(reihe_a, i.saturating_sub(4), i),
+                "before_next": ausschnitt(reihe_a, i, i + 3),
+                "after_next": ausschnitt(reihe_b, i, i + 3),
+            })
+        })
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1465,19 +1526,7 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
                 .collect();
             let reihe_a = alt["a_casts"].as_array().expect("a_casts");
             let reihe_b = neu["a_casts"].as_array().expect("a_casts");
-            let abweichung = (0..reihe_a.len().max(reihe_b.len()))
-                .find(|&i| reihe_a.get(i) != reihe_b.get(i))
-                .map(|i| {
-                    let ausschnitt = |reihe: &[Json], von: usize, bis: usize| -> Vec<Json> {
-                        reihe[von.min(reihe.len())..bis.min(reihe.len())].to_vec()
-                    };
-                    json!({
-                        "index": i,
-                        "common_before": ausschnitt(reihe_a, i.saturating_sub(4), i),
-                        "before_next": ausschnitt(reihe_a, i, i + 3),
-                        "after_next": ausschnitt(reihe_b, i, i + 3),
-                    })
-                });
+            let abweichung = erste_abweichung(reihe_a, reihe_b);
             kreuz_tabelle.push(json!({
                 "id": key.1,
                 "a_list_score_changed": alt["a_score_bits"] != neu["a_score_bits"],
@@ -1531,6 +1580,497 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// pfad: der Weg der Suche, Schritt für Schritt
+// ---------------------------------------------------------------------------
+
+/// Ein Füller: eine unbedingte Zeile eines Zaubers, der spätestens nach einer
+/// globalen Wartezeit wieder bereit ist (KINDLE, BIND, WISP …).
+///
+/// Steht einer in der Liste, wird an jedem GCD-Ende gewirkt: Die Rotation
+/// wartet nie, und ein Weckruf zwischen zwei GCD-Enden fällt in einen GCD. Das
+/// ist die Lage „mit Füller" der `gcd`-Proben, hier aus den Zauberdaten
+/// bestimmt statt am Namen KINDLE.
+fn ist_fueller(kandidat: &Candidate) -> bool {
+    kandidat.condition.is_always() && SPELLS[kandidat.spell].cooldown_ms <= GCD_MS
+}
+
+/// Der Aufbau einer Kandidatenliste — Eigenschaften der Liste, unter jeder
+/// Fassung gleich: GCD-freie Züge, Füller, strikte Zeitbedingungen.
+fn aufbau_liste(liste: &[Candidate]) -> Json {
+    let namen = |passt: fn(&Candidate) -> bool| -> Vec<&'static str> {
+        liste
+            .iter()
+            .filter(|k| passt(k))
+            .map(|k| SPELLS[k.spell].id)
+            .collect()
+    };
+    json!({
+        "gcd_free": namen(|k| ist_gcd_frei(k.spell)),
+        "fillers": namen(ist_fueller),
+        "strict_time_terms": liste
+            .iter()
+            .flat_map(|k| k.condition.groups.iter().flatten())
+            .filter(|t| strikt_zeitabhaengig(t))
+            .count(),
+    })
+}
+
+/// Der Weg der Suche: `greedy` mit wachsender Längengrenze, 1 bis `max_len`.
+///
+/// **Die Bibliothek selbst, kein Nachbau.** `greedy(n)` hört auf, sobald die
+/// Liste n Zeilen hat. Trägt bis dahin in jeder Runde ein Einzelzug, ist das
+/// genau der Stand nach n Runden der vollen Suche: Paar- und Gruppenzüge kommen
+/// nur zum Zug, wenn kein Einzelzug trägt, und die Grenze greift erst nach dem
+/// Zug. Ob das gilt, steht in jedem Datensatz — `extends` heißt, die Liste bei
+/// n ist die bei n - 1 mit genau einer eingefügten Zeile. Wo ein Schritt das
+/// nicht ist, beschreibt der Datensatz die Suche mit dieser Grenze, nicht mehr
+/// den Weg der vollen.
+///
+/// Bei n = `max_len` muss der Weg die Suche aus der übergebenen Messung
+/// bitgleich treffen, Liste und Suchwert; sonst bricht der Lauf ab. Die Messung
+/// muss also mit DIESEM Bau entstanden sein.
+fn pfad(pfad_messung: &str) {
+    let kandidaten = all_candidates();
+    for r in jsonl(pfad_messung).iter().filter(|r| r["kind"] == "search") {
+        let id = r["id"].as_str().expect("id");
+        let suche = SUCHEN
+            .iter()
+            .copied()
+            .find(|s| r["config"]["search"] == s.id)
+            .expect("unbekannte Sucheinstellung");
+        let ziel = boss(r["config"]["boss"].as_str().expect("boss"));
+        let config = konfiguration(suche, ziel);
+        let alle = vorrat(&config, &kandidaten);
+        let mut vorher: Vec<Candidate> = Vec::new();
+        for n in 1..=suche.max_len {
+            let gefunden = greedy(&config, &kandidaten, n);
+            let erweitert = gefunden.chosen.len() == vorher.len() + 1
+                && (0..gefunden.chosen.len()).any(|i| {
+                    let mut ohne = gefunden.chosen.clone();
+                    ohne.remove(i);
+                    ohne == vorher
+                });
+            let gewaehlt = indizes(&alle, &gefunden.chosen);
+            if n == suche.max_len {
+                assert!(
+                    json!(gewaehlt) == r["chosen"]
+                        && json!(gefunden.best.mean.to_bits()) == r["score_bits"],
+                    "{id}: der Weg endet nicht bei der Suche der Messung — anderer Bau?"
+                );
+            }
+            ausgeben(&json!({
+                "kind": "pfad",
+                "id": format!("{id}/{n:02}"),
+                "group": id,
+                "search": suche.id,
+                "boss": ziel.id,
+                "n": n,
+                "len": gefunden.chosen.len(),
+                "chosen": gewaehlt,
+                "apl": gefunden.best.apl.to_string(),
+                "score": gefunden.best.mean,
+                "score_bits": gefunden.best.mean.to_bits(),
+                "stop": format!("{:?}", gefunden.stop),
+                "extends": erweitert,
+                "pairs": gefunden.paare_geprueft,
+                "triples": gefunden.tripel_geprueft,
+                "measured": gefunden.measured,
+            }));
+            vorher = gefunden.chosen;
+        }
+    }
+}
+
+/// Die Datensätze aus `pfad`, je Suche in der Reihenfolge der Grenze.
+fn pfade(datei: &str) -> BTreeMap<String, Vec<Json>> {
+    let mut alle: BTreeMap<String, Vec<Json>> = BTreeMap::new();
+    for r in jsonl(datei).into_iter().filter(|r| r["kind"] == "pfad") {
+        let schritte = alle
+            .entry(r["group"].as_str().expect("group").to_owned())
+            .or_default();
+        assert_eq!(
+            r["n"],
+            json!(schritte.len() + 1),
+            "{datei}: Schritte nicht lückenlos in Folge"
+        );
+        schritte.push(r);
+    }
+    alle
+}
+
+/// Der erste Schritt, an dem zwei Wege verschiedene Listen haben.
+fn gabelung(weg_a: &[Json], weg_b: &[Json]) -> Option<usize> {
+    assert_eq!(weg_a.len(), weg_b.len(), "Wege verschieden lang");
+    (0..weg_a.len()).find(|&i| weg_a[i]["chosen"] != weg_b[i]["chosen"])
+}
+
+/// Die erste Gabelung zweier Suchwege, bewertet unter der Fassung DIESES Baus.
+///
+/// An der Gabelung stehen zwei Listen aus derselben Nachbarschaft: die, die A
+/// wählt, und die, die B wählt. Unter A ist die erste mindestens so viel wert
+/// wie die zweite, unter B umgekehrt — zwischen den Fassungen ändert sich also
+/// der Wert mindestens einer der beiden. Welche, sagt `pfadvergleich`. Hier
+/// stehen je Liste ihr Wert, ihre Wurfreihe und dieselbe Liste gegen die
+/// Takt-Referenz über den ganzen Kampf, bewertet durch `measure` wie in der
+/// Suche.
+fn pfadkreuz(pfad_a: &str, pfad_b: &str) {
+    let a = pfade(pfad_a);
+    let b = pfade(pfad_b);
+    assert_eq!(
+        a.keys().collect::<Vec<_>>(),
+        b.keys().collect::<Vec<_>>(),
+        "die beiden Wege enthalten verschiedene Suchen"
+    );
+    let kandidaten = all_candidates();
+    for (gruppe, weg_a) in &a {
+        let weg_b = &b[gruppe];
+        let Some(i) = gabelung(weg_a, weg_b) else {
+            ausgeben(&json!({"kind": "pfadkreuz", "id": gruppe, "diverges": false}));
+            continue;
+        };
+        let suche = SUCHEN
+            .iter()
+            .copied()
+            .find(|s| weg_a[i]["search"] == s.id)
+            .expect("unbekannte Sucheinstellung");
+        let ziel = boss(weg_a[i]["boss"].as_str().expect("boss"));
+        let config = konfiguration(suche, ziel);
+        assert!(
+            config.duration_ms.is_none(),
+            "die Referenz deckt nur die volle Kampfzeit ab"
+        );
+        let alle = vorrat(&config, &kandidaten);
+        let bewertet = mit_bezugspunkt(config);
+        let referenz = referenz_kandidat(0, ziel.overpressure_ms);
+        let lauf = |apl: &Apl| -> (Vec<Json>, Option<u32>, usize) {
+            let mut fight = nachlauf_kampf(&config);
+            let _ = fight.run_apl(apl);
+            (
+                wurfreihe(&fight),
+                fight.died_at_ms(),
+                abseits_vom_takt(&fight),
+            )
+        };
+        let bewerte = |schritt: &Json| -> Json {
+            let liste = gewaehlte(schritt, &alle);
+            let gemessen = measure(&bewertet, "pfadkreuz", &liste);
+            let mut mit_referenz = liste.clone();
+            mit_referenz.push(referenz.clone());
+            let gegen_referenz = measure(&bewertet, "pfadkreuz", &mit_referenz);
+            let (wuerfe, tod, abseits) = lauf(&gemessen.apl);
+            let (wuerfe_referenz, tod_referenz, abseits_referenz) = lauf(&gegen_referenz.apl);
+            json!({
+                "apl": gemessen.apl.to_string(),
+                "structure": aufbau_liste(&liste),
+                "score": gemessen.mean,
+                "score_bits": gemessen.mean.to_bits(),
+                "reference_score": gegen_referenz.mean,
+                "reference_score_bits": gegen_referenz.mean.to_bits(),
+                "matches_reference": wuerfe == wuerfe_referenz,
+                "casts": wuerfe,
+                "reference_casts": wuerfe_referenz,
+                "died_at_ms": [tod, tod_referenz],
+                "off_grid": [abseits, abseits_referenz],
+            })
+        };
+        let schritt = |s: &Json| {
+            json!({"len": s["len"], "stop": s["stop"], "extends": s["extends"],
+                   "pairs": s["pairs"], "triples": s["triples"]})
+        };
+        let gemeinsam = if i == 0 {
+            json!([])
+        } else {
+            weg_a[i - 1]["chosen"].clone()
+        };
+        ausgeben(&json!({
+            "kind": "pfadkreuz",
+            "id": gruppe,
+            "diverges": true,
+            "step": weg_a[i]["n"],
+            "common": gemeinsam,
+            "a_step": schritt(&weg_a[i]),
+            "b_step": schritt(&weg_b[i]),
+            "a_list": bewerte(&weg_a[i]),
+            "b_list": bewerte(&weg_b[i]),
+        }));
+    }
+}
+
+/// Ob eine Abweichung zweier Wurfreihen direkt auf einen GCD-freien Wurf folgt:
+/// Der letzte gemeinsame Wurf ist QUENCH selbst (`triggersGcd: false`) oder
+/// der Wurf, den ein SUBLIME unmittelbar davor befreit hat (`freesNextGcd`).
+///
+/// **Abgeleitet, nicht vom Kampf gemeldet** — aus der Wurfreihe und den
+/// Zauberdaten. Der Kampf führt keinen Merker im Protokoll, der sagt, ob ein
+/// Wurf befreit war.
+fn nach_gcd_freiem_wurf(abweichung: &Json) -> Option<bool> {
+    let gemeinsam = abweichung["common_before"].as_array()?;
+    let zauber_von = |eintrag: &Json| zauber(eintrag[1].as_str().expect("Zauber"));
+    let letzter = zauber_von(gemeinsam.last()?);
+    let befreit =
+        gemeinsam.len() >= 2 && SPELLS[zauber_von(&gemeinsam[gemeinsam.len() - 2])].frees_next_gcd;
+    Some(!SPELLS[letzter].triggers_gcd || befreit)
+}
+
+/// `erste_abweichung`, dazu die Lage davor: ob sie direkt auf einen GCD-freien
+/// Wurf folgt (`nach_gcd_freiem_wurf`) und wie lange jede der beiden Reihen
+/// nach dem letzten gemeinsamen Wurf bis zu ihrem nächsten wartet.
+fn abweichung_mit_lage(reihe_a: &[Json], reihe_b: &[Json]) -> Option<Json> {
+    let mut abweichung = erste_abweichung(reihe_a, reihe_b)?;
+    let frei = nach_gcd_freiem_wurf(&abweichung);
+    let zeit = |eintrag: Option<&Json>| eintrag.and_then(|e| e[0].as_u64());
+    let letzter = zeit(
+        abweichung["common_before"]
+            .as_array()
+            .and_then(|g| g.last()),
+    );
+    let warten = |feld: &str| -> Option<u64> {
+        zeit(abweichung[feld].as_array().and_then(|r| r.first()))?.checked_sub(letzter?)
+    };
+    let gewartet = json!([warten("before_next"), warten("after_next")]);
+    let objekt = abweichung
+        .as_object_mut()
+        .expect("Abweichung ist ein Objekt");
+    objekt.insert("after_gcd_free_cast".to_owned(), json!(frei));
+    objekt.insert("wait_ms".to_owned(), gewartet);
+    Some(abweichung)
+}
+
+/// Je Gabelung: welche der beiden Listen zwischen den Fassungen ihren Wert
+/// ändert, wie sie gebaut ist und ob A oder B dort die Takt-Referenz trifft.
+///
+/// Prüft dabei dreierlei, statt es zu glauben: Unter der eigenen Fassung trifft
+/// die Bewertung den Weg bitgleich, die Referenz fällt unter A und B gleich aus,
+/// und jede Suche mit verschobenem Ergebnis hat eine Gabelung.
+///
+/// `reference_prefers` vergleicht nur die beiden Listen der Gabelung gegen die
+/// Takt-Referenz — welche die Referenz höher bewertet, nicht welche Liste eine
+/// Suche gegen die Referenz wählen würde; dafür müsste die ganze Nachbarschaft
+/// gegen sie laufen.
+#[allow(clippy::too_many_lines)]
+fn pfadvergleich(pfad_a: &str, pfad_b: &str, kreuz_a: &str, kreuz_b: &str) {
+    let wege_a = pfade(pfad_a);
+    let wege_b = pfade(pfad_b);
+    let ka = nach_schluessel(kreuz_a);
+    let kb = nach_schluessel(kreuz_b);
+    assert_eq!(
+        wege_a.keys().collect::<Vec<_>>(),
+        wege_b.keys().collect::<Vec<_>>(),
+        "die beiden Wege enthalten verschiedene Suchen"
+    );
+    let bits = |r: &Json| f64::from_bits(r.as_u64().expect("bits"));
+    let leer = |r: &Json, feld: &str| r[feld].as_array().expect("Liste").is_empty();
+    let mut faelle = Vec::new();
+    // Lage der Liste, deren Wert sich an der Gabelung ändert, in den Suchen mit
+    // verschobenem Ergebnis.
+    let mut lagen: BTreeMap<String, usize> = BTreeMap::new();
+    // Welche der beiden Listen der Gabelung die Takt-Referenz höher bewertet.
+    let mut referenz_wahl: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut gegabelt = 0;
+    let mut verschoben = 0;
+    for (gruppe, weg_a) in &wege_a {
+        let weg_b = &wege_b[gruppe];
+        let ende_verschoben =
+            weg_a.last().expect("Weg")["chosen"] != weg_b.last().expect("Weg")["chosen"];
+        let ra = &ka[&schluessel("pfadkreuz", gruppe)];
+        let rb = &kb[&schluessel("pfadkreuz", gruppe)];
+        let Some(i) = gabelung(weg_a, weg_b) else {
+            assert!(
+                !ende_verschoben,
+                "{gruppe}: Ergebnis verschoben ohne Gabelung"
+            );
+            assert!(
+                ra["diverges"].as_bool() == Some(false) && rb["diverges"].as_bool() == Some(false),
+                "{gruppe}: pfadkreuz sieht eine Gabelung, die die Wege nicht haben"
+            );
+            continue;
+        };
+        gegabelt += 1;
+        verschoben += usize::from(ende_verschoben);
+        assert!(ra["step"] == weg_a[i]["n"] && rb["step"] == weg_a[i]["n"]);
+        assert_eq!(
+            ra["a_list"]["score_bits"], weg_a[i]["score_bits"],
+            "{gruppe}: Bewertung der A-Liste unter A trifft den Weg nicht"
+        );
+        assert_eq!(
+            rb["b_list"]["score_bits"], weg_b[i]["score_bits"],
+            "{gruppe}: Bewertung der B-Liste unter B trifft den Weg nicht"
+        );
+        let liste = |seite: &str| -> Json {
+            let (x, y) = (&ra[seite], &rb[seite]);
+            for feld in ["apl", "reference_casts", "reference_score_bits"] {
+                assert_eq!(
+                    x[feld], y[feld],
+                    "{gruppe}/{seite}: {feld} unter A und B verschieden"
+                );
+            }
+            let reihe = |r: &Json, feld: &str| r[feld].as_array().expect("Würfe").clone();
+            json!({
+                "apl": x["apl"],
+                "structure": x["structure"],
+                "score": [bits(&x["score_bits"]), bits(&y["score_bits"])],
+                "reference_score": bits(&x["reference_score_bits"]),
+                "changed": x["score_bits"] != y["score_bits"],
+                "casts_changed": x["casts"] != y["casts"],
+                "a_matches_reference": x["matches_reference"],
+                "b_matches_reference": y["matches_reference"],
+                "first_divergence_a_b": abweichung_mit_lage(&reihe(x, "casts"), &reihe(y, "casts")),
+                "first_divergence_a_reference":
+                    abweichung_mit_lage(&reihe(x, "casts"), &reihe(x, "reference_casts")),
+                "first_divergence_b_reference":
+                    abweichung_mit_lage(&reihe(y, "casts"), &reihe(y, "reference_casts")),
+                "died_at_ms": [x["died_at_ms"], y["died_at_ms"]],
+            })
+        };
+        let liste_a = liste("a_list");
+        let liste_b = liste("b_list");
+        let referenz_a = liste_a["reference_score"].as_f64().expect("Referenzwert");
+        let referenz_b = liste_b["reference_score"].as_f64().expect("Referenzwert");
+        let bevorzugt = if referenz_a > referenz_b {
+            "a"
+        } else if referenz_b > referenz_a {
+            "b"
+        } else {
+            "tie"
+        };
+        if ende_verschoben {
+            *referenz_wahl.entry(bevorzugt).or_default() += 1;
+            for l in [&liste_a, &liste_b] {
+                if l["changed"].as_bool() != Some(true) {
+                    continue;
+                }
+                let nach_frei = |feld: &str| l[feld]["after_gcd_free_cast"].clone();
+                let lage = format!(
+                    "gcd_free={} filler={} a_b_after_free={} a=reference={} \
+                     a_reference_after_free={} b=reference={} b_reference_after_free={}",
+                    !leer(&l["structure"], "gcd_free"),
+                    !leer(&l["structure"], "fillers"),
+                    nach_frei("first_divergence_a_b"),
+                    l["a_matches_reference"],
+                    nach_frei("first_divergence_a_reference"),
+                    l["b_matches_reference"],
+                    nach_frei("first_divergence_b_reference"),
+                );
+                *lagen.entry(lage).or_default() += 1;
+            }
+        }
+        let weg = |w: &[Json]| -> Vec<Json> {
+            w.iter()
+                .map(|s| {
+                    json!({"n": s["n"], "len": s["len"], "stop": s["stop"], "extends": s["extends"],
+                           "triples": s["triples"], "score": s["score"], "apl": s["apl"]})
+                })
+                .collect()
+        };
+        faelle.push(json!({
+            "id": gruppe,
+            "final_shifted": ende_verschoben,
+            "step": weg_a[i]["n"],
+            "reference_prefers": bevorzugt,
+            "a_step": ra["a_step"],
+            "b_step": ra["b_step"],
+            "a_list": liste_a,
+            "b_list": liste_b,
+            "a_path": weg(weg_a),
+            "b_path": weg(weg_b),
+        }));
+    }
+    let zusammenfassung = json!({
+        "paths": [pfad_a, pfad_b],
+        "searches": wege_a.len(),
+        "diverging": gegabelt,
+        "final_shifted": verschoben,
+        "changed_lists_in_shifted_searches": lagen,
+        "reference_prefers_in_shifted_searches": referenz_wahl,
+        "cases": faelle,
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&zusammenfassung).expect("Zusammenfassung")
+    );
+}
+
+/// Die Nachbarschaft jeder A-Liste nach Aufbau, mit den Werten aus `kreuz`
+/// unter A und unter B: Ändert B den Wert nur dort, wo ein GCD-freier Zug
+/// steht oder kein Füller?
+///
+/// Die Nachbarn entstehen in `nachbarschaft`, derselben Funktion, mit der
+/// `kreuz` sie bewertet hat; ihre Zahl muss je Suche mit `kreuz`
+/// übereinstimmen. Dazu dieselbe Einteilung für die A-Listen selbst.
+fn nachbarn(pfad_messung: &str, kreuz_a: &str, kreuz_b: &str) {
+    let messung = nach_schluessel(pfad_messung);
+    let ka = nach_schluessel(kreuz_a);
+    let kb = nach_schluessel(kreuz_b);
+    let kandidaten = all_candidates();
+    let klasse = |liste: &[Candidate]| -> (bool, bool) {
+        (
+            liste.iter().any(|k| ist_gcd_frei(k.spell)),
+            liste.iter().any(ist_fueller),
+        )
+    };
+    type Klassen = BTreeMap<(bool, bool), (usize, usize)>;
+    let zaehle = |klassen: &mut Klassen, k: (bool, bool), geaendert: bool| {
+        let eintrag = klassen.entry(k).or_default();
+        eintrag.0 += 1;
+        eintrag.1 += usize::from(geaendert);
+    };
+    let als_json = |klassen: &Klassen| -> Vec<Json> {
+        klassen
+            .iter()
+            .map(|((frei, fueller), (n, geaendert))| {
+                json!({"gcd_free": frei, "filler": fueller, "total": n, "changed": geaendert})
+            })
+            .collect()
+    };
+    let mut alle_nachbarn = Klassen::new();
+    let mut a_listen = Klassen::new();
+    let mut je_suche = Vec::new();
+    for ((art, id), r) in &messung {
+        if art != "search" {
+            continue;
+        }
+        let suche = SUCHEN
+            .iter()
+            .copied()
+            .find(|s| r["config"]["search"] == s.id)
+            .expect("unbekannte Sucheinstellung");
+        let config = konfiguration(suche, boss(r["config"]["boss"].as_str().expect("boss")));
+        let alle = vorrat(&config, &kandidaten);
+        let liste_a = gewaehlte(r, &alle);
+        let xa = &ka[&schluessel("kreuz", id)];
+        let xb = &kb[&schluessel("kreuz", id)];
+        zaehle(
+            &mut a_listen,
+            klasse(&liste_a),
+            xa["a_score_bits"] != xb["a_score_bits"],
+        );
+        let werte_a = xa["neighbour_score_bits"].as_array().expect("Nachbarn");
+        let werte_b = xb["neighbour_score_bits"].as_array().expect("Nachbarn");
+        let umgebung = nachbarschaft(&liste_a, &alle);
+        assert!(
+            umgebung.len() == werte_a.len() && werte_a.len() == werte_b.len(),
+            "{id}: Nachbarschaft zählt anders als in kreuz"
+        );
+        let mut eigene = Klassen::new();
+        for (liste, (x, y)) in umgebung.iter().zip(werte_a.iter().zip(werte_b)) {
+            zaehle(&mut alle_nachbarn, klasse(liste), x != y);
+            zaehle(&mut eigene, klasse(liste), x != y);
+        }
+        je_suche.push(json!({"id": id, "neighbours": als_json(&eigene)}));
+    }
+    let zusammenfassung = json!({
+        "inputs": [pfad_messung, kreuz_a, kreuz_b],
+        "neighbours": als_json(&alle_nachbarn),
+        "a_lists": als_json(&a_listen),
+        "per_search": je_suche,
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&zusammenfassung).expect("Zusammenfassung")
+    );
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args
@@ -1540,9 +2080,22 @@ fn main() {
         .as_slice()
     {
         [] => messen(),
+        // Nur die Wurfproben, für eine Fassung, unter der die Zustandsproben
+        // gar nicht anhalten: Sie halten den Kampf mit `time >= t` an, und
+        // ohne Weckruf für `time` (Mutation MT) erreicht er `t` nie.
+        ["proben"] => wurfproben(),
         ["kreuz", a, b] => kreuz(a, b),
         ["vergleich", a, b] => vergleich(a, b, None),
         ["vergleich", a, b, ka, kb] => vergleich(a, b, Some((ka, kb))),
-        _ => panic!("Aufruf: e1027-operator-measure [kreuz A B | vergleich A B [KREUZ-A KREUZ-B]]"),
+        ["pfad", messung] => pfad(messung),
+        ["pfadkreuz", a, b] => pfadkreuz(a, b),
+        ["pfadvergleich", a, b, ka, kb] => pfadvergleich(a, b, ka, kb),
+        ["nachbarn", messung, ka, kb] => nachbarn(messung, ka, kb),
+        _ => panic!(
+            "Aufruf: e1027-operator-measure [proben | kreuz A B | vergleich A B [KREUZ-A KREUZ-B] \
+             | pfad A | pfadkreuz PFAD-A PFAD-B \
+             | pfadvergleich PFAD-A PFAD-B PFADKREUZ-A PFADKREUZ-B \
+             | nachbarn A KREUZ-A KREUZ-B]"
+        ),
     }
 }
