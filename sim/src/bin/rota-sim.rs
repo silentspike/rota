@@ -37,16 +37,21 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rota_sim::apl::{parse, Apl, AplName};
-use rota_sim::balance::{run, BalanceConfig, BalanceResult};
+use rota_sim::balance::{
+    run, run_gestaffelt, BalanceConfig, BalanceResult, Durchgangswahl, GestaffelterLauf,
+    Staffelung, Staffelungsfehler,
+};
 use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
 use rota_sim::drosselung::{ControlFileWatcher, ControlSettings, RuntimeControl};
+use rota_sim::gear::WornValues;
 use rota_sim::replay::EmbeddedRecording;
 use rota_sim::rotation_search::{all_candidates, greedy, paar_zuege, Candidate, SearchResult};
 // Nachbereitung #897: die Klassifikation aus #981 statt einer eigenen Zaehlung.
 // Eine Quelle fuer die Frage, was eine Spielinstanz ist — und die Bau-Bruecke
 // aus #981 AC4 gilt damit auch fuer diese Ausgabe.
 use rota_sim::scoring::{probe_bosses, ScoringSet};
+use rota_sim::stichprobe::{noetige_versuche_ohne_fehler, Befund};
 use rota_sim::{Fight, FightConfig};
 
 // ---------------------------------------------------------------------------
@@ -68,9 +73,10 @@ use rota_sim::{Fight, FightConfig};
 /// # Warum er im Programm sitzt und nicht im Kern
 ///
 /// Der Kern wird nicht angefasst — er traegt die Bitgleichheit mit dem Spiel.
-/// Gezaehlt wird stattdessen an den zwei Stellen, an denen DIESES Programm
-/// Kaempfe anstoesst: [`rechne_lauf`] und [`suche`]. Wer eine dritte Stelle
-/// hinzufuegt und den Zaehler vergisst, faellt beim Test
+/// Gezaehlt wird stattdessen an den Stellen, an denen DIESES Programm
+/// Kaempfe anstoesst: [`rechne_lauf`], [`suche`] und [`rechne_gestaffelt`]
+/// (#915), dazu der gesteuerte Lauf mit `--control-file`. Wer eine weitere
+/// Stelle hinzufuegt und den Zaehler vergisst, faellt beim Test
 /// `nach_run_steht_der_zaehler_ueber_null` nicht auf — das ist die Grenze
 /// dieser Bauart, und sie steht hier, statt verschwiegen zu werden.
 static KAEMPFE: AtomicU64 = AtomicU64::new(0);
@@ -104,6 +110,21 @@ fn suche(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchRe
     let messungen = ergebnis.measured as u64 + MESSUNGEN_AUSSERHALB;
     zaehle(messungen * u64::from(config.iterations));
     ergebnis
+}
+
+/// Ein Lauf mit Durchgangssteuerung (#915) — die einzige Stelle, an der dieses
+/// Programm [`run_gestaffelt`] ruft.
+///
+/// Gezaehlt wird, was der Lauf **gerechnet** hat, nicht das Budget: Eine
+/// Stichprobe, die nach 128 Kaempfen entscheidet, hat 128 gekostet.
+fn rechne_gestaffelt(
+    config: &BalanceConfig,
+    apl: &Apl,
+    staffelung: Staffelung,
+) -> Result<GestaffelterLauf, Staffelungsfehler> {
+    let lauf = run_gestaffelt(config, apl, staffelung)?;
+    zaehle(lauf.kaempfe);
+    Ok(lauf)
 }
 
 /// Die Messungen, die `greedy_opts` fährt, ohne sie in `measured` zu zaehlen:
@@ -239,6 +260,9 @@ BEISPIELE
   # genauer: mehr Durchgaenge je Messung, ueber vier Straenge, laengere Liste
   rota-sim run --boss boss-1-1 --iterations 100 --threads 4 --max-len 4
 
+  # mit Krit: die Siegwahrscheinlichkeit gestaffelt belegen statt fest zu zaehlen
+  rota-sim run --boss boss-1-1 --search none --purity 500 --mode gestaffelt --threshold 0.9 --alpha 0.05 --budget 512
+
   Die Beispiele nennen ihre Zahlen ausdruecklich, statt die Voreinstellungen zu
   nehmen. Der Grund ist die Pruefstrecke: Sie fuehrt jedes Beispiel von hier aus,
   und zwar im Debug-Bau, wo der Kern rund achtzehnmal langsamer ist. Ohne Zahlen
@@ -266,13 +290,35 @@ OPTIONEN
                      endet vor dem Parken. cpu_threads 0 oder paused true pausiert.
                      CPU-Prozent ist kooperativer Arbeits-/Pausentakt, keine cgroup-Quote.
   --seed <n>         Startwert des ersten Durchgangs.
+  --purity <n>       PURITY der getragenen Ausruestung: Kritchance in Promille
+                     (500 = halbe Chance, ab 1000 kritet jeder Treffer). Ohne
+                     sie ist die Kritchance null, und nichts wird gewuerfelt.
+  --mode <art>       fest (Voreinstellung) oder gestaffelt.
+                     fest rechnet --iterations Kaempfe je Messung.
+                     gestaffelt waehlt selbst: EINEN Kampf, wenn nirgends
+                     gewuerfelt wird — dann ist der Ausgang exakt —, sonst eine
+                     gestaffelte Stichprobe, die laeuft, bis die
+                     Siegwahrscheinlichkeit sicher ueber oder unter --threshold
+                     liegt. Sie misst eine vorhandene Rotation (--apl oder
+                     --search none), in einem Strang, mit konstantem Speicher.
+  --threshold <p>    gestaffelt: geforderte Siegwahrscheinlichkeit, echt
+                     zwischen 0 und 1.
+  --alpha <a>        gestaffelt: Irrtumswahrscheinlichkeit, ueber alle
+                     Haltepunkte zusammen, echt zwischen 0 und 1.
+  --budget <n>       gestaffelt: hoechstens so viele Kaempfe. Reicht es nicht,
+                     lautet der Befund UNGEKLAERT, nicht eine Zahl.
+                     Alle drei sind Pflicht; keiner hat eine Voreinstellung.
   --json             Ausgabe als JSON statt als Text. Dieselben Zahlen.
   --help             dieser Text.
 
 WAS AUSGEGEBEN WIRD
   Schaden je Kampf mit Streuung, Siege, Zeit bis zum Sieg, eingesteckter
   Schaden, Tode und die Wirkungen je Zauber. Bei einer Suche zusaetzlich die
-  gefundene Rotation und wie viele Messungen sie gekostet hat.";
+  gefundene Rotation und wie viele Messungen sie gekostet hat.
+
+  Mit --mode gestaffelt stattdessen: der gewaehlte Weg, der Befund (ERFUELLT,
+  VERFEHLT oder UNGEKLAERT), wie viele Kaempfe er gekostet hat, die Siege und
+  wie oft gewuerfelt wurde.";
 
 /// Die Hilfe von `bench` — Zweck zuerst, dann Beispiele.
 const HILFE_BENCH: &str = "\
@@ -564,7 +610,9 @@ fn fehler_mit_ausweg(was: &str, vorschlag: Option<String>, ausweg: &str) -> Stri
 // ---------------------------------------------------------------------------
 
 /// Die Einstellungen von `run`, wie sie aus der Kommandozeile kommen.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Nur `PartialEq`, nicht `Eq`: Schwelle und alpha sind Gleitkommazahlen.
+#[derive(Debug, Clone, PartialEq)]
 struct RunOptionen {
     boss_id: Option<String>,
     apl_pfad: Option<String>,
@@ -572,10 +620,30 @@ struct RunOptionen {
     suche: Suchart,
     max_len: usize,
     iterations: u32,
+    /// Ob `--iterations` ausdruecklich genannt wurde — im gestaffelten Lauf
+    /// gilt es nicht, und eine stillschweigend uebergangene Angabe waere eine
+    /// Messung, die jemand anders bestellt hat, als sie lief.
+    iterations_genannt: bool,
     threads: usize,
     seed: u32,
+    /// PURITY der getragenen Ausruestung, in Promille Kritchance.
+    purity: u32,
+    modus: Modus,
+    schwelle: Option<f64>,
+    alpha: Option<f64>,
+    budget: Option<u64>,
     json: bool,
     hilfe: bool,
+}
+
+/// Wie `run` die Zahl der Durchgaenge bestimmt (#915).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Modus {
+    /// Eine feste Zahl, `--iterations`.
+    Fest,
+    /// Die Durchgangssteuerung: ein Kampf, wenn nirgends gewuerfelt wird,
+    /// sonst die gestaffelte Stichprobe.
+    Gestaffelt,
 }
 
 /// Welches Suchverfahren `run` faehrt.
@@ -619,8 +687,15 @@ impl Default for RunOptionen {
             // die Beispiele in der Hilfe nennen ihre Zahlen ausdruecklich,
             // damit die Pruefstrecke trotzdem schnell bleibt.
             iterations: 50,
+            iterations_genannt: false,
             threads: 1,
             seed: 0,
+            // Wie `BalanceConfig::default`: ohne Ausruestung, also ohne Krit.
+            purity: 0,
+            modus: Modus::Fest,
+            schwelle: None,
+            alpha: None,
+            budget: None,
             json: false,
             hilfe: false,
         }
@@ -635,13 +710,23 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
     }
 
     let boss = waehle_boss(optionen.boss_id.as_deref())?;
+    // Ohne `--purity` ist das `WornValues::none()` — dieselbe Ausruestung wie
+    // in `BalanceConfig::default`, also aendert sich an keinem Lauf ohne die
+    // Angabe etwas.
+    let mut worn = WornValues::none();
+    worn.purity = optionen.purity;
     let config = BalanceConfig {
         iterations: optionen.iterations,
         base_seed: optionen.seed,
         threads: optionen.threads,
         boss,
+        worn,
         ..BalanceConfig::default()
     };
+
+    if optionen.modus == Modus::Gestaffelt {
+        return lauf_gestaffelt(&optionen, &config, boss);
+    }
 
     // Eine eigene Datei heisst immer "messen", nie "suchen" — sonst wuerde der
     // Aufruf die Datei stillschweigend ignorieren.
@@ -758,13 +843,35 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
                 };
             }
             "--max-len" => optionen.max_len = hole_zahl(argumente, &mut i, name)?,
-            "--iterations" => optionen.iterations = hole_zahl(argumente, &mut i, name)?,
+            "--iterations" => {
+                optionen.iterations = hole_zahl(argumente, &mut i, name)?;
+                optionen.iterations_genannt = true;
+            }
             "--threads" => optionen.threads = hole_zahl(argumente, &mut i, name)?,
             "--seed" => optionen.seed = hole_zahl(argumente, &mut i, name)?,
+            "--purity" => optionen.purity = hole_zahl(argumente, &mut i, name)?,
+            "--mode" => {
+                let wert = hole_wert(argumente, &mut i, name)?;
+                optionen.modus = match wert.as_str() {
+                    "fest" => Modus::Fest,
+                    "gestaffelt" => Modus::Gestaffelt,
+                    anderes => {
+                        return Err(fehler_mit_ausweg(
+                            &format!("Den Modus '{anderes}' gibt es nicht."),
+                            Some("Moeglich sind: 'fest', 'gestaffelt'".to_owned()),
+                            "Mit Beispielen:  rota-sim run --help",
+                        ))
+                    }
+                };
+            }
+            "--threshold" => optionen.schwelle = Some(hole_anteil(argumente, &mut i, name)?),
+            "--alpha" => optionen.alpha = Some(hole_anteil(argumente, &mut i, name)?),
+            "--budget" => optionen.budget = Some(hole_zahl(argumente, &mut i, name)?),
             anderes => return Err(unbekannte_angabe("run", anderes, &ANGABEN_RUN)),
         }
         i += 1;
     }
+    pruefe_modus(&optionen)?;
     if optionen.iterations == 0 {
         return Err(fehler_mit_ausweg(
             "'--iterations' muss groesser als null sein.",
@@ -782,8 +889,248 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
     Ok(optionen)
 }
 
+/// Prueft, ob die Angaben zum gewaehlten Modus passen (#915).
+///
+/// **Was nur der andere Modus liest, wird abgelehnt statt uebergangen.** Ein
+/// `--iterations` im gestaffelten Lauf oder ein `--budget` im festen haette
+/// sonst keine Wirkung, und die Ausgabe saehe aus wie die bestellte Messung.
+///
+/// `--max-len` gehoert nicht dazu: Es gilt nur fuer die Suche und wird bei
+/// einer vorhandenen Rotation schon vor #915 in jedem Lauf nicht gelesen.
+fn pruefe_modus(optionen: &RunOptionen) -> Result<(), String> {
+    let staffel_angaben = [
+        ("--threshold", optionen.schwelle.is_some()),
+        ("--alpha", optionen.alpha.is_some()),
+        ("--budget", optionen.budget.is_some()),
+    ];
+    let mit_beispielen = "Mit Beispielen:  rota-sim run --help";
+    match optionen.modus {
+        Modus::Fest => {
+            if let Some((name, _)) = staffel_angaben.iter().find(|(_, genannt)| *genannt) {
+                return Err(fehler_mit_ausweg(
+                    &format!("'{name}' gilt nur mit '--mode gestaffelt'."),
+                    Some(
+                        "Ein fester Lauf rechnet --iterations Kaempfe und prueft keine Schwelle."
+                            .to_owned(),
+                    ),
+                    mit_beispielen,
+                ));
+            }
+            Ok(())
+        }
+        Modus::Gestaffelt => {
+            let fehlend: Vec<&str> = staffel_angaben
+                .iter()
+                .filter(|(_, genannt)| !*genannt)
+                .map(|(name, _)| *name)
+                .collect();
+            if !fehlend.is_empty() {
+                return Err(fehler_mit_ausweg(
+                    &format!("'--mode gestaffelt' braucht {}.", fehlend.join(", ")),
+                    Some(
+                        "Schwelle, alpha und Budget haben mit Absicht keine Voreinstellung."
+                            .to_owned(),
+                    ),
+                    mit_beispielen,
+                ));
+            }
+            if optionen.iterations_genannt {
+                return Err(fehler_mit_ausweg(
+                    "'--iterations' gilt nicht mit '--mode gestaffelt'.",
+                    Some(
+                        "Die Stichprobe bestimmt ihre Zahl selbst; die Obergrenze ist --budget."
+                            .to_owned(),
+                    ),
+                    mit_beispielen,
+                ));
+            }
+            if optionen.threads != 1 {
+                return Err(fehler_mit_ausweg(
+                    "'--threads' gilt nicht mit '--mode gestaffelt'.",
+                    Some("Die Stichprobe rechnet in einem Strang.".to_owned()),
+                    mit_beispielen,
+                ));
+            }
+            if optionen.control_file.is_some() {
+                return Err(fehler_mit_ausweg(
+                    "'--control-file' ist an '--mode gestaffelt' nicht angeschlossen.",
+                    None,
+                    mit_beispielen,
+                ));
+            }
+            if optionen.suche == Suchart::Greedy && optionen.apl_pfad.is_none() {
+                return Err(fehler_mit_ausweg(
+                    "'--mode gestaffelt' misst eine vorhandene Rotation, es sucht keine.",
+                    Some("Eine Rotation waehlen: --apl DATEI oder --search none".to_owned()),
+                    mit_beispielen,
+                ));
+            }
+            staffelung_aus(optionen)
+                .pruefe()
+                .map_err(|fehler| fehler_mit_ausweg(&fehler.to_string(), None, mit_beispielen))
+        }
+    }
+}
+
+/// Die Staffelung aus den Angaben.
+///
+/// Fehlt eine, steht dort ein Wert, den [`Staffelung::pruefe`] ablehnt — ein
+/// fehlender Wert wird also nie still zu einer Voreinstellung.
+fn staffelung_aus(optionen: &RunOptionen) -> Staffelung {
+    Staffelung {
+        schwelle: optionen.schwelle.unwrap_or(f64::NAN),
+        alpha: optionen.alpha.unwrap_or(f64::NAN),
+        budget: optionen.budget.unwrap_or(0),
+    }
+}
+
+/// `run --mode gestaffelt`: ein Lauf mit Durchgangssteuerung (#915).
+fn lauf_gestaffelt(
+    optionen: &RunOptionen,
+    config: &BalanceConfig,
+    boss: &Boss,
+) -> Result<ExitCode, String> {
+    let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
+    let start = Instant::now();
+    let lauf = rechne_gestaffelt(config, &apl, staffelung_aus(optionen)).map_err(|fehler| {
+        fehler_mit_ausweg(
+            &fehler.to_string(),
+            None,
+            "Mit Beispielen:  rota-sim run --help",
+        )
+    })?;
+    let dauer = start.elapsed().as_secs_f64();
+    if optionen.json {
+        println!("{}", gestaffelt_json(&lauf, boss, &name, config, dauer));
+    } else {
+        berichte_gestaffelt(&lauf, boss, &name, config, dauer);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Die Versuchszahl eines Befunds und sein Name, wie ihn `--json` ausgibt.
+fn befund_teile(befund: Befund) -> (&'static str, u64) {
+    match befund {
+        Befund::Erfuellt { versuche } => ("Erfuellt", versuche),
+        Befund::Verfehlt { versuche } => ("Verfehlt", versuche),
+        Befund::Ungeklaert { versuche, .. } => ("Ungeklaert", versuche),
+    }
+}
+
+/// Der Befund in Worten.
+///
+/// **Beim Weg „ein Durchgang" steht dort „exakt", nicht „sicher".** Der eine
+/// Kampf ist die ganze Verteilung; es gibt keinen Irrtum, den alpha begrenzen
+/// muesste. Beim gestaffelten Weg dagegen gilt die Aussage nur bis auf alpha.
+fn befund_satz(lauf: &GestaffelterLauf) -> String {
+    let schwelle = lauf.staffelung.schwelle;
+    let alpha = lauf.staffelung.alpha;
+    match (lauf.wahl, lauf.befund) {
+        (Durchgangswahl::EinDurchgang, Befund::Erfuellt { .. }) => {
+            format!("ERFUELLT — gewonnen; die Siegwahrscheinlichkeit ist exakt 1, ueber {schwelle}")
+        }
+        (Durchgangswahl::EinDurchgang, Befund::Verfehlt { .. }) => {
+            format!("VERFEHLT — verloren; die Siegwahrscheinlichkeit ist exakt 0, unter {schwelle}")
+        }
+        (_, Befund::Erfuellt { .. }) => format!(
+            "ERFUELLT — die Siegwahrscheinlichkeit liegt sicher ueber {schwelle} \
+             (Irrtum hoechstens {alpha})"
+        ),
+        (_, Befund::Verfehlt { .. }) => format!(
+            "VERFEHLT — die Siegwahrscheinlichkeit liegt sicher unter {schwelle} \
+             (Irrtum hoechstens {alpha})"
+        ),
+        (_, Befund::Ungeklaert { versuche, fehler }) => format!(
+            "UNGEKLAERT — das Budget ist aufgebraucht, keine Seite ist sicher \
+             ({fehler} verloren in {versuche} Kaempfen)"
+        ),
+    }
+}
+
+fn berichte_gestaffelt(
+    lauf: &GestaffelterLauf,
+    boss: &Boss,
+    name: &str,
+    config: &BalanceConfig,
+    dauer: f64,
+) {
+    let vorgabe = lauf.staffelung;
+    println!("{}", "=".repeat(72));
+    println!(
+        "ROTA — Durchgangssteuerung gegen {} ({})",
+        boss.name, boss.id
+    );
+    println!(
+        "Schwelle {}, alpha {}, Budget {}, Startwert ab {}, PURITY {}, Liste {name}",
+        vorgabe.schwelle, vorgabe.alpha, vorgabe.budget, config.base_seed, config.worn.purity
+    );
+    println!("{}", "=".repeat(72));
+    println!();
+    let weg = match lauf.wahl {
+        Durchgangswahl::EinDurchgang => {
+            "ein Durchgang — nirgends wird gewuerfelt, der Ausgang ist exakt"
+        }
+        Durchgangswahl::Gestaffelt => "gestaffelt — es wird gewuerfelt",
+    };
+    println!("Weg                  {weg}");
+    println!("Befund               {}", befund_satz(lauf));
+    println!(
+        "Kaempfe              {} von hoechstens {}",
+        lauf.kaempfe, vorgabe.budget
+    );
+    println!("Siege                {} von {}", lauf.siege, lauf.kaempfe);
+    println!(
+        "Schaden je Kampf     {:.1}",
+        lauf.schaden as f64 / lauf.kaempfe as f64
+    );
+    println!("Gewuerfelt           {}-mal", lauf.wuerfe);
+    if lauf.wahl == Durchgangswahl::Gestaffelt {
+        println!(
+            "Zum Vergleich        ungestaffelt genuegten ohne einen Fehler {} Kaempfe",
+            noetige_versuche_ohne_fehler(vorgabe.schwelle, vorgabe.alpha)
+        );
+    }
+    println!("Speicher             konstant: ein Kampf und vier Zaehler, kein Einzelergebnis");
+    println!();
+    println!("Gerechnet in {dauer:.2} Sekunden, in einem Strang.");
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+}
+
+fn gestaffelt_json(
+    lauf: &GestaffelterLauf,
+    boss: &Boss,
+    name: &str,
+    config: &BalanceConfig,
+    dauer: f64,
+) -> String {
+    let (urteil, versuche) = befund_teile(lauf.befund);
+    let wahl = format!("{:?}", lauf.wahl);
+    format!(
+        "{{\"boss\":{:?},\"elapsedMs\":{:?},\"apl\":{:?},\"purity\":{},\"baseSeed\":{},\
+         \"selection\":{:?},\"threshold\":{:?},\"alpha\":{:?},\"budget\":{},\
+         \"verdict\":{:?},\"trials\":{},\"fights\":{},\"wins\":{},\"losses\":{},\
+         \"draws\":{},\"damage\":{}}}",
+        boss.id,
+        dauer * 1000.0,
+        name,
+        config.worn.purity,
+        config.base_seed,
+        wahl,
+        lauf.staffelung.schwelle,
+        lauf.staffelung.alpha,
+        lauf.staffelung.budget,
+        urteil,
+        versuche,
+        lauf.kaempfe,
+        lauf.siege,
+        lauf.kaempfe - lauf.siege,
+        lauf.wuerfe,
+        lauf.schaden
+    )
+}
+
 /// Die Angaben, die `run` kennt — Grundlage fuer den Vorschlag bei Tippfehlern.
-const ANGABEN_RUN: [&str; 11] = [
+const ANGABEN_RUN: [&str; 16] = [
     "--boss",
     "--apl",
     "--control-file",
@@ -792,6 +1139,11 @@ const ANGABEN_RUN: [&str; 11] = [
     "--iterations",
     "--threads",
     "--seed",
+    "--purity",
+    "--mode",
+    "--threshold",
+    "--alpha",
+    "--budget",
     "--json",
     "--help",
     "-h",
@@ -2327,6 +2679,21 @@ fn hole_zahl<T: std::str::FromStr>(
     })
 }
 
+/// Wie [`hole_wert`], nur als Gleitkommazahl — fuer Schwelle und alpha.
+///
+/// Ob der Wert im zulaessigen Bereich liegt, prueft [`Staffelung::pruefe`],
+/// nicht diese Funktion: Eine Pruefung an zwei Stellen liefe auseinander.
+fn hole_anteil(argumente: &[String], i: &mut usize, name: &str) -> Result<f64, String> {
+    let roh = hole_wert(argumente, i, name)?;
+    roh.parse().map_err(|_| {
+        fehler_mit_ausweg(
+            &format!("'{name}' braucht eine Zahl wie 0.99, bekommen hat es '{roh}'."),
+            None,
+            "Die Form mit Beispielen:  rota-sim run --help",
+        )
+    })
+}
+
 /// Die Meldung fuer eine Angabe, die es an dieser Stelle nicht gibt.
 ///
 /// Der Vorschlag kommt aus den Angaben, die DIESER Unterbefehl kennt — ein
@@ -2422,6 +2789,98 @@ mod tests {
         assert_eq!(optionen.threads, 4);
         assert_eq!(optionen.seed, 7);
         assert!(optionen.json);
+    }
+
+    #[test]
+    fn zerlege_run_liest_die_staffelung() {
+        let optionen = zerlege_run(&worte(
+            "--search none --purity 500 --mode gestaffelt --threshold 0.9 \
+             --alpha 0.05 --budget 512 --threads 1",
+        ))
+        .expect("alle Angaben sind gueltig");
+        assert_eq!(optionen.modus, Modus::Gestaffelt);
+        assert_eq!(optionen.purity, 500);
+        assert_eq!(
+            staffelung_aus(&optionen),
+            Staffelung {
+                schwelle: 0.9,
+                alpha: 0.05,
+                budget: 512,
+            }
+        );
+    }
+
+    #[test]
+    fn die_voreinstellung_bleibt_der_feste_lauf_ohne_krit() {
+        // Wer keine der neuen Angaben nennt, bekommt denselben Lauf wie vor
+        // #915: feste Zahl, keine Ausruestung, keine Schwelle.
+        let optionen = RunOptionen::default();
+        assert_eq!(optionen.modus, Modus::Fest);
+        assert_eq!(optionen.purity, 0);
+        assert_eq!(
+            (optionen.schwelle, optionen.alpha, optionen.budget),
+            (None, None, None)
+        );
+        assert!(!optionen.iterations_genannt);
+    }
+
+    #[test]
+    fn zerlege_run_verlangt_alle_drei_staffelangaben() {
+        let fehler = zerlege_run(&worte("--search none --mode gestaffelt --threshold 0.9"))
+            .expect_err("alpha und Budget fehlen");
+        assert!(
+            fehler.contains("--alpha") && fehler.contains("--budget"),
+            "{fehler}"
+        );
+        assert!(fehler.starts_with("FEHLER"), "{fehler}");
+    }
+
+    #[test]
+    fn zerlege_run_weist_widerspruechliche_angaben_ab() {
+        let basis = "--search none --mode gestaffelt --threshold 0.9 --alpha 0.05 --budget 64";
+        assert!(
+            zerlege_run(&worte(basis)).is_ok(),
+            "Kontrollzeile: die Basis allein ist gueltig"
+        );
+        for (zusatz, erwartet) in [
+            ("--iterations 20", "--iterations"),
+            ("--threads 4", "--threads"),
+            ("--control-file steuer.json", "--control-file"),
+        ] {
+            let fehler = zerlege_run(&worte(&format!("{basis} {zusatz}"))).expect_err(zusatz);
+            assert!(fehler.contains(erwartet), "{zusatz}: {fehler}");
+            assert!(fehler.contains("rota-sim run --help"), "{zusatz}: {fehler}");
+        }
+
+        // Gestaffelt misst eine vorhandene Rotation; ohne --apl und ohne
+        // --search none waere es eine Suche.
+        let fehler = zerlege_run(&worte(
+            "--mode gestaffelt --threshold 0.9 --alpha 0.05 --budget 64",
+        ))
+        .expect_err("ohne Rotation");
+        assert!(fehler.contains("vorhandene Rotation"), "{fehler}");
+
+        // Und umgekehrt: Staffelangaben ohne den Modus wirkten nicht.
+        let fehler = zerlege_run(&worte("--budget 64")).expect_err("ohne Modus");
+        assert!(fehler.contains("--mode gestaffelt"), "{fehler}");
+    }
+
+    #[test]
+    fn zerlege_run_prueft_die_werte_der_staffelung() {
+        let fehler = zerlege_run(&worte(
+            "--search none --mode gestaffelt --threshold 1 --alpha 0.05 --budget 64",
+        ))
+        .expect_err("Schwelle 1 ist mit einer Stichprobe nie belegbar");
+        assert!(fehler.contains("Schwelle"), "{fehler}");
+
+        let fehler = zerlege_run(&worte(
+            "--search none --mode gestaffelt --threshold hoch --alpha 0.05 --budget 64",
+        ))
+        .expect_err("keine Zahl");
+        assert!(fehler.contains("--threshold"), "{fehler}");
+
+        let fehler = zerlege_run(&worte("--mode gestaffel")).expect_err("Tippfehler");
+        assert!(fehler.contains("'gestaffelt'"), "{fehler}");
     }
 
     #[test]
