@@ -2,8 +2,8 @@
 //!
 //! # Warum diese Datei neben den Prüffällen im Modul steht
 //!
-//! Die acht Prüffälle in `src/stichprobe.rs` fahren zwei Fehlerzahlen: **null**
-//! Fehler und **jeden zweiten** Versuch. Dazwischen liegt der Fall, für den die
+//! Die acht Prüffälle, mit denen `src/stichprobe.rs` angelegt wurde, fahren
+//! zwei Fehlerzahlen: **null** Fehler und **jeden zweiten** Versuch. Dazwischen liegt der Fall, für den die
 //! Stichprobe gebaut ist — ein Fehler, eine Handvoll Fehler, eine Rate knapp
 //! über der Schwelle —, und er war ungeprüft.
 //!
@@ -149,7 +149,9 @@ fn die_obergrenze_nach_einem_fehler_trifft_die_geschlossene_form() {
             abweichungen.push(format!("n = {n}: {oben:.12} statt {formel:.12}"));
         }
     }
-    assert_eq!(geprueft, 18, "Kontrollzeile: 18 Haltepunkte von 8 bis 2^20");
+    // Keine Zusicherung auf die Zahl der Haltepunkte: Die Schleife darüber ist
+    // fest, eine solche Zeile könnte am Code unter Test nie scheitern. Die
+    // Zahl steht in der Meldung.
     assert!(
         abweichungen.is_empty(),
         "die Obergrenze nach einem Fehler weicht an {} von {geprueft} \
@@ -247,6 +249,36 @@ fn die_schranke_ohne_fehler_haelt_jenseits_von_i32() {
         abweichungen.join("\n  ")
     );
     println!("ohne Fehler: n bis 2^40 trifft die geschlossene Form");
+}
+
+/// **Eine winzige Erfolgsrate wird nicht erst in `1 - p` gerundet.**
+///
+/// `hoechstens_k_fehler` bildet `ln(1 - p)` als `ln_1p(-p)`. Bei `p = 2^-60`
+/// ist `1 - p` in `f64` genau `1.0`, `(1.0 - p).ln()` also null, und die
+/// Fehlerrate sähe aus wie eins. Gerechnet wird der Aufruf der gespiegelten
+/// Obergrenze nach einem Fehler, `k = n - 1`, also `1 - (1 - p)^n`.
+///
+/// Sollwert ohne den Code unter Test: `n · p = 2^20 · 2^-60 = 2^-40`, und für
+/// kleines `x = n · p` ist `1 - (1 - p)^n = x - x²/2 + …`. Die Korrektur liegt
+/// relativ bei `2^-41`, weit unter der Toleranz von `1e-9`.
+///
+/// So kleine Raten erreicht `gestaffelt` erst bei sehr großem `n`: Die
+/// Bisektion der Obergrenze sucht dort bei `p ≈ a / n`. Auf den Haltepunkten
+/// der übrigen Prüffälle sind `ln_1p(-p)` und `(1.0 - p).ln()` gleichwertig.
+#[test]
+fn eine_winzige_erfolgsrate_wird_nicht_erst_gerundet() {
+    let n = 1u64 << 20;
+    // 2^-60 liegt unter dem halben Abstand von 1.0 zur nächstkleineren Zahl
+    // (2^-54), also ist `1.0 - p` genau 1.0.
+    let p = 0.5f64.powi(60);
+    let soll = 0.5f64.powi(40);
+    let wert = hoechstens_k_fehler(n, n - 1, p);
+    assert!(
+        (wert - soll).abs() <= 1e-9 * soll,
+        "hoechstens_k_fehler(2^20, 2^20 - 1, 2^-60) = {wert:e}, erwartet rund \
+         2^-40 = {soll:e}"
+    );
+    println!("hoechstens_k_fehler(2^20, 2^20 - 1, 2^-60) = {wert:e}, 2^-40 = {soll:e}");
 }
 
 /// **Kontrolle, schon vor der Behebung grün: der Preis der Staffelung.**
