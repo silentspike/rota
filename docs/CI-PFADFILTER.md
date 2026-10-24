@@ -142,6 +142,16 @@ Werkzeuge aus dem Job selbst statt aus einer Liste. Er war schon vor dem neuen
 Schritt rot: `tools/rust-pin.py` läuft im `sim`-Job („Rust-Pin lesen“,
 „Gepinnter Compiler aktiv“) und stand nicht im Muster. Beide stehen jetzt drin.
 
+Dass der Schritt auch angeschlossen bleibt, prüft ein zweiter Fall derselben
+Datei am Schritt selbst: genau einmal im Job (Kommentarzeilen zählen nicht),
+nur die Schlüssel `name`, `id`, `run` und `timeout-minutes`, und genau dieser
+Befehl ohne Zusatz. Seine erste Fassung suchte nur die Befehlszeile und blieb
+grün, als der Schritt auskommentiert, mit `if: false` übersprungen, mit
+`continue-on-error: true` entschärft oder sein Ausgang mit `|| true`
+verschluckt war. Nicht erfasst ist das Abschalten des ganzen `sim`-Jobs: Mit
+`if: false` am Job blieben alle Fälle der Datei grün (gemessen am 2026-10-24),
+und `ci-pass` wertet `skipped` als bestanden.
+
 ## Die Gegenrichtung: wird eine Stufe von nichts ausgelöst?
 
 **Nein.** Jede der zehn Stufen hat einen erreichbaren Auslöser, und für `sim`

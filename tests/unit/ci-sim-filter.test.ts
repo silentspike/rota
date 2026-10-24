@@ -114,17 +114,64 @@ function simJob(): string {
   return abschnitt;
 }
 
+/**
+ * Die Zeilen des `sim`-Jobs, die GitHub ausführt: ohne Kommentarzeilen.
+ *
+ * **Eine Regel für alle Leser dieses Abschnitts.** Ein auskommentierter Schritt
+ * läuft nicht; wer ihn als Text findet, hält ihn für angeschlossen. Bis #892
+ * filterte nur die Werkzeugsuche Kommentare heraus, die Prüfung des Schritts
+ * nicht — und blieb grün, als der Schritt auskommentiert war.
+ */
+function simZeilen(): string[] {
+  return simJob()
+    .split('\n')
+    .filter((zeile) => !/^\s*#/.test(zeile));
+}
+
 /** Die Werkzeuge unter `tools/`, die der `sim`-Job selbst aufruft — Kommentare zählen nicht. */
 function simWerkzeuge(): string[] {
   const gefunden = new Set<string>();
-  for (const zeile of simJob().split('\n')) {
-    if (/^\s*#/.test(zeile)) continue;
+  for (const zeile of simZeilen()) {
     for (const treffer of zeile.matchAll(/\btools\/[\w./-]+\.(?:py|sh|mjs)\b/g)) {
       gefunden.add(treffer[0]);
     }
   }
   return [...gefunden].sort();
 }
+
+/**
+ * Die Schritte des `sim`-Jobs, je als Block ihrer Zeilen: von `- ` bis vor den
+ * nächsten Schritt.
+ *
+ * Text statt YAML-Baum, siehe `simJob()`. Die Schritte stehen mit sechs
+ * Leerzeichen Einzug und `- `, ihre Schlüssel mit acht.
+ */
+function simSchritte(): string[][] {
+  const schritte: string[][] = [];
+  for (const zeile of simZeilen()) {
+    if (zeile.trim() === '') continue;
+    if (/^ {6}- /.test(zeile)) schritte.push([zeile]);
+    else if (schritte.length > 0) schritte[schritte.length - 1]!.push(zeile);
+  }
+  return schritte;
+}
+
+/** Schlüssel und Wert je Schlüsselzeile eines Schritts — tiefer Eingerücktes ist Wert, kein Schlüssel. */
+function schluessel(schritt: string[]): { name: string; wert: string }[] {
+  return schritt.flatMap((zeile) => {
+    const treffer = /^(?: {6}- | {8})([\w-]+):(.*)$/.exec(zeile);
+    return treffer ? [{ name: treffer[1]!, wert: treffer[2]!.trim() }] : [];
+  });
+}
+
+/**
+ * Schlüssel, die einen Schritt weder überspringen noch seinen Ausgang
+ * verschlucken können. **Eine Zulassung, keine Sperrliste:** `if` und
+ * `continue-on-error` schalten ab, eine eigene `shell` kann den Ausgang
+ * verschlucken — und eine Sperrliste fängt nur, woran ihr Verfasser gedacht
+ * hat. Ein neuer Schlüssel, der nichts davon kann, gehört hier dazu.
+ */
+const HARMLOSE_SCHLUESSEL = new Set(['name', 'id', 'run', 'timeout-minutes']);
 
 /** Was die Rust-Quellen per `include_str!` einbinden, als Pfade ab der Wurzel. */
 function eingebundeneDateien(): string[] {
@@ -215,8 +262,53 @@ describe('Der Pfad-Filter der sim-Stufe (#173)', () => {
     // jeder registrierten Analyse — nachgewiesen bei JEDER sim-Änderung mit dem
     // echten Übersetzer, nicht einmal im PR-Text. Ohne diesen Schritt wäre das
     // Werkzeug eine Leitung ohne Anschluss.
-    expect(simJob()).toMatch(
-      /run: python3 -B tools\/wirkung-baubruch-gegenprobe\.py --befehl cargo\b/,
+    //
+    // **Angeschlossen heißt: Er läuft, und sein Scheitern bricht den Job.** Ein
+    // Text im Abschnitt belegt das nicht. Die erste Fassung dieses Falls suchte
+    // nur die Befehlszeile und blieb grün, als der Schritt auskommentiert, mit
+    // `if: false` übersprungen, mit `continue-on-error: true` entschärft oder
+    // sein Ausgang mit `|| true` verschluckt war (gemessen bei der Prüfung von
+    // PR #1136). Ein Abschalten des GANZEN Jobs fängt dieser Fall nicht: Es
+    // träfe jeden Schritt der Stufe gleich.
+    const NAME = 'Wirkungs-Baubruch-Gegenprobe';
+    const BEFEHL = 'python3 -B tools/wirkung-baubruch-gegenprobe.py --befehl cargo';
+    const schritte = simSchritte();
+    // **Zusicherung in den Datensatz.** Zerlegte die Suche den Job falsch, fände
+    // sie den Schritt nicht und meldete „fehlt“ statt „falsch gelesen“.
+    expect(
+      schritte.filter((s) =>
+        schluessel(s).some((k) => k.name === 'run' && k.wert === 'cargo test'),
+      ),
+      'die Zerlegung in Schritte findet nicht einmal `run: cargo test` — dann liest sie den Job falsch',
+    ).toHaveLength(1);
+
+    const treffer = schritte.filter((s) =>
+      schluessel(s).some((k) => k.name === 'name' && k.wert === NAME),
     );
+    expect(
+      treffer.length,
+      `im sim-Job steht der Schritt „${NAME}“ ${treffer.length}-mal (Kommentarzeilen nicht ` +
+        'mitgezählt), erwartet genau einmal — auskommentiert läuft er nicht, und bei zweien ' +
+        'belegt dieser Fall nicht, welcher läuft',
+    ).toBe(1);
+    const schritt = schluessel(treffer[0]!);
+
+    const unzulaessig = schritt.map((k) => k.name).filter((k) => !HARMLOSE_SCHLUESSEL.has(k));
+    expect(
+      unzulaessig,
+      `„${NAME}“ trägt Schlüssel außerhalb der Zulassung — \`if\` und \`continue-on-error\` ` +
+        'schalten ihn ab, `shell` kann sein Scheitern verschlucken; zugelassen sind nur ' +
+        `${[...HARMLOSE_SCHLUESSEL].join(', ')}. Ein Schlüssel, der nichts davon kann, gehört ` +
+        'in HARMLOSE_SCHLUESSEL',
+    ).toEqual([]);
+
+    // Der Wert verankert bis zum Zeilenende: `… --befehl cargo || true` ist ein
+    // anderer Befehl, und ein Block-Skalar (`run: |`) könnte einen solchen Zusatz tragen.
+    const befehle = schritt.filter((k) => k.name === 'run').map((k) => k.wert);
+    expect(
+      befehle,
+      `„${NAME}“ muss genau \`${BEFEHL}\` ausführen, als eine Zeile ohne Zusatz — ` +
+        `gefunden: ${JSON.stringify(befehle)}`,
+    ).toEqual([BEFEHL]);
   });
 });
