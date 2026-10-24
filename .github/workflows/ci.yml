@@ -345,7 +345,9 @@ jobs:
       # Mutation, die nur ihn offen lässt, und eine Gegenprobe der Gegenprobe
       # mit Auffangzweig. Der Arbeitsbaum bleibt unberührt (SHA-256-Rücklesung).
       # Exit 1 ist ein Befund, Exit 2 heißt „nicht gelaufen“ — beides bricht die
-      # Stufe.
+      # Stufe. Darum hat der Schritt kein `if:`, kein `continue-on-error:`, keine
+      # eigene `shell:` und keinen Zusatz hinter dem Befehl; das prüft
+      # tests/unit/ci-sim-filter.test.ts am Schritt selbst.
       - name: Wirkungs-Baubruch-Gegenprobe
         run: python3 -B tools/wirkung-baubruch-gegenprobe.py --befehl cargo
 
