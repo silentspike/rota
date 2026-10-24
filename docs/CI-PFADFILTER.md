@@ -11,7 +11,9 @@ affects: [.github/workflows]
 
 Erhoben am 2026-08-22 für Issue #1100, AC4. Am 2026-09-06 um die
 Python-Prüfung und die isolierten Gegenproben im stets laufenden `lint`-Job
-ergänzt. Der Prüfvertrag steht in [PYTHON-WERKZEUGE.md](PYTHON-WERKZEUGE.md).
+ergänzt. Am 2026-10-24 für Epic #892 um die Werkzeuge ergänzt, die der
+`sim`-Job selbst fährt (Befund 4). Der Prüfvertrag steht in
+[PYTHON-WERKZEUGE.md](PYTHON-WERKZEUGE.md).
 
 > ### ⚠ Die Tabelle unten ist ein DATUM. Der Ist-Stand steht in einem Befehl
 >
@@ -29,11 +31,11 @@ ergänzt. Der Prüfvertrag steht in [PYTHON-WERKZEUGE.md](PYTHON-WERKZEUGE.md).
 `ci.yml` kennt drei Ausgänge, aber nur **zwei** Muster: `rules` ist wörtlich
 dasselbe wie `code`.
 
-| Ausgang | Muster                                                                                              |
-| ------- | --------------------------------------------------------------------------------------------------- |
-| `code`  | alles, was **nicht** auf `^(docs/\|.*\.md)$` passt                                                  |
-| `sim`   | `^(sim/\|data/\|tests/parity/recordings/\|Cargo\.toml$\|Cargo\.lock$\|\.github/workflows/ci\.yml$)` |
-| `rules` | dasselbe wie `code`                                                                                 |
+| Ausgang | Muster                                                                                                                                                                                  |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `code`  | alles, was **nicht** auf `^(docs/\|.*\.md)$` passt                                                                                                                                      |
+| `sim`   | `^(sim/\|data/\|tests/parity/recordings/\|Cargo\.toml$\|Cargo\.lock$\|rust-toolchain\.toml$\|\.github/workflows/ci\.yml$\|tools/rust-pin\.py$\|tools/wirkung-baubruch-gegenprobe\.py$)` |
+| `rules` | dasselbe wie `code`                                                                                                                                                                     |
 
 ## Die Stufen und ihre Bedingung
 
@@ -69,7 +71,10 @@ der dazu geführt hat (PR #75).
 | `sim/build.rs`                            | true     | true  | + sim                       |
 | `data/spells/calcination.json`            | true     | true  | + sim                       |
 | `Cargo.toml`                              | true     | true  | + sim                       |
+| `rust-toolchain.toml`                     | true     | true  | + sim                       |
 | **`tools/*.py`**                          | true     | false | typecheck unit build parity |
+| `tools/rust-pin.py`                       | true     | true  | + sim                       |
+| `tools/wirkung-baubruch-gegenprobe.py`    | true     | true  | + sim                       |
 | `.github/workflows/ci.yml`                | true     | true  | + sim                       |
 | **`.github/workflows/nightly.yml`**       | true     | false | typecheck unit build parity |
 | `package.json`                            | true     | false | typecheck unit build parity |
@@ -124,12 +129,35 @@ ausführlich: Ohne das ändert jemand den Testbefehl, die Stufe läuft nicht, un
 Das ist eine kleinere Klasse als bei `ci.yml`, wo die Definition der PR-Prüfung
 selbst betroffen war — aber dieselbe Form.
 
+### 4. Werkzeuge, die der `sim`-Job selbst fährt, gehören ins Muster
+
+Dieselbe Klasse wie `ci.yml` im Muster, eine Ebene tiefer: Ein Werkzeug, das
+der `sim`-Job ausführt, ist Teil der Prüfung. Fällt es durch den Filter, ändert
+jemand die Prüfung, die Stufe läuft nicht, und `ci-pass` meldet grün.
+
+Seit dem 2026-10-24 fährt der `sim`-Job als letzten Schritt
+`python3 -B tools/wirkung-baubruch-gegenprobe.py --befehl cargo` (#892). Der
+Fall in `tests/unit/ci-sim-filter.test.ts`, der dafür dazukam, liest die
+Werkzeuge aus dem Job selbst statt aus einer Liste. Er war schon vor dem neuen
+Schritt rot: `tools/rust-pin.py` läuft im `sim`-Job („Rust-Pin lesen“,
+„Gepinnter Compiler aktiv“) und stand nicht im Muster. Beide stehen jetzt drin.
+
+Dass der Schritt auch angeschlossen bleibt, prüft ein zweiter Fall derselben
+Datei am Schritt selbst: genau einmal im Job (Kommentarzeilen zählen nicht),
+nur die Schlüssel `name`, `id`, `run` und `timeout-minutes`, und genau dieser
+Befehl ohne Zusatz. Seine erste Fassung suchte nur die Befehlszeile und blieb
+grün, als der Schritt auskommentiert, mit `if: false` übersprungen, mit
+`continue-on-error: true` entschärft oder sein Ausgang mit `|| true`
+verschluckt war. Nicht erfasst ist das Abschalten des ganzen `sim`-Jobs: Mit
+`if: false` am Job blieben alle Fälle der Datei grün (gemessen am 2026-10-24),
+und `ci-pass` wertet `skipped` als bestanden.
+
 ## Die Gegenrichtung: wird eine Stufe von nichts ausgelöst?
 
 **Nein.** Jede der zehn Stufen hat einen erreichbaren Auslöser, und für `sim`
-sind es sechs Pfadmuster. Eine Stufe, die nie läuft, sähe in der Übersicht aus
-wie eine, die immer grün ist — die Frage gehört deshalb gestellt, auch wenn die
-Antwort hier beruhigend ist.
+sind es seit dem 2026-10-24 neun Pfadmuster. Eine Stufe, die nie läuft, sähe in
+der Übersicht aus wie eine, die immer grün ist — die Frage gehört deshalb
+gestellt, auch wenn die Antwort hier beruhigend ist.
 
 Die zusätzlichen TypeScript-Jobs laufen bei einer reinen `tools/*.py`-Änderung
 weiterhin. Die Python-Änderung selbst ist jetzt durch die Werkzeugprüfung in
