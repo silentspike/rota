@@ -32,10 +32,19 @@
 //! [`die_echten_signaturen_sind_deklariert_und_fallen_nicht_im_ganzen_zurueck`].
 //! Laut `sim/build.rs` (`knoten_fuer_boss`) fehlt sogar beides.
 //!
-//! Weg b verlangt dafür den Nachweis an jeder Stelle, die den Wert LIEST: Dort
-//! muss „unbekannt“ den konservativen Ausgang erzwingen. Welche Analysen ihn
-//! lesen, wird gemessen und nicht aufgezählt
+//! Weg b verlangt dafür den Nachweis an jeder Stelle, die den Wert LIEST. Welche
+//! Analysen ihn lesen, wird gemessen und nicht aufgezählt
 //! ([`jeder_gemessene_leser_von_wertebereich_und_monotonie_ist_hier_geprueft`]).
+//! Was „unbekannt“ dort bewirkt, ist nicht überall dasselbe:
+//!
+//! - **Konservativer Ausgang:** `action-bound` für Bausteine mit Zusatz-Aktionen
+//!   (ohne Bereich keine Obergrenze) und `monotonicity` (ohne vollständigen
+//!   Hinweis kein Erlauben).
+//! - **Unverändert weitergereicht:** `kernel-choice` und `action-bound` beim
+//!   Wirken urteilen nicht über den Bereich. Sie geben ihn als Angabe weiter,
+//!   ohne eine Schranke zu erfinden, und ihr Urteil bleibt dasselbe wie mit
+//!   bekanntem Bereich. Ob es vom Bereich abhängen soll, ist eine offene
+//!   Designfrage; festgenagelt ist hier der Ist-Zustand, nicht eine Entscheidung.
 //!
 //! # Gemessen am 2026-10-24, als Mutation (`/work/tmp`, nicht eingecheckt)
 //!
@@ -662,7 +671,8 @@ fn jeder_gemessene_leser_von_wertebereich_und_monotonie_ist_hier_geprueft() {
     leser_monotonie.sort_unstable();
     assert!(
         verstoesse.is_empty(),
-        "Unbekannt führt an diesen Lesern nicht zum konservativen Ausgang: {verstoesse:?}"
+        "Unbekannt macht diese Leser schneller als bekannt, erfindet eine Schranke oder erlaubt \
+         ohne Hinweis: {verstoesse:?}"
     );
     assert_eq!(
         leser_bereich, GEPRUEFTE_LESER_WERTEBEREICH,
