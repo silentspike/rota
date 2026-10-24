@@ -42,6 +42,8 @@ use crate::data::{Boss, BOSS};
 use crate::factors::{DamageFactors, NEUTRAL};
 use crate::fight::{Fight, FightConfig};
 use crate::gear::WornValues;
+use crate::objective::{Outcome, WinCondition};
+use crate::stichprobe::{gestaffelt, Befund};
 use crate::time::Millis;
 
 /// Einstellungen eines Balance-Laufs.
@@ -890,8 +892,44 @@ fn run_range(
     len: u32,
     control: Option<&crate::drosselung::RuntimeControl>,
 ) -> (Vec<Sample>, [u32; crate::data::SPELL_COUNT], u32) {
-    let mut fight = Fight::new(FightConfig {
-        seed: config.base_seed.wrapping_add(offset),
+    let mut fight = Fight::new(kampf_konfiguration(
+        config,
+        config.base_seed.wrapping_add(offset),
+    ));
+
+    let mut out = Vec::with_capacity(len as usize);
+    // **Die Cast-Zahlen lagen schon vor** (Issue #525): `RunResult.casts`
+    // fuehrt sie je Zauber, der Laeufer hat sie bisher weggeworfen. Ohne sie
+    // brauchte jede Zauber-Messung eine isolierende Rotation (#517, #523).
+    let mut casts = [0u32; crate::data::SPELL_COUNT];
+    // **Wie oft ueberhaupt gewuerfelt wurde** (Issue #908). Der Laeufer hat die
+    // Zahl bisher weggeworfen; sie ist die Nachpruefung fuer den reduzierten
+    // Pfad in [`run`] — nicht der Beleg, dass die Ableitung richtig gerechnet
+    // hat, sondern der, dass ihre Voraussetzung wirklich galt.
+    let mut wuerfe = 0u32;
+    for index in 0..len {
+        let _permit = control.map(crate::drosselung::RuntimeControl::acquire);
+        let seed = config.base_seed.wrapping_add(offset + index);
+        fight.reset(seed);
+        let result = fight.run_apl(apl);
+        wuerfe += result.random_draws;
+        for (i, n) in result.casts.iter().enumerate() {
+            casts[i] += *n;
+        }
+        out.push(probe_aus(&fight, seed, &result));
+    }
+    (out, casts, wuerfe)
+}
+
+/// Die Kampfkonfiguration eines Balance-Laufs für einen Startwert.
+///
+/// **Eine Stelle für beide Läufer.** [`run_range`] und [`run_gestaffelt`] bauen
+/// ihren Kampf hier; stünde das Literal zweimal da, liefe ein neues Feld nur in
+/// einen der beiden durch, und die Stichprobe mäße einen anderen Kampf als der
+/// Balance-Lauf daneben.
+fn kampf_konfiguration(config: &BalanceConfig, seed: u32) -> FightConfig {
+    FightConfig {
+        seed,
         duration_ms: config.duration_ms,
         stop_on_kill: config.stop_on_kill,
         factors: config.factors,
@@ -964,40 +1002,295 @@ fn run_range(
         sealed_vessel: false,
         long_grip: false,
         perpetual_draft: false,
-    });
+    }
+}
 
-    let mut out = Vec::with_capacity(len as usize);
-    // **Die Cast-Zahlen lagen schon vor** (Issue #525): `RunResult.casts`
-    // fuehrt sie je Zauber, der Laeufer hat sie bisher weggeworfen. Ohne sie
-    // brauchte jede Zauber-Messung eine isolierende Rotation (#517, #523).
-    let mut casts = [0u32; crate::data::SPELL_COUNT];
-    // **Wie oft ueberhaupt gewuerfelt wurde** (Issue #908). Der Laeufer hat die
-    // Zahl bisher weggeworfen; sie ist die Nachpruefung fuer den reduzierten
-    // Pfad in [`run`] — nicht der Beleg, dass die Ableitung richtig gerechnet
-    // hat, sondern der, dass ihre Voraussetzung wirklich galt.
-    let mut wuerfe = 0u32;
-    for index in 0..len {
-        let _permit = control.map(crate::drosselung::RuntimeControl::acquire);
-        let seed = config.base_seed.wrapping_add(offset + index);
+/// Ein Durchgang als [`Sample`], gelesen aus dem Kampf direkt nach seinem Lauf.
+fn probe_aus(fight: &Fight, seed: u32, result: &crate::fight::RunResult) -> Sample {
+    Sample {
+        seed,
+        damage: result.damage,
+        killed_at_ms: result.killed_at_ms,
+        damage_taken: fight.damage_taken(),
+        absorbed: fight.shield_absorbed(),
+        healed: fight.healed(),
+        boss_healed: fight.boss_healed(),
+        died: fight.player_dead(),
+        died_at_ms: fight.died_at_ms(),
+    }
+}
+
+// ------------------------------------------------ Durchgangssteuerung (#915)
+
+/// Welcher Weg die Zahl der Durchgänge bestimmt (Issue #915, AC3).
+///
+/// # Vorerst genau zwei Wege
+///
+/// | Weg | wann | Kämpfe |
+/// | --- | --- | --- |
+/// | [`Durchgangswahl::EinDurchgang`] | kein Strom zieht ([`crate::durchgaenge::ein_durchgang_genuegt`]) | genau einer |
+/// | [`Durchgangswahl::Gestaffelt`] | sonst | bis die Schwelle sicher über- oder unterschritten ist, höchstens das Budget |
+///
+/// **Die Verteilungs-DP und der analytische Krit sind NICHT Teil der Wahl.**
+/// Beide wären schneller, und beide setzen voraus, dass der Krit den
+/// Kontrollfluss des Kampfes nicht berührt — bei einem Boss mit
+/// Lebenspunkt-Phasen kann er es (#915, AC2). Woran die Durchgangssteuerung
+/// das erkennt, ist noch nicht entschieden. Bis dahin läuft alles, was
+/// würfelt, über die Stichprobe: langsamer, aber ohne eine Voraussetzung, die
+/// niemand geprüft hat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Durchgangswahl {
+    /// Kein Strom zieht: Ein Kampf ist die ganze Verteilung, sein Ausgang ist
+    /// exakt.
+    EinDurchgang,
+    /// Es wird gewürfelt: die gestaffelte Stichprobe aus [`crate::stichprobe`].
+    Gestaffelt,
+}
+
+impl Durchgangswahl {
+    /// Die Wahl für diese Konfiguration — abgeleitet aus der Beschreibung und
+    /// der getragenen Ausrüstung, nicht aus einer Bossliste.
+    #[must_use]
+    pub fn fuer(config: &BalanceConfig) -> Self {
+        if crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn) {
+            Self::EinDurchgang
+        } else {
+            Self::Gestaffelt
+        }
+    }
+}
+
+/// Mehr verschiedene Startwerte hat ein Lauf nicht: `BalanceConfig::base_seed`
+/// ist ein `u32`, Versuch `i` rechnet mit `base_seed + i`.
+///
+/// Ein größeres Budget würde Kämpfe **wiederholen** und sie als unabhängige
+/// Versuche zählen. Das ist keine feste Obergrenze der Stichprobe, sondern die
+/// Grenze dessen, was dieser Läufer überhaupt unterscheiden kann.
+pub const STARTWERTE: u64 = 1 << 32;
+
+/// Die Vorgabe einer gestaffelten Stichprobe (Issue #915, AC3).
+///
+/// # Keine Voreinstellung, mit Absicht
+///
+/// Eine voreingestellte Schwelle wäre eine Balance-Entscheidung, die niemand
+/// getroffen hat, und ein voreingestelltes Budget genau die feste Obergrenze,
+/// die das Issue verbietet — „auch nicht als Voreinstellung". Deshalb gibt es
+/// kein `Default`, und alle drei Felder muss der Aufrufer nennen.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Staffelung {
+    /// Die geforderte **Siegwahrscheinlichkeit**, echt zwischen 0 und 1.
+    ///
+    /// Gezählt wird der Sieg wie im Zielvertrag ([`crate::objective::Outcome::of`]),
+    /// also mit umgekehrtem Ziel bei einem Boss mit `runaway`. Der Zielvertrag
+    /// misst „Überleben" als Siegwahrscheinlichkeit; einen Mechanikerfolg gibt
+    /// der Kampf heute nicht heraus.
+    pub schwelle: f64,
+    /// Die Irrtumswahrscheinlichkeit über **alle** Haltepunkte zusammen, echt
+    /// zwischen 0 und 1. Die Aufteilung macht [`crate::stichprobe::gestaffelt`].
+    pub alpha: f64,
+    /// Höchstens so viele Kämpfe — eine Grenze der Kosten, keine
+    /// Stichprobengröße. Wird sie erreicht, ohne dass eine Seite sicher ist,
+    /// lautet der Befund `Ungeklaert`, nicht eine Zahl.
+    pub budget: u64,
+}
+
+impl Staffelung {
+    /// Prüft die Vorgabe, bevor ein Kampf startet.
+    ///
+    /// # Errors
+    ///
+    /// Der erste unzulässige Wert, als [`Staffelungsfehler`].
+    pub fn pruefe(&self) -> Result<(), Staffelungsfehler> {
+        // `!(0 < x < 1)` statt `x <= 0 || x >= 1`: Ein NaN fällt so ebenfalls
+        // heraus — beide Vergleiche wären für NaN falsch und ließen es durch.
+        if !(self.schwelle > 0.0 && self.schwelle < 1.0) {
+            return Err(Staffelungsfehler::Schwelle(self.schwelle));
+        }
+        if !(self.alpha > 0.0 && self.alpha < 1.0) {
+            return Err(Staffelungsfehler::Alpha(self.alpha));
+        }
+        if self.budget == 0 {
+            return Err(Staffelungsfehler::BudgetNull);
+        }
+        if self.budget > STARTWERTE {
+            return Err(Staffelungsfehler::BudgetUeberStartwerten(self.budget));
+        }
+        Ok(())
+    }
+}
+
+/// Warum eine [`Staffelung`] nicht gefahren wird.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Staffelungsfehler {
+    /// Die Schwelle liegt nicht echt zwischen 0 und 1.
+    ///
+    /// Auch 1 selbst nicht: Eine Siegwahrscheinlichkeit von genau 1 lässt sich
+    /// mit einer Stichprobe nie belegen; ohne einen Fehler liefe die Folge bis
+    /// zum Budget.
+    Schwelle(f64),
+    /// `alpha` liegt nicht echt zwischen 0 und 1.
+    Alpha(f64),
+    /// Ein Budget von null Kämpfen misst nichts.
+    BudgetNull,
+    /// Das Budget übersteigt [`STARTWERTE`].
+    BudgetUeberStartwerten(u64),
+}
+
+impl std::fmt::Display for Staffelungsfehler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Schwelle(wert) => write!(
+                f,
+                "Die Schwelle muss echt zwischen 0 und 1 liegen, bekommen: {wert}. \
+                 Eine Siegwahrscheinlichkeit von genau 1 belegt keine Stichprobe."
+            ),
+            Self::Alpha(wert) => write!(
+                f,
+                "alpha muss echt zwischen 0 und 1 liegen, bekommen: {wert}."
+            ),
+            Self::BudgetNull => write!(f, "Ein Budget von null Kaempfen misst nichts."),
+            Self::BudgetUeberStartwerten(wert) => write!(
+                f,
+                "Das Budget {wert} uebersteigt die {STARTWERTE} verschiedenen \
+                 Startwerte; mehr Versuche wiederholten Kaempfe."
+            ),
+        }
+    }
+}
+
+/// Das Ergebnis eines Laufs mit Durchgangssteuerung.
+///
+/// **Die Zahl der Versuche steht immer da**, auch beim Befund `Erfuellt`: AC3
+/// verlangt, dass ein Bericht nennt, wie viele Versuche die Sicherheit
+/// tatsächlich gekostet hat — nicht nur, dass sie erreicht wurde.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GestaffelterLauf {
+    /// Welcher Weg gewählt wurde.
+    pub wahl: Durchgangswahl,
+    /// Die Vorgabe, mit der gerechnet wurde.
+    pub staffelung: Staffelung,
+    /// Der Befund zur Schwelle, mit seiner Versuchszahl.
+    pub befund: Befund,
+    /// Wie viele Kämpfe gerechnet wurden — **gezählt**, nicht aus dem Befund
+    /// übernommen. Die beiden müssen übereinstimmen; ein Prüffall hält das fest.
+    pub kaempfe: u64,
+    /// Wie viele davon gewonnen wurden.
+    pub siege: u64,
+    /// Wie oft insgesamt gewürfelt wurde.
+    ///
+    /// Beim Weg [`Durchgangswahl::EinDurchgang`] ist das die Nachprüfung der
+    /// Wahl (Auflage 2): Es muss null sein, sonst bricht der Lauf ab.
+    pub wuerfe: u64,
+    /// Der Schaden aller Kämpfe zusammen.
+    ///
+    /// Für den Mittelwert je Kampf — und als Abgleich: Er streut mit dem Krit,
+    /// hängt also am Startwert. Ein Prüffall vergleicht ihn mit dem festen Lauf
+    /// auf denselben Startwerten; Siegzahl und Befund allein fingen einen
+    /// verschobenen Startwert nicht, weil fast alle Kämpfe gleich ausgehen.
+    pub schaden: u64,
+}
+
+/// Fährt einen Balance-Lauf mit Durchgangssteuerung (Issue #915, AC3).
+///
+/// Die Wahl kommt aus [`Durchgangswahl::fuer`]. Beim Weg
+/// [`Durchgangswahl::EinDurchgang`] wird **ein** Kampf gerechnet, und sein
+/// Ausgang ist exakt: gewonnen heißt Siegwahrscheinlichkeit 1, also
+/// `Erfuellt` nach einem Versuch, verloren heißt 0, also `Verfehlt`. Beim Weg
+/// [`Durchgangswahl::Gestaffelt`] läuft [`gestaffelt`], ein Kampf je Versuch,
+/// Versuch `i` mit dem Startwert `base_seed + i` — dieselben Startwerte wie
+/// [`run`], also dieselben Kämpfe wie ein fester Lauf derselben Länge.
+///
+/// # Speicher
+///
+/// **Konstant, unabhängig vom Budget.** Es gibt einen Kampf, der je Versuch
+/// zurückgesetzt wird, und vier Zähler; kein Einzelergebnis wird aufgehoben.
+/// Das ist die Speichergrenze, die das Issue für Läufe ohne feste
+/// Versuchszahl verlangt: Sie folgt aus dem Aufbau, nicht aus einer Zahl, die
+/// jemand richtig wählen müsste.
+///
+/// # Ein Strang
+///
+/// `config.threads` wird nicht gelesen. Die Haltepunkte prüfen in fester
+/// Reihenfolge, und jeder Versuch hängt allein an seinem Startwert — ein
+/// paralleler Lauf wäre möglich, ist aber nicht gebaut.
+///
+/// # Errors
+///
+/// [`Staffelungsfehler`], wenn die Vorgabe unzulässig ist. Geprüft wird, bevor
+/// ein Kampf startet.
+///
+/// # Panics
+///
+/// Wenn der Weg [`Durchgangswahl::EinDurchgang`] gewählt war und der Kampf
+/// trotzdem gewürfelt hat — dann passt die abgeleitete Quellenmaske nicht zum
+/// Lauf, wie in [`run`].
+pub fn run_gestaffelt(
+    config: &BalanceConfig,
+    apl: &Apl,
+    staffelung: Staffelung,
+) -> Result<GestaffelterLauf, Staffelungsfehler> {
+    staffelung.pruefe()?;
+    let wahl = Durchgangswahl::fuer(config);
+    let bedingung = WinCondition::of(config.boss);
+    let mut fight = Fight::new(kampf_konfiguration(config, config.base_seed));
+    let mut kaempfe = 0u64;
+    let mut siege = 0u64;
+    let mut wuerfe = 0u64;
+    let mut schaden = 0u64;
+    let mut versuch = |i: u64| -> bool {
+        // `pruefe` hat `budget <= STARTWERTE` sichergestellt, also passt jeder
+        // Index in ein `u32`.
+        let index = u32::try_from(i).expect("das Budget ist auf STARTWERTE begrenzt");
+        let seed = config.base_seed.wrapping_add(index);
         fight.reset(seed);
         let result = fight.run_apl(apl);
-        wuerfe += result.random_draws;
-        for (i, n) in result.casts.iter().enumerate() {
-            casts[i] += *n;
+        let sieg = Outcome::of(&probe_aus(&fight, seed, &result), bedingung).is_win();
+        kaempfe += 1;
+        siege += u64::from(sieg);
+        wuerfe += u64::from(result.random_draws);
+        schaden += u64::from(result.damage);
+        sieg
+    };
+
+    let befund = match wahl {
+        Durchgangswahl::EinDurchgang => {
+            let sieg = versuch(0);
+            // Exakt, nicht geschätzt: Die Schwelle liegt echt zwischen 0 und 1,
+            // also ist eine Siegwahrscheinlichkeit von 1 sicher darüber und
+            // eine von 0 sicher darunter — nach einem Versuch.
+            if sieg {
+                Befund::Erfuellt { versuche: 1 }
+            } else {
+                Befund::Verfehlt { versuche: 1 }
+            }
         }
-        out.push(Sample {
-            seed,
-            damage: result.damage,
-            killed_at_ms: result.killed_at_ms,
-            damage_taken: fight.damage_taken(),
-            absorbed: fight.shield_absorbed(),
-            healed: fight.healed(),
-            boss_healed: fight.boss_healed(),
-            died: fight.player_dead(),
-            died_at_ms: fight.died_at_ms(),
-        });
+        Durchgangswahl::Gestaffelt => gestaffelt(
+            staffelung.schwelle,
+            staffelung.alpha,
+            staffelung.budget,
+            &mut versuch,
+        ),
+    };
+
+    if wahl == Durchgangswahl::EinDurchgang {
+        // **Die Wahl wird nachgeprüft, nicht geglaubt** (Auflage 2), mit
+        // derselben Begründung wie im reduzierten Pfad von `run`.
+        assert_eq!(
+            wuerfe, 0,
+            "ein Durchgang war gewählt, aber es wurde {wuerfe}-mal gezogen — \
+             die abgeleitete Quellenmaske passt nicht zum Lauf"
+        );
     }
-    (out, casts, wuerfe)
+
+    Ok(GestaffelterLauf {
+        wahl,
+        staffelung,
+        befund,
+        kaempfe,
+        siege,
+        wuerfe,
+        schaden,
+    })
 }
 
 #[cfg(test)]
