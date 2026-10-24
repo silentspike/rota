@@ -10,13 +10,14 @@ affects:
 
 # Strikte APL-Vergleiche: Fassung B auf dem 10-ms-Takt (#1027)
 
-Gemessen am 24. Oktober 2026 auf `23d7c13fba470ee1d6a677bfdd64d042f05724f6`, am selben Tag nach
-Abnahme und Wirkungsprüfung nachgebessert. Auftrag ist die Antwort `f-apl-strikte-vergleiche-2` vom
-22.08.: „Erst den Vorher-Nachher-Lauf, dann entscheiden". **Eine Messung, keine Semantikänderung.**
-Fassung B lag nur als Wegwerf-Patch im Arbeitsbaum und ist nicht eingecheckt. `sim/src/apl/mod.rs` hat
-im Bestand den SHA-256 `377742d1…`; dieser Zweig ergänzt darin nur Kommentarzeilen (`77388248…`,
-siehe [Woher der Verzug kommt](#woher-der-verzug-kommt)). Vor und nach jedem Lauf mit B, M oder M2
-steht die Datei wieder auf dem Stand dieses Zweigs, per SHA-256 geprüft.
+Gemessen am 24. Oktober 2026 auf `23d7c13fba470ee1d6a677bfdd64d042f05724f6`, am selben Tag zweimal
+nachgebessert: nach Abnahme und Wirkungsprüfung, dann nach einer zweiten Wirkungsprüfung. Auftrag ist
+die Antwort `f-apl-strikte-vergleiche-2` vom 22.08.: „Erst den Vorher-Nachher-Lauf, dann entscheiden".
+**Eine Messung, keine Semantikänderung.** Fassung B lag nur als Wegwerf-Patch im Arbeitsbaum und ist
+nicht eingecheckt. `sim/src/apl/mod.rs` hat im Bestand den SHA-256 `377742d1…`; dieser Zweig ergänzt
+darin nur Kommentarzeilen (`77388248…`, siehe [Woher der Verzug kommt](#woher-der-verzug-kommt)). Vor
+und nach jedem Lauf mit B, M, M2 oder MT steht die Datei wieder auf dem Stand dieses Zweigs, per
+SHA-256 geprüft.
 
 Gegenüber dem Versuch vom 06.09. ([APL-STRICT-COMPARISON-2026-09-06.md](APL-STRICT-COMPARISON-2026-09-06.md))
 ändert sich zweierlei: Fassung B weckt auf dem **10-ms-Takt** statt auf der Millisekunde, und
@@ -27,6 +28,13 @@ GCD-freien Zug auf alle vollen Rotationen geschlossen. Dazu kommen ein Wächter 
 `dot.*.remains` und drei Gegenproben im Messprogramm: die Suche mit `<=` in den Nachlegezeilen, die
 Nachlegezeilen neben einem GCD-freien Zug gegen die Takt-Referenz und die Wurfreihe jeder gefundenen
 Liste unter beiden Fassungen.
+
+**Die zweite Nachbesserung** misst den Weg jeder Suche Schritt für Schritt und an der ersten Gabelung
+zwischen A und B beide Listen gegen die Takt-Referenz über den ganzen Kampf (siehe
+[Am Weg der Suche](#am-weg-der-suche)). Sie berichtigt die Zuordnung der ersten Nachbesserung: Die
+folgenreichste Verschiebung, die der AC5-Suche, entsteht nicht neben einem GCD-freien Zug, sondern an
+einer Liste ohne Füller — und dort trifft B die Takt-Referenz, A nicht. Dazu kommt die Mutation MT
+(`Value::Time => None`).
 
 ## Ergebnis
 
@@ -51,15 +59,25 @@ Liste unter beiden Fassungen.
   (`ac5_die_suche_waehlt_fixation_wenn_der_schlag_unabwendbar_ist`), 1 ignoriert. Die gefundene
   Liste ist zeilengleich mit der „Experiment"-Liste des 1-ms-Versuchs vom 06.09. Dieselbe A-Liste
   wendet den Schlag auch unter B ab (18.950 unverändert) — die gierige Suche erreicht sie nur nicht
-  mehr.
+  mehr. **Ihr Weg trennt sich in Schritt 3, an einer Liste ohne Füller und ohne GCD-freien Zug:**
+  `searing if dot.searing.remains < 1500`, `plate`, `crust` zählt unter A 4740, unter B 4560, und B
+  trifft dort die Takt-Referenz (dieselben Würfe, derselbe Wert), A nicht. Unter B gewinnt stattdessen
+  `kindle` am Ende (4700); der Weg endet bei Länge 8, ohne Platz für die Dreiergruppe.
 - **Nebenfrage `GCD_MS`: weder folgenlos noch überall.** Die Nachlegezeilen `< 1500` sind die
   einzige Stelle, an der B die Suche überhaupt verschiebt. Mit Füller und ohne GCD-freien Zug wirken
-  sie nicht (4 von 4 Bränden, 0 von 1764 Bestandsläufen); ohne Füller legt B einen Takt nach dem
-  Umschlag nach, und SEARING verliert einen Tick (1260 → 1170 Schaden in 30 s). In den Suchen wirken
-  sie neben einem GCD-freien Wurf — QUENCH, oder der Wurf, den SUBLIME befreit —, der auf das GCD-Ende
-  fällt, an dem eine Nachlegezeile genau auf 1500 steht: B entscheidet einen Takt später neu, A erst am
-  nächsten fremden Ereignis, 400 bis 1000 ms später. So beginnen alle 7 A-Listen, die unter B anders
-  zählen.
+  sie nicht (4 von 4 Bränden, 0 von 1764 Bestandsläufen, 0 von 43.006 Nachbarn der gefundenen
+  Listen). Sie wirken in zwei Lagen. **Ohne Füller** wartet die Rotation am Umschlag; B legt einen
+  Takt danach nach, wie die Takt-Referenz, A erst am Ablauf — an `first-crucible` verliert SEARING
+  dabei einen Tick (1260 → 1170 Schaden in 30 s), und genau so trennt sich der Weg der AC5-Suche.
+  **Neben einem GCD-freien Wurf** — QUENCH, oder der Wurf, den SUBLIME befreit —, nach dem eine
+  Nachlegezeile umschlägt, entscheidet B einen Takt später neu, A erst am nächsten fremden Ereignis,
+  400 bis 1500 ms später. So trennen sich die Wege der übrigen 14 Suchen, und so beginnen alle 7
+  A-Listen, die unter B anders zählen.
+- **Wer an den Gabelungen recht hat:** An den 15 Gabelungen ändert sich der Wert von 18 Listen. Über
+  den ganzen Kampf gegen die Takt-Referenz gefahren, trifft A sie in **keiner** davon, B in **6** (die
+  AC5-Liste und 5 mit GCD-freiem Zug), in 12 keine der beiden. Von den beiden Listen einer Gabelung
+  bewertet die Takt-Referenz in 10 der 15 die höher, die B wählt, in 4 die, die A wählt, in einer beide
+  gleich.
 - **Dahinter liegt ein Befund, der nicht an A oder B hängt:** Nach einem GCD-freien Wurf entscheidet
   der Simulator erst am nächsten Ereignis oder Weckruf neu, die Takt-Referenz einen Takt später.
   `quench` vor dem Füller an `first-crucible`: Füller bei 2000 statt bei 10, 1400 statt 2000 Schaden
@@ -225,8 +243,13 @@ SHA-256 `3680b9c5…`). Im Text unten hat prettier die Leerzeichen der leeren Ko
 
 Für die offene Frage aus `apl_strikte_vergleiche.rs` lief zusätzlich die **Mutation M**: der Versuch
 vom 22.08., `Value::BossNextStrikeIn => None` (Patch-SHA-256 `49f3e394…`, ergibt `7e77a7af…`). Für den
-Wächter des zweiten Werts lief die **Mutation M2**: `Value::DotRemains(_) => None`, aus dem Bestand
-durch Ersetzen genau einer Zeile (ergibt `6d6f3cce…`).
+Wächter des zweiten Werts lief die **Mutation M2**: `Value::DotRemains(_) => None`. Sie entsteht aus
+dem Bestand, indem die Zeile `Value::DotRemains(i) => at(fight.dot_remaining_ms(i), threshold),`
+ersetzt und davor die Kommentarzeile `// MUTATION M2 (#1027, Wegwerf): kein Weckruf fuer dot.*.remains.`
+eingefügt wird; das ergibt `6d6f3cce…`. Die reine Ersetzung ohne Kommentarzeile ergäbe `2c6b0b81…` und
+ist nicht gefahren. Für die `time`-Tabelle lief die **Mutation MT**: Die vier Zeilen des Zweigs
+`Value::Time => { … }` werden durch die eine Zeile `Value::Time => None,` ersetzt, ohne Kommentarzeile
+(ergibt `7b75ef22…`).
 
 ## Aufbau und Befehle
 
@@ -242,6 +265,12 @@ $M kreuz a.jsonl b.jsonl > kreuz-a.jsonl      # mit dem A-Bau; kreuz-b.jsonl mit
 $M vergleich a.jsonl b.jsonl kreuz-a.jsonl kreuz-b.jsonl > vergleich-ab.json
 $M vergleich a.jsonl m.jsonl > vergleich-am.json
 $M vergleich a.jsonl a2.jsonl > vergleich-aa.json   # ebenso b.jsonl gegen b2.jsonl
+# zweite Nachbesserung
+$M pfad a.jsonl > pfad-a.jsonl          # mit dem A-Bau; pfad b.jsonl > pfad-b.jsonl mit dem B-Bau
+$M pfadkreuz pfad-a.jsonl pfad-b.jsonl > pfadkreuz-a.jsonl   # mit dem A-Bau; -b mit dem B-Bau
+$M pfadvergleich pfad-a.jsonl pfad-b.jsonl pfadkreuz-a.jsonl pfadkreuz-b.jsonl > pfadvergleich.json
+$M nachbarn a.jsonl kreuz-a.jsonl kreuz-b.jsonl > nachbarn.json
+$M proben > proben-a.jsonl              # mit dem A-Bau; proben-mt.jsonl mit dem MT-Bau
 ```
 
 | Fassung | `mod.rs` SHA-256 | Bau-Job                    | Binary SHA-256 | Ausgabe SHA-256 | Wiederholung |
@@ -268,6 +297,23 @@ Felder `idle_ms_reference`, `gcd_free_lines` und `strict_time_terms` weglässt �
 `mod.rs` und dem erweiterten Programm. Der A-Bau vor `cargo-remote-fmt` (Job
 `a81f35ab1d047a6e0766e8a0`) liefert dieselbe Ausgabe wie der danach. `vergleich` ergibt für die
 Tabellen der ersten Fassung dieselben Felder wie damals; sie gelten weiter.
+
+**Die zweite Nachbesserung** erweitert das Programm um die Unterbefehle `pfad`, `pfadkreuz`,
+`pfadvergleich`, `nachbarn` und `proben` (SHA-256 jetzt `dff9f823…`). Drei Bauten, alle aus dieser
+Datei:
+
+| Fassung | `mod.rs` SHA-256 | Bau-Job                    | Binary SHA-256 |
+| ------- | ---------------- | -------------------------- | -------------- |
+| A       | `77388248…`      | `0e651f6a6a6c483482618cff` | `f06e0871…`    |
+| B       | `3680b9c5…`      | `d88780732e52e41abbb4c1c6` | `a35e3037…`    |
+| MT      | `7b75ef22…`      | `c1195f1d1cc0352561045957` | `6c282803…`    |
+
+**Die Erweiterung ändert keine bisherige Zahl.** Mit den neuen Bauten sind die Messung unter A
+(`f5875952…`) und unter B (`b81df7dc…`) und beide Kreuzläufe (`6474ba12…`, `b176c8b9…`) bytegleich mit
+denen der ersten Nachbesserung; `vergleich` über deren Eingaben ergibt bytegleich `cfa8cc45…`. Der
+Weg (`pfad`) hat je Bau 672 Datensätze (42 Suchen mit Grenze 1 bis 6, 42 mit Grenze 1 bis 10) und
+endet in allen 84 Suchen bitgleich bei Liste und Suchwert der Messung; sonst bräche er ab. Wiederholt
+ist er bytegleich, unter A (`65958f05…`) wie unter B (`f97b51a1…`), auch mit einem zweiten Bau.
 
 **`idle_ms` steht in keinem Fingerabdruck.** Es ist neben jedem Ergebnis gespeichert, aber nicht
 vergleichbar; siehe [Nebenbefunde](#nebenbefunde).
@@ -337,8 +383,8 @@ Die 15 verschobenen Suchen liegen an 15 verschiedenen Bossen; kein Boss verschie
 Einstellungen. Der Suchwert sinkt in 10 und steigt in 5 Fällen; die größten Ausschläge sind
 `test-lethal-strike` (−38,6 %, siehe AC5), `orch-maxload` (−10,3 %), `test-onslaught` (−9,9 %),
 `test-caster` (−8,3 %), `test-metronome` (−7,7 %) und `boss-2-4` (−7,5 %). Woher die Verschiebungen
-kommen — allein aus den Nachlegezeilen `< 1500` neben `quench` oder `sublime` —, steht unter
-[Die Nebenfrage](#die-nebenfrage-zu-gcd_ms).
+kommen — allein aus den Nachlegezeilen `< 1500`, in 14 Suchen neben `quench` oder `sublime`, in der
+AC5-Suche an einer Liste ohne Füller —, steht unter [Am Weg der Suche](#am-weg-der-suche).
 
 - **„A-Liste unter B anders"** bewertet die unter A gefundene Liste unter B — dieselbe Rotation,
   andere Semantik. Das trennt „die Zahl einer bestehenden Rotation verschiebt sich" von „die Suche
@@ -421,7 +467,32 @@ sie eine Dreiergruppe prüfen dürfte: Einzelzüge tragen bis Länge 8, bei Gren
 Platz für drei Zeilen. Genau daran brechen unter B auch
 `ueber_greedy_wendet_die_suche_den_toedlichen_schlag_ab` (`greedy_traegt_die_gruppen.rs`) und
 `der_schalter_schaltet`, `erst_mit_dreiergruppen_findet_die_suche_die_zeile` (`tripel_suche.rs`;
-Meldung: keine einzige Dreiergruppe geprüft, Stopp `NoImprovement`, Länge 8).
+Meldung: keine einzige Dreiergruppe geprüft, Stopp `NoImprovement`, Länge 8). Alle drei fahren
+dieselbe Suche wie der AC5-Fall: `test-lethal-strike`, Gewicht 1, Länge 10, alle Kandidaten, sonst
+die Voreinstellung mit `stop_on_kill: false`, über `greedy` oder `greedy_zuege` mit `Zuege::ALLE`
+(gelesen in `konfiguration`, `ueberlebt_mit_greedy` und `config` der drei Dateien).
+
+**Wo sich der Weg trennt** (Datensätze `pfad` und `pfadkreuz`): Bis Schritt 2 wählen beide Fassungen
+`plate` und `crust` (4200). In Schritt 3 setzt A `searing if dot.searing.remains < 1500` an die
+Spitze, B hängt `kindle` an:
+
+| Liste in Schritt 3                                                | unter A | unter B | Takt-Referenz | Würfe = Referenz |
+| ----------------------------------------------------------------- | ------: | ------: | ------------: | ---------------- |
+| A-Wahl: `searing if dot.searing.remains < 1500`, `plate`, `crust` |    4740 |    4560 |          4560 | A nein, B ja     |
+| B-Wahl: `plate`, `crust`, `kindle`                                |    4700 |    4700 |          4700 | A ja, B ja       |
+
+Die A-Wahl hat keinen Füller und keinen GCD-freien Zug. Nach `crust` bei 3000 wartet die Rotation;
+die Restzeit von SEARING (gewirkt bei 0, 6000 ms Laufzeit) steht beim GCD-Ende 4500 auf 1500 (aus
+Wurfreihe und Zauberdaten). B und die Takt-Referenz legen bei 4510 nach, A erst beim Ablauf bei 6000
+— über den ganzen Kampf (Tod bei 12.000) sind die Würfe von B die der Referenz. **Hier bewertet A
+falsch, nicht B:** A zählt die Liste 180 höher als die Referenz. Mit 4740 gewinnt sie unter A gegen
+die B-Wahl (4700); mit dem Referenzwert 4560 läge sie darunter. Ob A ohne diese Fehlbewertung einen
+anderen Weg zur Dreiergruppe fände, ist nicht gemessen.
+
+Unter A hat die Liste in Schritt 7 schon 11.627 bei sieben Zeilen; bei den Grenzen 8 und 9 hält die
+Suche dort an (`NoImprovement`), erst die Grenze 10 lässt die Dreiergruppe `pin`, `quench`, `bind` zu
+(18.950). Unter B steht `kindle` seit Schritt 3 in der Liste; dieselben 11.627 kosten dort acht
+Zeilen, und bei Grenze 10 ist keine Dreiergruppe mehr geprüft (`triples` 0).
 
 Die Gewichtsreihe des Prüffalls (`--ignored die_gewichtsreihe_zeigt_ein_fenster`):
 
@@ -533,12 +604,85 @@ stand — bei `orch-maxload` wieder mit 0 gegen 0.
 
 Dieselben 84 Suchen mit `<=` statt `<` in den vier Nachlegekandidaten, sonst unverändert (Datensätze
 `search_le`): **Unter B verschiebt sich keine** (0 von 84). Die Verschiebungen kommen also allein aus
-den Nachlegezeilen; keine andere Kandidatenart ändert unter B ihr Ergebnis. Und jede der 15
-verschobenen Suchen enthält in der A- oder B-Liste einen GCD-freien Zug: 11 `quench`, 5 `sublime`,
-`kontrolle/boss-2-3` beide. In den A-Listen allein steht `quench` in 10 der 15.
+den Nachlegezeilen; keine andere Kandidatenart ändert unter B ihr Ergebnis. Jede der 15 verschobenen
+Suchen enthält in der A- oder B-Liste einen GCD-freien Zug: 11 `quench`, 5 `sublime`,
+`kontrolle/boss-2-3` beide. In den A-Listen allein steht `quench` in 10 der 15. **Das sagt nichts
+über die Ursache:** In der AC5-Suche steht `quench` nur in der Dreiergruppe der A-Liste, die erst
+bei Grenze 10 dazukommt — getrennt hat sich der Weg in Schritt 3, an einer Liste ohne freien Zug.
+Wo sich jeder Weg trennt, steht im nächsten Abschnitt.
 
 Nebenbei, ohne Fassungsfrage: Mit `<=` findet die Suche unter A in 73 der 84 Fälle eine schlechter
 bewertete Liste als mit `<`, in 9 eine besser bewertete, in 2 dieselbe Zahl.
+
+### Am Weg der Suche
+
+Der Weg jeder Suche ist `greedy` selbst, mit wachsender Längengrenze von 1 bis zur Grenze der
+Einstellung (`pfad`): Solange in jeder Runde ein Einzelzug trägt, ist das der Stand der vollen Suche
+nach so vielen Runden. An der ersten Stelle, an der A und B verschiedene Listen haben, stehen zwei
+Listen aus derselben Nachbarschaft — die A-Wahl und die B-Wahl. Beide sind unter beiden Fassungen
+bewertet und mit angehängter Takt-Referenz über den ganzen Kampf gefahren (`pfadkreuz`), bewertet
+durch `measure` wie in der Suche. Unter der eigenen Fassung trifft die Bewertung den Weg bitgleich,
+und die Referenz fällt unter A und B gleich aus; beides prüft `pfadvergleich`, statt es anzunehmen.
+
+**Die Wege trennen sich in genau den 15 Suchen, deren Ergebnis sich verschiebt** — in den übrigen 69
+an keiner Stelle. In 11 der 15 sind beide Schritte an der Gabelung Einzelzüge; in vier hält eine
+Fassung dort an, wo die andere noch eine Zeile findet (`orch-maxload` und `test-warden` B,
+`boss-5-3` und `test-lapse-interrupt` A).
+
+| Suche                            | Schritt | Wert ändert sich | GCD-freier Zug | Füller              | A → B (Takt-Referenz)                              | trifft die Referenz | Referenz wertet höher |
+| -------------------------------- | ------: | ---------------- | -------------- | ------------------- | -------------------------------------------------- | ------------------- | --------------------- |
+| `bericht/boss-2-4`               |       6 | beide            | `quench`       | `kindle`            | 8123 → 6570 (6724); 7348 → 7511 (6135)             | keine; keine        | A-Wahl                |
+| `bericht/orch-maxload`           |       6 | A-Wahl           | `quench`       | `clasp`             | 696 → 0 (0)                                        | keine               | gleich                |
+| `kontrolle/boss-1-1`             |       4 | B-Wahl           | `quench`       | `scab`              | 9996 → 10.029 (10.246)                             | keine               | A-Wahl                |
+| `kontrolle/boss-2-2`             |      10 | beide            | `quench`       | `kindle`            | 15.563 → 15.595 (15.887); 15.553 → 15.844 (15.844) | keine; B            | A-Wahl                |
+| `kontrolle/boss-2-3`             |       5 | B-Wahl           | `quench`       | `kindle`            | 11.646 → 11.752 (11.613)                           | keine               | B-Wahl                |
+| `kontrolle/boss-5-3`             |       7 | B-Wahl           | `quench`       | `bellows`, `kindle` | 12.050 → 12.560 (12.520)                           | keine               | B-Wahl                |
+| `kontrolle/test-caster`          |       7 | B-Wahl           | `sublime`      | `kindle`            | 48.008 → 49.415 (49.453)                           | keine               | B-Wahl                |
+| `kontrolle/test-lapse-interrupt` |       7 | B-Wahl           | `quench`       | `bellows`, `kindle` | 7744 → 9535 (9535)                                 | B                   | B-Wahl                |
+| `kontrolle/test-lethal-strike`   |       3 | A-Wahl           | —              | —                   | 4740 → 4560 (4560)                                 | B                   | B-Wahl                |
+| `kontrolle/test-metronome`       |       7 | B-Wahl           | `sublime`      | `kindle`            | 48.008 → 49.415 (49.453)                           | keine               | B-Wahl                |
+| `kontrolle/test-onslaught`       |       3 | B-Wahl           | `quench`       | `kindle`            | 8610 → 10.120 (8710)                               | keine               | A-Wahl                |
+| `kontrolle/test-phasenbindung`   |       7 | A-Wahl           | `sublime`      | `kindle`            | 50.244 → 49.415 (49.453)                           | keine               | B-Wahl                |
+| `kontrolle/test-racer`           |       7 | B-Wahl           | `quench`       | `kindle`            | 17.356 → 18.984 (18.984)                           | B                   | B-Wahl                |
+| `kontrolle/test-resistant`       |       7 | B-Wahl           | `sublime`      | `kindle`            | 37.587 → 38.635 (38.659)                           | keine               | B-Wahl                |
+| `kontrolle/test-warden`          |       8 | beide            | `quench`       | `bellows`, `kindle` | 9984 → 9901 (9901); 9902 → 9904 (9904)             | B; B                | B-Wahl                |
+
+Wert jeweils unter A → unter B, in Klammern gegen die Takt-Referenz. Bei „beide" stehen Werte und
+Treffer der A-Wahl vor denen der B-Wahl. „Trifft die Referenz" heißt: über den ganzen Kampf dieselben
+Würfe wie die Liste mit angehängter Takt-Referenz.
+
+„Füller" heißt eine unbedingte Zeile eines Zaubers, der spätestens nach einem GCD wieder bereit ist
+(KINDLE, BELLOWS, SCAB, CLASP …; aus den Zauberdaten, `ist_fueller`). Steht einer in der Liste, wird
+an jedem GCD-Ende gewirkt, und ein Weckruf zwischen zwei GCD-Enden fällt in einen GCD.
+
+- **14 Gabelungen liegen neben einem GCD-freien Zug.** Jede der 17 Listen, deren Wert sich dort
+  ändert, enthält `quench` oder `sublime` und einen Füller, und in allen 17 gehen die Wurfreihen von A
+  und B direkt nach einem GCD-freien Wurf auseinander: B wirft 10 ms danach weiter, A 400 bis 1500 ms
+  danach. Über den ganzen Kampf trifft B die Takt-Referenz in 5 dieser Listen, A in keiner; in den
+  übrigen 12 weichen beide schon früher von ihr ab, und zwar ebenfalls direkt nach einem GCD-freien
+  Wurf — dort weckt auch B nicht, und beide warten bis zum nächsten Ereignis.
+- **Eine Gabelung liegt ohne Füller und ohne freien Zug: die der AC5-Suche** (siehe
+  [Der #797-AC5-Prüffall](#der-797-ac5-prüffall-unter-fassung-b)). Dort trifft B die Takt-Referenz,
+  A nicht.
+- **Welche der beiden Listen die Takt-Referenz höher bewertet:** in 10 der 15 Gabelungen die B-Wahl,
+  in 4 die A-Wahl (`boss-2-4`, `boss-1-1`, `boss-2-2`, `test-onslaught`), in einer keine
+  (`orch-maxload`, beide 0). Das vergleicht nur die zwei Listen der Gabelung, nicht die ganze
+  Nachbarschaft; welche Liste eine Suche gegen die Referenz wählen würde, ist nicht gemessen.
+
+Dieselbe Einteilung über alle Nachbarn der 84 A-Listen, mit ihren Werten aus `kreuz` (`nachbarn`):
+
+| Nachbarn der 84 A-Listen         | Bewertungen | unter B anders |
+| -------------------------------- | ----------: | -------------: |
+| GCD-freier Zug, mit Füller       |      15.944 |           5322 |
+| GCD-freier Zug, ohne Füller      |          20 |              9 |
+| kein GCD-freier Zug, ohne Füller |         193 |             28 |
+| kein GCD-freier Zug, mit Füller  |      43.006 |              0 |
+| zusammen                         |      59.163 |           5359 |
+
+**Ohne GCD-freien Zug und mit Füller ändert B in 43.006 Bewertungen keine einzige.** Jede Änderung
+liegt neben einem GCD-freien Zug oder in einer Liste ohne Füller. Die Einteilung der 84 A-Listen
+selbst: Die 7, die unter B anders zählen, haben alle einen GCD-freien Zug und einen Füller; von den
+65 ohne freien Zug ändert sich keine.
 
 ### Antwort
 
@@ -554,12 +698,13 @@ Bestandsdateien sind sie die einzigen strikten Zeitbedingungen. Ob sie wirken, h
   Nachlegezeile ohne GCD-freien Zug in 0 von 1764 Läufen.
 - **Ohne Füller** wartet die Rotation; B legt dann einen Takt nach dem Umschlag nach (10510, 4510),
   A erst am Ablauf. Weil Erneuern die Restzeit verwirft (`refreshMode: reset`), kostet das bei
-  SEARING einen Tick. CINDER und ROT ändern sich nicht.
+  SEARING einen Tick. CINDER und ROT ändern sich nicht. **In dieser Lage trennt sich der Weg der
+  AC5-Suche**, und B ist dort die richtige Bewertung (siehe [Am Weg der Suche](#am-weg-der-suche)).
 - **Neben einem GCD-freien Wurf, der genau auf die Schwelle fällt, wirkt der fehlende Weckruf.** Nach
   einem Wurf ohne Wartezeit steht keine GCD-Wiedervorlage in der Schlange. Steht die Nachlegezeile in
   diesem Moment auf 1500, weckt B einen Takt später, A nicht; A wartet bis zum nächsten fremden
   Ereignis, in den 7 Listen 400 bis 1000 ms. Die Bewertung der A-Liste sinkt dadurch unter B in 5 der
-  7 und steigt in 2.
+  7 und steigt in 2. In dieser Lage trennen sich die Wege der übrigen 14 Suchen.
 
 Aus der ersten Tabelle, unabhängig von der Fassung: **Mit Füller ist die strikte Form bei SEARING die
 bessere** — `< 1500` legt am Ablauf nach und behält alle 14 Ticks (2760 Schaden), `<= 1500` legt
@@ -577,10 +722,13 @@ fünfmal. `idle_ms` meldet dabei 0 ms.
 In allen 13 Proben, in denen A und B neben der Referenz liegen, beginnt die Abweichung genau so: Nach
 einem GCD-freien Wurf wirft die Takt-Referenz einen Takt später weiter, der ereignisgesteuerte Lauf
 erst am nächsten Ereignis, 500 bis 2000 ms später (aus den Wurfreihen der Datensätze; die drei Zauber
-jeder Liste ergeben dort die ganze Reihe). Das ist auch der Boden, auf dem der Preis von B entsteht: In
-der Lage oben verkürzt B diese Wartezeit auf einen Takt, weil eine Nachlegezeile gerade dann
-umschlägt. Die Takt-Referenz entschiede an dieser Stelle ebenfalls einen Takt nach dem freien Wurf; ob
-sie über ganze Kämpfe der gefundenen Listen bei A, bei B oder bei keiner liegt, ist nicht gemessen.
+jeder Liste ergeben dort die ganze Reihe). Das ist der Boden, auf dem 14 der 15 Verschiebungen
+entstehen: In der Lage oben verkürzt B diese Wartezeit auf einen Takt, weil eine Nachlegezeile gerade
+dann umschlägt — so, wie die Takt-Referenz an jedem freien Wurf einen Takt später entscheidet. Über
+ganze Kämpfe gemessen ist das an den Listen der Gabelungen ([Am Weg der Suche](#am-weg-der-suche)): B
+trifft die Referenz in 5 der 17 geänderten Listen mit freiem Zug, A in keiner; in den übrigen 12
+warten beide schon an einem früheren freien Wurf, an dem auch B nicht weckt. An den gefundenen
+Endlisten ist die Referenz nicht gefahren.
 `fight.rs` war nicht Auftrag und ist nicht angefasst.
 
 ## Handgeschriebener Bestand
@@ -613,9 +761,9 @@ wird):
 | strikte Zeitbedingung, kein GCD-freier Zug |      42 |  1764 |          0 |
 | keins von beiden                           |       9 |   378 |          0 |
 
-Die strikte Nachlegezeile allein verschiebt also nichts; erst neben `quench` wirkt sie — dieselbe Lage
-wie in den Suchen (siehe [Die Nebenfrage](#die-nebenfrage-zu-gcd_ms)). Einzeln nachgezeichnet sind die
-97 Läufe nicht.
+Im Bestand verschiebt die strikte Nachlegezeile ohne GCD-freien Zug also nichts; erst neben `quench`
+wirkt sie — dieselbe Lage wie in 14 der 15 Suchen (siehe [Am Weg der Suche](#am-weg-der-suche)).
+Einzeln nachgezeichnet sind die 97 Läufe nicht.
 
 ## Woher der Verzug kommt
 
@@ -658,30 +806,41 @@ der Referenz (an einem Fall mit zwei zeitabhängigen Seiten, den keine Fassung w
 für den Weckruf ohne fremdes Ereignis: `der_weckruf_traegt_ohne_fremdes_ereignis` für
 `boss.next_strike_in` und, mit der Nachbesserung, `der_weckruf_von_dot_remains_traegt_ohne_fremdes_ereignis`
 (`smoulder if dot.smoulder.remains <= 1500` an `first-crucible` ohne `purge`, Wurf bei 10500). Die
-Tabellen halten Fassung A fest. **Die Formtabelle an `dot.smoulder.remains` misst nur den Takt nach
-dem Umschlag**, nicht den Weckruf: Am Umschlag endet der GCD von `purge`, entschieden wird dort
-ohnehin. Unter M2 fällt in der ganzen Suite allein der zweite Wächter.
+Tabellen halten Fassung A fest. **Alle drei Formtabellen messen nur den Takt nach dem Umschlag**,
+nicht den Weckruf: An jedem der drei Umschläge endet der GCD von `purge` (9000 bei
+`boss.next_strike_in` und `time`, 10500 bei `dot.smoulder.remains`), entschieden wird dort ohnehin.
+Gemessen ist das je Wert mit einer Mutation, die seinen Weckruf abschaltet: Unter M bleibt die
+Tabelle an `boss.next_strike_in` grün, unter M2 die an `dot.smoulder.remains` (in der ganzen Suite
+fällt allein der zweite Wächter). Unter MT bleibt die Ereignisspalte der `time`-Tabelle in allen
+zwölf Zeilen gleich (`proben` unter A gegen MT, dieselben Aufbauten); rot wird sie dort nur über ihre
+Referenzspalte, weil die Takt-Referenz selbst an `time >= t` hängt. **Den Weckruf von `time` hält
+die Trägerprüfung der Referenz fest** (`die_takt_referenz_weckt_und_wirft_nie`: unter MT `Some(8000)`
+statt `Some(6010)`), dazu `zeitabhaengige_bedingungen_wecken_den_simulator` in `apl.rs`
+(`Some(4000)` statt `Some(3000)`) und
+`ac1_die_engere_schwelle_haengt_am_weckruf_und_trifft_dasselbe_fenster` in `apl_boss_cast.rs`.
 
 ```bash
 cargo remote --no-copy-lock -- test --test apl_strikte_vergleiche -- --nocapture
-cargo remote --no-copy-lock -- test --no-fail-fast        # volle Suite unter B, M und M2
+cargo remote --no-copy-lock -- test --no-fail-fast        # volle Suite unter B, M, M2 und MT
 cargo remote --no-copy-lock -- test                       # volle Suite unter A, wie die CI
 ```
 
-| Lauf | `apl_strikte_vergleiche.rs`                          | volle Suite                                                                                   |
-| ---- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| A    | 10 bestanden, 0 rot (Job `0d6c0355a17aee99d6cde975`) | 203 Suiten: 1274 bestanden, 0 rot, 7 ignoriert, 0 gefiltert (Job `4c87b639922153abd7f0c326`)  |
-| B    | 4 bestanden, 6 rot (im vollen Lauf)                  | 203 Suiten: 1264 bestanden, 10 rot, 7 ignoriert, 0 gefiltert (Job `0632095f518f7e48913848b3`) |
-| M    | 9 bestanden, 1 rot (im vollen Lauf)                  | 203 Suiten: 1270 bestanden, 4 rot, 7 ignoriert, 0 gefiltert (Job `a49ae2def4c32739529e227b`)  |
-| M2   | 9 bestanden, 1 rot (im vollen Lauf)                  | 203 Suiten: 1273 bestanden, 1 rot, 7 ignoriert, 0 gefiltert (Job `f77d5681be9de04ce854b9c4`)  |
+| Lauf | `apl_strikte_vergleiche.rs`          | volle Suite                                                                                   |
+| ---- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| A    | 10 bestanden, 0 rot (im vollen Lauf) | 203 Suiten: 1274 bestanden, 0 rot, 7 ignoriert, 0 gefiltert (Job `9f999bdef85dd9af4f11b8e6`)  |
+| B    | 4 bestanden, 6 rot (im vollen Lauf)  | 203 Suiten: 1264 bestanden, 10 rot, 7 ignoriert, 0 gefiltert (Job `0632095f518f7e48913848b3`) |
+| M    | 9 bestanden, 1 rot (im vollen Lauf)  | 203 Suiten: 1270 bestanden, 4 rot, 7 ignoriert, 0 gefiltert (Job `a49ae2def4c32739529e227b`)  |
+| M2   | 9 bestanden, 1 rot (im vollen Lauf)  | 203 Suiten: 1273 bestanden, 1 rot, 7 ignoriert, 0 gefiltert (Job `f77d5681be9de04ce854b9c4`)  |
+| MT   | 6 bestanden, 4 rot (im vollen Lauf)  | 203 Suiten: 1268 bestanden, 6 rot, 7 ignoriert, 0 gefiltert (Job `f86db90453c3856c54413287`)  |
 
-Unter A zusätzlich wie die CI, in dieser Reihenfolge: `cargo-remote-fmt --check` Exit 0 (Job
-`3e979b7790619c6e56c46373`), `cargo remote --no-copy-lock -- clippy --all-targets -- -D warnings`
-Exit 0 (Job `d5edd5a7e89ab459f669358e`, auf dem Endstand aus dem Zwischenspeicher wiederholt:
-`23a087336dd5eeca843f8435`), der volle Lauf oben und `cargo remote --no-copy-lock -- test --all-targets
+Unter A zusätzlich wie die CI, in dieser Reihenfolge und auf dem Stand der zweiten Nachbesserung:
+`cargo-remote-fmt --check` Exit 0 (Job `2f10f8f04eee02ad4652c84f`),
+`cargo remote --no-copy-lock -- clippy --all-targets -- -D warnings` Exit 0 (Job
+`ee92b300c4d31a16da3b33c9`), der volle Lauf oben und `cargo remote --no-copy-lock -- test --all-targets
 --features diagnostics` mit 239 Läufen: 1309 bestanden, 0 rot, 7 ignoriert (Job
-`1a6a858df50163c2f463813b`). `Cargo.lock` und `.cargo-remote.toml` blieben nach jedem Lauf
-unverändert.
+`c6b344027dcaf826d61d46dc`). `Cargo.lock` und `.cargo-remote.toml` blieben nach jedem Lauf
+unverändert. Die Läufe unter B, M und M2 stammen aus der ersten Nachbesserung; geändert haben sich
+seitdem nur das Messprogramm und ein Kommentar in `apl_strikte_vergleiche.rs`.
 
 - **Rot unter B** (10): in `apl_strikte_vergleiche.rs` die drei neuen Formtabellen und die drei
   bestehenden Verzugsfälle, dazu die vier Suchfälle aus dem AC5-Abschnitt. Jede neue Tabelle bricht
@@ -693,6 +852,11 @@ unverändert.
   grün — wie am 22.08. notiert.
 - **Rot unter M2** (1): allein der Wächter für `dot.*.remains`, `Some(12000)` statt `Some(10500)`.
   Alle zwölf Zeilen der Formtabelle an `dot.smoulder.remains` bleiben grün.
+- **Rot unter MT** (6): in `apl_strikte_vergleiche.rs` die Trägerprüfung der Referenz und die drei
+  Formtabellen, jede an ihrer ersten verspäteten Zeile und dort in der Referenzspalte (etwa
+  `9000 < time`: (10000, 10000) statt (10000, 9010)); dazu `zeitabhaengige_bedingungen_wecken_den_simulator`
+  (`apl.rs`) und `ac1_die_engere_schwelle_haengt_am_weckruf_und_trifft_dasselbe_fenster`
+  (`apl_boss_cast.rs`). Die beiden Wächter bleiben grün.
 
 ## Für die Entscheidung
 
@@ -700,23 +864,32 @@ unverändert.
   42 bei Gewicht 1 auf Verhindertes; 97 von 2394 Bestandsläufen; 7 bestehende Prüffälle (3 davon in
   `apl_strikte_vergleiche.rs`, die den Ist-Zustand ausdrücklich festhält) und die 3 neuen
   Formtabellen.
-- **Woher der Preis kommt:** allein aus den Nachlegezeilen `< 1500` neben einem GCD-freien Zug. Mit
-  `<=` in diesen Zeilen verschiebt B keine der 84 Suchen; alle 15 verschobenen Suchen enthalten
-  `quench` oder `sublime`, alle 97 geänderten Bestandsläufe stehen in den 6 Dateien mit `quench`, und
-  die 42 Dateien mit strikter Nachlegezeile ohne GCD-freien Zug ändern sich nicht.
+- **Woher der Preis kommt:** allein aus den Nachlegezeilen `< 1500` — mit `<=` in diesen Zeilen
+  verschiebt B keine der 84 Suchen —, und zwar in zwei Lagen. **14 der 15 Suchen trennen sich neben
+  einem GCD-freien Zug**; alle 97 geänderten Bestandsläufe stehen in den 6 Dateien mit `quench`, und
+  die 42 Dateien mit strikter Nachlegezeile ohne GCD-freien Zug ändern sich nicht. **Die AC5-Suche
+  trennt sich an einer Liste ohne Füller und ohne GCD-freien Zug** — sie und ihre 4 brechenden
+  Prüffälle liegen damit außerhalb des Bereichs, in dem beide Fassungen falsch liegen.
 - **Was B richtig macht:** Ohne GCD-freien Zug wirft jede Form dort, wo die Takt-Referenz wirft (84
-  von 84 Wurfproben, 16 von 16 GCD-Proben), und kein Wurf liegt neben dem Takt.
+  von 84 Wurfproben, 16 von 16 GCD-Proben), und kein Wurf liegt neben dem Takt. An den 15 Gabelungen
+  der Suche trifft B die Referenz über den ganzen Kampf in 6 der 18 Listen, deren Wert sich ändert, A
+  in keiner.
 - **Was B nicht ändert:** Mit Füller und ohne GCD-freien Zug legt die Nachlegezeile `< 1500` weiter
   erst am Ablauf nach — das ist die Strenge des Vergleichs am GCD-Ende, kein Weckruf-Fehler, und bei
-  SEARING gemessen die bessere Wahl.
+  SEARING gemessen die bessere Wahl. In 43.006 Nachbarn dieser Bauart ändert B keinen Wert.
 - **Was keine der beiden Fassungen richtig macht:** Nach einem GCD-freien Wurf entscheidet der
   Simulator erst am nächsten Ereignis oder Weckruf neu, die Takt-Referenz einen Takt danach (Proben
-  mit freiem Zug: A und B gleich, in 13 von 18 neben der Referenz). Der Preis von B entsteht in diesem
-  Bereich: In allen 7 nachgezeichneten Listen verkürzt B die Wartezeit nach dem freien Wurf auf einen
-  Takt, weil eine Nachlegezeile gerade umschlägt. Ob A oder B in den gefundenen Listen über ganze
-  Kämpfe näher an der Takt-Referenz liegt, ist nicht gemessen.
-- **Was B kostet, ohne falsch zu sein:** Die AC5-Suche verliert FIXATION bei Gewicht 1, obwohl die
-  FIXATION-Rotation unter B gleich viel wert ist. Das ist eine Eigenschaft des gierigen Suchpfads.
+  mit freiem Zug: A und B gleich, in 13 von 18 neben der Referenz). In diesem Bereich entsteht der
+  Preis von B in 14 der 15 Suchen: B verkürzt die Wartezeit nach dem freien Wurf auf einen Takt, weil
+  eine Nachlegezeile gerade umschlägt. An 12 der 17 geänderten Listen dieser Gabelungen liegen A und B
+  beide neben der Referenz, an 5 trifft B sie.
+- **Was B bei AC5 kostet, ohne falsch zu sein:** Die AC5-Suche verliert FIXATION bei Gewicht 1, obwohl
+  die FIXATION-Rotation unter B gleich viel wert ist. Ihr Weg trennt sich, weil B die Liste
+  `searing if dot.searing.remains < 1500`, `plate`, `crust` so bewertet wie die Takt-Referenz (4560)
+  und A sie überbewertet (4740). **Der Weg, auf dem AC5 unter A besteht, führt über diese
+  Fehlbewertung.** Unter B trennt erst Gewicht 2 (Gewichtsreihe oben); ob die Suche gegen die
+  Takt-Referenz bei Gewicht 1 trennte oder A ohne die Fehlbewertung einen anderen Weg fände, ist nicht
+  gemessen.
 
 ## Nebenbefunde
 
@@ -757,17 +930,24 @@ unverändert.
   behandelt sie wie der Bestand — ob dort ein eigener Verzug steckt, ist nicht gemessen. Vergleiche
   zweier zeitabhängiger Seiten bleiben in beiden Fassungen ungeweckt (Trägerprüfung der Referenz,
   unter A und B grün: Referenz bei 6010, der ereignisgesteuerte Lauf später).
-- **Die Takt-Referenz an den gefundenen Listen** ist nicht gefahren. Ob A oder B dort über ganze
-  Kämpfe näher an ihr liegt, ist offen; gemessen ist nur die erste Abweichung zwischen A und B.
-- **Einzeln nachgezeichnet** sind nur die 7 A-Listen, die unter B anders zählen. Die 8 übrigen
-  verschobenen Suchen verschieben sich an Listen, die die Suche unterwegs bewertet; die 97 geänderten
-  Bestandsläufe sind nur nach dem Aufbau ihrer Dateien zugeordnet. „Auf 1500" ist abgeleitet (siehe
-  [Die Nebenfrage](#die-nebenfrage-zu-gcd_ms)).
+- **Die Takt-Referenz über ganze Kämpfe** ist nur an den beiden Listen jeder Gabelung gefahren (30
+  Listen an 15 Gabelungen), nicht an den gefundenen Endlisten. Welche Liste eine Suche gegen die
+  Referenz wählen würde, ist nicht gemessen; `reference_prefers` vergleicht nur die zwei Listen einer
+  Gabelung.
+- **Der Weg der Suche** ist `greedy` mit wachsender Grenze. Er gibt die volle Suche genau wieder,
+  solange in jeder Runde ein Einzelzug trägt (`extends`); an vier Gabelungen hält eine Fassung an,
+  dort beschreibt der Datensatz die Suche mit dieser Grenze. Ob A an der AC5-Gabelung ohne die
+  Fehlbewertung einen anderen Weg zur Dreiergruppe fände, ist nicht gemessen.
+- **Einzeln nachgezeichnet** sind die 15 Gabelungen und die 7 A-Listen, die unter B anders zählen;
+  die 97 geänderten Bestandsläufe sind nur nach dem Aufbau ihrer Dateien zugeordnet. „Auf 1500" und
+  „direkt nach einem GCD-freien Wurf" sind aus Wurfreihe und Zauberdaten abgeleitet (siehe
+  [Die Nebenfrage](#die-nebenfrage-zu-gcd_ms)); der Kampf meldet nicht, ob ein Wurf befreit war.
 - **In den Proben mit freiem Zug** steht `quench` ohne Bedingung, an `first-crucible`; in den
   Suchlisten steht es mit `boss.casting >= 1`. Dass die Proben die Lage „freier Wurf auf der
   Schwelle" nie treffen, ist eine Eigenschaft dieser Aufbauten, keine allgemeine.
-- **Mutationen der übrigen Weckrufe** (`Time`, `FightRemains`, `CooldownRemains`, `BossCastRemains`
-  auf `None`) sind nicht gefahren; ob die Suite sie fängt, ist hier nicht geprüft.
+- **Mutationen der übrigen Weckrufe** (`FightRemains`, `CooldownRemains`, `BossCastRemains` auf
+  `None`) sind nicht gefahren; ob die Suite sie fängt, ist hier nicht geprüft. `Time` ist mit MT
+  gefahren (siehe [Prüffälle](#prüffälle)).
 
 ## Rohdaten
 
@@ -777,3 +957,9 @@ Patches und die erste Messung unter `/work/tmp/w1-1027-patches/` und `/work/tmp/
 **nicht dauerhaft**; die Befehle oben erzeugen sie neu. Kreuzläufe: `kreuz-a.jsonl` `6474ba12…`,
 `kreuz-b.jsonl` `b176c8b9…`. Vergleich A gegen B: `vergleich-ab.json`, SHA-256 `cfa8cc45…` (enthält
 die Dateipfade der beiden Eingaben).
+
+Die zweite Nachbesserung unter `/work/tmp/w1-1027-nb2/` (`mess/`, `bin2/`, `fassungen/`), ebenso nicht
+dauerhaft: `pfad-a.jsonl` `65958f05…`, `pfad-b.jsonl` `f97b51a1…`, `pfadkreuz-a.jsonl` `69706f7d…`,
+`pfadkreuz-b.jsonl` `48cecdd0…` (wiederholt jeweils bytegleich), `nachbarn.json` `eb991b54…`,
+`proben-a.jsonl` `039b172e…`, `proben-mt.jsonl` `41a4f0b5…`; `pfadvergleich.json` `10c34918…` enthält
+die Dateipfade seiner Eingaben.
