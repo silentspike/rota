@@ -240,7 +240,12 @@ fn zauber(id: &str) -> usize {
 
 /// Die Würfe von `kindle` im Fenster `[von, bis)`, über die volle Kampfzeit.
 fn kindle_im_fenster(boss: &str, apl: &Apl, von: u32, bis: u32) -> Vec<u32> {
-    let kindle = zauber("kindle");
+    wuerfe_im_fenster(boss, apl, "kindle", von, bis)
+}
+
+/// Die Würfe von `spell` im Fenster `[von, bis)`, über die volle Kampfzeit.
+fn wuerfe_im_fenster(boss: &str, apl: &Apl, spell: &str, von: u32, bis: u32) -> Vec<u32> {
+    let gesucht = zauber(spell);
     let mut fight = Fight::new(FightConfig {
         boss: boss_by_id(boss).unwrap_or_else(|| panic!("Boss {boss} fehlt")),
         stop_on_kill: false,
@@ -260,7 +265,7 @@ fn kindle_im_fenster(boss: &str, apl: &Apl, von: u32, bis: u32) -> Vec<u32> {
         .log()
         .entries()
         .iter()
-        .filter(|e| e.kind == LogKind::Cast && usize::from(e.spell) == kindle)
+        .filter(|e| e.kind == LogKind::Cast && usize::from(e.spell) == gesucht)
         .map(|e| e.time)
         .filter(|t| (von..bis).contains(t))
         .collect()
@@ -423,6 +428,14 @@ fn alle_formen_an_boss_next_strike_in() {
 /// endet der GCD von `purge` (gewirkt bei 1500 und 9000). Dasselbe Muster wie
 /// oben: `<`, sein Spiegel und `!=` verspätet — hier bis zum letzten Tick bei
 /// 12000, weil zwischen 10500 und 12000 nichts in der Schlange steht.
+///
+/// **Diese Tabelle misst nur den Takt NACH dem Umschlag, nicht den Weckruf.**
+/// Am Umschlag weckt der GCD von `purge` ohnehin; die Zeilen `<=`, `==` und
+/// `>=` treffen deshalb auch dann, wenn `switch_point` für `DotRemains` gar
+/// keinen Weckruf stellt. Gemessen am 2026-10-24: Mit `Value::DotRemains(_) =>
+/// None` fällt in der ganzen Suite allein
+/// `der_weckruf_von_dot_remains_traegt_ohne_fremdes_ereignis`, der den Weckruf
+/// selbst prüft; alle zwölf Zeilen dieser Tabelle bleiben grün.
 #[test]
 fn alle_formen_an_dot_remains() {
     pruefe_alle_formen(
@@ -502,6 +515,42 @@ fn der_weckruf_traegt_ohne_fremdes_ereignis() {
         Some(9000),
         "`<= 3000` muss am Umschlag werfen — wirft es erst bei 10000, fehlt \
          `BossNextStrikeIn` in `switch_point`"
+    );
+    assert_eq!(ereignis, referenz, "Ereignis und Takt-Referenz weichen ab");
+}
+
+/// **Der Weckruf von `dot.*.remains` trägt — ohne fremdes Ereignis.**
+///
+/// Das Gegenstück zum Wächter darüber, für den zweiten Wert und den der Suche
+/// (`dot.<brand>.remains < 1500`). `alle_formen_an_dot_remains` kann ihn nicht
+/// prüfen: Dort endet der GCD von `purge` genau am Umschlag 10500.
+///
+/// Ohne `purge` wird `<= 1500` bei 10500 wahr, und dort weckt nur der Weckruf
+/// aus `switch_point`. Gemessen am 2026-10-24: Mit `Value::DotRemains(_) =>
+/// None` legt diese Zeile erst beim Ablauf bei 12000 nach — zwischen 10500 und
+/// 12000 weckt also nichts anderes —, ohne die Mutation bei 10500, unter
+/// Fassung B (#1027) ebenfalls bei 10500.
+#[test]
+fn der_weckruf_von_dot_remains_traegt_ohne_fremdes_ereignis() {
+    let apl: Apl = parse(
+        AplName("probe"),
+        "smoulder if dot.smoulder.remains <= 1500\n",
+    )
+    .expect("gültige Liste");
+    let ereignis = wuerfe_im_fenster("first-crucible", &apl, "smoulder", 9000, 12_500);
+    let referenz = wuerfe_im_fenster(
+        "first-crucible",
+        &mit_takt_referenz(&apl, 9000, 12_500),
+        "smoulder",
+        9000,
+        12_500,
+    );
+    assert_eq!(
+        ereignis.first().copied(),
+        Some(10_500),
+        "`<= 1500` muss am Umschlag 10500 nachlegen. Legt es erst beim Ablauf \
+         (12000) nach, trägt der Weckruf von `dot.*.remains` nicht — so gemessen \
+         mit `Value::DotRemains(_) => None` in `switch_point`"
     );
     assert_eq!(ereignis, referenz, "Ereignis und Takt-Referenz weichen ab");
 }
