@@ -802,10 +802,13 @@ heraus (siehe [Aufbau und Befehle](#aufbau-und-befehle)).
 
 Neu in `sim/tests/apl_strikte_vergleiche.rs`: alle sechs Formen in beiden Reihenfolgen an
 `boss.next_strike_in`, `dot.smoulder.remains` und `time` gegen die Takt-Referenz, die Trägerprüfung
-der Referenz (an einem Fall mit zwei zeitabhängigen Seiten, den keine Fassung weckt) und zwei Wächter
+der Referenz (an einem Fall mit zwei zeitabhängigen Seiten, den keine Fassung weckt) und drei Wächter
 für den Weckruf ohne fremdes Ereignis: `der_weckruf_traegt_ohne_fremdes_ereignis` für
-`boss.next_strike_in` und, mit der Nachbesserung, `der_weckruf_von_dot_remains_traegt_ohne_fremdes_ereignis`
-(`smoulder if dot.smoulder.remains <= 1500` an `first-crucible` ohne `purge`, Wurf bei 10500). Die
+`boss.next_strike_in`, mit der Nachbesserung `der_weckruf_von_dot_remains_traegt_ohne_fremdes_ereignis`
+(`smoulder if dot.smoulder.remains <= 1500` an `first-crucible` ohne `purge`, Wurf bei 10500) und,
+nachgetragen nach der Prüfung, `der_weckruf_von_cooldown_remains_traegt_ohne_fremdes_ereignis`
+(`purge if time == 0`, `kindle if cooldown.purge.remains <= 1000` an `test-survivable-strike`, Wurf
+bei 6500, unter MC bei 7500, siehe [Was nicht gemessen ist](#was-nicht-gemessen-ist)). Die
 Tabellen halten Fassung A fest. **Alle drei Formtabellen messen nur den Takt nach dem Umschlag**,
 nicht den Weckruf: An jedem der drei Umschläge endet der GCD von `purge` (9000 bei
 `boss.next_strike_in` und `time`, 10500 bei `dot.smoulder.remains`), entschieden wird dort ohnehin.
@@ -846,7 +849,8 @@ seitdem nur das Messprogramm und ein Kommentar in `apl_strikte_vergleiche.rs`.
   bestehenden Verzugsfälle, dazu die vier Suchfälle aus dem AC5-Abschnitt. Jede neue Tabelle bricht
   an ihrer ersten verspäteten Zeile, mit (Ereignis, Referenz) = (9010, 9010) bzw. (10510, 10510).
 - **Grün unter B** bleiben beide Wächter, die Trägerprüfung der Referenz und die
-  Messmethoden-Prüfung.
+  Messmethoden-Prüfung; der nachgetragene dritte ebenso (eigener Lauf von `apl_strikte_vergleiche.rs`
+  unter B: 5 bestanden, dieselben 6 rot, Job `6a46960c61f157f9c10aab4a`).
 - **Rot unter M** (4): der Wächter für `boss.next_strike_in` (10000 statt 9000) und drei bestehende
   Fälle in `next_strike_in.rs`. Die vier älteren Fälle in `apl_strikte_vergleiche.rs` bleiben unter M
   grün — wie am 22.08. notiert.
@@ -856,7 +860,9 @@ seitdem nur das Messprogramm und ein Kommentar in `apl_strikte_vergleiche.rs`.
   Formtabellen, jede an ihrer ersten verspäteten Zeile und dort in der Referenzspalte (etwa
   `9000 < time`: (10000, 10000) statt (10000, 9010)); dazu `zeitabhaengige_bedingungen_wecken_den_simulator`
   (`apl.rs`) und `ac1_die_engere_schwelle_haengt_am_weckruf_und_trifft_dasselbe_fenster`
-  (`apl_boss_cast.rs`). Die beiden Wächter bleiben grün.
+  (`apl_boss_cast.rs`). Die beiden Wächter bleiben grün, der nachgetragene dritte ebenso (eigener Lauf
+  von `apl_strikte_vergleiche.rs` unter MT: 7 bestanden, dieselben 4 rot, Job
+  `4527a27ac1d763d1cc18a350`).
 
 ## Für die Entscheidung
 
@@ -945,9 +951,17 @@ seitdem nur das Messprogramm und ein Kommentar in `apl_strikte_vergleiche.rs`.
 - **In den Proben mit freiem Zug** steht `quench` ohne Bedingung, an `first-crucible`; in den
   Suchlisten steht es mit `boss.casting >= 1`. Dass die Proben die Lage „freier Wurf auf der
   Schwelle" nie treffen, ist eine Eigenschaft dieser Aufbauten, keine allgemeine.
-- **Mutationen der übrigen Weckrufe** (`FightRemains`, `CooldownRemains`, `BossCastRemains` auf
-  `None`) sind nicht gefahren; ob die Suite sie fängt, ist hier nicht geprüft. `Time` ist mit MT
-  gefahren (siehe [Prüffälle](#prüffälle)).
+- **Mutationen der übrigen Weckrufe** sind gefahren, zwei davon aber nur bei der Prüfung. Gemessen
+  bei der Prüfung, je volle Suite: MF (`Value::FightRemains => None`) 1 rot,
+  `next_strike_in.rs::ohne_schlag_ist_der_wert_die_restzeit` (Job `01bf5b71582cd257827eddb5`); MBC
+  (`Value::BossCastRemains => None`) 1 rot,
+  `apl_boss_cast.rs::ac1_die_engere_schwelle_haengt_am_weckruf_und_trifft_dasselbe_fenster` (Job
+  `65108d803b9af965ab41cc03`); MC (`Value::CooldownRemains(_) => None`) vor dem Nachtrag des dritten
+  Wächters 0 rot (Job `173a78f8e3b380cf9bdaff78`). Nach dem Nachtrag hier gemessen, MC als Ersatz
+  dieser einen Zeile im Stand dieses Zweigs (ergibt `30986183…`): 203 Suiten, 1274 bestanden, 1 rot,
+  7 ignoriert, 0 gefiltert (Job `b89459ded628f8f9faa2753b`); rot ist allein
+  `der_weckruf_von_cooldown_remains_traegt_ohne_fremdes_ereignis`, `Some(7500)` statt `Some(6500)`.
+  MF und MBC sind hier nicht nachgefahren. `Time` ist mit MT gefahren (siehe [Prüffälle](#prüffälle)).
 
 ## Rohdaten
 
@@ -960,6 +974,6 @@ die Dateipfade der beiden Eingaben).
 
 Die zweite Nachbesserung unter `/work/tmp/w1-1027-nb2/` (`mess/`, `bin2/`, `fassungen/`), ebenso nicht
 dauerhaft: `pfad-a.jsonl` `65958f05…`, `pfad-b.jsonl` `f97b51a1…`, `pfadkreuz-a.jsonl` `69706f7d…`,
-`pfadkreuz-b.jsonl` `48cecdd0…` (wiederholt jeweils bytegleich), `nachbarn.json` `eb991b54…`,
-`proben-a.jsonl` `039b172e…`, `proben-mt.jsonl` `41a4f0b5…`; `pfadvergleich.json` `10c34918…` enthält
-die Dateipfade seiner Eingaben.
+`pfadkreuz-b.jsonl` `48cecdd0…` (wiederholt jeweils bytegleich), `nachbarn.json` `eb991b54…`
+(enthält die Dateipfade seiner Eingaben), `proben-a.jsonl` `039b172e…`, `proben-mt.jsonl`
+`41a4f0b5…`; `pfadvergleich.json` `10c34918…` enthält die Dateipfade seiner Eingaben.
