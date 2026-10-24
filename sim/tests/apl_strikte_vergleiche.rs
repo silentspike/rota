@@ -466,6 +466,20 @@ fn alle_formen_an_dot_remains() {
 /// Auf der Uhr kippt `time > 9000` erst nach 9000, `time >= 9000` genau dort.
 /// Verspätet sind deshalb `>` und sein Spiegel `9000 < time` — nicht `<` wie
 /// bei den fallenden Restzeiten — sowie `!=` in beiden Reihenfolgen.
+///
+/// **Auch diese Tabelle misst nur den Takt NACH dem Umschlag, nicht den
+/// Weckruf** — wie die an `dot.smoulder.remains`. Am Umschlag 9000 endet der
+/// GCD von `purge` (gewirkt bei 0 und 7500); entschieden wird dort ohnehin.
+/// Gemessen am 2026-10-24 mit `Value::Time => None` in `switch_point`: In
+/// denselben Aufbauten (`e1027-operator-measure proben`) bleibt die
+/// Ereignisspalte in allen zwölf Zeilen gleich. Rot wird die Tabelle trotzdem,
+/// bei `9000 < time` — aber in der Referenzspalte (10000 statt 9010), weil die
+/// Takt-Referenz selbst an `time >= t` hängt. Den Weckruf von `time` halten
+/// `die_takt_referenz_weckt_und_wirft_nie` (`Some(8000)` statt `Some(6010)`)
+/// und, außerhalb dieser Datei, `zeitabhaengige_bedingungen_wecken_den_simulator`
+/// (`apl.rs`) und `ac1_die_engere_schwelle_haengt_am_weckruf_und_trifft_dasselbe_fenster`
+/// (`apl_boss_cast.rs`) fest; dazu fallen unter der Mutation alle drei
+/// Formtabellen über ihre Referenzspalte.
 #[test]
 fn alle_formen_an_time() {
     pruefe_alle_formen(
