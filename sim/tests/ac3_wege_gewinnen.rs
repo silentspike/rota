@@ -20,28 +20,20 @@
 //! # Was diese Datei NICHT abdeckt
 //!
 //! Nur CALCINATION und der globale Baum stehen hier, und im globalen nur zwei
-//! von drei Wegen. Fuer die uebrigen ist AC3 heute NICHT erfuellt — gemessen,
-//! gemeldet, und teils aus Gruenden, die keine Talent-Frage sind:
+//! von drei Wegen. Alle achtzehn Wege misst
+//! `sim/examples/ac3-umgebaute-wege-419.rs` gegen die heute beste bekannte
+//! Rotation — als Messung, nicht als Prueffall, weil AC3 nach dieser Lesart
+//! nicht abgeschlossen ist (#419).
 //!
-//! ```text
-//!   putrefaction build      gewinnt nur 24,4 % unter der besten Rotation
-//!   putrefaction duration   von `effect` in jeder Rotation geschlagen
-//!   sublimation  reduction  gewinnt nur 65,7 % unter der besten Rotation
-//!   sublimation  charges    #814 — `run_apl` kennt den Auswahlmodus nicht
-//!   coagulation  longer     die Schicht zerbricht, bevor ihre Frist zaehlt
-//!   coagulation  stacks     gewinnt nur 44,6 % unter der besten Rotation
-//!   fixation     alle drei  #814 — die Mechanik aendert Summen nicht
-//!   global       build      strukturell von `release` geschlagen
-//! ```
+//! **Hier stand bis 2026-10-24 eine Liste der Gruende fuer die uebrigen Wege,
+//! und sie beschrieb den Stand VOR #824** — etwa „putrefaction duration von
+//! `effect` in jeder Rotation geschlagen" und „global build strukturell von
+//! `release` geschlagen". Seit #824 tragen vier Wege eine Wirkung anderer
+//! Bauart (die Obergrenze, den Schutz je Stapel, EFFLUX' Umwandlung, den
+//! Aufbau-Schaden); die alten Gruende gelten fuer sie nicht mehr, und wer
+//! den heutigen Stand braucht, faehrt den Laeufer statt diese Liste zu lesen.
 //!
-//! **Die erste Zeile stand hier bis zum Restwert anders** („wirkungslos:
-//! floor(1 x 1,5) = 1"). Seit `putrefaction-build` den Rest sammelt, bewegt er
-//! messbar etwas — 2209 auf 2222, 3307 auf 3342. Gewinnen tut er trotzdem nur
-//! in einer schwachen Rotation, aber aus einem ANDEREN Grund, und ein
-//! Kommentar, der den alten nennt, schickte den naechsten auf die falsche
-//! Faehrte.
-//!
-//! # Das Muster hinter den vier „gewinnt nur unter der besten"
+//! # Das Muster hinter den vier „gewinnt nur unter der besten" — der Grund fuer #824
 //!
 //! Gemessen, nicht vermutet: `effect` multipliziert die SUMME aller Stapel,
 //! `build` addiert gelegentlich EINEN. Wer viele Stapel haelt, gewinnt mit
@@ -146,10 +138,11 @@ fn jeder_calcination_weg_gewinnt_irgendwo() {
 
 /// GLOBAL: `release` und `hold` gewinnen je eine Rotation.
 ///
-/// **`build` steht bewusst nicht hier.** Er gewinnt in keiner der drei — und
-/// das ist strukturell: Mehr Hitze wirkt ueber den Entlader, der Zuschlag
-/// wirkt direkt auf ihn. Der direkte Weg schlaegt den indirekten, solange
-/// beide am selben Zauber haengen. Gemessen, nicht vermutet.
+/// **`build` steht nicht hier.** Bis #824 hob er Aufbau-Groessen und verlor
+/// strukturell gegen `release`: Mehr Hitze wirkt ueber den Entlader, der
+/// Zuschlag direkt auf ihn. Seit #824 ist er ein Schadens-Zuschlag auf die
+/// Aufbau-Zauber, und ob er in einer der drei Rotationen hier gewinnt, prueft
+/// diese Datei nicht — siehe `sim/examples/ac3-umgebaute-wege-419.rs`.
 #[test]
 fn zwei_globale_wege_gewinnen_je_eine_rotation() {
     let sieger = |text: &str| -> &'static str {
