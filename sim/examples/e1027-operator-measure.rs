@@ -28,9 +28,11 @@
 //! | `operator` | Wahrheitswert und Weckruf je Form, einen Takt vor, auf und nach dem Umschlag |
 //! | `probe` | Würfe je Form gegen die Takt-Referenz |
 //! | `raster` | die Aufbauten aus `apl_strikte_vergleiche.rs` — woher ihr Verzug kommt |
-//! | `gcd` | die Nachlege-Zeile `< GCD_MS` der Suche, mit und ohne Füller |
+//! | `gcd` | die Nachlege-Zeile `< GCD_MS` der Suche, mit und ohne Füller, mit und ohne GCD-freien Zug |
+//! | `gcdfrei` | ein GCD-freier Zug vor dem Füller, ganz ohne zeitabhängige Bedingung |
 //! | `bestand` | jede Datei aus `sim/apl/` gegen jeden Boss |
 //! | `search` | die gierige Suche je Boss in zwei Einstellungen |
+//! | `search_le` | dieselbe Suche, die Nachlege-Kandidaten mit `<=` statt `<` |
 //!
 //! **Keine Laufzeiten in der Ausgabe.** Zwei Läufe derselben Fassung müssen
 //! bytegleich sein; das ist die Determinismus-Probe, und eine Uhrzeit im
@@ -50,7 +52,7 @@
 //! nach, statt es zu glauben — die Referenzwürfe müssen unter beiden Fassungen
 //! dieselben sein.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -163,11 +165,13 @@ fn protokoll_hash(fight: &Fight) -> String {
 /// **Ohne `idle_ms`, und das ist gemessen, nicht vorsichtig.** `fight.rs`
 /// zählt beim Warten die Spanne bis zum nächsten BEREITS eingereihten Ereignis;
 /// der Weckruf der Entscheidung wird erst danach eingereiht. Jeder Weckruf vor
-/// diesem Ereignis zählt die Spanne doppelt. Gemessen am 2026-10-24: Die
-/// Takt-Referenz meldet 1 846 410 ms Leerlauf in einem 30-s-Kampf, und schon
-/// Fassung A meldet bei `searing if dot.searing.remains < 1500` 30 000 ms bei
-/// fünf gewirkten GCDs. Eine Änderung NUR an dieser Zahl ist deshalb keine
-/// verschobene Rotation; sie steht getrennt im Datensatz (`idle_ms`).
+/// diesem Ereignis zählt die Spanne doppelt. Gemessen am 2026-10-24 an den
+/// `gcd`-Datensätzen (`first-crucible`, 30 s): Die Takt-Referenz zu
+/// `smoulder if dot.smoulder.remains < 1500` meldet 1 846 410 ms Leerlauf
+/// (`idle_ms_reference` von `smoulder/strikt`), und schon Fassung A meldet bei
+/// `searing if dot.searing.remains < 1500` 30 000 ms bei fünf gewirkten GCDs
+/// (`idle_ms` von `searing/strikt`). Eine Änderung NUR an dieser Zahl ist
+/// deshalb keine verschobene Rotation; sie steht getrennt im Datensatz.
 fn ergebnis(fight: &Fight, result: &RunResult) -> Json {
     assert!(!fight.log().overflowed(), "Kampfprotokoll übergelaufen");
     let je_zauber = |werte: &[u32]| -> Vec<Json> {
@@ -561,6 +565,11 @@ fn rasterproben() {
 /// Brände, kurz genug, dass die Takt-Referenz über die ganze Zeit läuft.
 const GCD_PROBE_MS: u32 = 30_000;
 
+/// Die vier Nachlegezeilen der Suche an `first-crucible`, über 30 s gegen die
+/// Takt-Referenz: ohne Füller, mit Füller und mit einem GCD-freien Zug vor dem
+/// Füller (QUENCH löst keine Wartezeit aus, SUBLIME befreit den Wurf danach).
+/// Die ersten vier Varianten je Brand sind die der ersten Messung und schreiben
+/// dieselben Felder wie dort.
 fn gcd_proben() {
     let brande: Vec<usize> = (0..SPELLS.len())
         .filter(|&i| SPELLS[i].dot.is_some() && ist_spielbar(&SPELLS[i]))
@@ -578,38 +587,77 @@ fn gcd_proben() {
     );
 
     let ziel = boss("first-crucible");
+    let kindle = zauber("kindle");
     for &brand in &brande {
         let id = SPELLS[brand].id;
+        // Die letzten vier stellen einen GCD-freien Zug vor den Füller: QUENCH
+        // löst keine Wartezeit aus, SUBLIME befreit den Wurf danach. Für sie
+        // stehen zusätzlich die Würfe des freien Zugs und des Füllers im
+        // Datensatz — die ersten vier bleiben, wie sie waren.
         let varianten = [
             (
                 "strikt+fueller",
                 format!("{id} if dot.{id}.remains < {GCD_MS}\nkindle\n"),
+                None,
             ),
             (
                 "gleich+fueller",
                 format!("{id} if dot.{id}.remains <= {GCD_MS}\nkindle\n"),
+                None,
             ),
-            ("strikt", format!("{id} if dot.{id}.remains < {GCD_MS}\n")),
-            ("gleich", format!("{id} if dot.{id}.remains <= {GCD_MS}\n")),
+            (
+                "strikt",
+                format!("{id} if dot.{id}.remains < {GCD_MS}\n"),
+                None,
+            ),
+            (
+                "gleich",
+                format!("{id} if dot.{id}.remains <= {GCD_MS}\n"),
+                None,
+            ),
+            (
+                "strikt+quench+fueller",
+                format!("{id} if dot.{id}.remains < {GCD_MS}\nquench\nkindle\n"),
+                Some(gcd_freier_zug("quench")),
+            ),
+            (
+                "gleich+quench+fueller",
+                format!("{id} if dot.{id}.remains <= {GCD_MS}\nquench\nkindle\n"),
+                Some(gcd_freier_zug("quench")),
+            ),
+            (
+                "strikt+sublime+fueller",
+                format!("{id} if dot.{id}.remains < {GCD_MS}\nsublime\nkindle\n"),
+                Some(gcd_freier_zug("sublime")),
+            ),
+            (
+                "gleich+sublime+fueller",
+                format!("{id} if dot.{id}.remains <= {GCD_MS}\nsublime\nkindle\n"),
+                Some(gcd_freier_zug("sublime")),
+            ),
         ];
-        for (variante, text) in varianten {
+        for (variante, text, frei) in varianten {
             let probe = liste("gcd", &text);
             // `idle_ms` steht neben dem Ergebnis, nicht darin (siehe `ergebnis`):
             // In der Takt-Referenz zählt es jede Spanne vielfach.
             let messen = |apl: &Apl| -> (Json, u32) {
                 let mut fight = kampf(ziel, Some(GCD_PROBE_MS));
                 let result = fight.run_apl(apl);
-                let werte = json!({
+                let mut werte = json!({
                     "dot_casts": wuerfe(&fight, brand),
                     "lost_ticks": result.lost_dot_ticks[brand],
                     "ticks": result.dot_tick_counts[brand],
                     "damage": result.damage,
                     "off_grid": abseits_vom_takt(&fight),
                 });
+                if let Some(frei) = frei {
+                    werte["free_casts"] = json!(wuerfe(&fight, frei));
+                    werte["filler_casts"] = json!(wuerfe(&fight, kindle));
+                }
                 (werte, result.idle_ms)
             };
             let (ereignis, leerlauf) = messen(&probe);
-            let (referenz, _) = messen(&mit_takt_referenz(&probe, 0, GCD_PROBE_MS));
+            let (referenz, leerlauf_referenz) = messen(&mit_takt_referenz(&probe, 0, GCD_PROBE_MS));
             ausgeben(&json!({
                 "kind": "gcd",
                 "id": format!("{id}/{variante}"),
@@ -618,11 +666,72 @@ fn gcd_proben() {
                 "event": ereignis,
                 "reference": referenz,
                 "idle_ms": leerlauf,
+                "idle_ms_reference": leerlauf_referenz,
                 "matches_reference": ereignis == referenz,
                 "fp": ereignis.to_string(),
                 "fp_reference": referenz.to_string(),
             }));
         }
+    }
+}
+
+/// Ein Zauber, nach dessen Wurf keine Wartezeit läuft: `triggersGcd: false`
+/// (QUENCH) oder `freesNextGcd` (SUBLIME befreit den Wurf danach). Bricht ab,
+/// wenn die Daten das nicht mehr hergeben — sonst mäße die Probe einen
+/// gewöhnlichen Zauber und hieße trotzdem „GCD-frei".
+fn gcd_freier_zug(id: &str) -> usize {
+    let index = zauber(id);
+    assert!(
+        ist_gcd_frei(index),
+        "{id} löst laut Daten eine Wartezeit aus und befreit keinen Wurf"
+    );
+    index
+}
+
+fn ist_gcd_frei(index: usize) -> bool {
+    !SPELLS[index].triggers_gcd || SPELLS[index].frees_next_gcd
+}
+
+/// **Ein GCD-freier Zug vor dem Füller, ganz ohne zeitabhängige Bedingung.**
+///
+/// Hier gibt es keinen Weckruf aus `switch_point`, der sich zwischen A und B
+/// unterscheiden könnte — die Liste liest keinen Wert. Was die Takt-Referenz
+/// hier anders macht als der ereignisgesteuerte Lauf, liegt also nicht an der
+/// Fassung, sondern daran, wann nach dem freien Zug überhaupt wieder
+/// entschieden wird.
+fn gcdfrei_proben() {
+    let ziel = boss("first-crucible");
+    let kindle = zauber("kindle");
+    for id in ["quench", "sublime"] {
+        let frei = gcd_freier_zug(id);
+        let text = format!("{id}\nkindle\n");
+        let probe = liste("gcdfrei", &text);
+        let messen = |apl: &Apl| -> (Json, u32) {
+            let mut fight = kampf(ziel, Some(GCD_PROBE_MS));
+            let result = fight.run_apl(apl);
+            let werte = json!({
+                "free_casts": wuerfe(&fight, frei),
+                "filler_casts": wuerfe(&fight, kindle),
+                "damage": result.damage,
+                "off_grid": abseits_vom_takt(&fight),
+            });
+            (werte, result.idle_ms)
+        };
+        let (ereignis, leerlauf) = messen(&probe);
+        let (referenz, leerlauf_referenz) = messen(&mit_takt_referenz(&probe, 0, GCD_PROBE_MS));
+        ausgeben(&json!({
+            "kind": "gcdfrei",
+            "id": format!("{id}+fueller"),
+            "group": id,
+            "apl": text,
+            "event": ereignis,
+            "reference": referenz,
+            "idle_ms": leerlauf,
+            "idle_ms_reference": leerlauf_referenz,
+            "matches_reference": ereignis == referenz,
+            "fp": ereignis.to_string(),
+            "fp_reference": referenz.to_string(),
+        }));
     }
 }
 
@@ -658,6 +767,80 @@ fn apl_dateien() -> Vec<(String, String)> {
         .collect()
 }
 
+/// Die Form bei vertauschten Seiten: `T < v` ist `v > T`.
+const fn gespiegelt(form: Compare) -> Compare {
+    match form {
+        Compare::Less => Compare::Greater,
+        Compare::LessEqual => Compare::GreaterEqual,
+        Compare::Greater => Compare::Less,
+        Compare::GreaterEqual => Compare::LessEqual,
+        Compare::Equal => Compare::Equal,
+        Compare::NotEqual => Compare::NotEqual,
+    }
+}
+
+/// Ob ein Vergleich erst NACH dem Erreichen seiner Schwelle von falsch auf
+/// wahr kippt: fallend `v < T` und `v != T`, auf der Uhr `time > T` und
+/// `time != T`, jeweils auch gespiegelt. Das sind die Formen, deren Würfe in
+/// den `probe`-Datensätzen unter Fassung A neben der Takt-Referenz liegen.
+///
+/// Nur Werte, für die `switch_point` einen Umschlag aus der Schwelle rechnet:
+/// fallend die fünf Restzeiten, steigend die Uhr. Stehen auf beiden Seiten
+/// zeitabhängige Werte, weckt keine Fassung. Exhaustiv aus demselben Grund
+/// wie `switch_point`: Ein neuer Wert muss hier eingeordnet werden.
+fn strikt_zeitabhaengig(term: &Term) -> bool {
+    let (wert, form) = if term.left.is_time_dependent() && !term.right.is_time_dependent() {
+        (term.left, term.compare)
+    } else if term.right.is_time_dependent() && !term.left.is_time_dependent() {
+        (term.right, gespiegelt(term.compare))
+    } else {
+        return false;
+    };
+    match wert {
+        Value::DotRemains(_)
+        | Value::CooldownRemains(_)
+        | Value::FightRemains
+        | Value::BossNextStrikeIn
+        | Value::BossCastRemains => matches!(form, Compare::Less | Compare::NotEqual),
+        Value::Time => matches!(form, Compare::Greater | Compare::NotEqual),
+        // Zeitabhängig, aber ohne Umschlag aus der Schwelle — beide Fassungen
+        // behandeln sie gleich (`switch_point`).
+        Value::CooldownReady(_)
+        | Value::DotActive(_)
+        | Value::BuffActive(_)
+        | Value::BuffRemains(_)
+        // Nicht zeitabhängig, oben schon ausgeschlossen.
+        | Value::Literal(_)
+        | Value::Resource
+        | Value::DotTicks(_)
+        | Value::BossHp
+        | Value::BossHpPercent
+        | Value::BossCasting
+        | Value::Gcd
+        | Value::Decay
+        | Value::Shield
+        | Value::Control
+        | Value::Doom
+        | Value::DoomCharges
+        | Value::Afflicted
+        | Value::RaceProgress => false,
+    }
+}
+
+/// Wie viele Regeln einen GCD-freien Zug wirken und wie viele Vergleiche eine
+/// strikte Form auf einem zeitabhängigen Wert haben — Eigenschaften der Datei,
+/// unter jeder Fassung gleich, deshalb nicht im Fingerabdruck.
+fn aufbau(apl: &Apl) -> (usize, usize) {
+    let frei = apl.rules.iter().filter(|r| ist_gcd_frei(r.spell)).count();
+    let strikt = apl
+        .rules
+        .iter()
+        .flat_map(|r| r.condition.groups.iter().flatten())
+        .filter(|t| strikt_zeitabhaengig(t))
+        .count();
+    (frei, strikt)
+}
+
 fn bestand(dateien: &[(String, String)]) {
     for (name, text) in dateien {
         let datei_hash = format!("{:016x}", fnv(text.as_bytes(), FNV_START));
@@ -675,6 +858,7 @@ fn bestand(dateien: &[(String, String)]) {
                 continue;
             }
         };
+        let (gcd_frei, strikt) = aufbau(&apl);
         for ziel in BOSSES.iter() {
             let mut fight = kampf(ziel, None);
             let result = fight.run_apl(&apl);
@@ -685,6 +869,8 @@ fn bestand(dateien: &[(String, String)]) {
                 "group": ziel.id,
                 "file": name,
                 "file_hash": datei_hash,
+                "gcd_free_lines": gcd_frei,
+                "strict_time_terms": strikt,
                 "result": fp,
                 "idle_ms": result.idle_ms,
                 "off_grid": abseits_vom_takt(&fight),
@@ -744,12 +930,11 @@ fn konfiguration(suche: Suche, ziel: &'static Boss) -> BalanceConfig {
     }
 }
 
-/// Der Vorrat, wie `greedy_zuege` ihn bildet: alle Kandidaten und dahinter die
-/// boss-abhängigen Zeilen aus `boss_kandidaten`.
-fn vorrat(config: &BalanceConfig) -> Vec<Candidate> {
-    let basis = all_candidates();
-    let mut alle = basis.clone();
-    alle.extend(boss_kandidaten(config, &basis));
+/// Der Vorrat, wie `greedy_zuege` ihn bildet: die Kandidaten aus `basis` und
+/// dahinter die boss-abhängigen Zeilen aus `boss_kandidaten`.
+fn vorrat(config: &BalanceConfig, basis: &[Candidate]) -> Vec<Candidate> {
+    let mut alle = basis.to_vec();
+    alle.extend(boss_kandidaten(config, basis));
     for (i, a) in alle.iter().enumerate() {
         assert!(
             !alle[i + 1..].contains(a),
@@ -776,10 +961,9 @@ fn mit_bezugspunkt(mut config: BalanceConfig) -> BalanceConfig {
     config
 }
 
-/// Der Nachlauf einer Liste, mit derselben Umgebung wie die Suche.
-/// Gibt Ergebnis, Einträge abseits des Takts und `idle_ms` zurück.
-fn nachlauf(config: &BalanceConfig, apl: &Apl) -> (Json, usize, u32) {
-    let mut fight = Fight::new(FightConfig {
+/// Ein Kampf mit derselben Umgebung wie die Suche.
+fn nachlauf_kampf(config: &BalanceConfig) -> Fight {
+    Fight::new(FightConfig {
         boss: config.boss,
         seed: config.base_seed,
         duration_ms: config.duration_ms,
@@ -788,7 +972,13 @@ fn nachlauf(config: &BalanceConfig, apl: &Apl) -> (Json, usize, u32) {
         worn: config.worn,
         log_capacity: PROTOKOLL,
         ..FightConfig::default()
-    });
+    })
+}
+
+/// Der Nachlauf einer Liste, mit derselben Umgebung wie die Suche.
+/// Gibt Ergebnis, Einträge abseits des Takts und `idle_ms` zurück.
+fn nachlauf(config: &BalanceConfig, apl: &Apl) -> (Json, usize, u32) {
+    let mut fight = nachlauf_kampf(config);
     let result = fight.run_apl(apl);
     (
         ergebnis(&fight, &result),
@@ -809,12 +999,42 @@ fn indizes(vorrat: &[Candidate], gewaehlt: &[Candidate]) -> Vec<usize> {
         .collect()
 }
 
-fn suchen() {
+/// Eine Nachlegezeile mit `<=` statt `<`; jede andere Zeile unverändert.
+///
+/// Bricht ab, wenn eine Nachlegezeile nicht die Form `dot.X.remains < GCD_MS`
+/// hat — sonst wäre die Gegenprobe `search_le` still eine halbe.
+fn nicht_strikt(kandidat: &Candidate) -> Candidate {
+    let mut neu = kandidat.clone();
+    if kandidat.origin == Origin::DotRefresh {
+        let groups = &mut neu.condition.groups;
+        assert!(
+            groups.len() == 1
+                && groups[0].len() == 1
+                && matches!(groups[0][0].left, Value::DotRemains(_))
+                && groups[0][0].compare == Compare::Less
+                && groups[0][0].right == Value::Literal(i64::from(GCD_MS)),
+            "Nachlegezeile hat nicht die Form `dot.X.remains < GCD_MS`"
+        );
+        groups[0][0].compare = Compare::LessEqual;
+    }
+    neu
+}
+
+/// Die gierige Suche je Boss und Einstellung, ausgehend von `basis`.
+///
+/// `search` sucht mit den Kandidaten der Suche selbst. `search_le` ist die
+/// Gegenprobe zur Frage, woher die Verschiebungen unter Fassung B kommen:
+/// dieselbe Suche, nur legen die Nachlegezeilen mit `<=` nach. Die übrigen
+/// Kandidatenarten vergleichen mit `>=` auf Werten, die nicht von der Uhr
+/// abhängen oder in keiner Fassung einen Umschlag haben, bzw. mit `<=`
+/// (`boss.next_strike_in`) — ändert sich unter B auch hier etwas, kommt es
+/// von dort.
+fn suchen(kind: &str, basis: &[Candidate]) {
     for suche in SUCHEN {
         for ziel in BOSSES.iter() {
             let config = konfiguration(suche, ziel);
-            let alle = vorrat(&config);
-            let gefunden: SearchResult = greedy(&config, &all_candidates(), suche.max_len);
+            let alle = vorrat(&config, basis);
+            let gefunden: SearchResult = greedy(&config, basis, suche.max_len);
             let nachgemessen = measure(&mit_bezugspunkt(config), "gefunden", &gefunden.chosen);
             assert_eq!(
                 nachgemessen.mean.to_bits(),
@@ -832,7 +1052,7 @@ fn suchen() {
                 .count();
             let apl_text = gefunden.best.apl.to_string();
             ausgeben(&json!({
-                "kind": "search",
+                "kind": kind,
                 "id": format!("{}/{}", suche.id, ziel.id),
                 "group": ziel.id,
                 "config": {
@@ -892,8 +1112,16 @@ fn messen() {
     wurfproben();
     rasterproben();
     gcd_proben();
+    gcdfrei_proben();
     bestand(&dateien);
-    suchen();
+    let kandidaten = all_candidates();
+    suchen("search", &kandidaten);
+    let nicht_strikte: Vec<Candidate> = kandidaten.iter().map(nicht_strikt).collect();
+    assert_ne!(
+        nicht_strikte, kandidaten,
+        "Die Gegenprobe `search_le` hat keine Nachlegezeile verändert"
+    );
+    suchen("search_le", &nicht_strikte);
 }
 
 // ---------------------------------------------------------------------------
@@ -917,6 +1145,18 @@ fn gewaehlte(record: &Json, alle: &[Candidate]) -> Vec<Candidate> {
         .collect()
 }
 
+/// Die Würfe eines Kampfes in ihrer Reihenfolge, als `[Zeitpunkt, Zauber]`.
+fn wurfreihe(fight: &Fight) -> Vec<Json> {
+    assert!(!fight.log().overflowed(), "Kampfprotokoll übergelaufen");
+    fight
+        .log()
+        .entries()
+        .iter()
+        .filter(|e| e.kind == LogKind::Cast)
+        .map(|e| json!([e.time, SPELLS[usize::from(e.spell)].id]))
+        .collect()
+}
+
 /// Bewertet die gefundenen Listen beider Fassungen und die Nachbarschaft der
 /// Liste aus `a` — alles feste Listen, unabhängig davon, was DIESER Bau suchen
 /// würde. So wird „dieselbe Rotation zählt anders" von „die Suche wählt eine
@@ -924,6 +1164,11 @@ fn gewaehlte(record: &Json, alle: &[Candidate]) -> Vec<Candidate> {
 ///
 /// Die Nachbarschaft ist genau das, was der nächste Schritt der Suche ansähe:
 /// jede Zeile einmal entfernt, jeder übrige Kandidat an jeder Stelle eingefügt.
+///
+/// Dazu zwei Gegenproben an der A-Liste selbst: dieselbe Liste mit `<=` in den
+/// Nachlegezeilen (`a_le_*`) und ohne ihre GCD-freien Züge (`a_ohne_gcdfrei_*`),
+/// und die Wurfreihe der A-Liste, an der `vergleich` die erste Abweichung
+/// zwischen zwei Fassungen zeigt.
 fn kreuz(pfad_a: &str, pfad_b: &str) {
     let suchen_in = |pfad: &str| -> BTreeMap<String, Json> {
         jsonl(pfad)
@@ -948,7 +1193,7 @@ fn kreuz(pfad_a: &str, pfad_b: &str) {
             .expect("unbekannte Sucheinstellung");
         let ziel = boss(ra["config"]["boss"].as_str().expect("boss"));
         let config = konfiguration(suche, ziel);
-        let alle = vorrat(&config);
+        let alle = vorrat(&config, &all_candidates());
         let bewertet = mit_bezugspunkt(config);
         let liste_a = gewaehlte(ra, &alle);
         let liste_b = gewaehlte(rb, &alle);
@@ -975,6 +1220,14 @@ fn kreuz(pfad_a: &str, pfad_b: &str) {
         let apl_aus = |gewaehlt: &[Candidate]| measure(&bewertet, "kreuz", gewaehlt).apl;
         let (nach_a, _, _) = nachlauf(&config, &apl_aus(&liste_a));
         let (nach_b, _, _) = nachlauf(&config, &apl_aus(&liste_b));
+        let a_le: Vec<Candidate> = liste_a.iter().map(nicht_strikt).collect();
+        let a_ohne_frei: Vec<Candidate> = liste_a
+            .iter()
+            .filter(|k| !ist_gcd_frei(k.spell))
+            .cloned()
+            .collect();
+        let mut fight = nachlauf_kampf(&config);
+        let _ = fight.run_apl(&apl_aus(&liste_a));
         ausgeben(&json!({
             "kind": "kreuz",
             "id": id,
@@ -985,6 +1238,11 @@ fn kreuz(pfad_a: &str, pfad_b: &str) {
             "b_result": nach_b,
             "neighbours": nachbar_werte.len(),
             "neighbour_score_bits": nachbar_werte,
+            "a_le_changed_lines": liste_a.iter().zip(&a_le).filter(|(x, y)| x != y).count(),
+            "a_le_score_bits": wert_von(&a_le),
+            "a_gcd_free_lines": liste_a.len() - a_ohne_frei.len(),
+            "a_ohne_gcdfrei_score_bits": wert_von(&a_ohne_frei),
+            "a_casts": wurfreihe(&fight),
         }));
     }
 }
@@ -1051,8 +1309,13 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
     let mut gcd = Vec::new();
     let mut raster = Vec::new();
     let mut bestand_je_boss: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    // (GCD-freier Zug in der Datei, strikte zeitabhängige Form in der Datei)
+    // -> (Dateien, Läufe, geänderte Läufe, Dateien mit geändertem Lauf)
+    type Feld = (BTreeSet<String>, usize, usize, BTreeSet<String>);
+    let mut bestand_nach_aufbau: BTreeMap<(bool, bool), Feld> = BTreeMap::new();
     let mut bestand_geaendert = Vec::new();
     let mut suchen_tabelle = Vec::new();
+    let mut suchen_le_tabelle = Vec::new();
 
     for (key, alt) in &a {
         let neu = &b[key];
@@ -1092,9 +1355,12 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
                 "after_first": neu["event"]["first"], "reference_first": alt["reference"]["first"],
                 "purge_casts": alt["purge_casts"],
             })),
-            "gcd" => gcd.push(json!({
-                "id": key.1, "before": alt["event"], "after": neu["event"],
+            "gcd" | "gcdfrei" => gcd.push(json!({
+                "kind": key.0, "id": key.1, "before": alt["event"], "after": neu["event"],
                 "reference": alt["reference"],
+                "before_matches": alt["matches_reference"], "after_matches": neu["matches_reference"],
+                "idle_ms": [alt["idle_ms"], neu["idle_ms"]],
+                "idle_ms_reference": [alt["idle_ms_reference"], neu["idle_ms_reference"]],
             })),
             "bestand" => {
                 let zeile = bestand_je_boss
@@ -1102,6 +1368,17 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
                     .or_default();
                 zeile.0 += 1;
                 zeile.1 += usize::from(geaendert);
+                let aufbau = (
+                    alt["gcd_free_lines"].as_u64().expect("gcd_free_lines") > 0,
+                    alt["strict_time_terms"].as_u64().expect("strict_time_terms") > 0,
+                );
+                let feld = bestand_nach_aufbau.entry(aufbau).or_default();
+                feld.0.insert(alt["file"].as_str().expect("file").to_owned());
+                feld.1 += 1;
+                feld.2 += usize::from(geaendert);
+                if geaendert {
+                    feld.3.insert(alt["file"].as_str().expect("file").to_owned());
+                }
                 if geaendert {
                     bestand_geaendert.push(json!({
                         "id": key.1,
@@ -1123,6 +1400,12 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
                 "apl_before": alt["apl"], "apl_after": neu["apl"],
                 "died_at_ms": [alt["result"]["died_at_ms"], neu["result"]["died_at_ms"]],
                 "interrupts": [alt["result"]["interrupts"], neu["result"]["interrupts"]],
+            })),
+            "search_le" => suchen_le_tabelle.push(json!({
+                "id": key.1, "changed": geaendert,
+                "apl_changed": alt["apl"] != neu["apl"],
+                "score": [alt["score"], neu["score"]],
+                "apl_before": alt["apl"], "apl_after": neu["apl"],
             })),
             _ => {}
         }
@@ -1159,15 +1442,61 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
                 "{key:?}: Nachbarschaft verschieden groß"
             );
             let verschoben = werte_a.iter().zip(werte_b).filter(|(x, y)| x != y).count();
+            let wert = |r: &Json, feld: &str| f64::from_bits(r[feld].as_u64().expect("bits"));
+            // Die ersten Nachbarn sind die Entfernungen, in der Reihenfolge der
+            // Zeilen (siehe `kreuz`). Welche Zeile muss weg, damit beide
+            // Fassungen dieselbe Zahl liefern?
+            let zeilen: Vec<&str> = suche["apl"]
+                .as_str()
+                .expect("apl")
+                .lines()
+                .filter(|z| !z.trim().is_empty())
+                .collect();
+            assert_eq!(
+                zeilen.len(),
+                suche["chosen"].as_array().expect("chosen").len(),
+                "{key:?}: Zeilen und gewählte Kandidaten zählen verschieden"
+            );
+            let entfernt_gleich: Vec<&str> = zeilen
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| werte_a[*i] == werte_b[*i])
+                .map(|(_, z)| *z)
+                .collect();
+            let reihe_a = alt["a_casts"].as_array().expect("a_casts");
+            let reihe_b = neu["a_casts"].as_array().expect("a_casts");
+            let abweichung = (0..reihe_a.len().max(reihe_b.len()))
+                .find(|&i| reihe_a.get(i) != reihe_b.get(i))
+                .map(|i| {
+                    let ausschnitt = |reihe: &[Json], von: usize, bis: usize| -> Vec<Json> {
+                        reihe[von.min(reihe.len())..bis.min(reihe.len())].to_vec()
+                    };
+                    json!({
+                        "index": i,
+                        "common_before": ausschnitt(reihe_a, i.saturating_sub(4), i),
+                        "before_next": ausschnitt(reihe_a, i, i + 3),
+                        "after_next": ausschnitt(reihe_b, i, i + 3),
+                    })
+                });
             kreuz_tabelle.push(json!({
                 "id": key.1,
                 "a_list_score_changed": alt["a_score_bits"] != neu["a_score_bits"],
                 "a_list_result_changed": alt["a_result"] != neu["a_result"],
                 "b_list_score_changed": alt["b_score_bits"] != neu["b_score_bits"],
-                "a_list_score": [f64::from_bits(alt["a_score_bits"].as_u64().expect("bits")),
-                                 f64::from_bits(neu["a_score_bits"].as_u64().expect("bits"))],
+                "a_list_score": [wert(alt, "a_score_bits"), wert(neu, "a_score_bits")],
                 "neighbours": werte_a.len(),
                 "neighbours_changed": verschoben,
+                "removals_equal": entfernt_gleich,
+                "le_changed_lines": alt["a_le_changed_lines"],
+                "le_score": [wert(alt, "a_le_score_bits"), wert(neu, "a_le_score_bits")],
+                "le_score_changed": alt["a_le_score_bits"] != neu["a_le_score_bits"],
+                "gcd_free_lines": alt["a_gcd_free_lines"],
+                "without_gcd_free_score": [wert(alt, "a_ohne_gcdfrei_score_bits"),
+                                           wert(neu, "a_ohne_gcdfrei_score_bits")],
+                "without_gcd_free_score_changed":
+                    alt["a_ohne_gcdfrei_score_bits"] != neu["a_ohne_gcdfrei_score_bits"],
+                "casts_changed": reihe_a != reihe_b,
+                "first_divergence": abweichung,
             }));
         }
     }
@@ -1186,8 +1515,14 @@ fn vergleich(pfad_a: &str, pfad_b: &str, kreuz_pfade: Option<(&str, &str)>) {
         "raster": raster,
         "gcd": gcd,
         "bestand_per_boss": bestand_je_boss.iter().map(|(k, (n, g))| json!({"boss": k, "total": n, "changed": g})).collect::<Vec<_>>(),
+        "bestand_by_structure": bestand_nach_aufbau.iter().map(|((frei, strikt), (dateien, n, g, betroffen))| json!({
+            "gcd_free_line": frei, "strict_time_term": strikt,
+            "files": dateien.len(), "runs": n, "changed": g,
+            "files_changed": betroffen.iter().collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
         "bestand_changed": bestand_geaendert,
         "searches": suchen_tabelle,
+        "searches_le": suchen_le_tabelle,
         "kreuz": kreuz_tabelle,
     });
     println!(
