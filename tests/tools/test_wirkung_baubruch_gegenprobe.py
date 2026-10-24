@@ -20,6 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = 'tools/wirkung-baubruch-gegenprobe.py'
 JOB = '0123456789abcdef01234567'
+# The variant the tool inserts; RealSimulatorSources checks it against the tool.
+VARIANTE = 'WirkungBaubruchGegenprobe'
 
 MOD_RS = '''//! Fixture der Wirkungsbeschreibung.
 
@@ -174,10 +176,14 @@ if (ARGS[3:] if REMOTE else ARGS) != ['check', '--lib']:
     sys.exit(1)
 if schalter('FAKE_AUSGANG'):
     code = int(schalter('FAKE_AUSGANG'))
-    # 75 and 2 are refused before a job exists; the others end a reserved job.
-    if code not in (75, 2):
-        print(f'cargo-remote: job {JOB} | linux-gnu-bookworm | Rust 1.98.1 | normal | workspace 00ff')
-    print('cargo-remote: simulated client failure', file=sys.stderr)
+    if REMOTE:
+        # 75 and 2 are refused before a job exists; the others end a reserved job.
+        if code not in (75, 2):
+            print(f'cargo-remote: job {JOB} | linux-gnu-bookworm | Rust 1.98.1 | normal | workspace 00ff')
+        print('cargo-remote: simulated client failure', file=sys.stderr)
+    else:
+        # cargo itself crashing, e.g. a panic: an exit code without a single diagnostic.
+        print("thread 'main' panicked at src/bin/cargo/main.rs:1:1: simulated", file=sys.stderr)
     sys.exit(code)
 if schalter('FAKE_ECHT_AENDERN'):
     with open(os.environ['FAKE_ECHTE_DATEI'], 'a') as stream:
@@ -233,6 +239,30 @@ elif os.environ.get('FAKE_IMMER') == 'rot' and not stellen:
 if stellen and os.environ.get('FAKE_NICHTLOKAL') == '1':
     stellen = [ort + (stellen[0][3],) for ort in alle]
 
+
+def nach_marke(marke):
+    """The first EffectOp match after the first line containing `marke` — or a loud failure."""
+    for datei, text in texte.items():
+        for nummer, zeile in enumerate(text.splitlines(), 1):
+            if marke in zeile:
+                ort = next((o for o in alle if o[0] == datei and o[1] > nummer), None)
+                if ort is not None:
+                    return ort
+    print(f'fake cargo: no EffectOp match after {marke!r}', file=sys.stderr)
+    sys.exit(3)
+
+
+# One extra site of the probe variant, or one site fewer, at exactly one
+# invocation: each isolates a single sub-condition of the tool's verdicts.
+if schalter('FAKE_ZUSATZ'):
+    stellen.append(nach_marke(schalter('FAKE_ZUSATZ')) + ('{VARIANTE}',))
+if schalter('FAKE_OHNE'):
+    weg = nach_marke(schalter('FAKE_OHNE'))
+    if weg not in [s[:3] for s in stellen]:
+        print(f'fake cargo: nothing to remove at {weg}', file=sys.stderr)
+        sys.exit(3)
+    stellen = [s for s in stellen if s[:3] != weg]
+
 ausgabe = []
 if REMOTE and not schalter('FAKE_OHNE_KOPF'):
     ausgabe.append(f'cargo-remote: job {JOB} | linux-gnu-bookworm | Rust 1.98.1 | normal | workspace 00ff')
@@ -251,9 +281,12 @@ if schalter('FAKE_FREMDE_VARIANTE'):
     ausgabe += ['error[E0004]: non-exhaustive patterns: `Trigger::Neu` not covered',
                 '   --> sim/src/effects/passes.rs:18:15']
 code = 101 if fehler else 0
-if fehler:
+if schalter('FAKE_ERFOLG_TROTZ_FEHLER'):
+    # A contradictory result: diagnostics, "Finished" and exit 0 at once.
+    code = 0
+if fehler and code:
     ausgabe.append(f'error: could not compile `fixture` (lib) due to {fehler} previous errors')
-elif not schalter('FAKE_OHNE_FINISHED'):
+elif not code and not schalter('FAKE_OHNE_FINISHED'):
     ausgabe.append('    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s')
 if REMOTE and not schalter('FAKE_OHNE_ABSCHLUSS'):
     gemeldet = 0 if schalter('FAKE_ABSCHLUSS_FALSCH') else code
@@ -292,7 +325,8 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
         fake = self.bin / 'cargo'
-        fake.write_text(FAKE_CARGO.replace('{python}', sys.executable).replace('{JOB}', JOB))
+        fake.write_text(FAKE_CARGO.replace('{python}', sys.executable).replace('{JOB}', JOB)
+                        .replace('{VARIANTE}', VARIANTE))
         fake.chmod(0o755)
 
     def snapshot(self):
@@ -494,6 +528,79 @@ class WirkungBaubruchGegenprobe(unittest.TestCase):
         self.assertEqual(len(findings), 1, findings)
         self.assertIn('nur ErsterPass offen, und der Bau bricht NICHT', findings[0])
 
+    # One case per sub-condition. A case that trips two conditions at once (as
+    # `nichtlokal` does for the per-pass mutation) stays green when either one
+    # is deleted: in the review of PR #1136, 8 of 30 single-condition mutations
+    # survived the earlier cases (measured there, and again before this change).
+    # Each switch below acts at exactly one invocation:
+    # 1 K0, 2 M0, 3 K1, 4-6 the per-pass mutations (4 = only ErsterPass open), 7 G.
+
+    def test_a_probe_site_in_another_pass_fails_the_per_pass_mutation(self):
+        result = self.run_tool('--befehl', 'cargo', zusatz='4:for DritterPass')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.findings(result), [
+            'BEFUND: Mutation je Pass: nur ErsterPass offen, aber der Bruch steht nicht nur dort — '
+            "Pässe ['DritterPass'], außerhalb —, fremd —"])
+        self.assertEqual(len(self.calls()), 7)
+
+    def test_a_probe_site_outside_the_passes_fails_the_per_pass_mutation(self):
+        result = self.run_tool('--befehl', 'cargo', zusatz='4:impl EffectOp {')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        findings = self.findings(result)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertRegex(findings[0], r'^BEFUND: Mutation je Pass: nur ErsterPass offen, aber der Bruch '
+                                      r'steht nicht nur dort — Pässe \[\], außerhalb '
+                                      r'sim/src/effects/mod\.rs:\d+, fremd —$')
+
+    def test_a_foreign_error_in_the_per_pass_mutation_is_a_finding(self):
+        result = self.run_tool('--befehl', 'cargo', fremd='4')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.findings(result), [
+            'BEFUND: Mutation je Pass: nur ErsterPass offen, aber der Bruch steht nicht nur dort — '
+            "Pässe [], außerhalb —, fremd ['error[E0308]: mismatched types']"])
+
+    def test_counter_check_fails_when_another_pass_stops_breaking(self):
+        result = self.run_tool('--befehl', 'cargo', ohne='7:for ZweiterPass')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.findings(result), [
+            'BEFUND: Gegenprobe der Gegenprobe: Auffangzweig in ErsterPass, erwartet brechen '
+            "['DritterPass', 'ZweiterPass'], gemeldet ['DritterPass'], fremd —"])
+
+    def test_counter_check_fails_on_a_foreign_error(self):
+        result = self.run_tool('--befehl', 'cargo', fremd='7')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.findings(result), [
+            'BEFUND: Gegenprobe der Gegenprobe: Auffangzweig in ErsterPass, erwartet brechen '
+            "['DritterPass', 'ZweiterPass'], gemeldet ['DritterPass', 'ZweiterPass'], "
+            "fremd ['error[E0308]: mismatched types']"])
+
+    def test_exit_0_with_compiler_errors_is_not_a_build(self):
+        result = self.run_tool('--befehl', 'cargo', fremd='1', erfolg_trotz_fehler='1')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('NICHT GELAUFEN: Exit 0, aber mit Fehlermeldungen des Übersetzers', result.stdout)
+        self.assertEqual(self.findings(result), [])
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_exit_101_without_any_diagnostic_is_not_a_finding(self):
+        # A crash of cargo itself: exit 101, but nothing the compiler said. Taken
+        # for a broken build, K0 would turn it into a finding ("does not build").
+        result = self.run_tool('--befehl', 'cargo', ausgang='1:101')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('NICHT GELAUFEN: Exit 101 ohne eine einzige Fehlermeldung des Übersetzers',
+                      result.stdout)
+        self.assertEqual(self.findings(result), [])
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_m0_breaking_only_for_a_foreign_reason_names_the_missing_sites(self):
+        # M0 breaks, but no E0004 names the probe: nothing to attribute, so no
+        # pass may be blamed and nothing further may be built.
+        result = self.run_tool('--befehl', 'cargo', gruen='2', fremd='2')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.findings(result), [
+            'BEFUND: M0: der Bau bricht auch aus fremdem Grund: error[E0308]: mismatched types',
+            f'BEFUND: M0: keine einzige E0004-Stelle nennt {VARIANTE} — nichts zuzuordnen'])
+        self.assertEqual(len(self.calls()), 2)
+
     def test_a_change_to_the_real_tree_during_the_run_is_a_finding(self):
         result = self.run_tool('--befehl', 'cargo', real_tree_may_change=True, echt_aendern='1')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
@@ -562,6 +669,7 @@ class RealSimulatorSources(unittest.TestCase):
             self.assertIsNotNone(found.kennung, f'{name} has no readable ID')
 
     def test_the_probe_variant_is_inserted_exactly_once_into_the_real_enum(self):
+        self.assertEqual(self.tool.VARIANTE, VARIANTE, 'the fake would report a different variant')
         enum = self.tool.finde_enum(self.texts)
         mutated = self.tool.mit_baustein(self.texts, enum)
         changed = [name for name in self.texts if mutated[name] != self.texts[name]]
