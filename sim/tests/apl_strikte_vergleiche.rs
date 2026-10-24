@@ -568,3 +568,41 @@ fn der_weckruf_von_dot_remains_traegt_ohne_fremdes_ereignis() {
     );
     assert_eq!(ereignis, referenz, "Ereignis und Takt-Referenz weichen ab");
 }
+
+/// **Der Weckruf von `cooldown.*.remains` trägt — ohne fremdes Ereignis.**
+///
+/// Der dritte Wächter dieser Art, für einen Wert, den #1027 ebenfalls zu den
+/// betroffenen zählt; eine Formtabelle hat `cooldown.*.remains` hier nicht. Mit
+/// `Value::CooldownRemains(_) => None` in `switch_point` blieb die ganze Suite
+/// ohne diesen Fall grün (gemessen bei der Prüfung am 2026-10-24), mit ihm wird
+/// allein er rot.
+///
+/// `purge` wird nur bei 0 gewirkt, seine Abklingzeit endet bei 7500; `<= 1000`
+/// wird bei 6500 wahr, und dort weckt nur der Weckruf aus `switch_point`.
+/// Gemessen am 2026-10-24: Mit der Mutation wirft diese Zeile erst am Ende der
+/// Abklingzeit bei 7500 — zwischen 6500 und 7500 weckt also nichts anderes —,
+/// ohne die Mutation bei 6500, unter Fassung B (#1027) ebenfalls bei 6500.
+///
+/// **Warum `purge` nicht ohne Bedingung vorn steht:** Dann verspätet die
+/// Mutation den Wurf nicht, sondern streicht ihn für den ganzen Durchgang —
+/// gemessen: `purge` wird bei 7500 neu gewirkt, kein `kindle` zwischen 6000 und
+/// 9500, der erste erst bei 14000. Dazwischen weckt sehr wohl etwas, nur ist die
+/// Bedingung dann falsch; der Wurf bei 14000 gehört zum nächsten Umschlag.
+#[test]
+fn der_weckruf_von_cooldown_remains_traegt_ohne_fremdes_ereignis() {
+    let apl: Apl = parse(
+        AplName("probe"),
+        "purge if time == 0\nkindle if cooldown.purge.remains <= 1000\n",
+    )
+    .expect("gültige Liste");
+    let ereignis = kindle_im_fenster(BOSS_12000, &apl, 6000, 9500);
+    let referenz = kindle_im_fenster(BOSS_12000, &mit_takt_referenz(&apl, 6000, 9500), 6000, 9500);
+    assert_eq!(
+        ereignis.first().copied(),
+        Some(6500),
+        "`<= 1000` muss am Umschlag 6500 werfen. Wirft es erst am Ende der \
+         Abklingzeit (7500), trägt der Weckruf von `cooldown.*.remains` nicht — so \
+         gemessen mit `Value::CooldownRemains(_) => None` in `switch_point`"
+    );
+    assert_eq!(ereignis, referenz, "Ereignis und Takt-Referenz weichen ab");
+}
