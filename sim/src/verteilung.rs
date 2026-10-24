@@ -804,31 +804,57 @@ mod dp_tests {
     ///
     /// Gegengerechnet über die Aufzählung, nicht über eine zweite Formel — die
     /// Aufzählung ist der Bezugspunkt aus Nachweis 1.
+    ///
+    /// # Warum die Trägerzusicherung einen Abstand zu 0 und 1 verlangt
+    ///
+    /// Bis Issue #915 standen hier die Schwellen `[60, 100, 140]` und die
+    /// Zusicherung `a > 0.0 && a < 1.0`. Bei zehn Treffern zu 10 oder 15 liegen
+    /// die Summen zwischen 100 und 150: Die Schwellen 60 und 100 werden IMMER
+    /// erreicht, nur 140 streut. Die Zusicherung zählte trotzdem vier gestufte
+    /// Phasen, denn die Masse aller Zustände summiert sich in Gleitkomma zu
+    /// `0.9999999999999999` und nicht zu 1 — gemessen für die Phasen 0, 1 und 2.
+    /// Der Fall bestand seine Trägerzusicherung also durch Rundung.
     #[test]
     fn die_phasenwahrscheinlichkeit_stimmt_je_stufe() {
         let treffer = gleiche_treffer(10, 10, 15);
-        let phasen = [60u64, 100, 140];
+        // **Alle drei Schwellen INNERHALB der Summen 100 bis 150**, wie in
+        // Nachweis 1. Die Summe ist `100 + 5·c` bei `c` Krits, also
+        //
+        //   >= 115  bei c >= 3   P = 0,8327
+        //   >= 125  bei c >= 5   P = 0,3669
+        //   >= 140  bei c >= 8   P = 0,0123
+        //
+        // — drei Phasen mit echter Streuung, und die Phase 0 bleibt die eine,
+        // die immer erreicht wird.
+        let phasen = [115u64, 125, 140];
         let p = 0.4;
 
         let dp = verteilung_ueber(&treffer, p, &phasen);
         let roh = aufzaehlung(&treffer, p, &phasen);
 
-        let mut wirklich_gestuft = 0;
+        const ABSTAND: f64 = 1e-6;
+        let mut gestuft = Vec::new();
+        let mut werte = Vec::new();
         for k in 0..=phasen.len() as u32 {
             let a = dp.phase_erreicht(k);
             let b = roh.phase_erreicht(k);
             assert!((a - b).abs() < 1e-12, "Phase {k}: DP {a}, Aufzählung {b}");
-            if a > 0.0 && a < 1.0 {
-                wirklich_gestuft += 1;
+            werte.push(format!("Phase {k}: {a:?}"));
+            if a > ABSTAND && a < 1.0 - ABSTAND {
+                gestuft.push(k);
             }
         }
         assert!(
-            wirklich_gestuft >= 2,
+            gestuft.len() >= 2,
             "Trägerzusicherung: mindestens zwei Phasen werden NICHT immer und \
-             nicht nie erreicht ({wirklich_gestuft}) — sonst prüft der Fall nur \
-             Nullen und Einsen"
+             nicht nie erreicht, es streuen nur {gestuft:?} ({}) — sonst prüft \
+             der Fall nur Nullen und Einsen",
+            werte.join(", ")
         );
-        println!("{wirklich_gestuft} Phasen mit echter Streuung");
+        println!(
+            "Phasen mit echter Streuung: {gestuft:?} ({})",
+            werte.join(", ")
+        );
     }
 
     /// **AC6, Nachweis 5: Monte-Carlo — und zwar ZULETZT.**
