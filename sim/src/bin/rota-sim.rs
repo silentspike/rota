@@ -1148,7 +1148,7 @@ fn spiele_ab(eintrag: &EmbeddedRecording) -> Option<u32> {
 /// Aufzeichnung hier und stimmt sie ploetzlich, ist die Ausnahme ueberholt und
 /// gehoert heraus. Ohne das waere die Liste nach dem ersten Ausbau eine
 /// Sammlung von Behauptungen, die niemand mehr prueft.
-const BEKANNTE_AUSNAHMEN: [(&str, &str); 8] = [
+const BEKANNTE_AUSNAHMEN: [(&str, &str); 9] = [
     (
         "decay-ward",
         "der Boss steht im Test (test-onslaught), nicht in der Datei",
@@ -1165,6 +1165,10 @@ const BEKANNTE_AUSNAHMEN: [(&str, &str); 8] = [
     (
         "retort-erstattung",
         "braucht eine Spielerstufe (playerLevel)",
+    ),
+    (
+        "kontrolle-preis-talent",
+        "braucht eine Talent-Verteilung (talentPermille)",
     ),
 ];
 
