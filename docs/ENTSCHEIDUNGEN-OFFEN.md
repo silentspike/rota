@@ -813,9 +813,21 @@ wird scharf, sobald die Schule auf zwölf wächst (#479).
 
 ---
 
-## 17. Darf ein Zauber können, was ein Schlüsseltalent verleiht? — OFFEN
+## 17. Darf ein Zauber können, was ein Schlüsseltalent verleiht? — SCORIA ENTSCHIEDEN (gestrichen), die Linie OFFEN
 
 _Aufgeworfen von Worker-1 am 2026-08-07 bei #519, ausdrücklich **nicht** selbst entschieden._
+
+> **Nachgezogen am 2026-10-24 (#419), nicht neu entschieden.** Bis dahin stand hier nur
+> „OFFEN", obwohl der Anlass erledigt ist: Am 2026-08-10 hat der Auftraggeber zu SCORIA
+> entschieden — „Zauber streichen, Talent behält es" (`ZAUBER-RASTER.md`, Zeile SCORIA;
+> Commit c30065c0). Gewählt wurde damit keine der beiden Lesarten unten, sondern eine dritte:
+> Den Zauber gibt es nicht. **Ob daraus eine Linie für alle Schlüsseltalente folgt, steht dort
+> nicht** — diese Frage bleibt offen.
+>
+> Die Gegenrichtung ist ebenfalls offen: Ein Talentweg, der kann, was ein Zauber tut.
+> `TALENT-RASTER.md` schließt für PUTREFACTION die Obergrenze (PUTRID BLOOM) und den Schutz je
+> Stapel (DECAY) aus, und seit #824 tragen `putrefaction-build` und `putrefaction-duration`
+> genau diese beiden Größen. Beides ist dort markiert.
 
 **Die konkrete Frage:** SCORIA soll ein zweiter Entlade-Zauber der Kalzination werden. Seine
 Beschreibung im Raster lautet „verbraucht nur die Hälfte der Hitze, schlägt zweimal".
