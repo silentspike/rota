@@ -30,26 +30,32 @@
 //! Deshalb prüft dieser Fall die **Richtung** (`<` greift später) an zwei
 //! Aufbauten und die konkreten Punkte je Aufbau getrennt.
 //!
-//! # Die Ursache ist NICHT geklärt, und das steht hier absichtlich
+//! # Die Ursache ist geklärt (2026-10-24)
 //!
-//! Die naheliegende Erklärung lautet: Der Weckruf aus `switch_point` wird auf
-//! den Zeitpunkt gestellt, an dem der Wert die Schwelle **erreicht**; bei `<=`
-//! ist die Bedingung dort wahr, bei `<` noch falsch, und ein zweiter Weckruf
-//! kommt nicht.
+//! Messung, Befehle und Zahlen: `docs/APL-STRICT-COMPARISON-2026-10-24.md`,
+//! Abschnitt „Woher der Verzug kommt". Hier stand bis dahin, die Ursache sei
+//! offen; der Abschnitt ist ersetzt, nicht gestrichen.
 //!
-//! **Diese Erklärung ist gemessen widerlegt.** Am 2026-08-22 habe ich den
-//! Weckruf für `BossNextStrikeIn` abgeschaltet
-//! (`Value::BossNextStrikeIn => None` in `switch_point`) — alle Fälle hier
-//! blieben grün, die Zeitpunkte änderten sich nicht.
+//! **Die naheliegende Erklärung stimmt.** Der Weckruf aus `switch_point` liegt
+//! auf dem Zeitpunkt, an dem der Wert die Schwelle **erreicht**; dort ist `<=`
+//! wahr und `<` noch falsch, und einen zweiten Weckruf stellt `switch_point`
+//! am Umschlag für keine Form. Gemessen: Mit einem Weckruf auf dem ersten Takt,
+//! an dem der Vergleich kippt (Fassung B, Wegwerf-Patch), wirft `< 3000` bei
+//! 9010 statt 10000 und bei 7010 statt 7500.
 //!
-//! Dass die Mutation überhaupt ankam, ist mit einer Positiv-Kontrolle belegt:
-//! Liefert `next_strike_in_ms()` konstant 0, werden drei dieser vier Fälle rot.
-//! Der Bauweg trägt also; der Weckruf ist nur nicht die Ursache.
+//! **Die Mutation vom 2026-08-22 konnte das nicht zeigen.** Sie schaltete den
+//! Weckruf für `BossNextStrikeIn` ab, und alle Fälle hier blieben grün — aber
+//! in diesen Aufbauten weckt am Umschlag ohnehin etwas anderes: `purge` wird
+//! bei 7500 gewirkt, sein GCD endet bei 9000; bei `boss-1-2` tickt bei 7000 das
+//! Verhängnis. Der Weckruf von `<=` ist dort überflüssig, und der von `<` liegt
+//! dort, wo `<` noch falsch ist. Ohne `purge` fällt `<= 3000` unter derselben
+//! Mutation von 9000 auf 10000 (`der_weckruf_traegt_ohne_fremdes_ereignis`).
+//! Die Positiv-Kontrolle von damals (`next_strike_in_ms()` konstant 0, drei von
+//! vier rot) belegt den Bauweg, nicht die Ursache.
 //!
-//! Was übrig bleibt: Der Verzug ist der Abstand zum nächsten Zeitpunkt, an dem
-//! die Rotation ohnehin entscheidet. **Woher dieses Raster kommt, ist offen**
-//! und gehört zu #1027 — wer es klärt, sollte diesen Abschnitt ersetzen statt
-//! ihn zu streichen.
+//! **Das Raster ist das nächste schon eingereihte Ereignis**: der Hitzeverfall
+//! alle 2000 ms (10000), das Ende der Abklingzeit von `purge` (7500), ohne
+//! `purge` der Verhängnis-Takt (8000).
 
 use rota_sim::apl::{parse, Apl, AplName, Compare, Condition, Rule, Term, Value};
 use rota_sim::data::{boss_by_id, SPELLS};
@@ -187,7 +193,8 @@ fn der_verzug_ist_nicht_konstant() {
 // **Die Tabellen halten den Ist-Zustand fest (Fassung A).** Wo Ereignis und
 // Referenz auseinanderliegen, verpasst die Form heute ihren Umschlagpunkt.
 // Unter Fassung B (Weckruf auf den ersten Takt, an dem der Vergleich kippt)
-// werden genau diese Zeilen rot — gemessen, siehe
+// ändern sich genau diese Zeilen, und jede Tabelle wird an ihrer ersten
+// verspäteten Zeile rot — gemessen, siehe
 // `docs/APL-STRICT-COMPARISON-2026-10-24.md`. Rot ist dann eine Information:
 // anpassen, nicht reparieren.
 
