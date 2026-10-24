@@ -43,7 +43,11 @@
 //! und `am_baustein::<feld>` (25 bestanden, 2 durchgefallen), an der Folge, nicht
 //! an `hat_luecke`. Je Leser ein Eingriff, der „unbekannt“ wie bekannt behandelt
 //! oder eine Schranke erfindet: rot an seinem Fall. `Bounds::UNKNOWN` als Lücke
-//! (Weg a): fünf Fälle rot, darunter der Weg-b-Kern. Rückbau jedes Mal bytegleich.
+//! (Weg a): fünf Fälle rot, darunter der Weg-b-Kern. Nur die eigene
+//! Richtungsprüfung in `zertifikat` gestrichen: rot an
+//! [`ohne_richtung_oder_bezug_gibt_es_kein_zertifikat_auch_mit_allen_zutaten`]
+//! (26 bestanden, 1 durchgefallen) — solange der Fall nur `is_err()` verlangte,
+//! blieb das grün (27 bestanden). Rückbau jedes Mal bytegleich.
 //!
 //! # Was hier NICHT belegt ist
 //!
@@ -59,7 +63,8 @@ use rota_sim::effects::registry::{
 use rota_sim::effects::{
     zertifikat, Bounds, ControlFlowEffect, EffectNode, EffectOp, LocalMonotonicityHint,
     MonotonicDirection, MonotonicityDomain, NumerischerVertrag, RandomnessSemantics, SignatureId,
-    StackingSemantics, StateMask, Target, TimingSemantics, Trigger, ZertifikatsBedarf,
+    StackingSemantics, StateMask, Target, TimingSemantics, Trigger, ZertifikatVerweigert,
+    ZertifikatsBedarf,
 };
 
 /// Alle Bausteine, für die Messung der Leser unten.
@@ -529,22 +534,37 @@ fn ohne_richtung_oder_bezug_gibt_es_kein_zertifikat_auch_mit_allen_zutaten() {
         direction: MonotonicDirection::Increasing,
         domain: MonotonicityDomain::Unspecified,
     };
-    for (hinweis, gefragt) in [
-        (LocalMonotonicityHint::UNKNOWN, stabil),
-        (
-            LocalMonotonicityHint {
-                direction: MonotonicDirection::Unknown,
-                domain: stabil,
-            },
-            stabil,
-        ),
-        (ohne_bezug, stabil),
-        (ohne_bezug, MonotonicityDomain::Unspecified),
+    // **Der Grund der Weigerung zählt, nicht nur die Weigerung.** `zertifikat`
+    // prüft die Richtung selbst und fragt danach `traegt_fuer`, das ohne Richtung
+    // ebenfalls ablehnt. Mit nur `is_err()` blieb das Streichen der eigenen
+    // Richtungsprüfung grün: Der Grund wechselte still von `KeinHinweis` zu
+    // `FalscherBezug` (gemessen bei der Prüfung von PR #1136).
+    for hinweis in [
+        LocalMonotonicityHint::UNKNOWN,
+        LocalMonotonicityHint {
+            direction: MonotonicDirection::Unknown,
+            domain: stabil,
+        },
     ] {
-        let urteil = zertifikat(hinweis, gefragt, ZertifikatsBedarf::VOLLSTAENDIG, &knoten);
-        assert!(
-            urteil.is_err(),
-            "{hinweis:?}, gefragt {gefragt:?}: Zertifikat trotz unvollständigem Hinweis."
+        assert_eq!(
+            zertifikat(hinweis, stabil, ZertifikatsBedarf::VOLLSTAENDIG, &knoten),
+            Err(ZertifikatVerweigert::KeinHinweis),
+            "{hinweis:?}: Ohne Richtung muss das Zertifikat am fehlenden Hinweis scheitern."
+        );
+    }
+    for gefragt in [stabil, MonotonicityDomain::Unspecified] {
+        assert_eq!(
+            zertifikat(
+                ohne_bezug,
+                gefragt,
+                ZertifikatsBedarf::VOLLSTAENDIG,
+                &knoten
+            ),
+            Err(ZertifikatVerweigert::FalscherBezug {
+                hinweis: MonotonicityDomain::Unspecified,
+                gefragt,
+            }),
+            "Ohne Bezug, gefragt {gefragt:?}: Das Zertifikat muss am Bezug scheitern."
         );
     }
     // Der Gegenpol: Mit vollständigem Hinweis und allen Zutaten gibt es eins.
