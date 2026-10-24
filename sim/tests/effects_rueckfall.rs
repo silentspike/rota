@@ -27,9 +27,10 @@
 //! `effects_felder.rs` führt `Bounds::UNKNOWN` als gültigen Wert eines Feldes.
 //!
 //! Der andere Weg hätte jede deklarierte Bossregel im Ganzen zurückfallen lassen:
-//! Keine trägt heute einen bekannten Bereich oder eine Monotonie-Richtung
-//! (`sim/build.rs`, `knoten_fuer_boss`; gemessen unten in
-//! [`die_echten_signaturen_sind_deklariert_und_fallen_nicht_im_ganzen_zurueck`]).
+//! Jeder fehlt heute der Bereich oder die Richtung — gemessen am 2026-10-24 an
+//! 115 deklarierten Signaturknoten, alle elf Signaturarten, in
+//! [`die_echten_signaturen_sind_deklariert_und_fallen_nicht_im_ganzen_zurueck`].
+//! Laut `sim/build.rs` (`knoten_fuer_boss`) fehlt sogar beides.
 //!
 //! Weg b verlangt dafür den Nachweis an jeder Stelle, die den Wert LIEST: Dort
 //! muss „unbekannt“ den konservativen Ausgang erzwingen. Welche Analysen ihn
@@ -191,8 +192,9 @@ fn genau_eine_angabe_fehlt(mut knoten: EffectNode, feld: &str, setzen: impl Fn(&
 }
 
 /// Je Bedingung von `hat_luecke` ein Fall an der Signatur (DW3) und einer am
-/// Baustein (MAP2). Eine neue Bedingung gehört hier dazu — und ein neues Feld
-/// erzwingt das: [`jedes_feld_des_knotens_ist_hier_eingeordnet`].
+/// Baustein (MAP2). Eine neue Bedingung gehört hier dazu; ein neues Feld zwingt
+/// zum Hinsehen ([`jedes_feld_des_knotens_ist_hier_eingeordnet`]), eine neue
+/// Bedingung an einem alten Feld nicht.
 macro_rules! je_bedingung {
     ($($name:ident: $feld:literal, |$k:ident| $setzen:expr;)+) => {
         /// DW3 aus #892: eine Bossregel, der genau eine Angabe fehlt.
