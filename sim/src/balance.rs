@@ -1570,6 +1570,61 @@ mod tests {
         );
     }
 
+    /// **Die Wurfzahl der Stichprobe ist die des festen Läufers** (Issue #915).
+    ///
+    /// `GestaffelterLauf::wuerfe` steht in der Ausgabe von `rota-sim` als
+    /// Beleg, dass gewürfelt wurde. Geprüft war nur, dass sie über null liegt;
+    /// eine doppelt gezählte Zahl blieb grün. Hier steht sie gegen die Zählung
+    /// von [`super::run_range`] auf denselben Startwerten: die Zahl, mit der
+    /// der feste Lauf seine Reduktion nachprüft, aus einer eigenen Schleife.
+    ///
+    /// Drei Startwerte, einer davon am Überlauf des `u32`: Die Würfe hängen am
+    /// Kampf, also am Startwert.
+    #[test]
+    fn die_wurfzahl_der_stichprobe_ist_die_des_festen_laeufers() {
+        use super::{run_gestaffelt, run_range, Durchgangswahl, Staffelung};
+
+        let apl = gute_liste();
+        let mut worn = crate::gear::WornValues::none();
+        worn.purity = 500;
+        let vorgabe = Staffelung {
+            schwelle: 0.9,
+            alpha: 0.05,
+            budget: 2048,
+        };
+        for base_seed in [0, 1000, u32::MAX - 50] {
+            let config = BalanceConfig {
+                base_seed,
+                threads: 1,
+                boss: crate::data::boss_by_id("boss-1-1").expect("den Boss gibt es"),
+                worn,
+                ..BalanceConfig::default()
+            };
+            let lauf = run_gestaffelt(&config, &apl, vorgabe).expect("gültige Vorgabe");
+            assert_eq!(
+                lauf.wahl,
+                Durchgangswahl::Gestaffelt,
+                "Startwert {base_seed}"
+            );
+            let laenge = u32::try_from(lauf.kaempfe).expect("passt");
+            let (_, _, wuerfe_fest) = run_range(&config, &apl, 0, laenge, None);
+            assert!(
+                wuerfe_fest > 0,
+                "Trägerzusicherung: ab Startwert {base_seed} wird gewürfelt"
+            );
+            assert_eq!(
+                lauf.wuerfe,
+                u64::from(wuerfe_fest),
+                "Startwert {base_seed}: die Stichprobe meldet andere Würfe als \
+                 der feste Läufer über dieselben {laenge} Kämpfe"
+            );
+            println!(
+                "Startwert {base_seed}: {} Kämpfe, {} Würfe",
+                lauf.kaempfe, lauf.wuerfe
+            );
+        }
+    }
+
     /// **Waechter: Jeder Faktor der Struktur steht in der Liste** (Issue #159).
     ///
     /// # Warum das nicht ueber die Anzahl geht
