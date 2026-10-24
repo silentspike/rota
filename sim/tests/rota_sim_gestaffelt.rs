@@ -110,6 +110,82 @@ fn die_textausgabe_nennt_weg_befund_und_kampfzahl() {
     );
 }
 
+/// Breite der Bezeichnungsspalte der Textausgabe (`"Befund               "`).
+const SPALTE: usize = 21;
+
+/// **Jeder der vier Befund-Sätze steht lesbar da.**
+///
+/// Ein Lauf je Satz: erfüllt, verfehlt und ungeklärt gestaffelt, dazu der
+/// exakte Weg ohne Zufall. Hinter der Bezeichnungsspalte steht nirgends ein
+/// doppeltes Leerzeichen.
+///
+/// > Gefunden am fertigen Programm, nicht von einem Prüffall: In der ersten
+/// > Fassung standen in drei Sätzen 14 Leerzeichen mitten im Text. Ein
+/// > Einfügeskript hatte das `\` am Zeilenende des Rust-Strings als eigene
+/// > Zeilenfortsetzung gelesen und mitsamt dem Umbruch entfernt — der String
+/// > blieb gültig, und alle Prüffälle suchten nur nach Teilstrings.
+#[test]
+fn jeder_befund_satz_steht_lesbar_da() {
+    let faelle: [(&[&str], &str); 4] = [
+        (&["--purity", "500"], "ERFUELLT"),
+        (
+            &[
+                "--purity",
+                "500",
+                "--threshold",
+                "0.99",
+                "--alpha",
+                "0.01",
+                "--budget",
+                "2048",
+            ],
+            "VERFEHLT",
+        ),
+        (
+            &[
+                "--purity",
+                "500",
+                "--threshold",
+                "0.99",
+                "--alpha",
+                "0.01",
+                "--budget",
+                "64",
+            ],
+            "UNGEKLAERT",
+        ),
+        (&[], "VERFEHLT — verloren"),
+    ];
+    for (zusatz, erwartet) in faelle {
+        // Spätere Angaben überschreiben frühere, also gewinnt der Zusatz.
+        let mut argumente = GESTAFFELT.to_vec();
+        argumente.extend(zusatz);
+        let (code, stdout, stderr) = rufe(&argumente);
+        let aufruf = argumente.join(" ");
+        assert_eq!(code, 0, "'{aufruf}': {stderr}");
+        assert!(stderr.is_empty(), "'{aufruf}': {stderr}");
+        let befund = stdout
+            .lines()
+            .find(|zeile| zeile.starts_with("Befund"))
+            .unwrap_or_else(|| panic!("'{aufruf}': keine Befund-Zeile in:\n{stdout}"));
+        assert!(
+            befund.contains(erwartet),
+            "'{aufruf}': erwartet {erwartet}, steht da: {befund}"
+        );
+        for zeile in stdout.lines() {
+            // Zeichen, nicht Bytes: `get(SPALTE..)` lieferte vor einem
+            // Mehrbyte-Zeichen wie `—` still `None`, und die Zeile fiele aus
+            // der Prüfung.
+            let wert: String = zeile.chars().skip(SPALTE).collect();
+            assert!(
+                !wert.contains("  "),
+                "'{aufruf}': doppeltes Leerzeichen hinter der Spalte:\n{zeile}"
+            );
+        }
+        println!("{befund}");
+    }
+}
+
 /// **Eine unvollständige Vorgabe wird abgelehnt, mit Ausweg.**
 #[test]
 fn eine_unvollstaendige_vorgabe_wird_abgelehnt() {
