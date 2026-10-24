@@ -21,9 +21,10 @@
 //!
 //! Nur CALCINATION und der globale Baum stehen hier, und im globalen nur zwei
 //! von drei Wegen. Alle achtzehn Wege misst
-//! `sim/examples/ac3-umgebaute-wege-419.rs` gegen die heute beste bekannte
-//! Rotation — als Messung, nicht als Prueffall, weil AC3 nach dieser Lesart
-//! nicht abgeschlossen ist (#419).
+//! `sim/examples/ac3-umgebaute-wege-419.rs`, unter vier Zeilengrenzen und je
+//! gegen die beste Liste, die der Lauf unter dieser Grenze kennt — als Messung,
+//! nicht als Prüffall, weil offen ist, welche Grenze und welche Lesart von
+//! „spielbar" gilt, und AC3 deshalb nicht abgeschlossen ist (#419).
 //!
 //! **Hier stand bis 2026-10-24 eine Liste der Gruende fuer die uebrigen Wege,
 //! und sie beschrieb den Stand VOR #824** — etwa „putrefaction duration von
