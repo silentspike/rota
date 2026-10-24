@@ -111,9 +111,14 @@
 //! weil der Füller den GCD ständig neu auslöst und dadurch dicht genug geweckt
 //! wird. Eine Rotation mit Wartezeiten träfe den Zeitpunkt nicht.
 //!
-//! [`Apl::next_wakeup`] rechnet deshalb aus, wann die **früheste** zeitabhängige
-//! Bedingung ihren Wahrheitswert ändern kann, und der Kampf plant dafür einen
-//! Weckruf ein. Damit ist die Grenze aus #53 nicht nur beschrieben, sondern weg.
+//! [`Apl::next_wakeup`] rechnet deshalb aus, wann ein zeitabhängiger Wert seine
+//! Schwelle **erreicht**, und der Kampf plant dafür einen Weckruf ein. Für die
+//! Formen, die genau dort kippen, ist die Grenze aus #53 damit weg — für die
+//! strikten nicht: Fallend `<` (auch gespiegelt, `T > v`) und `!=`, auf der Uhr
+//! `>` (auch `T < time`) und `!=` werden erst nach dem Erreichen wahr, und
+//! dafür gibt es keinen Weckruf; sie greifen erst am nächsten fremden
+//! Ereignis. Gemessen in `docs/APL-STRICT-COMPARISON-2026-10-24.md` (#1027),
+//! Einzelheiten an `switch_point`.
 
 mod parse;
 
@@ -569,6 +574,20 @@ impl Apl {
 /// hier beantwortet werden — auch mit `None`, dann aber sichtbar und begründet.
 fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis> {
     let now = fight.time();
+    // **Der Weckruf liegt dort, wo der Wert die Schwelle ERREICHT — nicht dort,
+    // wo der Vergleich kippt** (#1027). Für `<=` und `==` auf einem fallenden
+    // Wert fällt beides zusammen, ebenso für `>=` und `==` auf der Uhr (Zweig
+    // `Value::Time` unten). Fallend `v < T` (auch `T > v`) und `v != T` sind
+    // am Erreichen aber noch falsch und werden erst danach wahr — im Spiel am
+    // nächsten Takt —, auf der Uhr ebenso `time > T` (auch `T < time`) und
+    // `time != T`. Einen zweiten Weckruf dafür gibt es nicht: `at` liefert am
+    // Erreichen `delta == 0` und damit `None`. Solche Zeilen greifen erst am
+    // nächsten fremden Ereignis.
+    //
+    // Gemessen in `docs/APL-STRICT-COMPARISON-2026-10-24.md`: unter diesem
+    // Bestand 24 von 84 Wurfproben neben der Takt-Referenz, alle in diesen
+    // Formen. Ob das so bleibt oder der Weckruf auf den kippenden Takt rückt
+    // (dort „Fassung B"), entscheidet der Auftraggeber.
     let at = |remaining_now: Millis, target: Number| -> Option<Millis> {
         // Ein Restwert sinkt je Millisekunde um eins: Er erreicht `target` in
         // `remaining_now - target` Millisekunden.
