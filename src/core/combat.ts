@@ -1582,7 +1582,7 @@ export class Combat {
   }
 
   setPlayerLevel(level: number): void {
-    const stufe = Math.max(talentDecayWardFactor(this.talents), Math.trunc(level));
+    const stufe = Math.max(1, Math.trunc(level));
     if (stufe === this.levelValue) return;
     this.levelValue = stufe;
     const vorher = this.vesselMax;
@@ -2163,10 +2163,7 @@ export class Combat {
     // keiner, und `controlValue >= 0` wäre bei Preis 0 immer wahr. Die
     // Klemmung steht hier und nicht im Parser: Sie folgt aus der Verteilung,
     // nicht aus den Daten.
-    const preis = Math.max(
-      talentDecayWardFactor(this.talents),
-      Math.round(control.cost / talentControlCostFactor(this.talents)),
-    );
+    const preis = Math.max(1, Math.round(control.cost / talentControlCostFactor(this.talents)));
     // **FIXATIONs Schlüsseltalent** (#419): Der Zauber scheitert nicht mehr,
     // sondern wirkt mit dem, was da ist.
     //
@@ -2433,10 +2430,7 @@ export class Combat {
       // Takt. Eine eigene Zahl dafür könnte still von beiden abweichen.
       const abstand = Math.max(TICK_MS, heal.tickIntervalMs ?? TICK_MS);
       this.healOverTimeAmount = gewirkterBetrag;
-      this.healOverTimeSteps = Math.max(
-        talentDecayWardFactor(this.talents),
-        Math.round(heal.overMs / abstand),
-      );
+      this.healOverTimeSteps = Math.max(1, Math.round(heal.overMs / abstand));
       this.healOverTimeIntervalMs = abstand;
       this.healOverTimeDone = 0;
       this.healOverTimeCredited = 0;
@@ -3417,10 +3411,7 @@ export class Combat {
           )
         : 0;
     const roh = PLAYER.wardReduction + (this.worn.ward + decayPermille) / 1000;
-    const minderung = Math.min(
-      talentDecayWardFactor(this.talents),
-      Math.min(PLAYER.wardCapPermille / 1000, roh),
-    );
+    const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
     const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
 
     // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg talentDecayWardFactor(this.talents),
