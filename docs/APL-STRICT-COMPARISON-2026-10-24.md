@@ -38,8 +38,8 @@ Liste unter beiden Fassungen.
   wie unter B kein Eintrag neben dem 10-ms-Raster.
 - **Betroffen sind unter A nicht, wie bisher angenommen, `<` und `>=`**, sondern bei fallenden
   Restzeiten `<`, sein Spiegel `T > v` und `!=`, bei `time` `>`, sein Spiegel `T < time` und `!=`.
-  Diese Formen verpassen ihren Umschlag; `>=` trifft in allen Aufbauten. `!=` war bisher nicht
-  gemessen.
+  Nur diese Formen verpassen ihren Umschlag, in 24 der 28 Wurfproben mit ihnen; `>=` trifft in allen
+  Aufbauten. `!=` war bisher nicht gemessen.
 - **Gefundene Rotationen:** Unter B verschiebt sich die gefundene Liste in **15 von 84 Suchen**
   (15 von 42 Bossen). In der Einstellung des Suchberichts (`rotation-search.rs`) sind es **2 von 42
   Bossen (4,8 %)**, in der Einstellung des AC5-Prüffalls **13 von 42 (31,0 %)**. Dieselbe Liste
@@ -308,7 +308,7 @@ Referenz hängt also an keiner Fassung (gemessen: unter A und B dieselben Würfe
 | `time`                   | `test-survivable-strike` |     9000 |   8 / 12 |  12 / 12 | `>`, `9000 <`, `!=` ×2 (10000)    |
 | **Summe**                |                          |          |  60 / 84 |  84 / 84 | 24                                |
 
-Unter B liegen alle 24 verspäteten Würfe genau auf dem ersten Referenzwurf (9010, 7010, 10510,
+Unter B liegen alle 24 Würfe, die A verfehlt, genau auf dem ersten Referenzwurf (9010, 7010, 10510,
 27510, 6010, 57010, 9010). Bei `boss-1-2` trifft `!=` auch unter A (beide 9000). „Wirft nie" heißt:
 Das Fenster schließt sich, bevor ein fremdes Ereignis weckt — der Cast landet bei 28000, `purge`
 wird bei 7500 wieder gewirkt.
