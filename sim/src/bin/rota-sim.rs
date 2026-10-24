@@ -1026,20 +1026,23 @@ fn befund_satz(lauf: &GestaffelterLauf) -> String {
     let schwelle = lauf.staffelung.schwelle;
     let alpha = lauf.staffelung.alpha;
     match (lauf.wahl, lauf.befund) {
-        (Durchgangswahl::EinDurchgang, Befund::Erfuellt { .. }) => format!(
-            "ERFUELLT — gewonnen; die Siegwahrscheinlichkeit ist exakt 1, ueber {schwelle}"
-        ),
-        (Durchgangswahl::EinDurchgang, Befund::Verfehlt { .. }) => format!(
-            "VERFEHLT — verloren; die Siegwahrscheinlichkeit ist exakt 0, unter {schwelle}"
-        ),
+        (Durchgangswahl::EinDurchgang, Befund::Erfuellt { .. }) => {
+            format!("ERFUELLT — gewonnen; die Siegwahrscheinlichkeit ist exakt 1, ueber {schwelle}")
+        }
+        (Durchgangswahl::EinDurchgang, Befund::Verfehlt { .. }) => {
+            format!("VERFEHLT — verloren; die Siegwahrscheinlichkeit ist exakt 0, unter {schwelle}")
+        }
         (_, Befund::Erfuellt { .. }) => format!(
-            "ERFUELLT — die Siegwahrscheinlichkeit liegt sicher ueber {schwelle}              (Irrtum hoechstens {alpha})"
+            "ERFUELLT — die Siegwahrscheinlichkeit liegt sicher ueber {schwelle} \
+             (Irrtum hoechstens {alpha})"
         ),
         (_, Befund::Verfehlt { .. }) => format!(
-            "VERFEHLT — die Siegwahrscheinlichkeit liegt sicher unter {schwelle}              (Irrtum hoechstens {alpha})"
+            "VERFEHLT — die Siegwahrscheinlichkeit liegt sicher unter {schwelle} \
+             (Irrtum hoechstens {alpha})"
         ),
         (_, Befund::Ungeklaert { versuche, fehler }) => format!(
-            "UNGEKLAERT — das Budget ist aufgebraucht, keine Seite ist sicher              ({fehler} verloren in {versuche} Kaempfen)"
+            "UNGEKLAERT — das Budget ist aufgebraucht, keine Seite ist sicher \
+             ({fehler} verloren in {versuche} Kaempfen)"
         ),
     }
 }
