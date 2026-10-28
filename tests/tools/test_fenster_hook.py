@@ -330,9 +330,13 @@ class FensterHookTests(unittest.TestCase):
         for command in ['bash ~/bin/cargo-remote-fmt --check', 'sh /home/jan/bin/cargo-remote-fmt',
                         'node_modules/.bin/tsc --noEmit', './node_modules/.bin/eslint .',
                         'node_modules/.bin/vite build', 'npx --no-install tsc -p .',
-                        'node node_modules/vitest/vitest.mjs run']:
+                        'node node_modules/vitest/vitest.mjs run',
+                        'tsc --noEmit', 'eslint .', 'vite build', 'tsx tools/x.ts']:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
+        for command in ['tsc --version', 'eslint --help', 'vite --version']:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
 
     def test_scripts_are_classified_by_what_they_run(self):
         (self.base / 'laeuft.sh').write_text('#!/bin/sh\nnpx vitest run\n')
