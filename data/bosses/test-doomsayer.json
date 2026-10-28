@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "test-doomsayer",
-  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #216 (Zaehler und exponentieller Stapel) und sonst nichts. Wie schnell der Zaehler steigt, wie viel die Ruecksetz-Handlung nimmt und wie oft es sie gibt: wird gemessen. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10 mit den Signatur-Regeln.",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #216 (Zaehler und exponentieller Stapel) und sonst nichts. Wie schnell der Zaehler steigt, wie viel die Ruecksetz-Handlung nimmt und wie oft es sie gibt: wird gemessen. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10 mit den Signatur-Regeln.\n\nARBEITSNAMEN (Issue #797): \"Prophecy\" (doom), \"Omen\" (stacks). Pruefboss; die Namen braucht die Ankuendigung (GAME-DESIGN 11.5), die jede Faehigkeit beim Namen nennt.",
   "name": "The Doomsayer",
   "instance": "test",
   "hp": 999999,
@@ -9,6 +9,7 @@
   "phases": [],
   "energy": null,
   "doom": {
+    "name": "Prophecy",
     "perStepMs": 1000,
     "amount": 5,
     "threshold": 100,
@@ -16,6 +17,7 @@
     "clearCharges": 2
   },
   "stacks": {
+    "name": "Omen",
     "perStepMs": 2000,
     "baseDamage": 20,
     "factor": 3,
