@@ -491,6 +491,8 @@ Häufige Fälle:
 | `scheint nicht zu laufen`                   | Die Zielsitzung schreibt seit über 12 h nichts. Zustellung würde gelingen, aber niemand läse sie |
 | `bereits beantwortet`                       | Genau eine Antwort je Nachricht                                                                  |
 | `liest sein Postfach nicht`                 | Der Zielsitzung fehlt der Anker-Teammember — sie muss `/rota-ipc` ausführen                      |
+| `gehoert einer beendeten Sitzung`           | Verweis `~/.claude/teams/<Rolle>` einer beendeten Sitzung — dort `/rota-ipc` erneut ausführen    |
+| `nicht in einem Verzeichnis von <Rolle>`    | Verweis auf das Team einer anderen Rolle — in der Sitzung der Rolle `/rota-ipc` ausführen        |
 | `Absender passt nicht zur Sitzung`          | Aus einem fremden Rollenverzeichnis gesendet. Zurück in die eigene Worktree-Wurzel wechseln      |
 | `laesst sich keiner Sitzung zuordnen`       | Der Aufruf ist vom Prozessbaum abgetrennt (`setsid`, `nohup`) — so wird nicht gesendet           |
 | `stellt ausschliesslich unter 'Watcher' zu` | `melden` ist dem Watcher vorbehalten; aus einer Sitzung heraus gilt `senden`                     |
