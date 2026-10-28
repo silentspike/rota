@@ -491,6 +491,8 @@ Häufige Fälle:
 | `scheint nicht zu laufen`                   | Die Zielsitzung schreibt seit über 12 h nichts. Zustellung würde gelingen, aber niemand läse sie |
 | `bereits beantwortet`                       | Genau eine Antwort je Nachricht                                                                  |
 | `liest sein Postfach nicht`                 | Der Zielsitzung fehlt der Anker-Teammember — sie muss `/rota-ipc` ausführen                      |
+| `gehoert einer beendeten Sitzung`           | Verweis `~/.claude/teams/<Rolle>` einer beendeten Sitzung — dort `/rota-ipc` erneut ausführen    |
+| `nicht in einem Verzeichnis von <Rolle>`    | Verweis auf das Team einer anderen Rolle — in der Sitzung der Rolle `/rota-ipc` ausführen        |
 | `Absender passt nicht zur Sitzung`          | Aus einem fremden Rollenverzeichnis gesendet. Zurück in die eigene Worktree-Wurzel wechseln      |
 | `laesst sich keiner Sitzung zuordnen`       | Der Aufruf ist vom Prozessbaum abgetrennt (`setsid`, `nohup`) — so wird nicht gesendet           |
 | `stellt ausschliesslich unter 'Watcher' zu` | `melden` ist dem Watcher vorbehalten; aus einer Sitzung heraus gilt `senden`                     |
@@ -529,10 +531,16 @@ Fragendienst, beide unter derselben Schreibsperre (`/work/rota/fragen/.schreibsp
 Ein Schreiben am Werkzeug vorbei kann eine Antwort oder Quittung überschreiben, ohne dass
 es jemand merkt.
 
-**`fragen/` ist nicht versioniert.** Das Verzeichnis liegt im Spiel-Checkout `/work/rota`,
-ist dort aber per `.gitignore` ausgeschlossen: Ein `git clean -x` in `/work/rota` löscht
-es samt allen Antworten (`git clean -ndx -- fragen` meldet `Would remove fragen/`). In den
-Worker-Worktrees liegt es nicht. Wo es künftig dauerhaft gesichert wird, ist offen (#1095).
+**`fragen/` ist ein eigenes, privates Repository** (`silentspike/rota-fragen`, #1095).
+Versioniert sind nur `fragen.json` und `antworten/*.json`. Der Verlauf liegt außerhalb in
+`~/.local/share/rota-fragen.git`; in der Ablage steht nur die Verweisdatei `.git`, weil
+nginx ganz `/work/` ausliefert. Der Timer `rota-fragen-sicherung.timer` committet alle
+15 Minuten und pusht nach einer Geheimnis-Prüfung; `rota-fragen-sichern stand` zeigt, was
+noch ungesichert ist. Im Spiel-Checkout `/work/rota` bleibt `fragen/` per `.gitignore`
+ausgeschlossen, und ein `git clean -x` dort löscht die Ablage weiterhin
+(`git clean -ndx -- fragen` meldet `Would remove fragen/`). Zurück kommt sie aus dem Verlauf
+oder dem Remote — der Weg steht im Kopf von `rota-fragen-sichern`. In den Worker-Worktrees
+liegt sie nicht.
 
 ## Wo was liegt
 
