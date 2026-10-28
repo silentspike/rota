@@ -865,25 +865,28 @@ fn run_with_control(
                             crate::diagnostics::enable();
                         }
                         let beginn = Instant::now();
+                        let cpu_vorher = crate::engpass::strang_cpu_ns();
                         let teil = run_range(config, apl, offset, len, control);
+                        let cpu = crate::engpass::strang_cpu_ns()
+                            .zip(cpu_vorher)
+                            .map(|(nachher, vorher)| nachher.saturating_sub(vorher));
                         let ende = Instant::now();
                         let zaehler = kampfzaehler.then(crate::diagnostics::snapshot);
-                        (teil, beginn, ende, zaehler)
+                        (teil, (beginn, ende, cpu), zaehler)
                     })
                 })
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
             let mut zeiten = Vec::with_capacity(handles.len());
             for handle in handles {
-                let ((s, c, _), beginn, ende, zaehler) =
-                    handle.join().expect("ein Strang ist abgestuerzt");
+                let ((s, c, _), zeit, zaehler) = handle.join().expect("ein Strang ist abgestuerzt");
                 for (i, n) in c.iter().enumerate() {
                     casts_total[i] += *n;
                 }
                 if let Some(z) = zaehler {
                     crate::diagnostics::vereinigen(&z);
                 }
-                zeiten.push((beginn, ende));
+                zeiten.push(zeit);
                 all.extend(s);
             }
             if let Some(s) = &leitstrang {
@@ -964,33 +967,34 @@ fn run_with_control(
 /// Trägt einen parallelen Abschnitt ins Zählwerk ein: je Strang des Laufs,
 /// wie lange er gerechnet und wie lange er gewartet hat (#934).
 ///
-/// `zeiten` hält Beginn und Ende je Paket, in der Reihenfolge der Bereiche.
-/// Ein Strang wartet vom Ende seines Pakets bis zum Ende des langsamsten.
-/// Bekam ein Strang des Laufs **kein** Paket — weniger Durchgänge als
-/// Stränge —, wartet er den ganzen Abschnitt. Die Zeit bis zum Start eines
-/// Strangs zählt bei keinem: Sie ist Aufwand des Startens, nicht Warten auf
-/// Arbeit, und kein kleineres Paket verkürzte sie.
+/// `zeiten` hält je Paket, in der Reihenfolge der Bereiche, Beginn und Ende
+/// an der Wanduhr und die CPU-Zeit des Strangs. Was daraus Arbeit und was
+/// Warten ist, rechnet [`crate::engpass::abschnitt`]; fehlt die CPU-Zeit,
+/// gilt die Dauer an der Wanduhr.
 ///
-/// Zwei Zeitstempel je Paket und ein Eintrag je Strang und Abschnitt — der
-/// heiße Pfad sieht davon nichts.
+/// Zwei Zeitstempel und zwei Uhrabfragen je Paket, ein Eintrag je Strang und
+/// Abschnitt — der heiße Pfad sieht davon nichts.
 fn abschnitt_eintragen(
     leitstrang: &crate::fortschritt::Strang,
-    zeiten: &[(Instant, Instant)],
+    zeiten: &[(Instant, Instant, Option<u64>)],
     threads: usize,
 ) {
-    let (Some(beginn), Some(ende)) = (
-        zeiten.iter().map(|(b, _)| *b).min(),
-        zeiten.iter().map(|(_, e)| *e).max(),
-    ) else {
+    let Some(erster) = zeiten.iter().map(|(b, _, _)| *b).min() else {
         return;
     };
     let ns = |d: std::time::Duration| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX);
-    for nummer in 0..threads {
-        let (arbeit, warten) = match zeiten.get(nummer) {
-            Some(&(b, e)) => (ns(e - b), ns(ende - e)),
-            None => (0, ns(ende - beginn)),
-        };
-        leitstrang.abschnitt(nummer, arbeit, warten);
+    let pakete: Vec<crate::engpass::Paketzeit> = zeiten
+        .iter()
+        .map(|&(beginn, ende, cpu)| crate::engpass::Paketzeit {
+            beginn_ns: ns(beginn - erster),
+            arbeit_ns: cpu.unwrap_or_else(|| ns(ende - beginn)),
+        })
+        .collect();
+    for (nummer, zeit) in crate::engpass::abschnitt(&pakete, threads)
+        .into_iter()
+        .enumerate()
+    {
+        leitstrang.abschnitt(nummer, zeit.arbeit_ns, zeit.warten_ns);
     }
 }
 

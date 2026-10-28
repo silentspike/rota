@@ -477,6 +477,48 @@ fn ac1_zu_wenige_pakete_lassen_straenge_den_ganzen_abschnitt_warten() {
     );
 }
 
+/// **Verdrängung ist kein Warten, mehr Arbeit schon.** Vier gleiche Pakete
+/// zu je 10 ms CPU-Zeit, gestaffelt gestartet: Gewartet wird nur die
+/// Staffelung — auch wenn einer an der Wanduhr 13 ms brauchte, weil Fremdlast
+/// ihn verdrängte. Kostet ein Paket dagegen 13 ms CPU-Zeit, warten die
+/// anderen drei je 3 ms.
+#[test]
+fn ac1_ein_abschnitt_misst_arbeit_in_cpu_zeit() {
+    use rota_sim::engpass::{abschnitt, Paketzeit};
+    let ms = 1_000_000;
+    let gleich: Vec<Paketzeit> = (0..4)
+        .map(|i| Paketzeit {
+            beginn_ns: i * 30_000,
+            arbeit_ns: 10 * ms,
+        })
+        .collect();
+    let anteil = |s: &[Strangzeit]| {
+        let w: u64 = s.iter().map(|x| x.warten_ns).sum();
+        let a: u64 = s.iter().map(|x| x.arbeit_ns).sum();
+        w as f64 / (w + a) as f64
+    };
+    let ruhig = abschnitt(&gleich, 4);
+    assert_eq!(ruhig[3].warten_ns, 0, "{ruhig:?}");
+    assert_eq!(ruhig[0].warten_ns, 90_000, "nur die Staffelung: {ruhig:?}");
+    assert!(anteil(&ruhig) < 0.01, "{ruhig:?}");
+
+    let mut schwer = gleich.clone();
+    schwer[1].arbeit_ns = 13 * ms;
+    let ungleich = abschnitt(&schwer, 4);
+    assert_eq!(ungleich[1].warten_ns, 0);
+    assert_eq!(ungleich[0].warten_ns, 3 * ms + 30_000, "{ungleich:?}");
+    assert!(anteil(&ungleich) > 0.15, "{ungleich:?}");
+
+    // Zu wenige Pakete: zwei für vier Stränge.
+    let zwei = abschnitt(&gleich[..2], 4);
+    assert_eq!(zwei.len(), 4);
+    assert_eq!(
+        (zwei[2].arbeit_ns, zwei[2].warten_ns),
+        (0, 10 * ms + 30_000)
+    );
+    assert!(anteil(&zwei) > 0.4, "{zwei:?}");
+}
+
 /// Ein Strang rechnet allein (ein Durchgang, kein paralleler Abschnitt):
 /// nichts wird eingetragen, und die Zeile ist ungeprüft statt grün.
 #[test]
