@@ -390,7 +390,8 @@ OPTIONEN
 WAS AUSGEGEBEN WIRD
   Schaden je Kampf mit Streuung, Siege, Zeit bis zum Sieg, eingesteckter
   Schaden, Tode und die Wirkungen je Zauber. Bei einer Suche zusaetzlich die
-  gefundene Rotation und wie viele Messungen sie gekostet hat.
+  gefundene Rotation und was sie gekostet hat: die Messungen der Suche und die
+  Auswertungen insgesamt, die zusaetzlich Start- und Fundliste enthalten.
 
   Mit --mode gestaffelt stattdessen: der gewaehlte Weg, der Befund (ERFUELLT,
   VERFEHLT oder UNGEKLAERT), wie viele Kaempfe er gekostet hat, die Siege und
@@ -847,10 +848,16 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         let ergebnis = greedy(&config, &pool, optionen.max_len);
         beende_anzeige(anzeige);
         let dauer = start.elapsed().as_secs_f64();
+        // Beide Zahlen aus EINER Momentaufnahme des Zaehlwerks.
+        let stand = werk.momentaufnahme();
+        let zaehlung = Zaehlung {
+            auswertungen: stand.kandidaten_gesamt(),
+            kaempfe: stand.kaempfe,
+        };
         if optionen.json {
-            println!("{}", such_json(&ergebnis, boss, dauer));
+            println!("{}", such_json(&ergebnis, boss, dauer, zaehlung));
         } else {
-            berichte_suche(&ergebnis, boss, &config, dauer, kaempfe_gerechnet(&werk));
+            berichte_suche(&ergebnis, boss, &config, dauer, zaehlung);
         }
     } else {
         let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
@@ -1377,12 +1384,33 @@ fn berichte_lauf(name: &str, ergebnis: &BalanceResult, boss: &Boss, dauer: f64, 
     println!("Kaempfe gerechnet: {kaempfe}");
 }
 
+/// Was das Zaehlwerk nach einer Suche meldet — zwei Zahlen aus einer
+/// Momentaufnahme.
+#[derive(Debug, Clone, Copy)]
+struct Zaehlung {
+    /// Jede abgeschlossene Auswertung, auch Start- und Fundliste.
+    auswertungen: u64,
+    /// Gerechnete Kaempfe.
+    kaempfe: u64,
+}
+
+/// Der Bericht einer Suche.
+///
+/// # Warum zwei Zahlen fuer Messungen dastehen (#933)
+///
+/// „Messungen" ist [`SearchResult::measured`]: die Zuege, die die Suche
+/// gegeneinander gehalten hat. „Auswertungen" zaehlt das Zaehlwerk: jede
+/// abgeschlossene Auswertung, dazu die Startliste vor der ersten Runde und die
+/// gefundene Liste nach der letzten (`MESSUNGEN_AUSSERHALB`). Das sind zwei
+/// Groessen, keine zweite Zaehlung derselben Sache; die Anzeige und der Strom
+/// zeigen die zweite. Stuende nur die erste da, laese ein Bericht „1615" und die
+/// Anzeige daneben „1617", und niemand wuesste, welche stimmt.
 fn berichte_suche(
     ergebnis: &SearchResult,
     boss: &Boss,
     config: &BalanceConfig,
     dauer: f64,
-    kaempfe: u64,
+    zaehlung: Zaehlung,
 ) {
     println!("{}", "=".repeat(72));
     println!("ROTA — Suche gegen {} ({})", boss.name, boss.id);
@@ -1397,7 +1425,14 @@ fn berichte_suche(
         ergebnis.best.mean, ergebnis.best.stderr
     );
     println!("Kandidatenzeilen     {}", ergebnis.pool_size);
-    println!("Messungen            {}", ergebnis.measured);
+    println!(
+        "Messungen            {}  (Zuege der Suche, ohne Start- und Fundliste)",
+        ergebnis.measured
+    );
+    println!(
+        "Auswertungen         {}  (alle, mit Start- und Fundliste — so zaehlen --progress und --jsonl)",
+        zaehlung.auswertungen
+    );
     println!("Abbruchgrund         {:?}", ergebnis.stop);
     println!();
     println!("Gefundene Rotation");
@@ -1415,10 +1450,10 @@ fn berichte_suche(
     }
     println!();
     println!("Gerechnet in {dauer:.2} Sekunden.");
-    println!("Kaempfe gerechnet: {kaempfe}");
+    println!("Kaempfe gerechnet: {}", zaehlung.kaempfe);
 }
 
-fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64) -> String {
+fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64, zaehlung: Zaehlung) -> String {
     let zeilen: Vec<String> = ergebnis
         .chosen
         .iter()
@@ -1433,13 +1468,16 @@ fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64) -> String {
     let stop = format!("{:?}", ergebnis.stop);
     format!(
         "{{\"boss\":{:?},\"elapsedMs\":{:?},\"mean\":{:?},\"stderr\":{:?},\
-         \"poolSize\":{},\"measured\":{},\"stop\":{:?},\"rotation\":[{}]}}",
+         \"poolSize\":{},\"measured\":{},\"evaluations\":{},\"fightsRun\":{},\
+         \"stop\":{:?},\"rotation\":[{}]}}",
         boss.id,
         dauer * 1000.0,
         ergebnis.best.mean,
         ergebnis.best.stderr,
         ergebnis.pool_size,
         ergebnis.measured,
+        zaehlung.auswertungen,
+        zaehlung.kaempfe,
         stop,
         zeilen.join(",")
     )

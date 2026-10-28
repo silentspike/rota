@@ -477,6 +477,23 @@ pub fn runde_ergaenzt(zusatz: u64) {
     });
 }
 
+/// Die Messung nach der letzten Runde beginnt — die der gefundenen Liste.
+///
+/// Sie gehört zur letzten Runde: Die Runde zählt bis zum Ende der Suche, und
+/// diese Messung wird ihr zugerechnet. Bis zu diesem Aufruf stand sie nur in
+/// den Grenzen der Menge (dort als `+ 1`, siehe `melde_runde`), nicht im
+/// Rundenplan; die end-Meldung zeigte deshalb eine Auswertung mehr, als die
+/// Runde geplant hatte (Befund am 2026-10-28: 361 von 360). Die Grenzen bleiben
+/// unberührt — sie enthielten diese Messung schon.
+pub fn schlussmessung() {
+    mit_strang(|s| {
+        let mut stand = s.werk.stand();
+        if stand.runde.is_some() {
+            stand.runde_geplant += 1;
+        }
+    });
+}
+
 /// Die Suche hat ein neues bestes Ergebnis.
 ///
 /// Derselbe Wert ein zweites Mal setzt die Uhr **nicht** zurück: „seit wann
