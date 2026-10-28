@@ -40,11 +40,17 @@
 //! - **Konservativer Ausgang:** `action-bound` für Bausteine mit Zusatz-Aktionen
 //!   (ohne Bereich keine Obergrenze) und `monotonicity` (ohne vollständigen
 //!   Hinweis kein Erlauben).
-//! - **Unverändert weitergereicht:** `kernel-choice` und `action-bound` beim
-//!   Wirken urteilen nicht über den Bereich. Sie geben ihn als Angabe weiter,
-//!   ohne eine Schranke zu erfinden, und ihr Urteil bleibt dasselbe wie mit
-//!   bekanntem Bereich. Ob es vom Bereich abhängen soll, ist eine offene
-//!   Designfrage; festgenagelt ist hier der Ist-Zustand, nicht eine Entscheidung.
+//! - **Seit #892 ebenfalls konservativ:** `kernel-choice` (bei `DealDamage`,
+//!   `ModifyResource`, `Heal`) und `action-bound` beim Wirken. Bis dahin
+//!   reichten sie `Bounds::UNKNOWN` nur als Angabe weiter und behielten ihr
+//!   Urteil; die Festlegung des Orchestrators zu DW3 (28.10.) stellt sie auf den
+//!   Rückfall um — eine Regel ohne vollständige Semantik fällt auf den
+//!   konservativen Pfad, und zwar bei **jedem nicht engen** Bereich, auch einem
+//!   halb offenen. Die beiden Fälle, die das Weiterreichen festnagelten, sind
+//!   bewusst umgedreht ([`beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck`],
+//!   [`die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck`]), ebenso
+//!   der Zwischenstand, der halb offen beim Urteil ließ
+//!   ([`ein_halb_offener_bereich_laesst_beide_leser_ebenfalls_zurueckfallen`]).
 //!
 //! # Gemessen am 2026-10-24, als Mutation (`/work/tmp`, nicht eingecheckt)
 //!
@@ -64,6 +70,9 @@
 //! Übersetzungsfehler und steht in `tools/wirkung-baubruch-gegenprobe.py`, das
 //! der sim-Job bei jeder Änderung fährt.
 
+#[macro_use]
+mod wirkungsanker;
+
 use rota_sim::data::EFFECT_NODES;
 use rota_sim::effects::passes::{anzahl_analysen, beispielknoten, REGISTRY};
 use rota_sim::effects::registry::{
@@ -75,47 +84,19 @@ use rota_sim::effects::{
     StackingSemantics, StateMask, Target, TimingSemantics, Trigger, ZertifikatVerweigert,
     ZertifikatsBedarf,
 };
+use wirkungsanker::{
+    jede_zufallsquelle, jeder_ausloeser, jeder_baustein, jeder_bezug, jeder_hinweis,
+    jedes_stapelverhalten, jedes_zeitverhalten, jedes_ziel,
+};
 
 /// Alle Bausteine, für die Messung der Leser unten.
 ///
-/// Der `match` hat keinen Auffangzweig: Ein neuer Baustein lässt diese Datei
-/// nicht übersetzen, bis er hier eingeordnet ist — und wer ihn einordnet, sieht
-/// die Liste direkt darüber. Dass er dann auch IN der Liste steht, prüft
-/// nichts. Der Anker zwingt nur zum Hinsehen.
+/// Bis #892 stand hier eine Liste mit einem erschöpfenden `match` daneben. Der
+/// zwang zum Hinsehen, prüfte aber nicht, dass die Liste vollständig ist: Ein
+/// gestrichener Eintrag blieb grün. [`wirkungsanker::jeder_baustein`] baut Liste
+/// und Anker aus denselben Namen.
 fn bausteine() -> Vec<EffectOp> {
-    let liste = vec![
-        EffectOp::DealDamage,
-        EffectOp::ApplyDot,
-        EffectOp::ApplyBuff,
-        EffectOp::ModifyResource,
-        EffectOp::ReduceCooldown,
-        EffectOp::ResetCooldown,
-        EffectOp::FreeNextGcd,
-        EffectOp::Heal,
-        EffectOp::Shield,
-        EffectOp::ConvertDamage,
-        EffectOp::ChangeBossState,
-        EffectOp::ChangePhase,
-        EffectOp::CustomSignature(SignatureId("prueffall/rueckfall")),
-    ];
-    for op in &liste {
-        match op {
-            EffectOp::DealDamage
-            | EffectOp::ApplyDot
-            | EffectOp::ApplyBuff
-            | EffectOp::ModifyResource
-            | EffectOp::ReduceCooldown
-            | EffectOp::ResetCooldown
-            | EffectOp::FreeNextGcd
-            | EffectOp::Heal
-            | EffectOp::Shield
-            | EffectOp::ConvertDamage
-            | EffectOp::ChangeBossState
-            | EffectOp::ChangePhase
-            | EffectOp::CustomSignature(_) => {}
-        }
-    }
-    liste
+    jeder_baustein()
 }
 
 /// Eine Bossregel mit vollständiger Semantik.
@@ -207,10 +188,15 @@ fn genau_eine_angabe_fehlt(mut knoten: EffectNode, feld: &str, setzen: impl Fn(&
 
 /// Je Bedingung von `hat_luecke` ein Fall an der Signatur (DW3) und einer am
 /// Baustein (MAP2). Eine neue Bedingung gehört hier dazu; ein neues Feld zwingt
-/// zum Hinsehen ([`jedes_feld_des_knotens_ist_hier_eingeordnet`]), eine neue
-/// Bedingung an einem alten Feld nicht.
+/// zum Hinsehen ([`jedes_feld_des_knotens_ist_hier_eingeordnet`]). Dass die
+/// Liste auch eine neue Bedingung an einem alten Feld bemerkt, misst seit #892
+/// [`jede_lueckenbedingung_steht_in_je_bedingung_und_nur_sie`].
 macro_rules! je_bedingung {
     ($($name:ident: $feld:literal, |$k:ident| $setzen:expr;)+) => {
+        /// Die Felder, deren Unbekannt-Wert hier je zwei Fälle hat — für
+        /// [`jede_lueckenbedingung_steht_in_je_bedingung_und_nur_sie`].
+        const BEDINGUNGEN: &[&str] = &[$($feld),+];
+
         /// DW3 aus #892: eine Bossregel, der genau eine Angabe fehlt.
         mod an_der_signatur {
             use super::*;
@@ -276,6 +262,112 @@ fn jedes_feld_des_knotens_ist_hier_eingeordnet() {
         monotonicity: _,
         numeric_bounds: _,
     } = beispielknoten(EffectOp::DealDamage);
+}
+
+/// Setzt ein Feld des Knotens auf einen Wert.
+type Setzer = Box<dyn Fn(&mut EffectNode)>;
+
+/// Jeder Wert jedes Feldes, die Unbekannt-Werte eingeschlossen.
+///
+/// Die Aufzählungen kommen aus [`wirkungsanker`], die übrigen Felder tragen ihre
+/// Unbekannt-Form und Gegenwerte. Ein `ControlFlowEffect` mit nur gesetztem
+/// `unknown` steht bewusst nicht dabei: Er wäre ein zweiter Unbekannt-Wert
+/// desselben Feldes, und die Zählung unten verlangt genau einen.
+fn jeder_wert_je_feld() -> Vec<(&'static str, Vec<Setzer>)> {
+    felder! {
+        trigger: jeder_ausloeser(),
+        target: jedes_ziel(),
+        reads: [
+            StateMask::UNKNOWN,
+            StateMask::EMPTY,
+            StateMask::RESOURCE,
+            StateMask::BOSS_HP.union(StateMask::PLAYER_HP),
+        ],
+        writes: [
+            StateMask::UNKNOWN,
+            StateMask::EMPTY,
+            StateMask::RESOURCE,
+            StateMask::BOSS_HP.union(StateMask::PLAYER_HP),
+        ],
+        timing: jedes_zeitverhalten(),
+        stacking: jedes_stapelverhalten(),
+        randomness: jede_zufallsquelle(),
+        monotonicity: jeder_hinweis(),
+        numeric_bounds: [
+            Bounds::UNKNOWN,
+            Bounds::exact(0, 1),
+            Bounds {
+                min: Some(0),
+                max: None,
+            },
+            Bounds {
+                min: None,
+                max: Some(0),
+            },
+        ],
+        control_flow_effect: [
+            ControlFlowEffect::UNKNOWN,
+            ControlFlowEffect::NONE,
+            ControlFlowEffect {
+                branches_on_damage: true,
+                ..ControlFlowEffect::NONE
+            },
+            ControlFlowEffect {
+                branches_on_hp: true,
+                ..ControlFlowEffect::NONE
+            },
+            ControlFlowEffect {
+                branches_on_victory: true,
+                ..ControlFlowEffect::NONE
+            },
+        ],
+    }
+}
+
+/// Die Gegenrichtung zu `je_bedingung!`, gemessen statt aufgezählt.
+///
+/// Je Feld: Wie viele seiner Werte lösen am vollständigen Knoten eine Lücke
+/// aus? Für jedes Feld aus `je_bedingung!` genau einer — sein Unbekannt-Wert —,
+/// für jedes andere keiner. Bis #892 bemerkte die Liste eine gestrichene
+/// Bedingung (dann wird ihr Fall rot), aber keine neue: Eine Lückenbedingung an
+/// `monotonicity` oder ein zweiter Lücken-Wert an `trigger` ließen alle Fälle
+/// grün. Nicht gemessen wird eine Bedingung, die erst aus zwei Feldern zusammen
+/// entsteht.
+#[test]
+fn jede_lueckenbedingung_steht_in_je_bedingung_und_nur_sie() {
+    let basis = beispielknoten(EffectOp::DealDamage);
+    assert!(
+        !basis.hat_luecke(),
+        "Der Ausgangsknoten hat schon eine Lücke."
+    );
+    let mut gemessen: Vec<(&str, usize)> = Vec::new();
+    for (feld, werte) in jeder_wert_je_feld() {
+        let luecken = werte
+            .iter()
+            .filter(|setzen| {
+                let mut knoten = basis;
+                setzen(&mut knoten);
+                knoten.hat_luecke()
+            })
+            .count();
+        gemessen.push((feld, luecken));
+    }
+    for bedingung in BEDINGUNGEN {
+        assert!(
+            gemessen.iter().any(|(feld, _)| feld == bedingung),
+            "`{bedingung}` steht in je_bedingung!, ist aber kein Feld des Knotens."
+        );
+    }
+    let erwartet: Vec<(&str, usize)> = gemessen
+        .iter()
+        .map(|&(feld, _)| (feld, usize::from(BEDINGUNGEN.contains(&feld))))
+        .collect();
+    assert_eq!(
+        gemessen, erwartet,
+        "Je Feld die Zahl der Werte, die eine Lücke auslösen (links gemessen, rechts nach \
+         je_bedingung!). Steht links mehr, hat hat_luecke eine Bedingung, die hier keinen Fall \
+         hat; steht links weniger, prüft je_bedingung! eine, die es nicht mehr gibt."
+    );
 }
 
 // ------------------------------------------- Weg b: Wertebereich und Monotonie
@@ -397,65 +489,115 @@ fn ohne_wertebereich_leitet_action_bound_fuer_zusatzaktionen_keine_obergrenze_ab
     }
 }
 
-#[test]
-fn beim_wirken_reicht_action_bound_einen_unbekannten_bereich_unveraendert_weiter() {
-    // Hier kommt die Obergrenze aus dem Auslöser (beim Wirken: so oft wie
-    // gewirkt), nicht aus dem Bereich — das Urteil hängt deshalb nicht an ihm.
-    // Die Angabe, die mitgeht, darf aber keinen Bereich erfinden.
-    for op in [
-        EffectOp::DealDamage,
-        EffectOp::ApplyDot,
-        EffectOp::ApplyBuff,
-        EffectOp::ModifyResource,
-        EffectOp::Heal,
-        EffectOp::Shield,
-        EffectOp::ConvertDamage,
-    ] {
-        let bekannt = ergebnis("action-bound", &beispielknoten(op));
-        let r = ergebnis("action-bound", &mit_unbekanntem_bereich(op));
-        assert_eq!(
-            bekannt.evidence,
-            Evidence::Schranke(beispielknoten(op).numeric_bounds),
-            "{op:?}: Gegenpol — der bekannte Bereich kommt nicht an."
-        );
-        assert_eq!(
-            r.evidence,
-            Evidence::Schranke(Bounds::UNKNOWN),
-            "{op:?}: Aus einem unbekannten Bereich ist eine Schranke geworden."
-        );
-        assert_eq!(
-            r.verdict, bekannt.verdict,
-            "{op:?}: Das Urteil liest hier den Bereich."
-        );
+/// Die Bausteine, bei denen `pass` mit bekanntem Bereich erlaubt und genau
+/// diesen Bereich als Schranke weiterreicht — gemessen, nicht aufgezählt.
+///
+/// Genau diese Stellen meint die Festlegung zu DW3: Sie reichten bis #892 einen
+/// unbekannten Bereich als Angabe weiter und behielten ihr Urteil.
+fn reichen_den_bereich_weiter(pass: &str) -> Vec<EffectOp> {
+    bausteine()
+        .into_iter()
+        .filter(|&op| {
+            let knoten = beispielknoten(op);
+            let r = ergebnis(pass, &knoten);
+            r.verdict == Verdict::Permits && r.evidence == Evidence::Schranke(knoten.numeric_bounds)
+        })
+        .collect()
+}
+
+/// Die beiden halb offenen Bereiche: je eine Grenze bekannt.
+///
+/// So tragen ihn die echten Knoten — Schaden nach oben offen (`sim/build.rs`:
+/// „Verstaerkungen und Stapel-Zuschlaege heben den Grundwert an“), der Entlader
+/// nach unten.
+const HALB_OFFEN: [Bounds; 2] = [
+    Bounds {
+        min: Some(0),
+        max: None,
+    },
+    Bounds {
+        min: None,
+        max: Some(0),
+    },
+];
+
+/// DW3 an einem Leser des Bereichs: ohne engen Bereich der konservative Pfad.
+///
+/// # Bewusst umgedreht (Festlegung des Orchestrators für #892, 28.10.)
+///
+/// Bis dahin nagelten `beim_wirken_reicht_action_bound_einen_unbekannten_bereich_unveraendert_weiter`
+/// und `die_kernelwahl_reicht_einen_unbekannten_bereich_unveraendert_weiter`
+/// fest, dass diese Leser `Bounds::UNKNOWN` nur als Angabe weiterreichen und ihr
+/// Urteil behalten. DW3 verlangt, dass eine Regel ohne vollständige Semantik auf
+/// den konservativen Pfad fällt — ein Verbraucher, der dem Urteil traut, soll
+/// `ist_eng()` nicht selbst fragen müssen.
+fn faellt_ohne_engen_bereich_zurueck(pass: &str, angabe: Evidence, bereiche: &[Bounds]) {
+    let ops = reichen_den_bereich_weiter(pass);
+    assert!(
+        !ops.is_empty(),
+        "\"{pass}\" reicht bei keinem Baustein den bekannten Bereich weiter — dann prüft dieser \
+         Fall nichts, oder der Leser ist ein anderer geworden."
+    );
+    for op in &ops {
+        for &bereich in bereiche {
+            assert!(
+                !bereich.ist_eng(),
+                "{bereich:?} ist eng — dann prüft dieser Fall nichts"
+            );
+            let mut knoten = beispielknoten(*op);
+            knoten.numeric_bounds = bereich;
+            let r = ergebnis(pass, &knoten);
+            assert_eq!(
+                (r.verdict, r.evidence),
+                (Verdict::Conservative, angabe),
+                "{op:?} mit {bereich:?}: Ohne engen Wertebereich urteilt \"{pass}\" weiter ({}). \
+                 Gemessene Bausteine mit weitergereichtem Bereich: {ops:?}.",
+                r.reason
+            );
+            assert!(
+                r.fallback.vollstaendig(),
+                "{op:?} mit {bereich:?}: nur {} von 6 konservativen Zuständen",
+                r.fallback.anzahl()
+            );
+        }
     }
 }
 
 #[test]
-fn die_kernelwahl_reicht_einen_unbekannten_bereich_unveraendert_weiter() {
-    // Ist-Zustand: Die Kernelwahl urteilt über Zeitverhalten und Baustein, nicht
-    // über den Bereich; sie gibt ihn als Angabe weiter. Wer einen Kernel mit
-    // fester Darstellung daraus baut, muss `ist_eng()` selbst fragen — die
-    // Angabe sagt ihm dann „nicht eng“.
-    for op in [
-        EffectOp::DealDamage,
-        EffectOp::ModifyResource,
-        EffectOp::Heal,
-    ] {
-        let bekannt = ergebnis("kernel-choice", &beispielknoten(op));
-        let r = ergebnis("kernel-choice", &mit_unbekanntem_bereich(op));
-        assert_eq!(
-            bekannt.evidence,
-            Evidence::Schranke(beispielknoten(op).numeric_bounds),
-            "{op:?}: Gegenpol — der bekannte Bereich kommt nicht an."
-        );
-        assert_eq!(
-            r.evidence,
-            Evidence::Schranke(Bounds::UNKNOWN),
-            "{op:?}: Aus einem unbekannten Bereich ist eine Schranke geworden."
-        );
-        assert!(!matches!(r.evidence, Evidence::Schranke(b) if b.ist_eng()));
-        assert_eq!(r.verdict, bekannt.verdict);
-    }
+fn beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck() {
+    // Die Obergrenze käme hier aus dem Auslöser (beim Wirken: so oft wie
+    // gewirkt). Das Urteil reichte aber den Bereich als Schranke mit — und ohne
+    // Bereich ist die Semantik unvollständig. Die Angabe ist dieselbe wie in
+    // jedem anderen Rückfall dieses Passes: keine Obergrenze.
+    faellt_ohne_engen_bereich_zurueck(
+        "action-bound",
+        Evidence::Aktionsgrenze(None),
+        &[Bounds::UNKNOWN],
+    );
+}
+
+#[test]
+fn die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck() {
+    // Ein spezialisierter Kernel mit fester Darstellung braucht den Bereich;
+    // ohne ihn der allgemeine Kernel. Die Angabe ist dieselbe wie im Rückfall
+    // bei einer Lücke.
+    faellt_ohne_engen_bereich_zurueck("kernel-choice", Evidence::Keine, &[Bounds::UNKNOWN]);
+}
+
+#[test]
+fn ein_halb_offener_bereich_laesst_beide_leser_ebenfalls_zurueckfallen() {
+    // **Bewusst umgedreht, zweite Festlegung des Orchestrators (28.10.).** Die
+    // erste Fassung dieses Falls hieß `ein_halb_offener_bereich_laesst_beide_leser_beim_urteil`
+    // und nagelte fest, dass nur `Bounds::UNKNOWN` zurückfällt. Damit blieb die
+    // Lücke aus PR #1136 bei allen 15 Schadenszaubern offen: Sie tragen einen
+    // halb offenen Bereich, und die Leser erlaubten mit einer Schranke, die nicht
+    // eng ist. Entschieden ist „ohne vollständige Semantik“ — also jeder nicht
+    // enge Bereich, wie im Zweig für Zusatz-Aktionen desselben Passes
+    // ([`ohne_wertebereich_leitet_action_bound_fuer_zusatzaktionen_keine_obergrenze_ab`]).
+    // An den echten Knoten kippen damit 77 Urteile (kernel-choice 23,
+    // action-bound 54; gemessen am 2026-10-28).
+    faellt_ohne_engen_bereich_zurueck("action-bound", Evidence::Aktionsgrenze(None), &HALB_OFFEN);
+    faellt_ohne_engen_bereich_zurueck("kernel-choice", Evidence::Keine, &HALB_OFFEN);
 }
 
 #[test]
@@ -506,15 +648,9 @@ fn ohne_monotonie_hinweis_faellt_die_monotonie_analyse_zurueck() {
 #[test]
 fn ein_hinweis_ohne_richtung_oder_bezug_traegt_fuer_keinen_bezug() {
     // Alle Bezüge, auch „ohne Bezug“ selbst: Ein Hinweis ohne Bezug darf nicht
-    // dadurch tragen, dass jemand nach „ohne Bezug“ fragt.
-    for gefragt in [
-        MonotonicityDomain::ExpectedDamageStableTrace,
-        MonotonicityDomain::VictoryOutcome,
-        MonotonicityDomain::TimeToVictoryAcrossPhase,
-        MonotonicityDomain::HpPredicate,
-        MonotonicityDomain::SpellDiversity,
-        MonotonicityDomain::Unspecified,
-    ] {
+    // dadurch tragen, dass jemand nach „ohne Bezug“ fragt. Seit #892 aus dem
+    // Anker, nicht aufgezählt: Ein neuer Bezug ist ohne Zutun dabei.
+    for gefragt in jeder_bezug() {
         let ohne_bezug = LocalMonotonicityHint {
             direction: MonotonicDirection::Increasing,
             domain: MonotonicityDomain::Unspecified,
