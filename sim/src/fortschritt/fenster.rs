@@ -92,6 +92,12 @@ impl Fenster {
         self.proben.front()
     }
 
+    /// Alle Proben im Fenster, die älteste zuerst — für Größen, deren
+    /// Höchststand zählt, nicht ihr letzter Wert (#934: der Druck).
+    pub fn proben(&self) -> impl Iterator<Item = &Momentaufnahme> {
+        self.proben.iter()
+    }
+
     /// Die Raten — `None`, solange keine zwei Proben vorliegen.
     #[must_use]
     pub fn raten(&self) -> Option<Raten> {

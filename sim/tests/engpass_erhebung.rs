@@ -230,6 +230,42 @@ fn ac4_zaehler_zaehlen_erben_oder_melden_ihre_sperre() {
     }
 }
 
+/// **Der Höchststand im Fenster, nicht der letzte Wert** — und Speicherdruck
+/// stört eine Zeitmessung genauso wie Rechenlast.
+#[test]
+fn ac4_der_druck_im_fenster_ist_sein_hoechststand() {
+    use rota_sim::engpass::Druck;
+    let ruhig = Druck {
+        cpu: Some(2.36),
+        speicher: Some(0.0),
+        io: None,
+    };
+    let spitze = Druck {
+        cpu: Some(18.4),
+        speicher: Some(0.2),
+        io: Some(1.0),
+    };
+    let h = Druck::hoechst([ruhig, spitze, ruhig]);
+    assert_eq!(h.cpu, Some(18.4));
+    assert_eq!(h.speicher, Some(0.2));
+    assert_eq!(h.io, Some(1.0), "eine Ablesung genügt");
+    assert_eq!(Druck::hoechst([]), Druck::default());
+    assert!(ruhig.stoert_zeitmessung().is_none());
+    assert!(h.stoert_zeitmessung().expect("gestört").contains("18,40"));
+    let speicher = Druck {
+        speicher: Some(rota_sim::hostcaps::PSI_IO_MEM_MAX * 1.5),
+        ..ruhig
+    };
+    assert!(speicher
+        .stoert_zeitmessung()
+        .expect("gestört")
+        .starts_with("Speicherdruck"));
+    assert!(
+        Druck::default().stoert_zeitmessung().is_some(),
+        "ohne Ablesung"
+    );
+}
+
 /// Die Zeitmessung des Rückfalls braucht keine Erlaubnis und zählt die
 /// Arbeit aller Stränge.
 #[test]

@@ -1085,6 +1085,55 @@ fn utc_zeitstempel_stimmen_mit_bekannten_daten() {
     );
 }
 
+/// **Eine Druckspitze mitten im Fenster zählt, auch wenn die letzte Probe
+/// ruhig ist** (#934). Gemessen am 2026-10-28: Eine Grundlage bestand den
+/// Riegel mit PSI cpu 2,36 % am Ende, während `avg60` noch bei 10 stand.
+#[test]
+fn engpass_liest_den_hoechsten_druck_im_fenster() {
+    use rota_sim::engpass::{Erhebung, Kernklasse, Schluessel, Strangzeit};
+    let mut b = beschreibung(EIN_KAMPF);
+    b.engpass = Some(Arc::new(Erhebung::ohne_zaehler(
+        Schluessel {
+            rechner: "pruefrechner".to_owned(),
+            kernklasse: Kernklasse::Zen3,
+            lastprofil: "greedy boss=boss-1-1".to_owned(),
+        },
+        None,
+        "Prüffall ohne Zähler",
+    )));
+    let mut fenster = Fenster::neu(FENSTER);
+    for i in 0..=32u64 {
+        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], plateau_stand());
+        p.engpass.straenge = vec![
+            Strangzeit {
+                arbeit_ns: i * 600,
+                warten_ns: i * 400,
+            };
+            4
+        ];
+        p.engpass.druck.cpu = Some(if i == 16 { 18.4 } else { 0.4 });
+        fenster.aufnehmen(p);
+    }
+    let a = b
+        .anzeige(&fenster, Ereignis::Fortschritt, 7, Duration::ZERO)
+        .expect("Anzeige");
+    let bild = a.engpass.as_ref().expect("Bild");
+    assert_eq!(bild.messwerte.druck.cpu, Some(18.4));
+    assert!(
+        bild.diagnose.befunde.is_empty(),
+        "{:?}",
+        bild.diagnose.befunde
+    );
+    let grund = bild
+        .diagnose
+        .ungeprueft
+        .iter()
+        .find(|(r, _)| *r == rota_sim::engpass::Regel::StraengeWarten)
+        .map(|(_, g)| g.as_str())
+        .expect("ungeprüft");
+    assert!(grund.contains("bis 18,40 % im Fenster"), "{grund}");
+}
+
 /// Ohne Erhebung sagt die Zeile, dass nichts erhoben wird — nicht nur, dass
 /// nichts gefunden wurde (#934). Ein Wächter, der nichts prüfen kann, darf
 /// nicht aussehen wie einer, der nichts gefunden hat.

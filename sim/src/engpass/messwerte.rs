@@ -113,6 +113,63 @@ impl Druck {
             io: psi_some_avg10("/proc/pressure/io"),
         }
     }
+
+    /// Der höchste Wert je Quelle über mehrere Ablesungen — `None` je
+    /// Quelle, wenn keine Ablesung sie hatte.
+    ///
+    /// **Der Höchststand, nicht der letzte Wert.** Am 2026-10-28 bestand eine
+    /// Grundlage auf dem Laptop den Riegel mit PSI cpu 2,36 % am Ende des
+    /// Laufs — während `avg60` dort noch bei 10 und `avg300` bei 22 stand. Ihr
+    /// Befehlsdurchsatz lag bei 2,30 statt 2,91 in ruhiger Lage.
+    #[must_use]
+    pub fn hoechst(ablesungen: impl IntoIterator<Item = Self>) -> Self {
+        let max = |a: Option<f64>, b: Option<f64>| match (a, b) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        };
+        ablesungen.into_iter().fold(Self::default(), |h, d| Self {
+            cpu: max(h.cpu, d.cpu),
+            speicher: max(h.speicher, d.speicher),
+            io: max(h.io, d.io),
+        })
+    }
+
+    /// Warum eine Zeitmessung unter diesem Druck nichts über den Lauf sagt —
+    /// `None`, wenn sie es tut.
+    ///
+    /// Dieselben Grenzen, unter denen das Projekt überhaupt misst
+    /// ([`crate::hostcaps::PSI_CPU_MAX`] für Rechenzeit,
+    /// [`crate::hostcaps::PSI_IO_MEM_MAX`] für Speicher). Ohne lesbaren
+    /// CPU-Druck ist eine Verlangsamung von Fremdlast nicht zu trennen.
+    ///
+    /// Was keine Ablesung zeigt: einen gedrosselten Takt. Unter Volllast lief
+    /// der Laptop am 2026-10-28 mit dreieinhalbfacher CPU-Zeit je Kampf bei nur
+    /// +27 % Zyklen. Zähler sehen das nicht, eine Uhr schon.
+    #[must_use]
+    pub fn stoert_zeitmessung(&self) -> Option<String> {
+        use crate::hostcaps::{PSI_CPU_MAX, PSI_IO_MEM_MAX};
+        let zahl = |x: f64| format!("{x:.2}").replace('.', ",");
+        match (self.cpu, self.speicher) {
+            (None, _) => Some(
+                "kein Druckwert lesbar — ohne ihn ist eine Zeitmessung unter Fremdlast nicht \
+                 von einer Verlangsamung zu trennen"
+                    .to_owned(),
+            ),
+            (Some(cpu), _) if cpu > PSI_CPU_MAX => Some(format!(
+                "Fremdlast: PSI cpu some avg10 bis {} % im Fenster, über {} % — die \
+                 Zeitmessung ist nicht aussagekräftig",
+                zahl(cpu),
+                zahl(PSI_CPU_MAX)
+            )),
+            (_, Some(speicher)) if speicher > PSI_IO_MEM_MAX => Some(format!(
+                "Speicherdruck: PSI memory some avg10 bis {} % im Fenster, über {} % — die \
+                 Zeitmessung ist nicht aussagekräftig",
+                zahl(speicher),
+                zahl(PSI_IO_MEM_MAX)
+            )),
+            _ => None,
+        }
+    }
 }
 
 /// Was eine Momentaufnahme für die Engpasserkennung festhält, kumuliert ab
@@ -263,7 +320,9 @@ pub struct Messwerte {
     pub schlange: Option<Schlangenbelegung>,
     /// Trefferquote der Ablaufprüfung.
     pub ablauf: Option<Ablauftreffer>,
-    /// Druckwerte am Ende des Fensters.
+    /// Der höchste Druck je Quelle über alle Proben des Fensters
+    /// ([`Druck::hoechst`]); [`Messwerte::aus_fenster`] allein kennt nur die
+    /// jüngste Probe und setzt deren Werte.
     pub druck: Druck,
 }
 
