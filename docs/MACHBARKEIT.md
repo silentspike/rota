@@ -20,11 +20,14 @@ oberhalb des eingefrorenen WU-Budgets sind ein Fehler. Überschreitet nur die ge
 Pflichtzeit das Ziel, nennt der Fehler alle drei Wege: weitere passend gemessene Hosts,
 mehr Zielzeit oder ausdrücklich ein Teilergebnis. Nur ein bereits explizit gesetztes
 `hard_deadline` erlaubt einen Teilauftrag. Bei `ActiveRuntime` wird dafür ausdrücklich
-`remaining_ms` ausgewertet: Überschreitet die Pflichtzeit diese Restfrist, ist
+`remaining` ausgewertet: Überschreitet die Pflichtzeit diese Restfrist, ist
 `partial_requested` wahr, auch wenn die weichere Zielzeit reichen würde. Passt die
 Pflichtarbeit in eine ausdrücklich längere Restfrist, bleibt der Auftrag zulässig;
 die gegebenenfalls verfehlte Zielzeit wird unverändert berichtet. Null Restzeit wird
-als abgelaufen abgelehnt. `WallClockUtc` wird derzeit ausdrücklich abgelehnt, weil
+als abgelaufen abgelehnt. Zielzeit und Restfrist sind seit #914 `Duration`s; die Prüfung
+rechnet in ganzen Millisekunden und lehnt eine Angabe mit Bruchteil ab, statt sie still
+zu runden. Die Zielzeit stammt aus der Kampagne (`CampaignDefinition::target_wall_time`);
+eine andere Zielzeit ist ein neues Profil. `WallClockUtc` wird derzeit ausdrücklich abgelehnt, weil
 diese API keinen vertrauenswürdigen aktuellen UTC-Zeitwert erhält. Ein späterer Runner
 muss die Frist tatsächlich durchsetzen und ein Teilergebnis entsprechend kennzeichnen;
 die Vorabprüfung selbst liefert keine Ergebnisgarantie.
