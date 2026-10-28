@@ -38,16 +38,23 @@ import {
   countdownSecond,
   type Announcement,
 } from '../../src/combat/boss/announcements.js';
+import { SOUND_MANIFEST } from '../../src/audio/manifest-data.js';
 import { Combat } from '../../src/core/combat.js';
 import {
   BOSSES,
   CALCINATION,
   bossById,
+  parseBoss,
   type BossDef,
   type TimelineEntryDef,
 } from '../../src/core/data.js';
+import { stackDamage } from '../../src/core/damage.js';
 import { EVENT_NAMES } from '../../src/core/events.js';
-import { CombatLog, EVENT_BOSS_TIMELINE_FIRED } from '../../src/core/log.js';
+import {
+  CombatLog,
+  EVENT_BOSS_ENERGY_TRIGGERED,
+  EVENT_BOSS_TIMELINE_FIRED,
+} from '../../src/core/log.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
@@ -91,7 +98,17 @@ function playerOf(combat: Combat): { vesselMax: number; gearWardPermille: number
  * Die Ankündigung liest keinen dieser Bausteine (`BossAnnouncer.update`).
  */
 function nurZeitleiste(b: BossDef): BossDef {
-  return { ...b, doom: null, affliction: null, stacks: null, runaway: null };
+  // Seit L4 (28.10.) kündigen sich auch Energie und Wettrennen an; hier stünden
+  // sie als Namen ohne Zeitleisten-Eintrag und gehören in den Fall darunter.
+  return {
+    ...b,
+    doom: null,
+    affliction: null,
+    stacks: null,
+    runaway: null,
+    energy: null,
+    race: null,
+  };
 }
 
 interface Feuer {
@@ -233,6 +250,211 @@ describe('Jedes Zeitleisten-Ereignis jedes Bosses wird angekündigt (AC: alle Bo
   }
 });
 
+type Baustein = 'energy' | 'doom' | 'stacks' | 'affliction' | 'race';
+const BAUSTEINE: readonly Baustein[] = ['energy', 'doom', 'stacks', 'affliction', 'race'];
+
+/** Der Name einer Baustein-Definition, ohne sich auf ihren Typ zu verlassen. */
+function nameOf(def: unknown): string | undefined {
+  const name = (def as { name?: unknown } | null)?.name;
+  return typeof name === 'string' ? name : undefined;
+}
+
+/** Der Anzeigename des Bausteins — beim Energie-Schlag der des Schlags. */
+function bausteinName(b: BossDef, k: Baustein): string | undefined {
+  return k === 'energy' ? b.energy?.onTrigger.name : nameOf(b[k]);
+}
+
+/** Der Boss mit genau diesem einen Baustein — keine Zeitleiste, kein anderer. */
+function nurBaustein(b: BossDef, k: Baustein): BossDef {
+  return {
+    ...b,
+    timeline: [],
+    timelineLoopMs: null,
+    escalation: null,
+    runaway: null,
+    bossHeal: null,
+    energy: k === 'energy' ? b.energy : null,
+    doom: k === 'doom' ? b.doom : null,
+    stacks: k === 'stacks' ? b.stacks : null,
+    affliction: k === 'affliction' ? b.affliction : null,
+    race: k === 'race' ? b.race : null,
+  };
+}
+
+/**
+ * Wann der Baustein WIRKLICH etwas tut — am Kampf beobachtet, nicht aus den
+ * Daten nachgerechnet: Schaden kommt an, die Schwächung liegt, das Fenster geht
+ * auf und zu, der Zähler tötet.
+ */
+interface Beobachtung {
+  /** Zeitpunkte, auf die eine Ankündigung zählen muss, aufsteigend. */
+  readonly zeiten: number[];
+  /** Ab diesem Zeitpunkt läuft der Baustein (Schwächung liegt, Fenster offen). */
+  readonly laeuftAb: number;
+  /** Bis hier wird geprüft. */
+  readonly bis: number;
+}
+
+function beobachte(b: BossDef, k: Baustein): Beobachtung {
+  const combat = new Combat({ school: CALCINATION.value, boss: b });
+  const log = new CombatLog();
+  combat.log = log;
+  combat.beginFight(0);
+  const zeiten: number[] = [];
+  let laeuftAb = Number.POSITIVE_INFINITY;
+  let erlitten = 0;
+  let offen = false;
+  const grenze = 120_000;
+  let bis = grenze;
+  for (let t = 0; t <= grenze; t += TICK_MS) {
+    combat.stepPassive(t);
+    if (k === 'doom' && combat.playerDead) {
+      zeiten.push(combat.diedAtMs);
+      bis = t - TICK_MS;
+      break;
+    }
+    if (k === 'stacks' && combat.damageTaken > erlitten) zeiten.push(t);
+    if (k === 'affliction') {
+      if (combat.afflicted && laeuftAb === Number.POSITIVE_INFINITY) {
+        laeuftAb = t;
+        zeiten.push(t);
+      } else if (combat.damageTaken > erlitten) zeiten.push(t);
+    }
+    if (k === 'race') {
+      if (combat.raceOpen && !offen) {
+        offen = true;
+        laeuftAb = t;
+        zeiten.push(t);
+      } else if (!combat.raceOpen && offen) {
+        zeiten.push(t);
+        bis = t + 1000;
+        break;
+      }
+    }
+    erlitten = combat.damageTaken;
+    if (k !== 'race' && k !== 'doom' && zeiten.length >= 4) {
+      bis = zeiten[zeiten.length - 2] as number;
+      break;
+    }
+  }
+  if (k === 'energy') {
+    for (let i = 0; i < log.length; i++) {
+      if (log.typeAt(i) === EVENT_BOSS_ENERGY_TRIGGERED) zeiten.push(log.timeAt(i));
+    }
+    bis = Math.min(bis, (zeiten[2] ?? grenze) - TICK_MS);
+  }
+  return { zeiten, laeuftAb, bis };
+}
+
+describe('Die übrigen Bausteine werden angekündigt (L4, Entscheidung vom 28.10.)', () => {
+  const ids = bossIdsOnDisk();
+
+  it('jede Definition trägt einen Namen, als Arbeitsname gekennzeichnet', () => {
+    let gezaehlt = 0;
+    for (const datei of readdirSync(BOSS_DIR).filter((f) => f.endsWith('.json'))) {
+      const roh = JSON.parse(readFileSync(join(BOSS_DIR, datei), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      for (const k of ['affliction', 'stacks', 'race', 'doom']) {
+        if (roh[k] === null || roh[k] === undefined) continue;
+        gezaehlt++;
+        const name = nameOf(roh[k]);
+        expect(name, `${datei}/${k}: kein Name`).toMatch(/^[A-Z][A-Za-z' ]+$/);
+        const kommentar = String(roh['_comment'] ?? '');
+        expect(kommentar, `${datei}: Arbeitsnamen nicht gekennzeichnet`).toContain(
+          'ARBEITSNAMEN (Issue #797)',
+        );
+        expect(kommentar, `${datei}/${k}: „${name}" steht nicht im Kommentar`).toContain(
+          `"${name}"`,
+        );
+      }
+    }
+    // Die Zahl steht in der Meldung, nicht in der Bedingung.
+    expect(gezaehlt, 'sonst prüft der Fall nichts').toBeGreaterThan(0);
+  });
+
+  it('das Spiel liest den Namen und meldet sein Fehlen', () => {
+    // Über die Daten des Spiels, nicht über die Datei: Steht der Name in der
+    // Datei, aber nicht im gelesenen Boss, kündigt der Kampf ihn nicht an.
+    expect(nameOf(boss('boss-1-2').doom)).toBe(
+      nameOf(
+        (
+          JSON.parse(readFileSync(join(BOSS_DIR, 'boss-1-2.json'), 'utf8')) as {
+            doom: unknown;
+          }
+        ).doom,
+      ),
+    );
+    const roh = JSON.parse(readFileSync(join(BOSS_DIR, 'boss-1-3.json'), 'utf8')) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const ohneName = { ...roh, affliction: { ...roh['affliction'], name: undefined } };
+    expect(parseBoss(ohneName).problems.join(' ')).toMatch(/Namen/);
+  });
+
+  for (const id of ids) {
+    for (const k of BAUSTEINE) {
+      const original = boss(id);
+      if (original[k] === null) continue;
+      if (k === 'energy' && (original.energy?.amount ?? 0) <= 0) continue;
+
+      it(`${id} / ${k}: mit Namen, Zeitpunkt, Stufe und Art`, () => {
+        const b = nurBaustein(original, k);
+        const name = bausteinName(b, k);
+        expect(
+          name,
+          'ohne Namen keine Ankündigung (11.5: Fähigkeiten werden benannt)',
+        ).toBeTruthy();
+        const { zeiten, laeuftAb, bis } = beobachte(b, k);
+        expect(zeiten.length, 'der Baustein hat im Lauf nichts getan').toBeGreaterThan(0);
+
+        const combat = new Combat({ school: CALCINATION.value, boss: b });
+        combat.beginFight(0);
+        const ann = new BossAnnouncer();
+        let geprueft = 0;
+        for (let t = 0; t <= bis; t += TICK_MS) {
+          combat.stepPassive(t);
+          ann.update(combat, t);
+          const naechste = zeiten.find((z) => z > t);
+          const a = find(ann, name!);
+          const wo = `${id}/${k} t=${t}: ${name}`;
+          if (naechste === undefined) {
+            expect(a, `${wo} angekündigt, obwohl nichts mehr kommt`).toBeUndefined();
+            continue;
+          }
+          expect(a, `${wo} fehlt (nächstes Ereignis ${naechste})`).toBeDefined();
+          expect(a!.dueAtMs, `${wo}: Zeitpunkt`).toBe(naechste);
+          expect(a!.casting, `${wo}: läuft`).toBe(t >= laeuftAb);
+          // Stufe und Art nach Folge und Schwere (L1–L3), von Hand gesetzt:
+          if (k === 'doom') {
+            expect([a!.tier, KIND_IDS[a!.kind]], wo).toEqual([TIER_LETHAL, 'lethal']);
+          } else if (k === 'race') {
+            expect([a!.tier, KIND_IDS[a!.kind]], wo).toEqual([TIER_BAR, 'opportunity']);
+          } else {
+            const schaden =
+              k === 'energy'
+                ? b.energy!.onTrigger.damage
+                : k === 'affliction'
+                  ? b.affliction!.damage
+                  : // Die Formel des Kampfes aufrufen, nicht nachbauen.
+                    stackDamage(b.stacks!, Math.min(combat.bossStacks + 1, b.stacks!.maxStacks));
+            const soll = classifyEntry(schlag(0, 'x', schaden), playerOf(combat));
+            const art = soll.tier === TIER_LETHAL ? 'lethal' : k === 'energy' ? 'damage' : 'debuff';
+            expect([a!.tier, KIND_IDS[a!.kind]], `${wo} (Schaden ${schaden})`).toEqual([
+              soll.tier,
+              art,
+            ]);
+          }
+          geprueft++;
+        }
+        expect(geprueft, 'sonst prüft der Fall keinen Takt').toBeGreaterThan(0);
+      });
+    }
+  }
+});
+
 describe('Die Einstufung je Fähigkeit', () => {
   const basis = { vesselMax: 5000, gearWardPermille: 0 };
   const eintrag = (id: string, name: string): TimelineEntryDef => {
@@ -241,13 +463,21 @@ describe('Die Einstufung je Fähigkeit', () => {
     return e;
   };
 
-  // Von Hand gesetzt: Stufe und Art je Fall, aus 11.5 gelesen, nicht aus der Regel.
+  // Von Hand gesetzt: Stufe und Art je Fall, aus 11.5 und der Entscheidung des
+  // Orchestrators vom 28.10. gelesen (Stufe 2 = nach WARD mindestens die Hälfte
+  // der vollen Leben), nicht aus der Regel im Code.
   const faelle: ReadonlyArray<[string, string, number, number, string]> = [
     ['test-lethal-strike', 'Sunder', TIER_LETHAL, KIND_LETHAL, '18400 nach WARD 14720 >= 5000'],
-    ['test-survivable-strike', 'Sunder', TIER_BAR, KIND_DAMAGE, '4600 nach WARD 3680 < 5000'],
-    ['boss-1-1', 'Kindling Roar', TIER_HIGHLIGHT, KIND_DAMAGE, 'unterbrechbar, überlebbar'],
-    ['boss-1-1', 'Backlash', TIER_BAR, KIND_DAMAGE, 'Schlag, überlebbar'],
-    ['boss-2-2', 'Collapse', TIER_HIGHLIGHT, KIND_DAMAGE, 'der schwerste Zauber der Spiel-Bosse'],
+    [
+      'test-survivable-strike',
+      'Sunder',
+      TIER_HIGHLIGHT,
+      KIND_DAMAGE,
+      '4600 nach WARD 3680 >= 2500',
+    ],
+    ['boss-1-1', 'Kindling Roar', TIER_BAR, KIND_DAMAGE, '900 nach WARD 720 < 2500'],
+    ['boss-1-1', 'Backlash', TIER_BAR, KIND_DAMAGE, '300 nach WARD 240 < 2500'],
+    ['boss-2-2', 'Collapse', TIER_BAR, KIND_DAMAGE, 'der schwerste Spiel-Eintrag, 1760 < 2500'],
     ['boss-1-2', 'Cinder Sweep', TIER_BAR, KIND_DAMAGE, 'an Phase 1 gebunden — gleiche Regel'],
   ];
   for (const [id, name, tier, kind, warum] of faelle) {
@@ -260,31 +490,38 @@ describe('Die Einstufung je Fähigkeit', () => {
 
   it('bemisst „tödlich" am Spieler DIESES Kampfes, nicht an einer festen Zahl', () => {
     const sunder = eintrag('test-lethal-strike', 'Sunder');
-    // 18400 * 0,8 = 14720: Mit 14720 Leben tötet er genau, mit 14721 nicht mehr.
+    // 18400 * 0,8 = 14720: Mit 14720 Leben tötet er genau, mit 14721 nicht mehr —
+    // trifft dann aber mit fast allem, also Stufe 2 (die Erwartung „Stufe 1"
+    // stammte aus der Regel vor dem 28.10. und war im roten Fall stehengeblieben).
     expect(classifyEntry(sunder, { vesselMax: 14720, gearWardPermille: 0 }).tier).toBe(TIER_LETHAL);
-    expect(classifyEntry(sunder, { vesselMax: 14721, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
-    // WARD aus der Ausrüstung zählt mit: 0,2 + 0,1 = 0,3 → 12880.
-    expect(classifyEntry(sunder, { vesselMax: 13000, gearWardPermille: 100 }).tier).toBe(TIER_BAR);
+    expect(classifyEntry(sunder, { vesselMax: 14721, gearWardPermille: 0 }).tier).toBe(
+      TIER_HIGHLIGHT,
+    );
+    expect(classifyEntry(sunder, { vesselMax: 29441, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
+    // WARD aus der Ausrüstung zählt mit: 0,2 + 0,1 = 0,3 → 12880 — tötet 13000
+    // nicht mehr, trifft aber mit mehr als der Hälfte: Stufe 2.
+    expect(classifyEntry(sunder, { vesselMax: 13000, gearWardPermille: 100 }).tier).toBe(
+      TIER_HIGHLIGHT,
+    );
   });
 
-  it('die Begründung für Stufe 2 gilt an den Daten: der Zauber ist der schwerste Eintrag', () => {
-    // classifyEntry gibt dem unterbrechbaren Zauber Stufe 2, weil er in jedem
-    // Spiel-Boss härter trifft als jeder Schlag. Kommt ein Boss, bei dem das
-    // nicht mehr gilt, muss die Regel neu entschieden werden — nicht still weiter.
-    let mitZauber = 0;
-    for (const id of bossIdsOnDisk().filter((x) => /^boss-\d+-\d+$/.test(x))) {
-      const t = boss(id).timeline;
-      const zauber = t.filter((e) => e.mechanic === 'interruptibleCast').map((e) => e.damage);
-      const schlaege = t.filter((e) => e.mechanic === 'strike').map((e) => e.damage);
-      if (zauber.length === 0) continue;
-      mitZauber++;
-      if (schlaege.length === 0) continue;
-      expect(
-        Math.min(...zauber),
-        `${id}: leichtester Zauber gegen schwersten Schlag`,
-      ).toBeGreaterThan(Math.max(...schlaege));
+  it('Stufe 2 beginnt genau bei der Hälfte der vollen Leben', () => {
+    // 4600 * 0,8 = 3680: Bei 7360 Leben ist das genau die Hälfte, bei 7361 weniger.
+    const sunder = eintrag('test-survivable-strike', 'Sunder');
+    expect(classifyEntry(sunder, { vesselMax: 7360, gearWardPermille: 0 }).tier).toBe(
+      TIER_HIGHLIGHT,
+    );
+    expect(classifyEntry(sunder, { vesselMax: 7361, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
+  });
+
+  it('die Stufe hängt am Schaden, nicht an der Mechanik', () => {
+    // Die Entscheidung vom 28.10.: Ein künftiger schwacher Zauber soll nicht von
+    // selbst Stufe 2 sein. Gleicher Schaden, verschiedene Mechanik, gleiche Stufe.
+    for (const damage of [600, 4000]) {
+      const s = classifyEntry(schlag(1000, 'S', damage), basis);
+      const z = classifyEntry(zauber(1000, 'Z', damage, 2000), basis);
+      expect(z, `Schaden ${damage}`).toEqual(s);
     }
-    expect(mitZauber, 'sonst prüft der Fall nichts').toBeGreaterThan(0);
   });
 });
 
@@ -322,10 +559,16 @@ function reihenfolge(ann: BossAnnouncer): string[] {
   return out;
 }
 
+/**
+ * Schaden, der nach WARD die Hälfte der 5000 Leben überschreitet, aber nicht
+ * tötet: 4000 * 0,8 = 3200. Ein Eintrag der Stufe 2 für die Fälle unten.
+ */
+const HART = 4000;
+
 describe('Mehrere gleichzeitige Ereignisse: nach Dringlichkeit sortiert', () => {
   const b = mitZeitleiste([
     schlag(10_000, 'Alpha', 100),
-    zauber(10_500, 'Beta', 600, 3000),
+    zauber(10_500, 'Beta', HART, 3000),
     schlag(10_800, 'Gamma', 99_999),
     schlag(30_000, 'Delta', 100),
   ]);
@@ -350,7 +593,7 @@ describe('Der Countdown-Text', () => {
   });
 
   it('nennt die Fähigkeit und die Sekunde — „BETA" und „IN 5"', () => {
-    const b = mitZeitleiste([zauber(10_000, 'Beta', 600, 3000)]);
+    const b = mitZeitleiste([zauber(10_000, 'Beta', HART, 3000)]);
     const combat = new Combat({ school: CALCINATION.value, boss: b });
     combat.beginFight(0);
     for (let t = 0; t <= 5800; t += TICK_MS) combat.stepPassive(t);
@@ -412,7 +655,7 @@ describe('Fenster und Vollbild zeichnen dieselben Ankündigungen (Design-Gesetz 
     try {
       const b = mitZeitleiste([
         schlag(10_000, 'Alpha', 100),
-        zauber(10_500, 'Beta', 600, 3000),
+        zauber(10_500, 'Beta', HART, 3000),
         schlag(10_800, 'Gamma', 99_999),
       ]);
       const combat = new Combat({ school: CALCINATION.value, boss: b });
@@ -473,21 +716,53 @@ describe('Kanal 3: Warnklang je Art, Countdown für Stufe 3', () => {
   });
 
   it('Stufe 2: einmal je Wiederholung — nicht noch einmal, wenn der Zauber zu wirken beginnt', () => {
-    // Kindling Roar bei 3000 und 13000; der Schlag dazwischen ist Stufe 1 und
-    // schweigt. Die Schleife (15000) bringt die dritte bei 18000 — sie liegt
-    // schon im Fenster, wenn die zweite bei 15500 landet, und warnt genau dann.
-    // Mein erster Entwurf dieses Falls hatte sie vergessen; der Lauf nicht.
-    expect(warnungen(boss('boss-1-1'), 16_000)).toEqual([
-      'boss.warning.damage@0',
-      'boss.warning.damage@8000',
-      'boss.warning.damage@15500',
+    // Beta bei 8000 (wirkt bis 11000) und bei 20000: je ein Klang beim Eintritt
+    // in die letzten fünf Sekunden, keiner beim Wirkbeginn.
+    const b = mitZeitleiste([zauber(8000, 'Beta', HART, 3000), zauber(20_000, 'Beta', HART, 3000)]);
+    expect(warnungen(b, 21_000)).toEqual(['boss.warning.damage@3000', 'boss.warning.damage@15000']);
+  });
+
+  it('Allgemeiner Schaden der Stufe 1 schweigt — „ruhigere Ankündigung"', () => {
+    // boss-1-1: Kindling Roar (720 nach WARD) und Backlash, beide unter der Hälfte.
+    expect(warnungen(boss('boss-1-1'), 16_000)).toEqual([]);
+  });
+
+  it('Schwächung auf dir: ein eigener Klang vor dem Eintreten, keiner je Tick danach', () => {
+    // boss-1-3: die Schwächung greift bei 9000 und zehrt danach je Sekunde.
+    expect(warnungen(boss('boss-1-3'), 15_000)).toEqual(['boss.warning.debuff@4000']);
+  });
+
+  it('Schwächung auf dir: der Stapel kündigt jeden Treffer an', () => {
+    // boss-3-3: alle 4000 ms ein Stapel — jeder liegt schon im Fenster, wenn der
+    // vorige getroffen hat.
+    expect(warnungen(boss('boss-3-3'), 9000)).toEqual([
+      'boss.warning.debuff@0',
+      'boss.warning.debuff@4000',
+      'boss.warning.debuff@8000',
+    ]);
+  });
+
+  it('Gelegenheit: ein eigener Klang, bevor das Fenster aufgeht', () => {
+    // boss-1-4: das Wettrennen beginnt bei 14000.
+    expect(warnungen(boss('boss-1-4'), 16_000)).toEqual(['boss.warning.opportunity@9000']);
+  });
+
+  it('der Zähler ist Stufe 3: Countdown bis zur Schwelle', () => {
+    // boss-1-2: 6 je Sekunde ab 1000, Schwelle 100 — beim 17. Schritt, also 17000.
+    expect(warnungen(boss('boss-1-2'), 17_000)).toEqual([
+      'boss.warning.lethal@12000',
+      'boss.countdown.5@12000',
+      'boss.countdown.4@13000',
+      'boss.countdown.3@14000',
+      'boss.countdown.2@15000',
+      'boss.countdown.1@16000',
     ]);
   });
 
   it('das Nebensächliche schweigt, solange das Tödliche in seinem Fenster ist', () => {
     const erstTot = mitZeitleiste([
       schlag(10_000, 'Gamma', 99_999),
-      zauber(10_500, 'Beta', 600, 3000),
+      zauber(10_500, 'Beta', HART, 3000),
     ]);
     expect(warnungen(erstTot, 9000)).toEqual([
       'boss.warning.lethal@5000',
@@ -499,7 +774,7 @@ describe('Kanal 3: Warnklang je Art, Countdown für Stufe 3', () => {
     ]);
     // Umgekehrt meldet sich das Tödliche, auch wenn Leiseres schon läuft.
     const erstLeise = mitZeitleiste([
-      zauber(10_000, 'Beta', 600, 3000),
+      zauber(10_000, 'Beta', HART, 3000),
       schlag(10_500, 'Gamma', 99_999),
     ]);
     expect(warnungen(erstLeise, 5500)).toEqual([
@@ -507,6 +782,33 @@ describe('Kanal 3: Warnklang je Art, Countdown für Stufe 3', () => {
       'boss.warning.lethal@5500',
       'boss.countdown.5@5500',
     ]);
+  });
+});
+
+describe('Die fehlenden Klänge stehen im Verzeichnis', () => {
+  const ASSETS = new Set(Object.keys(import.meta.glob('/assets/audio/*.ogg')));
+  const ereignisse = EVENT_NAMES.filter(
+    (e) => e.startsWith('boss.warning.') || e.startsWith('boss.countdown.'),
+  );
+
+  it('jedes Warn- und Countdown-Ereignis hat einen Eintrag — angeschlossen oder als fehlend benannt', () => {
+    expect(ereignisse.length, 'sonst prüft der Fall nichts').toBeGreaterThan(0);
+    for (const e of ereignisse) {
+      const eintrag = SOUND_MANIFEST.sounds.find(
+        (s) => s.trigger?.on === e || (s.provisional ?? '').includes(e),
+      );
+      expect(eintrag, `${e}: kein Eintrag im Verzeichnis`).toBeDefined();
+      if (eintrag!.trigger?.on === e && eintrag!.provisional === undefined) {
+        // Angeschlossen: dann muss die Datei auch liegen.
+        expect(ASSETS.has(`/assets/${eintrag!.file}`), `${e}: Datei fehlt`).toBe(true);
+      } else {
+        // Benannt, aber noch ohne Datei — und ohne Auslöser, sonst verlangte der
+        // Kampf einen Klang, den es nicht gibt (Klang-Bericht: `klangFehlend`).
+        expect(eintrag!.file, `${e}: der Eintrag nennt keine Datei`).toMatch(/^audio\/.+\.ogg$/);
+        expect(ASSETS.has(`/assets/${eintrag!.file}`), `${e}: Datei liegt schon`).toBe(false);
+        expect(eintrag!.trigger, `${e}: Auslöser ohne Datei`).toBeUndefined();
+      }
+    }
   });
 });
 
