@@ -252,8 +252,38 @@ fn beende_anzeige(anzeige: Option<Anzeigestrang>, wahl: &Anzeigewahl) -> Result<
         .as_ref()
         .ok_or("Die Grundlage wurde nicht geschrieben: der Lauf hat nichts erhoben.")?;
     let m = &bild.messwerte;
-    // Dieselbe Grenze wie fuer die Diagnose: Unter vier Messsekunden ist eine
-    // Abweichung Zufall — und eine Grundlage daraus waere es auch.
+    pruefe_grundlage(m)?;
+    let grundlage = Grundlage::aus_messwerten(bild.schluessel.clone(), m);
+    std::fs::write(pfad, grundlage.speichern()).map_err(|fehler| {
+        format!("Die Grundlage '{pfad}' laesst sich nicht schreiben: {fehler}")
+    })?;
+    eprintln!(
+        "Grundlage geschrieben: {pfad} ({} Kaempfe ueber {:.1} s, {} · {}, PSI cpu {})",
+        m.kaempfe,
+        m.sekunden,
+        bild.schluessel.kernklasse.kennung(),
+        bild.schluessel.lastprofil,
+        m.druck
+            .cpu
+            .map_or_else(|| "nicht lesbar".to_owned(), |p| format!("{p:.2} %"))
+    );
+    Ok(())
+}
+
+/// Ob die Messwerte eines Laufs als Grundlage taugen (#934).
+///
+/// Zwei Gruende dagegen, beide gemessen statt angenommen:
+///
+/// - **Zu kurz.** Dieselbe Grenze wie fuer die Diagnose: Unter vier
+///   Messsekunden ist eine Abweichung Zufall — und eine Grundlage daraus waere
+///   es auch.
+/// - **Fremdlast.** Am 2026-10-28 entstand eine Grundlage auf dem Laptop bei
+///   PSI cpu 6,71 %: Befehlsdurchsatz 2,53 statt 2,74 eine Viertelstunde
+///   davor. Jeder spaetere Lauf haette sich mit einer gestoerten Maschine
+///   verglichen. Die Grenze ist dieselbe, unter der das Projekt ueberhaupt
+///   misst (`hostcaps::PSI_CPU_MAX`). Ohne lesbaren Druckwert wird
+///   geschrieben — dann sagt es die Meldung danach.
+fn pruefe_grundlage(m: &rota_sim::engpass::Messwerte) -> Result<(), String> {
     let mindestens = rota_sim::kalibrierung::ABSCHNITTE_MIN as f64;
     if m.sekunden < mindestens || m.kaempfe == 0 {
         return Err(fehler_mit_ausweg(
@@ -267,17 +297,21 @@ fn beende_anzeige(anzeige: Option<Anzeigestrang>, wahl: &Anzeigewahl) -> Result<
             "Mehr rechnen lassen (--iterations, --fights):  rota-sim run --help",
         ));
     }
-    let grundlage = Grundlage::aus_messwerten(bild.schluessel.clone(), m);
-    std::fs::write(pfad, grundlage.speichern()).map_err(|fehler| {
-        format!("Die Grundlage '{pfad}' laesst sich nicht schreiben: {fehler}")
-    })?;
-    eprintln!(
-        "Grundlage geschrieben: {pfad} ({} Kaempfe ueber {:.1} s, {} · {})",
-        m.kaempfe,
-        m.sekunden,
-        bild.schluessel.kernklasse.kennung(),
-        bild.schluessel.lastprofil
-    );
+    let grenze = rota_sim::hostcaps::PSI_CPU_MAX;
+    if let Some(psi) = m.druck.cpu.filter(|psi| *psi > grenze) {
+        return Err(fehler_mit_ausweg(
+            &format!(
+                "Die Grundlage wurde nicht geschrieben: Fremdlast, PSI cpu some avg10 {psi:.2} % \
+                 ueber {grenze:.0} %."
+            ),
+            Some(
+                "Eine Grundlage unter Fremdlast vergliche jeden spaeteren Lauf mit einer \
+                 gestoerten Maschine."
+                    .to_owned(),
+            ),
+            "Erneut, wenn die Maschine ruhig ist:  cat /proc/pressure/cpu",
+        ));
+    }
     Ok(())
 }
 
@@ -3397,6 +3431,41 @@ mod tests {
             zerlege_bench(&worte("--write-baseline")).is_err(),
             "der Pfad fehlt"
         );
+    }
+
+    /// Eine Grundlage entsteht nur aus mindestens vier Messsekunden und nicht
+    /// unter Fremdlast (#934) — der Fall vom 2026-10-28 mit PSI cpu 6,71 %.
+    #[test]
+    fn eine_grundlage_unter_fremdlast_oder_zu_kurz_wird_abgelehnt() {
+        use rota_sim::engpass::{Druck, Messwerte, Zaehlerlage};
+        let mit = |sekunden: f64, psi: Option<f64>| Messwerte {
+            sekunden,
+            kaempfe: 3_000_000,
+            zaehler: Zaehlerlage::Fehlt("Prüffall".to_owned()),
+            cpu_ns_je_kampf: Some(24_000.0),
+            straenge: Vec::new(),
+            wege: Vec::new(),
+            netz: None,
+            schlange: None,
+            ablauf: None,
+            druck: Druck {
+                cpu: psi,
+                speicher: None,
+                io: None,
+            },
+        };
+        assert!(pruefe_grundlage(&mit(24.6, Some(0.3))).is_ok());
+        assert!(
+            pruefe_grundlage(&mit(24.6, None)).is_ok(),
+            "ohne PSI: schreiben, die Meldung sagt es"
+        );
+        let fremdlast = pruefe_grundlage(&mit(24.6, Some(6.71))).expect_err("Fremdlast");
+        assert!(
+            fremdlast.contains("Fremdlast") && fremdlast.contains("6.71"),
+            "{fremdlast}"
+        );
+        let kurz = pruefe_grundlage(&mit(2.0, Some(0.3))).expect_err("zu kurz");
+        assert!(kurz.contains("2.0 s"), "{kurz}");
     }
 
     #[test]
