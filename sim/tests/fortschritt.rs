@@ -81,6 +81,7 @@ fn probe(sekunden: f64, kaempfe: u64, kandidaten: [u64; 3], stand: Laufstand) ->
         kandidaten,
         kaempfe_je_strang: vec![kaempfe],
         stand,
+        engpass: rota_sim::engpass::Rohstand::default(),
     }
 }
 
@@ -1084,8 +1085,11 @@ fn utc_zeitstempel_stimmen_mit_bekannten_daten() {
     );
 }
 
+/// Ohne Erhebung sagt die Zeile, dass nichts erhoben wird — nicht nur, dass
+/// nichts gefunden wurde (#934). Ein Wächter, der nichts prüfen kann, darf
+/// nicht aussehen wie einer, der nichts gefunden hat.
 #[test]
-fn engpass_sagt_keine_diagnose() {
+fn engpass_ohne_erhebung_sagt_dass_nichts_erhoben_wird() {
     let a = anzeige_zu(plateau_stand());
     let zeile = a
         .zeilen()
@@ -1093,9 +1097,68 @@ fn engpass_sagt_keine_diagnose() {
         .find(|z| z.trim_start().starts_with("Engpass"))
         .expect("eine Zeile 'Engpass'");
     assert!(zeile.contains("keine Diagnose"), "{zeile}");
-    assert!(zeile.contains("#934"), "{zeile}");
+    assert!(zeile.contains("erhebt keine Messwerte"), "{zeile}");
     let j = json(&a.jsonl("pruef-1", "pruefrechner"));
+    assert_eq!(j["metrics"]["bottleneck"]["state"], "not_collected");
     assert!(j["metrics"]["bottleneck"]["diagnosis"].is_null());
+}
+
+/// **Das Feld „Engpass" aus #933 ist gefüllt** (#934, AC5): ein Satz mit
+/// Diagnose und nächstem Schritt, in der Zeile wie im Strom — aus derselben
+/// Momentaufnahme und über dasselbe Fenster wie die gleitende Rate.
+#[test]
+fn engpass_mit_erhebung_steht_als_satz_in_zeile_und_strom() {
+    use rota_sim::engpass::{Erhebung, Kernklasse, Schluessel, Strangzeit};
+    let mut b = beschreibung(EIN_KAMPF);
+    b.engpass = Some(Arc::new(Erhebung::ohne_zaehler(
+        Schluessel {
+            rechner: "pruefrechner".to_owned(),
+            kernklasse: Kernklasse::Zen3,
+            lastprofil: "greedy boss=boss-1-1".to_owned(),
+        },
+        None,
+        "Prüffall ohne Zähler",
+    )));
+    // Acht Sekunden, in denen vier Stränge 40 % ihrer Zeit warten.
+    let mut fenster = Fenster::neu(FENSTER);
+    for i in 0..=32u64 {
+        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], plateau_stand());
+        p.engpass.straenge = vec![
+            Strangzeit {
+                arbeit_ns: i * 600,
+                warten_ns: i * 400,
+            };
+            4
+        ];
+        fenster.aufnehmen(p);
+    }
+    let a = b
+        .anzeige(&fenster, Ereignis::Fortschritt, 7, Duration::ZERO)
+        .expect("Anzeige");
+    let text = a.zeilen().join("\n");
+    assert!(
+        text.contains("  Engpass      Pakete zu groß oder zu wenige: Stränge warten 40,0 %"),
+        "{text}"
+    );
+    assert!(
+        text.contains("nächster Schritt: Paketlänge senken"),
+        "{text}"
+    );
+    assert!(
+        text.contains("ohne Zähler (Prüffall ohne Zähler)"),
+        "{text}"
+    );
+    let j = json(&a.jsonl("pruef-1", "pruefrechner"));
+    let e = &j["metrics"]["bottleneck"];
+    assert_eq!(e["state"], "diagnosis");
+    assert_eq!(e["diagnosis"], "Pakete zu groß oder zu wenige");
+    assert_eq!(e["findings"][0]["rule"], "threads_waiting");
+    assert_eq!(
+        e["sentence"].as_str().expect("Satz"),
+        a.engpass.as_ref().expect("Bild").diagnose.satz()
+    );
+    assert!((e["measured"]["wait_share"].as_f64().expect("Zahl") - 0.4).abs() < 1e-12);
+    assert_eq!(e["measured"]["window_s"].as_f64(), Some(8.0));
 }
 
 #[test]

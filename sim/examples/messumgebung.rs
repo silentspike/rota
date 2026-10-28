@@ -3147,6 +3147,7 @@ mod bewertung_verknuepft_die_kriterien {
             kandidaten: [7, 3, 0],
             kaempfe_je_strang: vec![1234],
             stand: rota_sim::fortschritt::Laufstand::default(),
+            engpass: rota_sim::engpass::Rohstand::default(),
         };
         let (kaempfe, kandidaten) = durchsatz_aus(&stand, 2.0, true);
         assert!(matches!(kaempfe, Wert::Zahl(x) if (x - 617.0).abs() < 1e-9));

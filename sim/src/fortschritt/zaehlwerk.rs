@@ -31,6 +31,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
+use crate::engpass::{Kampfzaehlung, Rohstand, Strangzeit};
+
 /// Wie weit zwei Strangzähler mindestens auseinanderliegen, in Bytes.
 pub const CACHE_ZEILE: usize = 128;
 
@@ -117,6 +119,15 @@ pub struct Strangzaehler {
     durchgaenge: AtomicU64,
     /// Abgeschlossene Auswertungen je [`Weg`].
     kandidaten: [AtomicU64; Weg::ANZAHL],
+    /// Nanosekunden, die dieser Platz in parallelen Abschnitten gerechnet hat
+    /// (#934). Geschrieben vom Leitstrang, einmal je Abschnitt.
+    arbeit_ns: AtomicU64,
+    /// Nanosekunden, die dieser Platz in parallelen Abschnitten auf die
+    /// anderen gewartet hat (#934).
+    warten_ns: AtomicU64,
+    /// Wie oft eine Auswertung dieses Strangs geprüft hat, ob ein Kampf
+    /// genügt (#908, #934).
+    reduktion_versuche: AtomicU64,
 }
 
 /// Wie viel Arbeit zu einem Lauf gehört — in abgeschlossenen Auswertungen.
@@ -198,6 +209,10 @@ pub struct Zaehlwerk {
     beginn: Instant,
     straenge: Box<[Strangzaehler]>,
     zustand: Mutex<Laufstand>,
+    /// Die zuletzt veröffentlichten Kampfzähler aus [`crate::diagnostics`]
+    /// (#934). Getrennt von [`Laufstand`]: Der ist `Copy` und wird von
+    /// Prüffällen als Ganzes gebaut; dieser Wert gehört der Erhebung.
+    kampf: Mutex<Option<Kampfzaehlung>>,
 }
 
 /// Was eine Momentaufnahme festhält — alles, woraus eine [`Anzeige`] entsteht.
@@ -217,6 +232,10 @@ pub struct Momentaufnahme {
     pub kaempfe_je_strang: Vec<u64>,
     /// Der Laufzustand zum selben Zeitpunkt.
     pub stand: Laufstand,
+    /// Was die Engpasserkennung braucht (#934). Das Zählwerk füllt seinen
+    /// Teil; Leistungszähler, CPU-Zeit und Druck trägt der Anzeigestrang im
+    /// selben Takt nach ([`crate::engpass::Erhebung::ergaenzen`]).
+    pub engpass: Rohstand,
 }
 
 impl Momentaufnahme {
@@ -262,6 +281,7 @@ impl Zaehlwerk {
             beginn: Instant::now(),
             straenge: (0..plaetze).map(|_| Strangzaehler::default()).collect(),
             zustand: Mutex::new(Laufstand::default()),
+            kampf: Mutex::new(None),
         })
     }
 
@@ -299,7 +319,11 @@ impl Zaehlwerk {
         let mut durchgaenge = 0;
         let mut kandidaten = [0; Weg::ANZAHL];
         let mut kaempfe_je_strang = Vec::with_capacity(self.straenge.len());
-        for z in &*self.straenge {
+        let mut engpass = Rohstand {
+            straenge: Vec::with_capacity(self.straenge.len() - 1),
+            ..Rohstand::default()
+        };
+        for (platz, z) in self.straenge.iter().enumerate() {
             let k = z.kaempfe.load(Ordering::Relaxed);
             kaempfe_je_strang.push(k);
             kaempfe += k;
@@ -307,7 +331,18 @@ impl Zaehlwerk {
             for (summe, zaehler) in kandidaten.iter_mut().zip(&z.kandidaten) {
                 *summe += zaehler.load(Ordering::Relaxed);
             }
+            engpass.reduktion_versuche += z.reduktion_versuche.load(Ordering::Relaxed);
+            // Der Leitstrang rechnet in keinem parallelen Abschnitt mit; er
+            // startet ihn und wartet auf sein Ende. Seine Zeit dort wäre
+            // Warten, das kein Paket verkürzt.
+            if platz > 0 {
+                engpass.straenge.push(Strangzeit {
+                    arbeit_ns: z.arbeit_ns.load(Ordering::Relaxed),
+                    warten_ns: z.warten_ns.load(Ordering::Relaxed),
+                });
+            }
         }
+        engpass.kampf = *self.kampf.lock().unwrap_or_else(PoisonError::into_inner);
         Momentaufnahme {
             elapsed_ns,
             kaempfe,
@@ -315,6 +350,7 @@ impl Zaehlwerk {
             kandidaten,
             kaempfe_je_strang,
             stand: *self.stand(),
+            engpass,
         }
     }
 
@@ -375,6 +411,18 @@ impl Strang {
         }
     }
 
+    /// Trägt für den Arbeitsbereich `nummer` ein, wie lange er in einem
+    /// parallelen Abschnitt gerechnet und gewartet hat (#934).
+    ///
+    /// Gerufen vom Leitstrang, nachdem der Abschnitt fertig ist — einmal je
+    /// Abschnitt und Bereich, nicht je Kampf. Der Platz ist derselbe, den
+    /// [`Strang::arbeiter`] dem Bereich gibt.
+    pub fn abschnitt(&self, nummer: usize, arbeit_ns: u64, warten_ns: u64) {
+        let z = &self.werk.straenge[self.arbeiter(nummer).platz];
+        z.arbeit_ns.fetch_add(arbeit_ns, Ordering::Relaxed);
+        z.warten_ns.fetch_add(warten_ns, Ordering::Relaxed);
+    }
+
     /// Meldet diesen Strang für den laufenden Strang an.
     pub fn anmelden(self) -> Anmeldung {
         let vorher = ANGEMELDET.with(|a| a.borrow_mut().replace(self));
@@ -422,11 +470,27 @@ fn mit_strang(f: impl FnOnce(&Strang)) {
 
 /// Eine abgeschlossene Auswertung auf `weg`, die `durchgaenge` Durchgänge
 /// geliefert hat.
+///
+/// Ist im laufenden Strang die Erfassung aus [`crate::diagnostics`] an,
+/// veröffentlicht derselbe Aufruf ihre Kennzahlen für die Anzeige (#934):
+/// Die Zähler sind strang-lokal, der Anzeigestrang sähe sie sonst nie. Einmal
+/// je Auswertung, ohne das Histogramm zu kopieren.
 pub fn kandidat(weg: Weg, durchgaenge: u64) {
     mit_strang(|s| {
         let z = &s.werk.straenge[s.platz];
         z.kandidaten[weg.index()].fetch_add(1, Ordering::Relaxed);
         z.durchgaenge.fetch_add(durchgaenge, Ordering::Relaxed);
+    });
+}
+
+/// Eine Auswertung prüft, ob **ein** Kampf sie entscheidet (#908) — der
+/// Nenner der Trefferquote dieses Wegs (#934). Ob sie es tut, zählt
+/// [`kandidat`] mit dem Weg [`Weg::EinKampf`].
+pub fn reduktionsversuch() {
+    mit_strang(|s| {
+        s.werk.straenge[s.platz]
+            .reduktion_versuche
+            .fetch_add(1, Ordering::Relaxed);
     });
 }
 

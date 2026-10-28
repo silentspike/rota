@@ -44,6 +44,7 @@ use rota_sim::balance::{
 use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
 use rota_sim::drosselung::{ControlFileWatcher, ControlSettings, RuntimeControl};
+use rota_sim::engpass::{Erhebung, Grundlage};
 use rota_sim::fortschritt::{
     Anzeigestrang, Arbeitsmenge, Ausgabe, Kampfzahl, Kostenbild, Laufbeschreibung, Weg, Zaehlwerk,
 };
@@ -96,27 +97,103 @@ const MESSUNGEN_AUSSERHALB: u64 = 2;
 // Die Fortschrittsanzeige (#933)
 // ---------------------------------------------------------------------------
 
-/// Was `--progress` und `--jsonl` bestellt haben.
+/// Was `--progress`, `--jsonl`, `--baseline` und `--write-baseline` bestellt
+/// haben.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Anzeigewahl {
     /// Die Anzeige fuer Menschen, auf dem Fehlerkanal.
     progress: bool,
     /// Der JSON-Strom in diese Datei.
     jsonl: Option<String>,
+    /// Die Grundlage der Engpassdiagnose aus dieser Datei (#934).
+    grundlage: Option<String>,
+    /// Die Messwerte dieses Laufs als Grundlage in diese Datei (#934).
+    grundlage_schreiben: Option<String>,
 }
 
-/// Startet die Anzeige, wenn eine bestellt ist.
+impl Anzeigewahl {
+    /// Ob der Lauf eine Anzeige und damit eine Engpasserhebung braucht.
+    ///
+    /// Auch ohne `--progress` und `--jsonl`: Eine Grundlage zu schreiben oder
+    /// zu lesen heisst, Messwerte zu erheben — und die entstehen im
+    /// Anzeigestrang, aus denselben Momentaufnahmen wie die Zeile.
+    fn erhebt(&self) -> bool {
+        self.progress
+            || self.jsonl.is_some()
+            || self.grundlage.is_some()
+            || self.grundlage_schreiben.is_some()
+    }
+}
+
+/// Wie der Bau den Lauf veraendert — gehoert in jedes Lastprofil (#934).
+///
+/// Der Debug-Bau rechnet rund achtzehnmal langsamer, und mit dem Merkmal
+/// `diagnostics` zaehlt der Kampf in jedem Schritt mit. Eine Grundlage aus
+/// einem anderen Bau verglaeche also gegen eine andere Maschine.
+fn bauart() -> String {
+    format!(
+        "bau={}{}",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
+        if rota_sim::diagnostics::im_bau() {
+            "+diagnostics"
+        } else {
+            ""
+        }
+    )
+}
+
+/// Startet die Anzeige, wenn eine bestellt ist — und mit ihr die
+/// Engpasserhebung (#934).
 ///
 /// Der Bericht geht weiter nach stdout, die Anzeige nach stderr: Ein Skript,
 /// das stdout liest, bekommt mit `--progress` denselben Text wie ohne.
+///
+/// `lastprofil` beschreibt, was gerechnet wird — der dritte Teil des
+/// Schluessels, gegen den eine Grundlage passen muss.
 fn starte_anzeige(
     werk: &Arc<Zaehlwerk>,
     wahl: &Anzeigewahl,
-    beschreibung: Laufbeschreibung,
+    mut beschreibung: Laufbeschreibung,
+    lastprofil: &str,
 ) -> Result<Option<Anzeigestrang>, String> {
-    if !wahl.progress && wahl.jsonl.is_none() {
+    if !wahl.erhebt() {
         return Ok(None);
     }
+    let grundlage = match &wahl.grundlage {
+        Some(pfad) => {
+            let text = std::fs::read_to_string(pfad).map_err(|fehler| {
+                fehler_mit_ausweg(
+                    &format!("Die Grundlage '{pfad}' ist nicht lesbar: {fehler}"),
+                    Some(
+                        "Eine Grundlage schreibt ein frueherer Lauf mit --write-baseline."
+                            .to_owned(),
+                    ),
+                    "Form und Beispiele:  rota-sim run --help",
+                )
+            })?;
+            Some(Grundlage::lesen(&text).map_err(|fehler| {
+                fehler_mit_ausweg(
+                    &format!("Die Grundlage '{pfad}' ist fehlerhaft: {fehler}"),
+                    None,
+                    "Neu schreiben mit --write-baseline:  rota-sim run --help",
+                )
+            })?)
+        }
+        None => None,
+    };
+    // **Vor dem Anzeigestrang und vor dem ersten Arbeitsstrang.** Die Zaehler
+    // gelten fuer diesen Strang und alle, die er danach startet; die
+    // Kampfzaehler reicht `balance` an seine Arbeitsstraenge weiter.
+    rota_sim::diagnostics::enable();
+    beschreibung.engpass = Some(Arc::new(Erhebung::starten(
+        &beschreibung.host_id,
+        &format!("{lastprofil} {}", bauart()),
+        grundlage,
+    )));
     let jsonl: Option<Box<dyn Write + Send>> = match &wahl.jsonl {
         Some(pfad) => {
             let datei = std::fs::File::create(pfad).map_err(|fehler| {
@@ -146,12 +223,62 @@ fn starte_anzeige(
 
 /// Haelt die Anzeige an. Ein Schreibfehler dort beendet nicht den Lauf — er
 /// steht auf dem Fehlerkanal, und der Bericht folgt trotzdem.
-fn beende_anzeige(anzeige: Option<Anzeigestrang>) {
-    if let Some(anzeige) = anzeige {
-        if let Err(fehler) = anzeige.beenden() {
+///
+/// Mit `--write-baseline` schreibt sie die Messwerte der letzten Meldung als
+/// Grundlage. **Das ist eine Bestellung, keine Beigabe:** Laesst sie sich
+/// nicht erfuellen, endet der Aufruf mit einem Fehler, statt still ohne
+/// Grundlage zu enden.
+fn beende_anzeige(anzeige: Option<Anzeigestrang>, wahl: &Anzeigewahl) -> Result<(), String> {
+    let Some(anzeige) = anzeige else {
+        return Ok(());
+    };
+    let ende = match anzeige.beenden() {
+        Ok(ende) => ende,
+        Err(fehler) => {
             eprintln!("Fortschrittsausgabe abgebrochen: {fehler}");
+            if wahl.grundlage_schreiben.is_some() {
+                return Err(
+                    "Die Grundlage wurde nicht geschrieben: die Anzeige brach ab.".to_owned(),
+                );
+            }
+            return Ok(());
         }
+    };
+    let Some(pfad) = &wahl.grundlage_schreiben else {
+        return Ok(());
+    };
+    let bild = ende
+        .engpass
+        .as_ref()
+        .ok_or("Die Grundlage wurde nicht geschrieben: der Lauf hat nichts erhoben.")?;
+    let m = &bild.messwerte;
+    // Dieselbe Grenze wie fuer die Diagnose: Unter vier Messsekunden ist eine
+    // Abweichung Zufall — und eine Grundlage daraus waere es auch.
+    let mindestens = rota_sim::kalibrierung::ABSCHNITTE_MIN as f64;
+    if m.sekunden < mindestens || m.kaempfe == 0 {
+        return Err(fehler_mit_ausweg(
+            &format!(
+                "Die Grundlage wurde nicht geschrieben: das Fenster hat {:.1} s und {} Kaempfe.",
+                m.sekunden, m.kaempfe
+            ),
+            Some(format!(
+                "Eine Grundlage braucht mindestens {mindestens:.0} Messsekunden mit Kaempfen."
+            )),
+            "Mehr rechnen lassen (--iterations, --fights):  rota-sim run --help",
+        ));
     }
+    let grundlage = Grundlage::aus_messwerten(bild.schluessel.clone(), m);
+    std::fs::write(pfad, grundlage.speichern()).map_err(|fehler| {
+        format!("Die Grundlage '{pfad}' laesst sich nicht schreiben: {fehler}")
+    })?;
+    eprintln!(
+        "Grundlage geschrieben: {pfad} ({} Kaempfe ueber {:.1} s, {} · {})",
+        m.kaempfe,
+        m.sekunden,
+        bild.schluessel.kernklasse.kennung(),
+        bild.schluessel.lastprofil
+    );
+    Ok(())
 }
 
 /// Was eine Auswertung dieses Laufs kostet: der Weg aus der Bibliothek, nicht
@@ -178,9 +305,19 @@ fn zerlege_anzeige(
     match name {
         "--progress" => wahl.progress = true,
         "--jsonl" => wahl.jsonl = Some(hole_wert(argumente, i, name)?),
+        "--baseline" => wahl.grundlage = Some(hole_wert(argumente, i, name)?),
+        "--write-baseline" => wahl.grundlage_schreiben = Some(hole_wert(argumente, i, name)?),
         _ => return Ok(false),
     }
     Ok(true)
+}
+
+/// FNV-1a ueber den Text einer Rotation — damit zwei Dateien gleichen Namens
+/// mit verschiedenem Inhalt nicht dasselbe Lastprofil sind (#934).
+fn fingerabdruck_text(text: &str) -> u32 {
+    text.bytes().fold(FNV_OFFSET, |h, b| {
+        (h ^ u32::from(b)).wrapping_mul(rota_sim::checksum::FNV_PRIME)
+    })
 }
 
 /// Die gute Rotation aus Schritt 1 — die Voreinstellung fuer einen Lauf ohne
@@ -333,11 +470,19 @@ FORTSCHRITT
 
     rota-sim run --boss boss-1-1 --iterations 100 --max-len 6 --jsonl lauf.jsonl
 
-  Diese beiden stehen nicht unter BEISPIELE, weil die Pruefstrecke jedes
+  Die Zeile 'Engpass' sagt, welche Ressource bremst und was als Naechstes zu
+  tun ist. Die Zaehlerzeilen vergleicht sie nur gegen eine Grundlage
+  desselben Rechners, derselben Kernklasse und derselben Angaben — einmal
+  schreiben, dann gegen sie messen:
+
+    rota-sim run --boss boss-1-1 --iterations 100 --max-len 6 --write-baseline g.txt
+    rota-sim run --boss boss-1-1 --iterations 100 --max-len 6 --baseline g.txt --progress
+
+  Diese stehen nicht unter BEISPIELE, weil die Pruefstrecke jedes
   Beispiel ausfuehrt und von ihm einen leeren Fehlerkanal und keine Datei
   verlangt. Die Anzeige schreibt auf den Fehlerkanal, der Bericht bleibt auf
-  der Standardausgabe und aendert sich nicht. Die Felder des Stroms und was
-  die Restzeit bedeutet:  docs/FORTSCHRITT.md
+  der Standardausgabe und aendert sich nicht. Die Felder des Stroms, was
+  die Restzeit bedeutet und die Regeltabelle:  docs/FORTSCHRITT.md
 
 OPTIONEN
   --boss <id>        gegen welchen Boss gerechnet wird.
@@ -385,6 +530,13 @@ OPTIONEN
   --jsonl <datei>    schreibt den Fortschritt als JSON Lines in eine Datei.
                      Dieselben Zahlen wie --progress, aus derselben Quelle
                      wie 'Kaempfe gerechnet'.
+  --baseline <datei> die Grundlage der Engpassdiagnose. Passt sie nicht zu
+                     Rechner, Kernklasse und Lastprofil dieses Laufs, prueft
+                     die Diagnose die Zaehlerzeilen nicht — sie faellt nicht
+                     auf eine feste Zahl zurueck.
+  --write-baseline <datei>
+                     schreibt die Messwerte dieses Laufs als Grundlage, aus
+                     den letzten 30 Sekunden; mindestens vier Messsekunden.
   --help             dieser Text.
 
 WAS AUSGEGEBEN WIRD
@@ -422,6 +574,9 @@ OPTIONEN
   --json             Ausgabe als JSON statt als Text.
   --progress         den Fortschritt auf dem Fehlerkanal zeigen.
   --jsonl <datei>    den Fortschritt als JSON Lines in eine Datei schreiben.
+  --baseline <datei> die Grundlage der Engpassdiagnose (wie bei run).
+  --write-baseline <datei>
+                     die Messwerte dieses Laufs als Grundlage schreiben.
   --help             dieser Text.
 
 WAS DIE ZAHL BEDEUTET
@@ -844,9 +999,18 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
             &werk,
             &optionen.anzeige,
             Laufbeschreibung::neu("greedy", Some(boss.id), config.threads, kostenbild(&config)),
+            &format!(
+                "greedy boss={} max-len={} iterations={} purity={} threads={} seed={}",
+                boss.id,
+                optionen.max_len,
+                config.iterations,
+                optionen.purity,
+                config.threads,
+                config.base_seed
+            ),
         )?;
         let ergebnis = greedy(&config, &pool, optionen.max_len);
-        beende_anzeige(anzeige);
+        beende_anzeige(anzeige, &optionen.anzeige)?;
         let dauer = start.elapsed().as_secs_f64();
         // Beide Zahlen aus EINER Momentaufnahme des Zaehlwerks.
         let stand = werk.momentaufnahme();
@@ -860,7 +1024,7 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
             berichte_suche(&ergebnis, boss, &config, dauer, zaehlung);
         }
     } else {
-        let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
+        let (name, apl, kennung) = lade_apl_mit_kennung(optionen.apl_pfad.as_deref())?;
         let mut runtime = if let Some(path) = &optionen.control_file {
             let max_workers = config.threads.max(1);
             let control = Arc::new(
@@ -896,13 +1060,21 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         let mut beschreibung =
             Laufbeschreibung::neu("fest", Some(boss.id), config.threads, kostenbild(&config));
         beschreibung.drosselung = runtime.as_ref().map(|(control, _)| Arc::clone(control));
-        let anzeige = starte_anzeige(&werk, &optionen.anzeige, beschreibung)?;
+        let anzeige = starte_anzeige(
+            &werk,
+            &optionen.anzeige,
+            beschreibung,
+            &format!(
+                "fest boss={} apl={kennung} iterations={} purity={} threads={} seed={}",
+                boss.id, config.iterations, optionen.purity, config.threads, config.base_seed
+            ),
+        )?;
         let ergebnis = if let Some((control, _)) = &runtime {
             rota_sim::balance::run_controlled(&config, &apl, control)
         } else {
             run(&config, &apl)
         };
-        beende_anzeige(anzeige);
+        beende_anzeige(anzeige, &optionen.anzeige)?;
         if let Some((control, watcher)) = &mut runtime {
             watcher.stop().map_err(|e| e.to_string())?;
             let state = control.snapshot();
@@ -982,7 +1154,7 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
             "--threshold" => optionen.schwelle = Some(hole_anteil(argumente, &mut i, name)?),
             "--alpha" => optionen.alpha = Some(hole_anteil(argumente, &mut i, name)?),
             "--budget" => optionen.budget = Some(hole_zahl(argumente, &mut i, name)?),
-            "--progress" | "--jsonl" => {
+            "--progress" | "--jsonl" | "--baseline" | "--write-baseline" => {
                 zerlege_anzeige(argumente, &mut i, name, &mut optionen.anzeige)?;
             }
             anderes => return Err(unbekannte_angabe("run", anderes, &ANGABEN_RUN)),
@@ -1109,7 +1281,7 @@ fn lauf_gestaffelt(
     boss: &Boss,
     werk: &Arc<Zaehlwerk>,
 ) -> Result<ExitCode, String> {
-    let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
+    let (name, apl, kennung) = lade_apl_mit_kennung(optionen.apl_pfad.as_deref())?;
     let staffelung = staffelung_aus(optionen);
     // Der Weg kommt aus derselben Wahl, die der Lauf gleich trifft: Ohne Wuerfel
     // ist es EIN Kampf, sonst hoechstens das Budget.
@@ -1128,10 +1300,19 @@ fn lauf_gestaffelt(
         werk,
         &optionen.anzeige,
         Laufbeschreibung::neu("gestaffelt", Some(boss.id), 1, kosten),
+        &format!(
+            "gestaffelt boss={} apl={kennung} purity={} threshold={} alpha={} budget={} seed={}",
+            boss.id,
+            optionen.purity,
+            staffelung.schwelle,
+            staffelung.alpha,
+            staffelung.budget,
+            config.base_seed
+        ),
     )?;
     let start = Instant::now();
     let lauf = run_gestaffelt(config, &apl, staffelung);
-    beende_anzeige(anzeige);
+    beende_anzeige(anzeige, &optionen.anzeige)?;
     let lauf = lauf.map_err(|fehler| {
         fehler_mit_ausweg(
             &fehler.to_string(),
@@ -1271,9 +1452,11 @@ fn gestaffelt_json(
 }
 
 /// Die Angaben, die `run` kennt — Grundlage fuer den Vorschlag bei Tippfehlern.
-const ANGABEN_RUN: [&str; 18] = [
+const ANGABEN_RUN: [&str; 20] = [
     "--progress",
     "--jsonl",
+    "--baseline",
+    "--write-baseline",
     "--boss",
     "--apl",
     "--control-file",
@@ -1293,13 +1476,15 @@ const ANGABEN_RUN: [&str; 18] = [
 ];
 
 /// Die Angaben, die `bench` kennt.
-const ANGABEN_BENCH: [&str; 8] = [
+const ANGABEN_BENCH: [&str; 10] = [
     "--boss",
     "--fights",
     "--threads",
     "--json",
     "--progress",
     "--jsonl",
+    "--baseline",
+    "--write-baseline",
     "--help",
     "-h",
 ];
@@ -1312,6 +1497,13 @@ const UNTERPUNKTE_DATA: [&str; 3] = ["bosses", "spells", "candidates"];
 
 /// Laedt die zu messende Rotation — aus einer Datei oder die mitgelieferte.
 fn lade_apl(pfad: Option<&str>) -> Result<(String, Apl), String> {
+    lade_apl_mit_kennung(pfad).map(|(name, apl, _)| (name, apl))
+}
+
+/// Wie [`lade_apl`], dazu die Kennung fuer das Lastprofil: Name und
+/// Fingerabdruck des gelesenen Textes (#934). Zwei Dateien gleichen Namens
+/// mit verschiedenem Inhalt sind verschiedene Lasten.
+fn lade_apl_mit_kennung(pfad: Option<&str>) -> Result<(String, Apl, String), String> {
     match pfad {
         Some(p) => {
             let text = std::fs::read_to_string(p).map_err(|fehler| {
@@ -1331,13 +1523,15 @@ fn lade_apl(pfad: Option<&str>) -> Result<(String, Apl), String> {
                     "Die Form mit Beispielen:  rota-sim run --help",
                 )
             })?;
-            Ok((p.to_owned(), apl))
+            let kennung = format!("{p}#{:08x}", fingerabdruck_text(&text));
+            Ok((p.to_owned(), apl, kennung))
         }
         None => {
             let apl = parse(AplName("step1-good"), GOOD_APL).map_err(|fehler| {
                 format!("Die mitgelieferte Rotation ist fehlerhaft:\n{fehler}")
             })?;
-            Ok(("step1-good".to_owned(), apl))
+            let kennung = format!("step1-good#{:08x}", fingerabdruck_text(GOOD_APL));
+            Ok(("step1-good".to_owned(), apl, kennung))
         }
     }
 }
@@ -1520,7 +1714,7 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
     }
 
     let boss = waehle_boss(optionen.boss_id.as_deref())?;
-    let (_, apl) = lade_apl(None)?;
+    let (_, apl, kennung) = lade_apl_mit_kennung(None)?;
     let config = BalanceConfig {
         iterations: optionen.fights,
         threads: optionen.threads,
@@ -1543,6 +1737,10 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
                 kaempfe_je_kandidat: Kampfzahl::Fest(u64::from(optionen.fights)),
             },
         ),
+        &format!(
+            "bench boss={} apl={kennung} fights={} threads={}",
+            boss.id, optionen.fights, config.threads
+        ),
     )?;
 
     // **Jeder Durchgang ein gerechneter Kampf.** Ohne Wuerfel rechnete `run`
@@ -1552,7 +1750,7 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
     let start = Instant::now();
     let ergebnis = run_vollstaendig(&config, &apl);
     let sekunden = start.elapsed().as_secs_f64();
-    beende_anzeige(anzeige);
+    beende_anzeige(anzeige, &optionen.anzeige)?;
     // Zaehler und Nenner aus derselben Quelle wie die Kampfzeile darunter.
     let kaempfe = kaempfe_gerechnet(&werk);
     // Nie durch null teilen: Ein Lauf, der unter der Aufloesung der Uhr bleibt,
@@ -1607,7 +1805,7 @@ fn zerlege_bench(argumente: &[String]) -> Result<BenchOptionen, String> {
             "--boss" => optionen.boss_id = Some(hole_wert(argumente, &mut i, name)?),
             "--fights" => optionen.fights = hole_zahl(argumente, &mut i, name)?,
             "--threads" => optionen.threads = hole_zahl(argumente, &mut i, name)?,
-            "--progress" | "--jsonl" => {
+            "--progress" | "--jsonl" | "--baseline" | "--write-baseline" => {
                 zerlege_anzeige(argumente, &mut i, name, &mut optionen.anzeige)?;
             }
             anderes => return Err(unbekannte_angabe("bench", anderes, &ANGABEN_BENCH)),
@@ -3163,6 +3361,7 @@ mod tests {
         let erwartet = Anzeigewahl {
             progress: true,
             jsonl: Some("strom.jsonl".to_owned()),
+            ..Anzeigewahl::default()
         };
         let run = zerlege_run(&worte("--progress --jsonl strom.jsonl")).expect("gueltig");
         assert_eq!(run.anzeige, erwartet);
@@ -3170,7 +3369,34 @@ mod tests {
         assert_eq!(bench.anzeige, erwartet);
         // Ohne Angabe: keine Anzeige, und das ist die Voreinstellung.
         assert_eq!(RunOptionen::default().anzeige, Anzeigewahl::default());
+        assert!(!Anzeigewahl::default().erhebt());
         assert!(zerlege_run(&worte("--jsonl")).is_err(), "der Pfad fehlt");
+    }
+
+    /// `--baseline` und `--write-baseline` legen die Erhebung an, auch ohne
+    /// Anzeige (#934) — eine Grundlage entsteht im Anzeigestrang.
+    #[test]
+    fn grundlage_lesen_und_schreiben_legt_die_erhebung_an() {
+        for befehl in [
+            "--baseline g.txt",
+            "--write-baseline g.txt",
+            "--baseline a.txt --write-baseline b.txt",
+        ] {
+            let run = zerlege_run(&worte(befehl)).expect("gueltig");
+            assert!(run.anzeige.erhebt(), "run {befehl}");
+            assert!(!run.anzeige.progress && run.anzeige.jsonl.is_none());
+            let bench = zerlege_bench(&worte(befehl)).expect("gueltig");
+            assert!(bench.anzeige.erhebt(), "bench {befehl}");
+        }
+        let beide =
+            zerlege_run(&worte("--baseline a.txt --write-baseline b.txt")).expect("gueltig");
+        assert_eq!(beide.anzeige.grundlage.as_deref(), Some("a.txt"));
+        assert_eq!(beide.anzeige.grundlage_schreiben.as_deref(), Some("b.txt"));
+        assert!(zerlege_run(&worte("--baseline")).is_err(), "der Pfad fehlt");
+        assert!(
+            zerlege_bench(&worte("--write-baseline")).is_err(),
+            "der Pfad fehlt"
+        );
     }
 
     #[test]
