@@ -343,6 +343,63 @@ pub fn snapshot() -> Counters {
     COUNTERS.with(|c| c.borrow().clone())
 }
 
+/// Ob dieser Bau die Aufrufstellen im Kampf enthaelt (#934).
+///
+/// Ohne das Merkmal ruft der Kampf weder [`note_queue_len`] noch
+/// [`note_expire`] — dann sind Schlangenbelegung und Trefferquote der
+/// Ablaufpruefung **nicht erhoben**, und das muss von „null" unterscheidbar
+/// sein.
+#[must_use]
+pub const fn im_bau() -> bool {
+    cfg!(feature = "diagnostics")
+}
+
+/// Rechnet die Zaehler eines anderen Strangs in die des laufenden ein (#934).
+///
+/// **Wozu.** Die Zaehler sind strang-lokal, und [`crate::balance`] legt je
+/// Auswertung neue Arbeitsstraenge an. Ohne diese Vereinigung saehe ein
+/// Leitstrang, der die Erfassung eingeschaltet hat, von einem mehrstraengigen
+/// Lauf nichts — `examples/messumgebung.rs` kalibriert deshalb bis heute
+/// einstraengig. `balance` reicht den Schalter an seine Arbeitsstraenge weiter
+/// und vereinigt ihre Zaehler hier, nachdem sie fertig sind.
+///
+/// **Der Trace-Hash wird nicht vereinigt.** Er haengt an der Reihenfolge der
+/// Zustaende, und ueber mehrere Straenge gibt es keine (siehe
+/// [`enable_trace`]). Die Arbeitsstraenge bekommen seinen Schalter deshalb
+/// nicht.
+pub fn vereinigen(fremd: &Counters) {
+    COUNTERS.with(|c| {
+        let mut z = c.borrow_mut();
+        for (eigen, anderer) in z.buckets.iter_mut().zip(fremd.buckets.iter()) {
+            *eigen += anderer;
+        }
+        z.overflow += fremd.overflow;
+        z.max = z.max.max(fremd.max);
+        z.samples += fremd.samples;
+        z.expire_calls += fremd.expire_calls;
+        z.expire_hits += fremd.expire_hits;
+        z.fights += fremd.fights;
+        z.queue_overflows += fremd.queue_overflows;
+        z.gear_budgets += fremd.gear_budgets;
+    });
+}
+
+/// Die Kennzahlen, die die Engpasserkennung braucht (#934) — gelesen, ohne
+/// das Histogramm zu kopieren.
+#[must_use]
+pub fn kampfzaehlung() -> crate::engpass::Kampfzaehlung {
+    COUNTERS.with(|c| {
+        let z = c.borrow();
+        crate::engpass::Kampfzaehlung {
+            schritte: z.samples,
+            schlange_max: z.max,
+            schlange_ueberlaeufe: z.queue_overflows,
+            ablauf_aufrufe: z.expire_calls,
+            ablauf_treffer: z.expire_hits,
+        }
+    })
+}
+
 /// Meldet, dass die Ereignisschlange in den Rueckfall ausgewichen ist (#909).
 ///
 /// Anders als [`note_queue_len`] steht dieser Aufruf **nicht** hinter dem
