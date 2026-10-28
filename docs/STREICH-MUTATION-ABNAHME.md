@@ -56,7 +56,10 @@ Das Werkzeug führt nacheinander `cargo remote --no-copy-lock -- test --no-run
 --no-fail-fast` aus. Bau und Rust-Tests laufen vollständig auf dem Buildserver;
 Rust-Binaries werden niemals lokal gestartet. Beide Aufrufe verzichten auf
 Artefakt-Copyback und sperren die Rückkopie von `Cargo.lock`. Die TS-Prüfung läuft
-über `npx --no-install vitest run`. Die Cargo-Ausgabe liefert alle Testnamen und
+über `npx --no-install vitest run --testTimeout 30000`. Die einzelnen Tests
+erhalten 30 Sekunden statt Vitests regulären fünf Sekunden: Dateisystem- und
+AST-Prüfungen überschritten unter Hostlast bereits in der Nullprobe die kurze
+Vorgabe. Assertions und Testumfang bleiben unverändert. Die Cargo-Ausgabe liefert alle Testnamen und
 Suite-Summen ohne `--nocapture`; ein abgebrochener weiterer Target-Prozess macht
 auch vorherige echte rote Summen zu einem unvollständigen Lauf. Reguläre leere
 Binär-Harnesses sind erlaubt, zählen aber als null ausgeführte Fälle.
