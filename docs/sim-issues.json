@@ -381,7 +381,7 @@
     {
       "id": "E14",
       "kind": "epic",
-      "title": "Numerischer Vertrag: Werte-Deckel, Überlaufbeweis und Parität über fünf Rechenpfade",
+      "title": "Numerischer Vertrag: Werte-Deckel, Überlaufbeweis und Parität über vier Rechenpfade",
       "depends_on": [],
       "normative_section": "e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen",
       "section_scope": "shared_section",
