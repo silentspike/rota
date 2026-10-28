@@ -148,9 +148,20 @@ nur die Schlüssel `name`, `id`, `run` und `timeout-minutes`, und genau dieser
 Befehl ohne Zusatz. Seine erste Fassung suchte nur die Befehlszeile und blieb
 grün, als der Schritt auskommentiert, mit `if: false` übersprungen, mit
 `continue-on-error: true` entschärft oder sein Ausgang mit `|| true`
-verschluckt war. Nicht erfasst ist das Abschalten des ganzen `sim`-Jobs: Mit
+verschluckt war.
+
+Das Abschalten des ganzen `sim`-Jobs war bis zum 2026-10-28 nicht erfasst: Mit
 `if: false` am Job blieben alle Fälle der Datei grün (gemessen am 2026-10-24),
-und `ci-pass` wertet `skipped` als bestanden.
+und `ci-pass` wertet `skipped` als bestanden. Seither prüfen zwei weitere Fälle
+die Kette auf Job-Ebene: Der Kopf des Jobs trägt nur `needs`, `if`, `runs-on`,
+`steps` und `timeout-minutes`, sein `if` lautet wörtlich
+`needs.changes.outputs.sim == 'true'`, er wartet auf `changes`, deren Ausgang
+`sim` kommt aus dem Schritt `id: filter`, und der schreibt die sim-Zeile nach
+`$GITHUB_OUTPUT`. Am anderen Ende wartet `ci-pass` mit `if: always()` auf `sim`
+und liest `needs.sim.result`. Zwölf Mutationen an `ci.yml` — darunter `if: false`,
+`if: always()`, `continue-on-error: true` am Job und `sim` aus den `needs` von
+`ci-pass` gestrichen — färben je genau einen dieser Fälle rot; die Fassung davor
+blieb bei allen zwölf grün (#892).
 
 ## Die Gegenrichtung: wird eine Stufe von nichts ausgelöst?
 
