@@ -98,9 +98,9 @@ mehrerer Fehlgriffe.
 > ```
 >
 > Gemessen mit dem Befehl im Kopfkommentar von `data/player/talents.json`. Die Spalten TS und
-> Rust sind für diese vier nicht neu gezählt. Die Tabelle selbst bleibt, wie sie war: Die beiden
-> PUTREFACTION-Zeilen stehen im Widerspruch zum Abschnitt „Zwei Gruppen wurden ausgeschlossen"
-> unten, und welche Festlegung gilt, ist nicht entschieden.
+> Rust sind für diese vier nicht neu gezählt. Die beiden PUTREFACTION-Zeilen gelten, wie sie
+> sind: Am 2026-10-28 hat der Auftraggeber den Widerspruch zum früheren Ausschluss entschieden
+> („Bestand gilt“, siehe „Zwei Gruppen waren ausgeschlossen“ unten).
 
 > **SUBLIMATIONs drei Wege sind seit #751 gebaut**, und zwar mit je eigener Größe:
 > `sublimation-reduction` → `cooldownReductionPerRankPerMille`, `-charges` →
@@ -156,9 +156,15 @@ acht Buff-Ziele wirken heute auf die fertige Größe, nicht auf einen ihrer Summ
 das nur `proStapel` hebt, wäre eine neue Wirkungsart mit einer Sonderregel, die kein anderer Faktor
 kennt.
 
-## Zwei Gruppen wurden ausgeschlossen — sie verdoppeln je einen Zauber
+## Zwei Gruppen waren ausgeschlossen — der Ausschluss ist aufgehoben
 
-Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei sind gestrichen:
+> **Entschieden am 2026-10-28 vom Auftraggeber: „Bestand gilt“.** Die beiden Wege bleiben, wie
+> PR #824 sie gebaut hat: `putrefaction-build` (Faster Rot) hebt die Obergrenze
+> (`decayCapPerRankPerMille`), `putrefaction-duration` (Lasting Rot) den Schutz je Stapel
+> (`decayWardPerRankPerMille`). Der Ausschluss unten gilt nicht mehr; er bleibt als Herkunft
+> stehen. Folge für #1102: AC2 lautet „so lassen“.
+
+Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei waren gestrichen:
 
 | Gruppe     | Größe                        | Warum nicht                                                                                       |
 | ---------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -169,13 +175,12 @@ Beide wären technisch baubar (je 1–2 Stellen, keine neue Prüfsummen-Zeile). 
 fachlich: Ein Weg, der einen Zauber verdoppelt, ist so wenig eine Wahl wie einer, der eine Mechanik
 verdoppelt.
 
-> **Widerspricht dem Bestand — markiert am 2026-10-24 (#419), nicht entschieden.** PR #824 hat
+> **Widersprach dem Bestand — markiert am 2026-10-24 (#419), entschieden am 2026-10-28 (oben).** PR #824 hat
 > nach der Entscheidung des Auftraggebers vom 2026-08-13 („Jeder der vier bekommt eine Wirkung
 > anderer BAUART", Kommentar in #419) genau diese beiden Größen gewählt: `putrefaction-build`
 > trägt seither `decayCapPerRankPerMille` (die Obergrenze), `putrefaction-duration`
 > `decayWardPerRankPerMille` (den Schutz je Stapel). Der Ausschluss oben und der Bestand
-> schließen einander aus. Welche Festlegung gilt, entscheidet der Auftraggeber; bis dahin bleibt
-> dieser Abschnitt stehen, wie er war.
+> schlossen einander aus. Der Auftraggeber hat für den Bestand entschieden.
 
 ## Die Kennungen sind inzwischen sprechend — bei vier von sechs Bäumen
 
