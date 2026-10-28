@@ -156,6 +156,9 @@ pub enum Abbruchgrund {
     Drosselung,
     /// Die Arbeitspakete waren zu klein, um die Zeit sinnvoll zu messen.
     PaketZuKlein,
+    /// Ein Lauf mit **fester** Dauer: der kurze Bestätigungslauf oder die
+    /// Kontrollprobe. Er misst, aber er kalibriert nicht.
+    FesteDauer,
 }
 
 impl Abbruchgrund {
@@ -1133,7 +1136,7 @@ pub fn profildatei(s: &Profilschluessel) -> String {
 }
 
 /// Was beim Bestätigen eines Profils herauskam.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bestaetigung {
     /// Es gibt kein Profil für diesen Schlüssel — voll erheben.
     Fehlt,
@@ -1167,6 +1170,84 @@ pub fn gespeicherte_rate(text: &str, art: Arbeitsart) -> Option<f64> {
         .into_iter()
         .find(|(name, _)| name == art.schluessel())
         .map(|(_, wert)| wert)
+}
+
+/// Der kurze Bestätigungslauf aus AC4: [`MINDESTDAUER`] lang, ohne adaptive
+/// Verlängerung.
+pub fn bestaetigungslauf<F>(arbeit: F) -> RateModel
+where
+    F: FnMut() -> f64,
+{
+    kalibriere(arbeit)
+}
+
+/// Welcher Lauf gefragt ist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lauf {
+    /// Der kurze Bestätigungslauf ([`bestaetigungslauf`]).
+    Kurz,
+    /// Die volle Erhebung ([`kalibriere`]).
+    Voll,
+}
+
+/// Was eine Arbeitsart in diesem Lauf erfahren hat (AC4, AC5).
+#[derive(Debug, Clone, Copy)]
+pub enum Erhebung {
+    /// Kein Profil: volle Erhebung.
+    Fehlt {
+        /// Die volle Erhebung.
+        voll: RateModel,
+    },
+    /// Der Bestätigungslauf lag innerhalb von [`NEUERHEBUNG_AB`]: Das Profil
+    /// gilt, eine volle Erhebung gab es nicht.
+    Bestaetigt {
+        /// Der Bestätigungslauf.
+        kurz: RateModel,
+    },
+    /// Der Bestätigungslauf wich ab, also wurde neu erhoben (AC5).
+    NeuErhoben {
+        /// Der Bestätigungslauf, der abwich.
+        kurz: RateModel,
+        /// Die volle Erhebung danach.
+        voll: RateModel,
+        /// Wie die volle Erhebung zum Profil steht.
+        urteil: Bestaetigung,
+    },
+    /// Der Bestätigungslauf kam nicht zum Messen, etwa wegen Fremdlast vor
+    /// der Messung. Weder bestätigt noch neu erhoben.
+    NichtGemessen {
+        /// Der Bestätigungslauf ohne Abschnitt.
+        kurz: RateModel,
+    },
+}
+
+impl Erhebung {
+    /// Die maßgebliche Messung: die volle, wenn es eine gab, sonst die kurze.
+    #[must_use]
+    pub const fn rate(&self) -> &RateModel {
+        match self {
+            Self::Fehlt { voll } | Self::NeuErhoben { voll, .. } => voll,
+            Self::Bestaetigt { kurz } | Self::NichtGemessen { kurz } => kurz,
+        }
+    }
+
+    /// Was davon ins Profil gehört.
+    #[must_use]
+    pub fn abzulegen(&self) -> Option<&RateModel> {
+        None
+    }
+}
+
+/// Erhebt eine Arbeitsart: mit Profil kurz bestätigen, ohne voll erheben
+/// (AC4, AC5).
+pub fn erheben_mit<M>(gespeichert: Option<f64>, mut messen: M) -> Erhebung
+where
+    M: FnMut(Lauf) -> RateModel,
+{
+    let _ = gespeichert;
+    Erhebung::Fehlt {
+        voll: messen(Lauf::Voll),
+    }
 }
 
 #[cfg(test)]
@@ -1763,6 +1844,172 @@ mod tests {
             Some(Abbruchgrund::Stabil)
         );
         assert_eq!(urteil_nach(Duration::from_secs(10), &[]), None);
+    }
+
+    // ---------------------------------------------- AC4: nur kurz bestätigen
+
+    /// Ein Bestätigungslauf mit der Rate `x`.
+    fn kurz(x: f64) -> RateModel {
+        RateModel {
+            reason: Abbruchgrund::FesteDauer,
+            ..rate(x)
+        }
+    }
+
+    /// Fährt `erheben_mit` gegen gefälschte Messungen und schreibt mit, welche
+    /// Läufe gefragt wurden.
+    fn erhebe(
+        gespeichert: Option<f64>,
+        kurz_rate: RateModel,
+        voll_rate: RateModel,
+    ) -> (Erhebung, Vec<Lauf>) {
+        let mut gefragt = Vec::new();
+        let e = erheben_mit(gespeichert, |lauf| {
+            gefragt.push(lauf);
+            match lauf {
+                Lauf::Kurz => kurz_rate,
+                Lauf::Voll => voll_rate,
+            }
+        });
+        (e, gefragt)
+    }
+
+    #[test]
+    fn erheben_ohne_profil_misst_voll_und_nie_kurz() {
+        let (e, gefragt) = erhebe(None, kurz(100.0), rate(100.0));
+        assert_eq!(gefragt, [Lauf::Voll]);
+        assert!(matches!(e, Erhebung::Fehlt { .. }), "{e:?}");
+    }
+
+    #[test]
+    fn erheben_mit_passendem_profil_misst_nur_kurz() {
+        // **Der Kern von AC4**: Ein vollständiger Lauf bei jedem Start ist zu
+        // teuer. Liegt der Bestätigungslauf innerhalb von 25 %, wird NICHT
+        // voll erhoben.
+        for kurz_rate in [100.0, 80.0, 124.0] {
+            let (e, gefragt) = erhebe(Some(100.0), kurz(kurz_rate), rate(100.0));
+            assert_eq!(gefragt, [Lauf::Kurz], "kurz {kurz_rate}");
+            assert!(
+                matches!(e, Erhebung::Bestaetigt { .. }),
+                "kurz {kurz_rate}: {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn erheben_mit_abweichendem_kurzlauf_erhebt_neu() {
+        // AC5: Weicht der Bestätigungslauf um mehr als 25 % ab, folgt die volle
+        // Erhebung — und erst sie entscheidet.
+        let (e, gefragt) = erhebe(Some(100.0), kurz(140.0), rate(140.0));
+        assert_eq!(gefragt, [Lauf::Kurz, Lauf::Voll]);
+        assert!(
+            matches!(
+                e,
+                Erhebung::NeuErhoben {
+                    urteil: Bestaetigung::Abweichung,
+                    ..
+                }
+            ),
+            "{e:?}"
+        );
+        // Bestätigt die volle Erhebung das Profil, war der Kurzlauf ein
+        // Ausreißer.
+        let (e, _) = erhebe(Some(100.0), kurz(60.0), rate(105.0));
+        assert!(
+            matches!(
+                e,
+                Erhebung::NeuErhoben {
+                    urteil: Bestaetigung::Bestaetigt,
+                    ..
+                }
+            ),
+            "{e:?}"
+        );
+    }
+
+    #[test]
+    fn erheben_ohne_kurzmessung_erhebt_nicht_neu() {
+        // Fremdlast vor dem Bestätigungslauf: kein Abschnitt. Eine volle
+        // Erhebung träfe dieselbe Vorprüfung — und „Abweichung" wäre ein
+        // Befund, wo nicht gemessen wurde.
+        let leer = RateModel {
+            rate_per_s: 0.0,
+            spread: f64::INFINITY,
+            samples: 0,
+            reason: Abbruchgrund::Druck,
+            ..kurz(0.0)
+        };
+        let (e, gefragt) = erhebe(Some(100.0), leer, rate(100.0));
+        assert_eq!(gefragt, [Lauf::Kurz]);
+        assert!(matches!(e, Erhebung::NichtGemessen { .. }), "{e:?}");
+    }
+
+    #[test]
+    fn abgelegt_wird_nur_eine_stabile_volle_erhebung_ohne_abweichung() {
+        let mut instabil = rate(100.0);
+        instabil.reason = Abbruchgrund::Hoechstdauer;
+        let faelle = [
+            (Erhebung::Fehlt { voll: rate(100.0) }, true),
+            (Erhebung::Fehlt { voll: instabil }, false),
+            (Erhebung::Bestaetigt { kurz: kurz(100.0) }, false),
+            (
+                Erhebung::NeuErhoben {
+                    kurz: kurz(140.0),
+                    voll: rate(140.0),
+                    urteil: Bestaetigung::Abweichung,
+                },
+                false,
+            ),
+            (
+                Erhebung::NeuErhoben {
+                    kurz: kurz(60.0),
+                    voll: rate(105.0),
+                    urteil: Bestaetigung::Bestaetigt,
+                },
+                true,
+            ),
+            (Erhebung::NichtGemessen { kurz: kurz(0.0) }, false),
+        ];
+        for (e, ablegen) in faelle {
+            assert_eq!(e.abzulegen().is_some(), ablegen, "{e:?}");
+            if let Some(r) = e.abzulegen() {
+                assert!(
+                    std::ptr::eq(r, e.rate()),
+                    "abgelegt wird nicht die volle Erhebung"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bestaetigungslauf_verlaengert_nicht() {
+        // Abschnitte zwischen 2 und 40 ms: Das Mittel bleibt lange unsicher,
+        // eine volle Erhebung liefe weiter. Der Bestätigungslauf hört nach
+        // der Mindestdauer auf — das ist der ganze Punkt.
+        let mut lang = false;
+        let start = Instant::now();
+        let r = bestaetigungslauf(|| {
+            lang = !lang;
+            std::thread::sleep(Duration::from_millis(if lang { 40 } else { 2 }));
+            1.0
+        });
+        let gelaufen = start.elapsed();
+        if r.reason == Abbruchgrund::Druck && r.samples == 0 {
+            return;
+        }
+        assert_eq!(r.reason, Abbruchgrund::FesteDauer);
+        assert!(
+            !r.reason.brauchbar(),
+            "ein Bestaetigungslauf gilt als Kalibrierung"
+        );
+        assert!(
+            r.duration_ms >= 5000 && r.duration_ms < 5200,
+            "Messdauer {} ms",
+            r.duration_ms
+        );
+        // Mit Aufwärmen und ohne Abklingen: deutlich unter der Höchstdauer.
+        assert!(gelaufen < Duration::from_secs(10), "gelaufen {gelaufen:?}");
+        assert!(r.samples >= ABSCHNITTE_MIN, "nur {} Abschnitte", r.samples);
     }
 
     // --------------------------------------------- AC1: verschränkte Referenz
