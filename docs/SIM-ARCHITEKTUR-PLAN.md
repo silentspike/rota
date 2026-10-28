@@ -941,7 +941,7 @@ Nach dem Muster der Epic-Tabelle in `greedy-skipping-russell.md`:
 | [E21](#48-e21-laufzeitvertrag-und-qualitätszertifikat)                                 | 10            | 1         | Laufzeitvertrag und Qualitätszertifikat                                             |
 | [E12](#44-e12-der-balance-optimierer)                                                  | 11            | 0         | Der Balance-Optimierer: welche Zahl macht einen toten Zauber lebendig               |
 | [E13](#e13-die-cuda-pipeline-konkretisiert)                                            | 1             | 0         | GPU-Auswerter: nur für das, was homogen ist                                         |
-| [E14](#e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen)               | 7             | 0         | Numerischer Vertrag: Werte-Deckel, Überlaufbeweis und Parität über fünf Rechenpfade |
+| [E14](#e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen)               | 7             | 0         | Numerischer Vertrag: Werte-Deckel, Überlaufbeweis und Parität über vier Rechenpfade |
 | [E17](#e17-lauf-zustand-pause-absturz-und-fortsetzung)                                 | 3             | 0         | Lauf-Zustand: Pause, Absturz und bitgleiche Fortsetzung                             |
 | [E18](#e18-zwei-nicht-simulations-verfahren-die-noch-fehlen)                           | 2             | 0         | Sparsame Ledger-Auswertung und frühe Schranken im laufenden Kampf                   |
 | [E19](#e19-drei-caches-statt-einem)                                                    | 2             | 0         | Drei getrennte Speicher: Ergebnis, Bewertung und Suchfortschritt                    |
@@ -3080,9 +3080,14 @@ E14.2  jede Rechenkette hat einen MASCHINENPRÜFBAREN Überlaufbeweis
 E14.3  positive UND negative Rundungs-Testvektoren bestehen in Rust und TypeScript
        — insbesondere Math.round(-1.5) gegen f64::round(-1.5), die auseinandergehen
 E14.4  die number-vs-BigInt-Entscheidung ist getroffen und begründet
-E14.5  scalar, AVX, AVX2, GPU und TypeScript erfüllen den festgelegten Vertrag
+E14.5  scalar, AVX2, GPU und TypeScript erfüllen den festgelegten Vertrag   (AVX1 ruht)
 E14.6  die Fehlergrenze der DP-Masse UND aller daraus abgeleiteten Statistiken ist bewiesen
 ```
+
+> **Geändert am 2026-10-28.** In E14.5 und in der Epic-Übersicht standen fünf Pfade, darunter
+> **AVX** (AVX1). Er existierte nur für gonet; seit der Entscheidung „Nur node3" ruht er — kein
+> Zielrechner (Backend-Leiter in E11.7). Der Vertrag gilt damit über vier Pfade; kommt wieder ein
+> Rechner nur mit AVX1 dazu, kommt der Pfad mit seinem Paritätsnachweis zurück. Ebenso in #900.
 
 **Festkomma wird nur übernommen, wenn es dreifach besteht:** semantisch korrekt · bereichssicher
 · auf mindestens einem **End-to-End**-Pfad messbar schneller. Zwei von drei genügen nicht.
@@ -4031,6 +4036,13 @@ Verteilung unzulässig; mit ihm ist sie eine Betriebsfrage.
 > **Remote lohnt, wenn `T_remote` kleiner ist als die beste lokale Alternative** — auch bei 5 %
 > Netzanteil. Praktisch skaliert der Verteiler auf eine Ziel-Rechenzeit je Paket:
 > **100–500 ms** bei interaktiven Läufen, **0,5–5 s** bei Stapelarbeit.
+>
+> **Nachgetragen am 2026-10-28.** Die Zielzeiten entstanden gegen 1,3–1,7 ms im LAN. Zu node3
+> liegt die Umlaufzeit im Median bei 54,7 ms (zum Container) bzw. 67,2 ms (zum Knoten, Teil 2.1)
+> — 11 bis 67 % einer interaktiven, 1 bis 13 % einer Stapel-Paketzeit. **Maßgeblich bleibt
+> `T_remote`, nicht die Zielzeit:** Weist das Kostenmodell für interaktive Pakete zu node3
+> keinen Gewinn aus, bleiben sie lokal. Die Zielzeiten sind keine Zusage, dass dorthin verteilt
+> wird.
 
 **LNS ist nicht kategorisch lokal.**
 
@@ -4040,6 +4052,12 @@ Verteilung unzulässig; mit ihm ist sie eine Betriebsfrage.
 > verteilt werden, wenn das Kostenmodell einen Gewinn ausweist — mit einem deterministischen
 > Sammelpunkt am Rundenende (siehe Epochenregel oben). Nur eine Runde mit wenigen hundert
 > Kandidaten bleibt lokal, weil sie eine Roundtrip-Zeit wert ist.
+>
+> **Nachgetragen am 2026-10-28.** „Wenige hundert" stammt aus der Rechnung gegen 1,5 ms im LAN.
+> Zu node3 entsprechen 67,2 ms bei 2,74 µs je Kampf rund 24 500 Kämpfen (Teil 2.1, Nachtrag);
+> eine Runde mit 10 000 Ein-Kampf-Kandidaten (27,4 ms) trägt dort mehr Netz- als Rechenzeit.
+> **Die Grenze setzt das Kostenmodell, nicht die Kandidatenzahl** — zu node3 liegt sie um
+> Größenordnungen höher als „wenige hundert".
 
 ### E15.6 — Hardware-Ausnutzung: was trägt, was nicht, und warum kein Assembler
 
