@@ -26,6 +26,21 @@
 //! der Lauf unter Last, der die Abweichung meldet. Wer nur den zweiten fährt,
 //! hat kein gespeichertes Profil und bekommt `Fehlt` statt `Abweichung`.
 //!
+//! # AC1: die Referenz läuft im selben Programm
+//!
+//! AC1 verlangt eine Referenz, die **gleichzeitig auf derselben Maschine**
+//! erhoben ist — gleiche Konfiguration, gleicher Zeitraum, gleiche Last. Sie
+//! ist die echte Arbeit am Stück, so wie die Werte in #912 entstanden sind:
+//! [`REFERENZ_KAEMPFE`] Kämpfe in EINEM Aufruf von `balance::run`, mit
+//! derselben Rotation, denselben Strängen und denselben getragenen Werten
+//! wie die Kalibrierung, nach einem Aufwärmlauf.
+//!
+//! Sie läuft **unmittelbar vor und unmittelbar nach** der Kalibrierung des
+//! Vollkampfs. Verglichen wird gegen das Mittel beider; liegen die zwei selbst
+//! weiter als die Toleranz auseinander, hat sich die Last im Fenster geändert,
+//! und das Programm sagt das, statt zu urteilen
+//! (`kalibrierung::ac1_vergleich`).
+//!
 //! # `--kontrolle`
 //!
 //! Fährt zusätzlich einen Lauf mit **fester** Dauer von zwei Sekunden und
@@ -39,7 +54,7 @@
 //! nebenbei Dateien anlegt, tut zwei Dinge, und beim nächsten Fehler weiß
 //! niemand, welches davon schiefging.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rota_sim::akkumulator::TrialIdSet;
 use rota_sim::apl::{Apl, Rule};
@@ -51,9 +66,9 @@ use rota_sim::gear::WornValues;
 use rota_sim::gear_balance;
 use rota_sim::hostcaps::{drucksignale, erlaubte_kerne, kernvorraete, psi_some_avg10, HostCaps};
 use rota_sim::kalibrierung::{
-    abweichung_von_referenz, bestaetigen, gespeicherte_rate, kalibriere, kontrolllauf_feste_dauer,
-    profildatei, profilverzeichnis, referenz_fights_per_s, schluessel_erheben, Arbeitsart,
-    Bestaetigung, HostPerfVector, Profil, RateModel, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
+    ac1_vergleich, bestaetigen, gespeicherte_rate, kalibriere, kontrolllauf_feste_dauer,
+    profildatei, profilverzeichnis, schluessel_erheben, Ac1Urteil, Arbeitsart, Bestaetigung,
+    HostPerfVector, Profil, RateModel, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
 };
 use rota_sim::rotation_search::{all_candidates, greedy};
 use rota_sim::verteilung::{verteilung_ueber, Treffer};
@@ -70,6 +85,38 @@ const BOSS: &str = "boss-1-1";
 /// die Abbruchbedingung feinkörnig greift, groß genug, dass der Aufruf-Aufwand
 /// nicht mitgemessen wird.
 const KAEMPFE_JE_PAKET: u32 = 20_000;
+
+/// Wie viele Kämpfe der Referenzlauf aus AC1 am Stück rechnet.
+///
+/// Dieselbe Menge wie das Programm, mit dem die Werte in #912 erhoben sind
+/// (`orch-verteilung`: 200 000 Kämpfe, feste Rotation, Aufwärmlauf davor) —
+/// zehnmal ein Paket der Kalibrierung, in einem einzigen Aufruf: die Arbeit
+/// am Stück und nicht die Kalibrierung selbst.
+const REFERENZ_KAEMPFE: u32 = 200_000;
+
+/// Die Referenz aus AC1: [`REFERENZ_KAEMPFE`] Kämpfe am Stück, in Kämpfen je
+/// Sekunde.
+///
+/// Der Aufwärmlauf mit einem Zehntel davor ist der aus `orch-verteilung`;
+/// er zählt nicht. Konfiguration und Rotation sind dieselben wie bei der
+/// Kalibrierung — eine andere Zeitleiste oder ein anderer Krit wäre eine
+/// andere Arbeit.
+fn referenzlauf(threads: usize, apl: &Apl) -> f64 {
+    let _ = balance::run(&config(threads, REFERENZ_KAEMPFE / 10), apl);
+    let cfg = config(threads, REFERENZ_KAEMPFE);
+    let t0 = Instant::now();
+    let r = balance::run(&cfg, apl);
+    let dauer = t0.elapsed().as_secs_f64();
+    // `count` ist bei der Reduktion aus #908 immer `iterations` und belegt
+    // deshalb nicht, dass gerechnet wurde — das belegt
+    // `ein_durchgang_genuegt` weiter unten. Hier sichert er nur, dass die
+    // Statistik die angeforderte Menge hat.
+    assert_eq!(
+        r.damage.count, REFERENZ_KAEMPFE as usize,
+        "der Referenzlauf hat nicht die angeforderte Menge"
+    );
+    f64::from(REFERENZ_KAEMPFE) / dauer
+}
 
 /// Getragene Sonderwerte mit **echtem** Krit-Zufall.
 ///
@@ -296,6 +343,9 @@ fn main() {
 
     let threads = caps.threads_usable.max(1);
     let cfg_voll = config(threads, KAEMPFE_JE_PAKET);
+    // **Die Referenz aus AC1 umschließt die Kalibrierung**: ein Lauf
+    // unmittelbar davor, einer unmittelbar danach, dieselbe Arbeit am Stück.
+    let referenz_vorher = referenzlauf(threads, &apl);
     let scalar_full_fight = miss(Arbeitsart::ScalarFullFight, || {
         let r = balance::run(&cfg_voll, &apl);
         #[allow(clippy::cast_precision_loss)]
@@ -303,6 +353,15 @@ fn main() {
             r.damage.count as f64
         }
     });
+    let referenz_nachher = referenzlauf(threads, &apl);
+    println!(
+        "  {:<20} {:>14.1} Kaempfe/s              vorher, {} Kaempfe am Stueck (AC1)",
+        "referenz", referenz_vorher, REFERENZ_KAEMPFE
+    );
+    println!(
+        "  {:<20} {:>14.1} Kaempfe/s              nachher",
+        "referenz", referenz_nachher
+    );
 
     // **Kein vektorisierter Pfad im Simulator.** `caps.isa.vektorisierbar()`
     // sagt nur, dass die MASCHINE ihn könnte. Eine Rate hier wäre eine über
@@ -593,11 +652,11 @@ fn main() {
 
     // -------------------------------------------------------- AC1: Referenz
     //
-    // **Der Beleg dafür, dass die Referenz eine andere Arbeit misst**, steht
-    // hier und nicht in einer Nachricht: ein einziger Lauf mit
-    // `WornValues::none()` — der Einstellung, mit der die Referenz erhoben
-    // wurde. Er kostet Millisekunden und beantwortet die Frage, die den
-    // ganzen Vergleich trägt.
+    // **Der Beleg dafür, dass Kalibrierung und Referenz echte Kämpfe
+    // rechnen**, steht hier und nicht in einer Nachricht: Beide fahren
+    // `worn_mit_zufall()`, und die Reduktion aus #908 greift dort nicht. Die
+    // Abfrage kostet Millisekunden und beantwortet die Frage, die den ganzen
+    // Vergleich trägt — mit `WornValues::none()` daneben als Gegenprobe.
     // **`damage.count` beantwortet die Frage NICHT**, und das ist der zweite
     // Anlauf dieser Stelle: Die Reduktion aus #908 rechnet einen Kampf und
     // VERVIELFACHT ihn — `(0..iterations).map(|i| Sample { seed: .., ..muster })`
@@ -608,7 +667,7 @@ fn main() {
     // Funktion, an der die Entscheidung wirklich hängt.
     let ein_durchgang = ein_durchgang_genuegt(EFFECT_NODES, &WornValues::none());
     let ein_durchgang_hier = ein_durchgang_genuegt(EFFECT_NODES, &worn_mit_zufall());
-    println!("== Warum die Referenz gilt und die heutige orch-Zahl nicht ==");
+    println!("== Ob Kalibrierung und Referenz echte Kaempfe rechnen ==");
     println!(
         "  mit WornValues::none()   ein_durchgang_genuegt = {ein_durchgang}{}",
         if ein_durchgang {
@@ -620,49 +679,50 @@ fn main() {
     println!(
         "  mit purity 375           ein_durchgang_genuegt = {ein_durchgang_hier}{}",
         if ein_durchgang_hier {
-            "   <- die Messung oben waere wertlos"
+            "   <- Kalibrierung und Referenz oben waeren wertlos"
         } else {
-            "   <- die Messung oben rechnet echte Kaempfe"
+            "   <- Kalibrierung und Referenz oben rechnen echte Kaempfe"
         }
     );
     println!(
-        "  orch-verteilung faehrt `none()`. Es ist EINEN TAG AELTER als die Reduktion\n\
-         \x20 (b2244dc6 vom 18.08. gegen 7af79720 vom 19.08.) — seine Referenzwerte sind\n\
-         \x20 echte Durchsatzzahlen. Was es HEUTE meldet, ist es nicht: 9 788 279 auf\n\
-         \x20 diesem Laptop, Zaehler aus der Anforderung und Nenner aus einem Lauf.\n\
-         \x20 Repariert im selben PR."
+        "  orch-verteilung faehrt `none()` und ist deshalb seit #908 keine\n\
+         \x20 Durchsatzmessung mehr; es sagt das selbst. Die Referenz unten faehrt\n\
+         \x20 dieselben getragenen Werte wie die Kalibrierung."
     );
     println!();
 
-    println!("== AC1: gegen die Referenz aus #912 ==");
-    match abweichung_von_referenz(&profil.schluessel.host, vektor.scalar_full_fight.rate_per_s) {
-        None => println!(
-            "  Fuer '{}' steht keine Referenz im Issue — AC1 ist hier nicht pruefbar.",
-            profil.schluessel.host
+    println!("== AC1: gegen die Referenz, im selben Lauf auf dieser Maschine ==");
+    let ac1 = ac1_vergleich(&vektor.scalar_full_fight, referenz_vorher, referenz_nachher);
+    println!(
+        "  Referenz vorher {referenz_vorher:>12.1}   nachher {referenz_nachher:>12.1}   \
+         Mittel {:>12.1}   Spanne {:>6.2} %",
+        ac1.referenz,
+        ac1.spanne * 100.0
+    );
+    println!(
+        "  Kalibrierung    {:>12.1}   {:?}   Abweichung {:>+7.2} %   Toleranz +-{:.0} %",
+        vektor.scalar_full_fight.rate_per_s,
+        vektor.scalar_full_fight.reason,
+        ac1.abweichung * 100.0,
+        AC1_TOLERANZ * 100.0
+    );
+    match ac1.urteil {
+        Ac1Urteil::Erfuellt => println!("  AC1 ERFUELLT."),
+        Ac1Urteil::NichtErfuellt => println!(
+            "  AC1 NICHT ERFUELLT — die Kalibrierung verfehlt die Arbeit am Stueck\n\
+             \x20 unter derselben Last. Das Kriterium wird nicht gesenkt (#912)."
         ),
-        Some(a) => {
-            println!(
-                "  Referenz  {:>12.1}   gemessen  {:>12.1}   Abweichung {:>+7.1} %   Toleranz +-{:.0} %",
-                referenz_fights_per_s(&profil.schluessel.host).unwrap_or(0.0),
-                vektor.scalar_full_fight.rate_per_s,
-                a * 100.0,
-                AC1_TOLERANZ * 100.0
-            );
-            if a.abs() <= AC1_TOLERANZ {
-                println!("  AC1 ERFUELLT.");
-            } else {
-                println!(
-                    "  AC1 NICHT ERFUELLT — und die Ursache ist NICHT belegt.\n\
-                     \x20\n\
-                     \x20 Die Referenz gilt: Das Werkzeug, das sie erhoben hat, ist aelter als die\n\
-                     \x20 Reduktion aus #908. Und diese Kalibrierung misst mit echtem Zufall, also\n\
-                     \x20 gegen denselben Bestand — auf proxmox trifft sie auf 0,4 Prozent.\n\
-                     \x20\n\
-                     \x20 Woher die Abweichung hier kommt, ist offen. Verdacht: Fremdlast auf\n\
-                     \x20 einem geteilten Knoten. NICHT gemessen, und deshalb steht hier ein\n\
-                     \x20 Verdacht und kein Grund."
-                );
-            }
+        Ac1Urteil::LastGewechselt => println!(
+            "  AC1 NICHT BEURTEILBAR — die zwei Referenzlaeufe liegen weiter als die\n\
+             \x20 Toleranz auseinander: Die Last hat sich im Messfenster geaendert."
+        ),
+        Ac1Urteil::KeineKalibrierung => println!(
+            "  AC1 NICHT BEURTEILBAR — die Rate ist keine Kalibrierung ({:?}) und wird\n\
+             \x20 nicht abgelegt. Die Abweichung oben steht zur Auskunft da.",
+            vektor.scalar_full_fight.reason
+        ),
+        Ac1Urteil::Ungueltig => {
+            println!("  AC1 NICHT BEURTEILBAR — eine der Zahlen ist keine Rate.")
         }
     }
     println!();
