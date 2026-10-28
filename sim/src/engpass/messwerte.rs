@@ -39,45 +39,36 @@ pub struct Strangzeit {
     pub warten_ns: u64,
 }
 
-/// Ein Paket eines parallelen Abschnitts.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Paketzeit {
-    /// Wann sein Strang begann, in Nanosekunden nach dem ersten Strang des
-    /// Abschnitts — an der Wanduhr.
-    pub beginn_ns: u64,
-    /// Was es an CPU-Zeit kostete (`CLOCK_THREAD_CPUTIME_ID`) — oder, wenn
-    /// die nicht lesbar war, seine Dauer an der Wanduhr.
-    pub arbeit_ns: u64,
-}
-
 /// Arbeit gegen Warten je Strang für einen parallelen Abschnitt (#934).
 ///
-/// `pakete` in der Reihenfolge der Bereiche, `straenge` die Stränge des
-/// Laufs. Ein Strang wäre fertig bei `beginn + arbeit`; der Abschnitt bei
-/// dem spätesten solchen Zeitpunkt. Jeder Strang wartet von seinem auf
-/// diesen — ein Strang ohne Paket ab Beginn des Abschnitts.
+/// `arbeit_ns` je Paket in der Reihenfolge der Bereiche — die CPU-Zeit
+/// seines Strangs (`CLOCK_THREAD_CPUTIME_ID`), oder ohne lesbare Uhr seine
+/// Dauer an der Wanduhr. `straenge` sind die Stränge des Laufs. Der
+/// Abschnitt dauert so lange wie sein teuerstes Paket; jeder Strang wartet
+/// den Rest, ein Strang ohne Paket den ganzen Abschnitt.
 ///
-/// **Gemessen wird die Arbeit in CPU-Zeit, nicht an der Wanduhr.** Verdrängt
-/// Fremdlast einen Strang, verlängert das seine Wanduhr, nicht seine Arbeit;
-/// an der Wanduhr sähen dann alle anderen „wartend" aus, und die Zeile
-/// „Pakete zu groß" schlüge auf einen belegten Kern an. Den meldet PSI.
+/// **Beides an der eigenen Arbeit gemessen, nicht an der Wanduhr** — aus
+/// zwei Messungen vom 2026-10-28 auf dem Laptop:
+///
+/// - Verdrängt Fremdlast einen Strang, verlängert das seine Wanduhr, nicht
+///   seine Arbeit. An der Wanduhr warteten bei PSI cpu 6–8 % vier Stränge mit
+///   je 100 Kämpfen 22,6 bis 27,2 % ihrer Zeit.
+/// - Startet ein Strang spät, weil er erst auf einen Kern wartet, endet er
+///   spät, und die früh gestarteten „warten" auf ihn. Mit der Wanduhr als
+///   Beginn blieben bei PSI cpu 16–22 % noch 15,6 und 18,0 %.
+///
+/// Beides ist kein zu großes und kein fehlendes Paket, und kein kleineres
+/// Paket verkürzte es. Den belegten Kern meldet PSI.
 #[must_use]
-pub fn abschnitt(pakete: &[Paketzeit], straenge: usize) -> Vec<Strangzeit> {
-    let ende = pakete
-        .iter()
-        .map(|p| p.beginn_ns.saturating_add(p.arbeit_ns))
-        .max()
-        .unwrap_or(0);
-    (0..straenge.max(pakete.len()))
-        .map(|nummer| match pakete.get(nummer) {
-            Some(p) => Strangzeit {
-                arbeit_ns: p.arbeit_ns,
-                warten_ns: ende.saturating_sub(p.beginn_ns.saturating_add(p.arbeit_ns)),
-            },
-            None => Strangzeit {
-                arbeit_ns: 0,
-                warten_ns: ende,
-            },
+pub fn abschnitt(arbeit_ns: &[u64], straenge: usize) -> Vec<Strangzeit> {
+    let ende = arbeit_ns.iter().copied().max().unwrap_or(0);
+    (0..straenge.max(arbeit_ns.len()))
+        .map(|nummer| {
+            let arbeit = arbeit_ns.get(nummer).copied().unwrap_or(0);
+            Strangzeit {
+                arbeit_ns: arbeit,
+                warten_ns: ende - arbeit,
+            }
         })
         .collect()
 }
