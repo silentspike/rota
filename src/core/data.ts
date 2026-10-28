@@ -714,6 +714,8 @@ export interface EnergyTriggerDef {
  * gibt.
  */
 export interface DoomDef {
+  /** Anzeigename für die Ankündigung (GAME-DESIGN 11.5, Issue #797). Englisch. */
+  readonly name: string;
   /** Takt, in dem der Zähler steigt. Auf dem 10-ms-Raster. */
   readonly perStepMs: number;
   /** Was je Takt dazukommt. */
@@ -761,6 +763,8 @@ export interface DoomDef {
  * Fenster zu legen ist genau die Aufgabe.
  */
 export interface RaceDef {
+  /** Anzeigename für die Ankündigung (GAME-DESIGN 11.5, Issue #797). Englisch. */
+  readonly name: string;
   /** Zeitpunkt seit Kampfbeginn, zu dem das Fenster beginnt. Auf dem Raster. */
   readonly atMs: number;
   /** Wie lange es höchstens dauert. */
@@ -848,6 +852,8 @@ export interface EscalationDef {
  * einträgt, hat ihn in eine gewöhnliche Schwächung zurückverwandelt.
  */
 export interface AfflictionDef {
+  /** Anzeigename für die Ankündigung (GAME-DESIGN 11.5, Issue #797). Englisch. */
+  readonly name: string;
   /** Zeitpunkt seit Kampfbeginn, zu dem sie greift. Auf dem Raster. */
   readonly atMs: number;
   /** Takt, in dem sie Schaden macht. */
@@ -933,6 +939,8 @@ export interface BossHealDef {
  * lassen sich nachrechnen. Eine frei geformte Kurve wäre eine andere Mechanik.
  */
 export interface StackDef {
+  /** Anzeigename für die Ankündigung (GAME-DESIGN 11.5, Issue #797). Englisch. */
+  readonly name: string;
   /** Takt, in dem ein Stapel dazukommt. Auf dem 10-ms-Raster. */
   readonly perStepMs: number;
   /** Schaden beim **ersten** Stapel — das X aus 11.2. */
@@ -1986,6 +1994,26 @@ export function parseSchool(raw: unknown): ParseResult<SchoolDef> {
   };
 }
 
+/**
+ * Der Anzeigename eines Bausteins (GAME-DESIGN 11.5, Issue #797).
+ *
+ * > **Fähigkeiten werden benannt** — „Cascade Failure in 5" statt „Danger in 5".
+ *
+ * Zeitleisten-Einträge trugen ihren Namen von Anfang an; Zähler, Stapel,
+ * Wettrennen und Schwächung hatten keinen, und die Ankündigung hätte für sie nur
+ * die Gattung nennen können. **Pflicht, nicht Vorgabe:** Ein neuer Boss ohne
+ * Namen würde gemeldet, statt im Kampf als leere Zeile zu erscheinen.
+ */
+function abilityName(raw: Record<string, unknown>, was: string, problems: string[]): string {
+  const name = raw['name'];
+  if (typeof name === 'string' && name.trim() !== '') return name;
+  problems.push(
+    `${was} hat keinen Namen (name) — die Ankündigung im Kampf nennt jede Fähigkeit ` +
+      'beim Namen (GAME-DESIGN 11.5).',
+  );
+  return '';
+}
+
 export function parseBoss(raw: unknown): ParseResult<BossDef> {
   const problems: string[] = [];
   const source = isRecord(raw) ? raw : {};
@@ -2130,7 +2158,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
           'der Zähler stiege trotz der Handlung weiter.',
       );
     }
-    doom = { perStepMs, amount, threshold, clearAmount, clearCharges };
+    const name = abilityName(source['doom'], 'Der Zähler', problems);
+    doom = { name, perStepMs, amount, threshold, clearAmount, clearCharges };
   }
 
   let stacks: StackDef | null = null;
@@ -2157,7 +2186,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       problems.push(`stacks.factor ${factor} ist nicht ganzzahlig — beide Seiten rundeten anders.`);
     }
     if (maxStacks <= 0) problems.push('Der Stapel hat keine Obergrenze (maxStacks).');
-    stacks = { perStepMs, baseDamage, factor, maxStacks };
+    const name = abilityName(source['stacks'], 'Der Stapel', problems);
+    stacks = { name, perStepMs, baseDamage, factor, maxStacks };
   }
 
   // Wettrennen und Boss-Heilung (Issue #218). Beide wirken auf den
@@ -2187,7 +2217,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
           'das Fenster endete auf beiden Seiten verschieden.',
       );
     }
-    race = { atMs, windowMs, threshold };
+    const name = abilityName(source['race'], 'Das Wettrennen', problems);
+    race = { name, atMs, windowMs, threshold };
   }
 
   let bossHeal: BossHealDef | null = null;
@@ -2276,7 +2307,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
           'MEHRERE Lösungswege, sonst ist man ohne den richtigen Zauber hilflos.',
       );
     }
-    affliction = { atMs, perStepMs, damage, clearedBy };
+    const name = abilityName(source['affliction'], 'Die Schwächung', problems);
+    affliction = { name, atMs, perStepMs, damage, clearedBy };
   }
 
   // **Ein Auslöser, den es an diesem Boss nicht gibt** (Issue #609): Wer

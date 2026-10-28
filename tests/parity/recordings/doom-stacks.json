@@ -85,6 +85,7 @@
     "hp": 999999,
     "overpressureMs": 60000,
     "doom": {
+      "name": "Prophecy",
       "perStepMs": 1000,
       "amount": 5,
       "threshold": 100,
@@ -92,6 +93,7 @@
       "clearCharges": 2
     },
     "stacks": {
+      "name": "Omen",
       "perStepMs": 2000,
       "baseDamage": 20,
       "factor": 3,

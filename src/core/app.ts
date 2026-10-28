@@ -178,6 +178,8 @@ export class App {
   readonly audio = new AudioFeedback();
   readonly overlay: Overlay;
   readonly impact = new Impact();
+  /** Das HUD — öffentlich für die Werkzeuge (Boss-Ankündigungen, Issue #797). */
+  readonly hud: HudRenderer;
 
   private readonly boundUiKey: (event: KeyboardEvent) => void;
 
@@ -585,6 +587,7 @@ export class App {
       // Bestlauf zeigen.
       () => this.bestCurveForResult(),
     );
+    this.hud = renderer;
     this.loop = new GameLoop({
       simulation: this.session,
       renderer,
