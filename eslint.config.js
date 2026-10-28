@@ -10,8 +10,7 @@ export default tseslint.config(
       'sim/**', // Rust — hat eigene Prüfung (clippy, rustfmt)
       'docs/**',
       // tools/ ist kein Spiel-Code und wird nie gebündelt: Python, Shell und
-      // ein Snippet, das als String in eine fremde Seite injiziert wird
-      // (tools/suno-hook.js ist deshalb absichtlich ein blosser Ausdruck).
+      // eigenständige Analyse-Skripte (*.mjs).
       'tools/**',
     ],
   },
