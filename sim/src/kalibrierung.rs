@@ -24,12 +24,15 @@
 //! ```text
 //! Aufwärmen -> messen -> weiter, bis ALLE erfüllt sind:
 //!     Mindestdauer 5 s          ·  Höchstdauer 30 s
-//!     Streuung unter 3 %        ·  Takt stabil, keine neue Drosselung
+//!     Unsicherheit des Mittels unter 3 %  ·  keine neue Drosselung
 //!     Speicherdruck akzeptabel
 //! ```
 //!
+//! „Streuung" aus E15.0 ist seit dem 28.10. die Unsicherheit des MITTELS,
+//! nicht die der einzelnen Abschnitte (Begründung bei [`STREUUNG_MAX`]).
+//!
 //! Die Höchstdauer ist **keine** Messdauer, sondern eine Notbremse: Wird sie
-//! erreicht, ohne dass die Streuung fällt, ist das Ergebnis
+//! erreicht, ohne dass die Unsicherheit fällt, ist das Ergebnis
 //! [`Abbruchgrund::Hoechstdauer`] — und der Aufrufer weiß, dass die Zahl nicht
 //! zusichert, was eine stabile Messung zusichern würde.
 //!
@@ -61,7 +64,22 @@ pub const MINDESTDAUER: Duration = Duration::from_secs(5);
 /// Längste Messdauer. **Eine Notbremse, keine Messdauer.**
 pub const HOECHSTDAUER: Duration = Duration::from_secs(30);
 
-/// Wie stark die Rate zwischen den Abschnitten schwanken darf, als Anteil.
+/// Wie unsicher das MITTEL der Abschnitte höchstens sein darf, als Anteil:
+/// Standardfehler durch Mittelwert (siehe [`relative_unsicherheit`]).
+///
+/// # Nicht die Streuung der Abschnitte — gemessen, warum
+///
+/// Bis zum 28.10. hing hier die Streuung der einzelnen Abschnitte. Auf node3,
+/// dem geteilten Zielrechner, streuen sie beim Vollkampf um 8,8 bis 13,0 %;
+/// fünf von fünf Läufen endeten an der Höchstdauer, obwohl das Mittel aus rund
+/// 500 Abschnitten auf ein halbes Prozent bekannt war. Längere Abschnitte
+/// halfen nicht: Dieselben Rohdaten, zu vier Sekunden zusammengefasst,
+/// streuten noch um 6,2 %. Die Abschnitte messen die Unruhe der Maschine, das
+/// Mittel misst die Rate.
+///
+/// Entscheidung des Orchestrators vom selben Tag: „Streuung unter 3 bis 5 %"
+/// aus E15.0 ist die Unsicherheit des Mittels. Die Schwelle ist dieselbe
+/// geblieben.
 pub const STREUUNG_MAX: f64 = 0.03;
 
 /// Wie viele Abschnitte mindestens vorliegen müssen, bevor die Streuung zählt.
@@ -207,7 +225,7 @@ impl RateModel {
     /// ihnen widersprechen.
     #[must_use]
     pub fn unsicherheit(&self) -> f64 {
-        self.spread
+        unsicherheit_aus(self.spread, self.samples)
     }
 }
 
@@ -369,8 +387,10 @@ pub fn takt_drift(werte: &[f64]) -> Option<f64> {
 ///
 /// **Standardabweichung durch Mittelwert**, nicht Spannweite durch Mittelwert:
 /// Die Spannweite hängt an genau zwei Werten und wächst mit jedem weiteren
-/// Abschnitt, auch wenn die Messung ruhiger wird. Eine Abbruchbedingung auf ihr
-/// würde bei längerer Messung schwerer erfüllbar — das Gegenteil des Gewollten.
+/// Abschnitt, auch wenn die Messung ruhiger wird.
+///
+/// Sie beschreibt die **Abschnitte**, nicht das Mittel; die Abbruchregel hängt
+/// an [`relative_unsicherheit`].
 #[must_use]
 pub fn streuung(raten: &[f64]) -> f64 {
     if raten.len() < 2 {
@@ -388,9 +408,28 @@ pub fn streuung(raten: &[f64]) -> f64 {
 
 /// Relative Unsicherheit des Mittelwerts einer Reihe von Raten:
 /// Standardfehler durch Mittelwert.
+///
+/// Aus [`streuung`] abgeleitet, damit beide Größen auf derselben Rechnung
+/// stehen: Die Streuung teilt durch `n`, der Standardfehler braucht die
+/// Stichproben-Standardabweichung (`n - 1`) geteilt durch `sqrt(n)` — zusammen
+/// `streuung / sqrt(n - 1)`.
+///
+/// **Unendlich bei weniger als zwei Werten**, aus demselben Grund wie bei
+/// `streuung`: Eine einzige Messung hat keine bekannte Unsicherheit, und eine
+/// Null hier beendete den Lauf nach dem ersten Abschnitt.
 #[must_use]
 pub fn relative_unsicherheit(raten: &[f64]) -> f64 {
-    streuung(raten)
+    unsicherheit_aus(streuung(raten), raten.len())
+}
+
+/// `streuung / sqrt(n - 1)`, unendlich unter zwei Werten.
+fn unsicherheit_aus(streuung: f64, n: usize) -> f64 {
+    if n < 2 {
+        return f64::INFINITY;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let freiheitsgrade = (n - 1) as f64;
+    streuung / freiheitsgrade.sqrt()
 }
 
 /// Ob ein adaptiver Lauf nach `gelaufen` aufhören darf, und warum.
@@ -402,7 +441,7 @@ pub fn urteil_nach(gelaufen: Duration, reihen: &[&[f64]]) -> Option<Abbruchgrund
     let stabil = !reihen.is_empty()
         && reihen
             .iter()
-            .all(|r| r.len() >= ABSCHNITTE_MIN && streuung(r) < STREUUNG_MAX);
+            .all(|r| r.len() >= ABSCHNITTE_MIN && relative_unsicherheit(r) < STREUUNG_MAX);
     if gelaufen >= MINDESTDAUER && stabil {
         return Some(Abbruchgrund::Stabil);
     }
@@ -566,15 +605,8 @@ where
             break;
         }
 
-        if gelaufen >= MINDESTDAUER
-            && abschnitte.len() >= ABSCHNITTE_MIN
-            && streuung(&raten) < STREUUNG_MAX
-        {
-            grund = Abbruchgrund::Stabil;
-            break;
-        }
-        if gelaufen >= HOECHSTDAUER {
-            grund = Abbruchgrund::Hoechstdauer;
+        if let Some(g) = urteil_nach(gelaufen, &[&raten]) {
+            grund = g;
             break;
         }
     }
@@ -1336,10 +1368,12 @@ mod tests {
                 "stabil nach nur {gelaufen:?}, MINDESTDAUER ist {MINDESTDAUER:?}"
             );
             assert!(r.samples >= ABSCHNITTE_MIN, "nur {} Abschnitte", r.samples);
+            // Seit dem 28.10. hängt `Stabil` an der Unsicherheit des Mittels
+            // (siehe `STREUUNG_MAX`); dieselbe Größe wird hier gefragt.
             assert!(
-                r.spread < STREUUNG_MAX,
-                "als stabil gemeldet bei Streuung {}",
-                r.spread
+                r.unsicherheit() < STREUUNG_MAX,
+                "als stabil gemeldet bei Unsicherheit {}",
+                r.unsicherheit()
             );
         } else {
             // Der frühe Abbruch ist nur unter einer Störung erlaubt. `Hoechstdauer`
