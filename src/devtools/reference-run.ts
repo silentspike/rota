@@ -192,6 +192,14 @@ export function nullzeitBudget(combat: Combat): number {
 }
 
 /**
+ * Ob `Combat.cast` diesen Zauber jetzt annähme: bereit, und der Kampf läuft
+ * noch. Dieselben Prüfungen wie dort, ohne zu wirken.
+ */
+function nimmtAn(combat: Combat, spell: SpellIndex, timeMs: number): boolean {
+  return combat.isReady(spell, timeMs) && combat.fightState === FIGHT_RUNNING && !combat.playerDead;
+}
+
+/**
  * Die Schleife hinter {@link runReference}, für eine beliebige Prioritätenliste
  * (Issue #1027).
  *
@@ -215,16 +223,19 @@ export function nullzeitBudget(combat: Combat): number {
  * laufenden Wartezeit kein Zauber bereit, und nach einem Wurf mit Wartezeit
  * auch nicht.
  *
- * **Ein gewählter Zauber, der nicht bereit ist, heißt warten.** Der Druck
- * bliebe ohne Wirkung (`Combat.cast` weist ihn ab), und ihn erneut zu wählen
- * änderte nichts — ohne diese Regel wäre schon eine Liste, die einen Zauber auf
- * Abklingzeit zurückgibt, ein Nullzeit-Zyklus.
+ * **Ein gewählter Zauber, den der Kampf nicht annähme, beendet die Entscheidung
+ * beim Zeitstempel** — er ist nicht bereit, oder der Kampf ist vorbei
+ * (`Combat.cast` meldet dann `CAST_FIGHT_OVER`, während `isReady` den Zauber
+ * weiter bereit nennt). Der Druck bliebe ohne Wirkung, und ihn erneut zu wählen
+ * änderte nichts: Ohne diese Regel liefe die Schleife nach dem Kampfende in
+ * einen Nullzeit-Zyklus — gemessen an `boss-1-2`, wo die gute Rotation den
+ * Spieler bei 18000 über das Verhängnis verliert.
  *
  * # Leerlauf
  *
- * Je Takt, in dem die Wartezeit bereit war und nichts gewirkt wurde, 10 ms —
- * dieselbe Zählung wie `Session.idleTicks`. Ein Takt mitten in einer
- * Wartezeit ist kein Leerlauf, auch wenn die Liste dort nichts wählt.
+ * Je Takt, in dem die Wartezeit bereit war und die Liste **nichts wählte**,
+ * 10 ms — wie bisher. Ein gewählter, aber abgewiesener Zauber ist kein leerer
+ * Takt, ebenso wenig ein Takt mitten in einer Wartezeit.
  *
  * **Eine eigene Funktion, damit die Aufzeichnung DIESE Schleife fährt** und
  * keinen Nachbau. Bis #1027 stand sie nur in `runReference`, fest verdrahtet mit
@@ -256,12 +267,14 @@ export function driveRotation(
       if (stopOnKill) break;
     }
     const gcdBereit = combat.gcd.isReady(timeMs);
+    let gewaehlt = false;
     let wuerfe = 0;
     for (;;) {
       const choice = choose(timeMs);
       if (choice === IDLE) break;
+      gewaehlt = true;
       const spell = alsSpellIndex(choice);
-      if (!combat.isReady(spell, timeMs)) break;
+      if (!nimmtAn(combat, spell, timeMs)) break;
       if (wuerfe === budget) {
         throw new Error(
           `Nullzeit-Zyklus bei ${String(timeMs)} ms: ${String(wuerfe)} Würfe beim selben ` +
@@ -272,7 +285,7 @@ export function driveRotation(
       cast(spell, timeMs);
       wuerfe++;
     }
-    if (wuerfe === 0 && gcdBereit) idleMs += TICK_MS;
+    if (!gewaehlt && gcdBereit) idleMs += TICK_MS;
     timeMs += TICK_MS;
   }
 
