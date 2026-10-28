@@ -15,8 +15,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use super::anzeige::{utc_iso8601, Anzeige, Ereignis, RechnerZeile};
 use super::fenster::{Fenster, FENSTER};
 use super::restzeit::{restzeit_aus, Kostenbild, Rechner, Restzeit, WIEDERHOLUNG_LOKAL};
-use super::zaehlwerk::{Arbeitsmenge, Zaehlwerk};
+use super::zaehlwerk::{Arbeitsmenge, Momentaufnahme, Zaehlwerk};
 use crate::drosselung::RuntimeControl;
+use crate::engpass::Erhebung;
 use crate::kalibrierung::Arbeitsart;
 
 /// Der Takt des Anzeigestrangs: viermal je Sekunde.
@@ -50,6 +51,9 @@ pub struct Laufbeschreibung {
     pub drosselung: Option<Arc<RuntimeControl>>,
     /// Wiederholungswahrscheinlichkeit je Aufgabe.
     pub wiederholung_p: f64,
+    /// Die Engpasserhebung (#934) — `None`, wenn der Lauf keine angelegt hat.
+    /// Dann steht in der Zeile „Engpass", dass nichts erhoben wird.
+    pub engpass: Option<Arc<Erhebung>>,
 }
 
 impl Laufbeschreibung {
@@ -72,6 +76,7 @@ impl Laufbeschreibung {
             kosten,
             drosselung: None,
             wiederholung_p: WIEDERHOLUNG_LOKAL,
+            engpass: None,
         }
     }
 
@@ -89,6 +94,12 @@ impl Laufbeschreibung {
     ) -> Option<Anzeige> {
         let probe = fenster.letzte()?.clone();
         let raten = fenster.raten();
+        // Über dasselbe Fenster wie `gleitend`: älteste gegen jüngste Probe.
+        let engpass = self
+            .engpass
+            .as_ref()
+            .zip(fenster.aelteste())
+            .map(|(e, alt)| e.bild(alt, &probe));
         let drosselung = self.drosselung.as_ref().map(|c| c.snapshot());
         // Die Stränge, die gerade rechnen DÜRFEN: Eine Steuerdatei mit
         // `cpu_threads: 2` lässt von acht Strängen zwei arbeiten.
@@ -141,8 +152,19 @@ impl Laufbeschreibung {
                 erlaubt: self.straenge_erlaubt,
             }],
             drosselung,
+            engpass,
             probe,
         })
+    }
+
+    /// Eine Momentaufnahme des Zählwerks, ergänzt um das, was nur die
+    /// Engpasserhebung liest — der eine Ort, an dem eine Probe entsteht.
+    fn probe(&self, werk: &Zaehlwerk) -> Momentaufnahme {
+        let mut probe = werk.momentaufnahme();
+        if let Some(e) = &self.engpass {
+            e.ergaenzen(&mut probe.engpass);
+        }
+        probe
     }
 }
 
@@ -216,7 +238,7 @@ fn takten(
     let mut zeile_geschrieben: Option<Instant> = None;
 
     let mut aufgenommen = Instant::now();
-    fenster.aufnehmen(werk.momentaufnahme());
+    fenster.aufnehmen(beschreibung.probe(werk));
     sequenz += 1;
     if let Some(a) = beschreibung.anzeige(&fenster, Ereignis::Start, sequenz, seit_epoche()) {
         schreibe_strom(&mut ausgabe, &a, beschreibung)?;
@@ -229,7 +251,7 @@ fn takten(
             Err(RecvTimeoutError::Timeout) => {}
         }
         aufgenommen = Instant::now();
-        fenster.aufnehmen(werk.momentaufnahme());
+        fenster.aufnehmen(beschreibung.probe(werk));
         sequenz += 1;
         let Some(a) = beschreibung.anzeige(&fenster, Ereignis::Fortschritt, sequenz, seit_epoche())
         else {
@@ -244,7 +266,7 @@ fn takten(
         }
     }
 
-    fenster.aufnehmen(werk.momentaufnahme());
+    fenster.aufnehmen(beschreibung.probe(werk));
     sequenz += 1;
     let ende = beschreibung
         .anzeige(&fenster, Ereignis::Ende, sequenz, seit_epoche())

@@ -85,6 +85,13 @@ impl Fenster {
         self.proben.back()
     }
 
+    /// Die älteste Probe, die noch im Fenster liegt — der Bezugspunkt der
+    /// Engpassdiagnose (#934), derselbe wie der von `gleitend`.
+    #[must_use]
+    pub fn aelteste(&self) -> Option<&Momentaufnahme> {
+        self.proben.front()
+    }
+
     /// Die Raten — `None`, solange keine zwei Proben vorliegen.
     #[must_use]
     pub fn raten(&self) -> Option<Raten> {
