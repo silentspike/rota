@@ -92,40 +92,86 @@ function aufloesen(verzeichnis: string, relativ: string): string {
 }
 
 /**
- * Der Abschnitt des `sim`-Jobs, roh — von seiner Kopfzeile bis zum nächsten Job.
+ * Der Abschnitt eines Jobs, roh — von seiner Kopfzeile bis zum nächsten Job.
  *
  * Text statt YAML-Baum: Das Projekt führt keinen YAML-Leser. Die Jobs stehen in
  * `ci.yml` als Schlüssel mit genau zwei Leerzeichen Einzug, ihre Schritte
  * tiefer; die Trennkommentare zwischen den Jobs beginnen mit `#`.
  */
-function simJob(): string {
+function jobAbschnitt(name: string): string {
   const zeilen = ciYaml.split('\n');
-  const anfang = zeilen.findIndex((z) => z === '  sim:');
+  const anfang = zeilen.findIndex((z) => z === `  ${name}:`);
   expect(
     anfang,
-    'im Workflow steht kein Job "sim" mehr — dann belegt diese Prüfung nichts',
+    `im Workflow steht kein Job "${name}" mehr — dann belegt diese Prüfung nichts`,
   ).toBeGreaterThan(-1);
   const rest = zeilen.slice(anfang + 1);
   const ende = rest.findIndex((z) => /^ {2}[a-z][\w-]*:\s*$/.test(z));
-  const abschnitt = (ende === -1 ? rest : rest.slice(0, ende)).join('\n');
+  return (ende === -1 ? rest : rest.slice(0, ende)).join('\n');
+}
+
+/**
+ * Die Zeilen eines Abschnitts, die GitHub ausführt: ohne Kommentarzeilen.
+ *
+ * **Eine Regel für alle Leser dieser Abschnitte.** Ein auskommentierter Schritt
+ * läuft nicht; wer ihn als Text findet, hält ihn für angeschlossen. Bis #892
+ * filterte nur die Werkzeugsuche Kommentare heraus, die Prüfung des Schritts
+ * nicht — und blieb grün, als der Schritt auskommentiert war.
+ */
+function ohneKommentarzeilen(abschnitt: string): string[] {
+  return abschnitt.split('\n').filter((zeile) => !/^\s*#/.test(zeile));
+}
+
+/** Die Zeilen eines Jobs, die GitHub ausführt. */
+function jobZeilen(name: string): string[] {
+  return ohneKommentarzeilen(jobAbschnitt(name));
+}
+
+/** Der Abschnitt des `sim`-Jobs, roh. */
+function simJob(): string {
+  const abschnitt = jobAbschnitt('sim');
   // **Zusicherung in den Datensatz.** Träfe die Suche den falschen Abschnitt,
   // fände sie dort keine Werkzeuge, und der Fall darunter wäre grün.
   expect(abschnitt, 'der gelesene Abschnitt ist nicht der Rust-Job').toContain('cargo test');
   return abschnitt;
 }
 
-/**
- * Die Zeilen des `sim`-Jobs, die GitHub ausführt: ohne Kommentarzeilen.
- *
- * **Eine Regel für alle Leser dieses Abschnitts.** Ein auskommentierter Schritt
- * läuft nicht; wer ihn als Text findet, hält ihn für angeschlossen. Bis #892
- * filterte nur die Werkzeugsuche Kommentare heraus, die Prüfung des Schritts
- * nicht — und blieb grün, als der Schritt auskommentiert war.
- */
+/** Die Zeilen des `sim`-Jobs, die GitHub ausführt. */
 function simZeilen(): string[] {
-  return simJob()
-    .split('\n')
-    .filter((zeile) => !/^\s*#/.test(zeile));
+  return ohneKommentarzeilen(simJob());
+}
+
+/**
+ * Die Schlüssel auf der obersten Ebene eines Jobs (`needs`, `if`, `steps` …):
+ * vier Leerzeichen Einzug. Tiefer Eingerücktes gehört zu ihrem Wert.
+ */
+function jobSchluessel(name: string): { name: string; wert: string }[] {
+  return jobZeilen(name).flatMap((zeile) => {
+    const treffer = /^ {4}([\w-]+):(.*)$/.exec(zeile);
+    return treffer ? [{ name: treffer[1]!, wert: treffer[2]!.trim() }] : [];
+  });
+}
+
+/** Die Unterschlüssel eines Job-Schlüssels mit Block-Wert, etwa `outputs:` — sechs Leerzeichen Einzug. */
+function unterSchluessel(job: string, schluessel: string): { name: string; wert: string }[] {
+  const zeilen = jobZeilen(job);
+  const anfang = zeilen.findIndex((z) => z === `    ${schluessel}:`);
+  if (anfang === -1) return [];
+  const rest = zeilen.slice(anfang + 1);
+  const ende = rest.findIndex((z) => z.trim() !== '' && !/^ {6}/.test(z));
+  return (ende === -1 ? rest : rest.slice(0, ende)).flatMap((zeile) => {
+    const treffer = /^ {6}([\w-]+):(.*)$/.exec(zeile);
+    return treffer ? [{ name: treffer[1]!, wert: treffer[2]!.trim() }] : [];
+  });
+}
+
+/** Die Einträge eines `needs`-Werts, ob als einzelner Name oder als `[a, b]`. */
+function needsListe(wert: string): string[] {
+  const innen = /^\[(.*)\]$/.exec(wert)?.[1] ?? wert;
+  return innen
+    .split(',')
+    .map((teil) => teil.trim())
+    .filter((teil) => teil !== '');
 }
 
 /** Die Werkzeuge unter `tools/`, die der `sim`-Job selbst aufruft — Kommentare zählen nicht. */
@@ -140,20 +186,25 @@ function simWerkzeuge(): string[] {
 }
 
 /**
- * Die Schritte des `sim`-Jobs, je als Block ihrer Zeilen: von `- ` bis vor den
+ * Die Schritte eines Jobs, je als Block ihrer Zeilen: von `- ` bis vor den
  * nächsten Schritt.
  *
- * Text statt YAML-Baum, siehe `simJob()`. Die Schritte stehen mit sechs
+ * Text statt YAML-Baum, siehe `jobAbschnitt()`. Die Schritte stehen mit sechs
  * Leerzeichen Einzug und `- `, ihre Schlüssel mit acht.
  */
-function simSchritte(): string[][] {
+function schritteAus(zeilen: string[]): string[][] {
   const schritte: string[][] = [];
-  for (const zeile of simZeilen()) {
+  for (const zeile of zeilen) {
     if (zeile.trim() === '') continue;
     if (/^ {6}- /.test(zeile)) schritte.push([zeile]);
     else if (schritte.length > 0) schritte[schritte.length - 1]!.push(zeile);
   }
   return schritte;
+}
+
+/** Die Schritte des `sim`-Jobs. */
+function simSchritte(): string[][] {
+  return schritteAus(simZeilen());
 }
 
 /** Schlüssel und Wert je Schlüsselzeile eines Schritts — tiefer Eingerücktes ist Wert, kein Schlüssel. */
@@ -172,6 +223,13 @@ function schluessel(schritt: string[]): { name: string; wert: string }[] {
  * hat. Ein neuer Schlüssel, der nichts davon kann, gehört hier dazu.
  */
 const HARMLOSE_SCHLUESSEL = new Set(['name', 'id', 'run', 'timeout-minutes']);
+
+/**
+ * Dieselbe Zulassung eine Ebene höher, für den Kopf des `sim`-Jobs. `if` steht
+ * darin, weil sein Wert eigens und wörtlich geprüft wird; `continue-on-error`
+ * fehlt, weil es das Scheitern des ganzen Jobs durchgehen lässt.
+ */
+const HARMLOSE_JOB_SCHLUESSEL = new Set(['needs', 'if', 'runs-on', 'steps', 'timeout-minutes']);
 
 /** Was die Rust-Quellen per `include_str!` einbinden, als Pfade ab der Wurzel. */
 function eingebundeneDateien(): string[] {
@@ -268,8 +326,8 @@ describe('Der Pfad-Filter der sim-Stufe (#173)', () => {
     // nur die Befehlszeile und blieb grün, als der Schritt auskommentiert, mit
     // `if: false` übersprungen, mit `continue-on-error: true` entschärft oder
     // sein Ausgang mit `|| true` verschluckt war (gemessen bei der Prüfung von
-    // PR #1136). Ein Abschalten des GANZEN Jobs fängt dieser Fall nicht: Es
-    // träfe jeden Schritt der Stufe gleich.
+    // PR #1136). Ein Abschalten des GANZEN Jobs fängt dieser Fall nicht — es
+    // träfe jeden Schritt der Stufe gleich —, das tun die beiden Fälle darunter.
     const NAME = 'Wirkungs-Baubruch-Gegenprobe';
     const BEFEHL = 'python3 -B tools/wirkung-baubruch-gegenprobe.py --befehl cargo';
     const schritte = simSchritte();
@@ -310,5 +368,88 @@ describe('Der Pfad-Filter der sim-Stufe (#173)', () => {
       `„${NAME}“ muss genau \`${BEFEHL}\` ausführen, als eine Zeile ohne Zusatz — ` +
         `gefunden: ${JSON.stringify(befehle)}`,
     ).toEqual([BEFEHL]);
+  });
+
+  it('bindet den ganzen sim-Job an den sim-Ausgang des Pfadfilters (#892)', () => {
+    // Der Fall darüber hält den Schritt am Laufen — aber nur, wenn der Job selbst
+    // läuft. Mit `if: false` am Job blieben alle Fälle dieser Datei grün, und
+    // `ci-pass` wertet `skipped` als bestanden (gemessen bei der Prüfung von
+    // PR #1136). Ein abgeschalteter Job sieht dort aus wie eine Änderung, die
+    // Rust nicht berührt.
+    //
+    // Die Kette hat drei Glieder, und jedes wird hier geprüft: die Bedingung des
+    // Jobs, der Ausgang `sim` des Jobs `changes` und der Filterschritt, der ihn
+    // schreibt. Bricht eines, läuft die Stufe nie oder immer — und „nie“ ist von
+    // „nichts zu tun“ nicht zu unterscheiden.
+    const kopf = jobSchluessel('sim');
+    // **Zusicherung in den Datensatz.** Läse die Zerlegung den Kopf falsch, fände
+    // sie kein `if` und meldete „fehlt“ statt „falsch gelesen“.
+    expect(
+      kopf.map((k) => k.name),
+      'im Kopf des sim-Jobs steht kein `steps:` — dann liest diese Zerlegung den Job falsch',
+    ).toContain('steps');
+
+    const unzulaessig = kopf.map((k) => k.name).filter((k) => !HARMLOSE_JOB_SCHLUESSEL.has(k));
+    expect(
+      unzulaessig,
+      'der sim-Job trägt Schlüssel außerhalb der Zulassung — `continue-on-error` lässt sein ' +
+        'Scheitern durchgehen; zugelassen sind nur ' +
+        `${[...HARMLOSE_JOB_SCHLUESSEL].join(', ')}. Ein Schlüssel, der den Job weder ` +
+        'überspringen noch sein Scheitern verschlucken kann, gehört in HARMLOSE_JOB_SCHLUESSEL',
+    ).toEqual([]);
+
+    // Genau diese Bedingung und keine andere: `false`, `always()`, ein Zusatz
+    // `&& …` oder der Ausgang eines anderen Filters lösen den Job vom sim-Muster.
+    expect(
+      kopf.filter((k) => k.name === 'if').map((k) => k.wert),
+      'der sim-Job muss genau an `needs.changes.outputs.sim` hängen — sonst läuft er nie, ' +
+        'immer oder nach dem falschen Muster',
+    ).toEqual(["needs.changes.outputs.sim == 'true'"]);
+    const needs = kopf.filter((k) => k.name === 'needs').map((k) => needsListe(k.wert));
+    expect(
+      needs.length === 1 && needs[0]!.includes('changes'),
+      `der sim-Job muss auf \`changes\` warten, sonst ist sein \`needs.changes\` leer — gefunden: ${JSON.stringify(needs)}`,
+    ).toBe(true);
+
+    expect(
+      unterSchluessel('changes', 'outputs')
+        .filter((k) => k.name === 'sim')
+        .map((k) => k.wert),
+      'der Ausgang `sim` des Jobs `changes` muss aus dem Filterschritt kommen',
+    ).toEqual(['${{ steps.filter.outputs.sim }}']);
+    const filter = schritteAus(jobZeilen('changes')).filter((s) =>
+      schluessel(s).some((k) => k.name === 'id' && k.wert === 'filter'),
+    );
+    expect(filter, 'im Job `changes` steht kein Schritt `id: filter` genau einmal').toHaveLength(1);
+    const text = filter[0]!.join('\n');
+    expect(
+      text,
+      'der Filterschritt schreibt die sim-Zeile nicht — das Muster, das `simMuster()` liest, ' +
+        'stünde dann woanders und entschiede nichts',
+    ).toMatch(/^\s*echo "sim=\$\(match '[^']+'\)"$/m);
+    expect(text, 'der Filterschritt schreibt nicht nach $GITHUB_OUTPUT').toMatch(
+      /^\s*\} >> "\$GITHUB_OUTPUT"$/m,
+    );
+  });
+
+  it('lässt ci-pass auf den sim-Job warten und sein Ergebnis werten (#892)', () => {
+    // Das andere Ende derselben Kette: Wartet `ci-pass` nicht auf den sim-Job
+    // oder liest sein Ergebnis nicht, bricht ein roter sim-Job nichts — der
+    // einzige Required Check bliebe grün.
+    const kopf = jobSchluessel('ci-pass');
+    const needs = kopf.filter((k) => k.name === 'needs').map((k) => needsListe(k.wert));
+    expect(needs, 'ci-pass hat nicht genau einen `needs`-Schlüssel').toHaveLength(1);
+    expect(needs[0], 'ci-pass wartet nicht auf den sim-Job').toContain('sim');
+    expect(
+      kopf.filter((k) => k.name === 'if').map((k) => k.wert),
+      'ci-pass muss auch nach übersprungenen oder roten Jobs laufen',
+    ).toEqual(['always()']);
+    const ergebnis = jobZeilen('ci-pass').filter((z) =>
+      /^\s*\[sim\]="\$\{\{ needs\.sim\.result \}\}"\s*$/.test(z),
+    );
+    expect(
+      ergebnis,
+      'ci-pass liest das Ergebnis des sim-Jobs nicht genau einmal — dann wertet es ihn nicht',
+    ).toHaveLength(1);
   });
 });

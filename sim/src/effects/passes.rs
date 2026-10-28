@@ -60,6 +60,16 @@ const LUECKE: &str =
     "Angabe fehlt — konservativ: alle Abhaengigkeiten, kein Ledger, keine Marginalisierung, \
      kein Dominanz-Pruning, keine enge Schranke, Rueckfall-Kernel";
 
+/// Grund des Rückfalls ohne engen Wertebereich (DW3, Epic #892).
+///
+/// Für die Analysen, die den Bereich als Schranke weiterreichen: Bis #892
+/// reichten sie einen unbekannten oder halb offenen Bereich nur weiter und
+/// behielten ihr Urteil, und ein Verbraucher musste `ist_eng()` selbst fragen.
+/// Seither fallen sie bei jedem nicht engen Bereich zurück — wie der Zweig für
+/// Zusatz-Aktionen in [`ActionBoundPass`] es schon tat.
+const OHNE_WERTEBEREICH: &str =
+    "Wertebereich unbekannt — konservativ statt eines Urteils, das den Bereich weiterreicht";
+
 // ------------------------------------------------------- 1. Krit analytisch
 
 /// Darf der kritische Treffer analytisch statt gewuerfelt behandelt werden?
@@ -156,11 +166,21 @@ impl EffectAnalysisPass for ActionBoundPass {
                 // (Issue #966): Eine gedeckelte Stapelung begrenzt die Zahl der
                 // Zusatz-Aktionen genauso wirksam wie ein enger Wertebereich,
                 // und ohne diesen Zweig bliebe das Feld ungelesen.
+                //
+                // Ohne Auffangzweig (Epic #892): Ein neues Stapelverhalten muss
+                // hier entscheiden, ob es selbst eine Grenze setzt.
                 let schranke = match node.stacking {
                     StackingSemantics::Capped(grenze) => Some(Bounds::exact(0, i64::from(grenze))),
                     StackingSemantics::None => Some(Bounds::exact(0, 1)),
-                    _ if node.numeric_bounds.ist_eng() => Some(node.numeric_bounds),
-                    _ => None,
+                    // Keine eigene Grenze: Dann trägt nur ein enger Wertebereich.
+                    StackingSemantics::Refresh
+                    | StackingSemantics::Extend
+                    | StackingSemantics::Additive
+                    | StackingSemantics::Replace => {
+                        node.numeric_bounds.ist_eng().then_some(node.numeric_bounds)
+                    }
+                    // Von `hat_luecke` abgefangen; steht für die Vollständigkeit.
+                    StackingSemantics::Unknown => None,
                 };
                 match schranke {
                     Some(bounds) => AnalysisResult::erlaubt(
@@ -190,6 +210,16 @@ impl EffectAnalysisPass for ActionBoundPass {
                 // von der Zeitleiste ausgeloest wird, skaliert dagegen mit der
                 // KAMPFDAUER, und die steht hier nicht zur Verfuegung.
                 match node.trigger {
+                    // DW3 (Epic #892): Das Urteil reicht den Bereich als
+                    // Schranke weiter — ohne engen Bereich, auch halb offen,
+                    // der konservative Pfad.
+                    Trigger::OnCast if !node.numeric_bounds.ist_eng() => {
+                        AnalysisResult::konservativ(
+                            Self::ID,
+                            Evidence::Aktionsgrenze(None),
+                            OHNE_WERTEBEREICH,
+                        )
+                    }
                     Trigger::OnCast => AnalysisResult::erlaubt(
                         Self::ID,
                         Evidence::Schranke(node.numeric_bounds),
@@ -239,14 +269,31 @@ impl EffectAnalysisPass for KernelChoicePass {
         if node.hat_luecke() {
             return AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE);
         }
-        if matches!(node.timing, TimingSemantics::Live) {
-            return AnalysisResult::verboten(
-                Self::ID,
-                Evidence::Keine,
-                "liest bei jedem Tick neu — kein Kernel mit festgehaltenen Werten",
-            );
+        // Ohne Auffangzweig (Epic #892): Ein neues Zeitverhalten muss hier
+        // entscheiden, ob es Werte festhält.
+        match node.timing {
+            TimingSemantics::Live => {
+                return AnalysisResult::verboten(
+                    Self::ID,
+                    Evidence::Keine,
+                    "liest bei jedem Tick neu — kein Kernel mit festgehaltenen Werten",
+                );
+            }
+            TimingSemantics::Immediate | TimingSemantics::Snapshot => {}
+            // Von `hat_luecke` abgefangen; steht für die Vollständigkeit.
+            TimingSemantics::Unknown => {
+                return AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE);
+            }
         }
         match node.op {
+            // DW3 (Epic #892): Die Arme, die den Bereich als Schranke
+            // weiterreichen, fallen ohne engen Bereich, auch halb offen, auf den
+            // allgemeinen Kernel zurück.
+            EffectOp::DealDamage | EffectOp::ModifyResource | EffectOp::Heal
+                if !node.numeric_bounds.ist_eng() =>
+            {
+                AnalysisResult::konservativ(Self::ID, Evidence::Keine, OHNE_WERTEBEREICH)
+            }
             EffectOp::DealDamage => AnalysisResult::erlaubt(
                 Self::ID,
                 Evidence::Schranke(node.numeric_bounds),
@@ -301,10 +348,13 @@ impl EffectAnalysisPass for CacheReusePass {
         if node.hat_luecke() {
             return AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE);
         }
-        let festgehalten = matches!(
-            node.timing,
-            TimingSemantics::Snapshot | TimingSemantics::Immediate
-        );
+        // Ohne Auffangzweig (Epic #892): Ein neues Zeitverhalten muss hier
+        // entscheiden, ob es Werte festhält.
+        let festgehalten = match node.timing {
+            TimingSemantics::Snapshot | TimingSemantics::Immediate => true,
+            // `Unknown` ist von `hat_luecke` abgefangen und hält nichts fest.
+            TimingSemantics::Live | TimingSemantics::Unknown => false,
+        };
         match node.op {
             EffectOp::DealDamage | EffectOp::Heal | EffectOp::Shield => {
                 if festgehalten {

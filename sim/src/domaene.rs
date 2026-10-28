@@ -49,9 +49,11 @@ use crate::effects::{
 /// Bezüglich **Zaubervielfalt** ist er streng fallend. Ein Zertifikat ohne
 /// Bezugsgröße liest sich wie „unbedenklich" — und hier ist es das Gegenteil.
 ///
-/// Deshalb ist [`Self::domain`] ein Pflichtfeld und kein `Option`: Ein
-/// Zertifikat ohne Bezug lässt sich in dieser Struktur gar nicht erst
-/// hinschreiben.
+/// Deshalb ist [`Self::domain`] ein Pflichtfeld und kein `Option`. Ein
+/// Zertifikat ohne Bezug lässt sich trotzdem hinschreiben —
+/// [`MonotonicityDomain::Unspecified`] —, aber es trägt für keinen Bezug, auch
+/// nicht für die Frage „ohne Bezug“ (bis #892 tat es das, siehe
+/// `ein_zertifikat_ohne_bezug_traegt_auch_nicht_fuer_ohne_bezug`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MonotonieZertifikat {
     /// Die Richtung — steigend, fallend, nachweislich nicht monoton.
@@ -89,6 +91,22 @@ pub enum TraceRegionBezug {
     Keine,
 }
 
+impl TraceRegionBezug {
+    /// Ob eine Region benannt ist.
+    ///
+    /// Ein `match` ohne Auffangzweig statt `!= Keine` (Epic #892): Eine neue
+    /// Region muss hier entscheiden, ob sie eine ist, statt still als benannt
+    /// durchzugehen.
+    #[must_use]
+    pub const fn ist_benannt(self) -> bool {
+        match self {
+            TraceRegionBezug::StabilerTrace
+            | TraceRegionBezug::StueckweiseZwischenSprungstellen => true,
+            TraceRegionBezug::Keine => false,
+        }
+    }
+}
+
 impl MonotonieZertifikat {
     /// Trägt dieses Zertifikat für die gefragte Zielgröße?
     ///
@@ -100,10 +118,12 @@ impl MonotonieZertifikat {
     /// Aufrufer, der nur „abgelehnt" erfährt, kann nicht unterscheiden, ob der
     /// Bezug nicht passte oder Zutaten fehlten.
     pub fn traegt_fuer(&self, gefragt: MonotonicityDomain) -> Result<(), ZertifikatVerweigert> {
-        if self.direction == MonotonicDirection::Unknown {
+        if self.direction.ist_unbekannt() {
             return Err(ZertifikatVerweigert::KeinHinweis);
         }
-        if self.domain != gefragt {
+        // Ohne Bezug trägt es nicht, auch wenn die Frage ebenfalls keinen nennt —
+        // dieselbe Regel wie in `LocalMonotonicityHint::traegt_fuer`.
+        if self.domain.ist_unbestimmt() || self.domain != gefragt {
             return Err(ZertifikatVerweigert::FalscherBezug {
                 hinweis: self.domain,
                 gefragt,
@@ -112,7 +132,7 @@ impl MonotonieZertifikat {
         if !self.bedarf.vollstaendig() {
             return Err(ZertifikatVerweigert::ZutatenFehlen);
         }
-        if self.trace_region == TraceRegionBezug::Keine {
+        if !self.trace_region.ist_benannt() {
             return Err(ZertifikatVerweigert::ZutatenFehlen);
         }
         Ok(())
@@ -988,5 +1008,47 @@ mod tests {
         );
 
         println!("fehlende Zutaten: {:?}", z.bedarf.fehlend());
+    }
+
+    /// **Ein Zertifikat ohne Bezug trägt für keinen Bezug — auch nicht für „ohne Bezug“.**
+    ///
+    /// `LocalMonotonicityHint::traegt_fuer` fängt genau das ausdrücklich ab:
+    /// Wer nach `Unspecified` fragt, darf einen Hinweis mit `Unspecified` nicht
+    /// dadurch tragen lassen, dass beide gleich sind. Das Zertifikat hier prüfte
+    /// nur `domain != gefragt` und trug mit allen Zutaten für die Frage „ohne
+    /// Bezug“ — gegen den Satz am Typ, ein Zertifikat ohne Bezug lasse sich gar
+    /// nicht erst hinschreiben. Gefunden bei #892, als `ist_unbekannt` den
+    /// Richtungsvergleich darüber ersetzte.
+    #[test]
+    fn ein_zertifikat_ohne_bezug_traegt_auch_nicht_fuer_ohne_bezug() {
+        let ohne_bezug = MonotonieZertifikat {
+            direction: MonotonicDirection::Increasing,
+            domain: MonotonicityDomain::Unspecified,
+            bedarf: ZertifikatsBedarf::VOLLSTAENDIG,
+            trace_region: TraceRegionBezug::StabilerTrace,
+            preconditions: &[],
+        };
+        for gefragt in [
+            MonotonicityDomain::Unspecified,
+            MonotonicityDomain::ExpectedDamageStableTrace,
+        ] {
+            assert_eq!(
+                ohne_bezug.traegt_fuer(gefragt),
+                Err(ZertifikatVerweigert::FalscherBezug {
+                    hinweis: MonotonicityDomain::Unspecified,
+                    gefragt,
+                }),
+                "ein Zertifikat ohne Bezug hat für {gefragt:?} nicht am Bezug abgelehnt"
+            );
+        }
+        // Der Gegenpol: Mit Bezug und denselben Zutaten trägt es für ihn.
+        let mit_bezug = MonotonieZertifikat {
+            domain: MonotonicityDomain::ExpectedDamageStableTrace,
+            ..ohne_bezug
+        };
+        assert_eq!(
+            mit_bezug.traegt_fuer(MonotonicityDomain::ExpectedDamageStableTrace),
+            Ok(())
+        );
     }
 }
