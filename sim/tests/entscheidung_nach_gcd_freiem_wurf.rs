@@ -32,6 +32,7 @@
 
 use rota_sim::apl::{parse, AplName};
 use rota_sim::data::{boss_by_id, index_of};
+use rota_sim::fight::{Nullzeit, NULLZEIT_BUDGET};
 use rota_sim::log::LogKind;
 use rota_sim::{Fight, FightConfig, RunResult};
 
@@ -188,4 +189,70 @@ fn nach_quench_beginnt_der_leerlauf_im_naechsten_takt() {
         "KINDLE nicht beim selben Zeitstempel wie QUENCH bei 5000"
     );
     assert_eq!(ergebnis.idle_ms, 4990, "Leerlauf: 499 leere Takte zu 10 ms");
+}
+
+/// (c) Das Budget zählt die Würfe beim selben Zeitstempel und lehnt den ersten
+/// überzähligen ab; ein späterer Zeitstempel beginnt wieder bei null.
+#[test]
+fn das_nullzeit_budget_zaehlt_je_zeitstempel() {
+    let mut zaehler = Nullzeit::neu(3);
+    for _ in 0..3 {
+        assert_eq!(zaehler.wurf(500), Ok(()), "innerhalb des Budgets abgelehnt");
+    }
+    let zyklus = zaehler
+        .wurf(500)
+        .expect_err("der vierte Wurf bei 500 ging durch");
+    assert_eq!((zyklus.zeit, zyklus.wuerfe), (500, 3));
+    assert!(
+        zyklus.to_string().contains("Datenfehler"),
+        "die Meldung nennt den Datenfehler nicht: {zyklus}"
+    );
+    assert_eq!(zaehler.wuerfe_bei(500), 3);
+    assert_eq!(
+        zaehler.wurf(510),
+        Ok(()),
+        "ein neuer Zeitstempel beginnt bei null"
+    );
+    assert_eq!((zaehler.wuerfe_bei(500), zaehler.wuerfe_bei(510)), (0, 1));
+}
+
+/// (c) **Der Kampf lehnt den Zyklus tatsächlich ab**, er zählt nicht nur. Mit den
+/// heutigen Zauberdaten lässt sich kein Nullzeit-Zyklus bauen, also wird das
+/// Budget gesenkt: `kindle`, `quench` wirkt bei 0 zweimal — mit Budget 1 ist der
+/// zweite Wurf einer zu viel.
+#[test]
+#[should_panic(expected = "Nullzeit-Zyklus bei 0 ms: 1 Würfe")]
+fn der_kampf_bricht_beim_ueberzaehligen_wurf_ab() {
+    let apl = parse(AplName("nullzeit"), "kindle\nquench\n").expect("gültige Liste");
+    let mut fight = Fight::new(FightConfig {
+        boss: boss_by_id("first-crucible").expect("first-crucible fehlt"),
+        duration_ms: Some(30_000),
+        stop_on_kill: false,
+        ..FightConfig::default()
+    });
+    let _ = fight.run_apl_mit_nullzeit_budget(&apl, 1);
+}
+
+/// Die Gegenprobe zum Abbruch: Mit Budget 2 rechnet derselbe Kampf durch und
+/// ergibt dasselbe wie mit dem vollen Budget. Ohne sie könnte der Abbruch oben
+/// auch an etwas anderem liegen als am Budget.
+#[test]
+fn mit_einem_ausreichenden_budget_rechnet_derselbe_kampf_durch() {
+    let apl = parse(AplName("nullzeit"), "kindle\nquench\n").expect("gültige Liste");
+    let kampf = || {
+        Fight::new(FightConfig {
+            boss: boss_by_id("first-crucible").expect("first-crucible fehlt"),
+            duration_ms: Some(30_000),
+            stop_on_kill: false,
+            ..FightConfig::default()
+        })
+    };
+    let knapp = kampf().run_apl_mit_nullzeit_budget(&apl, 2);
+    let voll = kampf().run_apl(&apl);
+    assert_eq!(knapp.casts, voll.casts, "Würfe je Zauber");
+    assert_eq!(knapp.damage, voll.damage, "Schaden");
+    assert!(
+        NULLZEIT_BUDGET >= 2,
+        "das volle Budget ({NULLZEIT_BUDGET}) ist kleiner als der Bedarf dieser Liste"
+    );
 }

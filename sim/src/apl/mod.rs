@@ -498,6 +498,10 @@ impl crate::fight::Decide for Apl {
     fn next_wakeup(&self, fight: &Fight) -> Option<Millis> {
         Apl::next_wakeup(self, fight)
     }
+
+    fn next_wakeup_ohne_gcd(&self, fight: &Fight) -> Option<Millis> {
+        Apl::next_wakeup_ohne_gcd(self, fight)
+    }
 }
 
 impl Apl {
@@ -531,10 +535,29 @@ impl Apl {
     /// `None`, wenn keine Bedingung von der Uhr abhängt.
     #[must_use]
     pub fn next_wakeup(&self, fight: &Fight) -> Option<Millis> {
+        self.wakeup_ueber(fight, |_| true)
+    }
+
+    /// Dasselbe, aber nur über die Regeln, deren Zauber **keine** globale
+    /// Wartezeit auslöst (#1027, Teil b).
+    ///
+    /// Während einer laufenden Wartezeit kann nur ein solcher Zauber gewirkt
+    /// werden. Der Kampf legt den Weckruf aus [`Apl::next_wakeup`] deshalb auf
+    /// das Ende der Wartezeit — und bräuchte für eine Zeile wie
+    /// `quench if boss.cast_remains < 500` einen Weckruf **darin**. Aus dem
+    /// frühesten Umschlag aller Regeln lässt er sich nicht ablesen: Liegt der
+    /// einer Zeile mit Wartezeit früher, verdeckt er den der Zeile ohne.
+    #[must_use]
+    pub fn next_wakeup_ohne_gcd(&self, fight: &Fight) -> Option<Millis> {
+        self.wakeup_ueber(fight, |rule| !SPELLS[rule.spell].triggers_gcd)
+    }
+
+    /// Der früheste Umschlag über die Regeln, die `beachten` zulässt.
+    fn wakeup_ueber(&self, fight: &Fight, beachten: impl Fn(&Rule) -> bool) -> Option<Millis> {
         let now = fight.time();
         let mut earliest: Option<Millis> = None;
 
-        for rule in &self.rules {
+        for rule in self.rules.iter().filter(|rule| beachten(rule)) {
             for term in rule.condition.terms() {
                 for (value, other, compare) in [
                     (term.left, term.right, term.compare),
