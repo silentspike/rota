@@ -1241,8 +1241,8 @@ pub fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
 /// wird bei **jeder** Entscheidung von oben gelesen. Herauskommt:
 ///
 /// ```text
-/// 1  die Zeile darum    `pin if boss.next_strike_in <= X`
-/// 2  der Unterbrecher   `quench if boss.casting`
+/// 1  der Unterbrecher   `quench if boss.casting`
+/// 2  die Zeile darum    `pin if boss.next_strike_in <= X`
 /// 3  der Erzeuger       unbedingt, fuellt die Kontroll-Punkte
 /// ```
 ///
@@ -1251,22 +1251,27 @@ pub fn paar_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize)> {
 /// Stuende er oben, kaeme PIN nie an die Reihe, und die Gruppe waere aus
 /// demselben Grund tot, aus dem sie gebaut wurde.
 ///
-/// **PIN steht ueber dem Unterbrecher, und das ist gegen meine Ableitung.**
-/// Sie lautete: Eine Prioritaetenliste ist keine Sequenz; steht PIN oben,
-/// koennte er in dem Takt gewinnen, in dem der Boss GERADE wirkt, und der
-/// Unterbrecher kaeme zu spaet. Das klang zwingend.
+/// **Der Unterbrecher steht ueber PIN** — so, wie es die erste Ableitung sagte:
+/// Eine Prioritaetenliste ist keine Sequenz; steht PIN oben, gewinnt er in dem
+/// Takt, in dem der Boss GERADE wirkt, loest die Wartezeit aus, und der
+/// Unterbrecher kommt erst an ihrem Ende. Steht QUENCH oben, kostet er nichts:
+/// Er loest keine Wartezeit aus, und die Liste entscheidet im naechsten Takt
+/// neu — PIN ist dann immer noch dran.
 ///
 /// Gemessen an `test-metronome` — Schleife 6000 ms, unterbrechbarer Cast UND
-/// Schlag, also die Lage, in der sich beide Bedingungen ueberlappen:
+/// Schlag, also die Lage, in der sich beide Bedingungen ueberlappen — mit
+/// `wisp` als Fueller (`die_reihenfolge_im_block_ist_gemessen`):
 ///
 /// ```text
-///   PIN oben       2776 Leben       67 PIN-Wuerfe
-///   QUENCH oben    2768 Leben       67 PIN-Wuerfe
+///   QUENCH oben    3416 Leben       67 PIN-Wuerfe
+///   PIN oben       2784 Leben       67 PIN-Wuerfe
 /// ```
 ///
-/// Der Unterschied ist klein (8 von 5000), aber der Simulator ist
-/// deterministisch (GAME-DESIGN 18.4) — er ist reproduzierbar und kein
-/// Rauschen.
+/// **Bis #1027 stand PIN oben, gemessen mit 2776 gegen 2768.** Die Messung
+/// hing am Fehler, nicht an der Reihenfolge: Nach QUENCH entschied der
+/// Simulator erst am naechsten eingereihten Ereignis neu statt im naechsten
+/// Takt, und genau das kostete die Ordnung mit QUENCH oben ihren Vorsprung.
+/// An `boss-1-1`, `boss-2-3` und `boss-4-4` sind beide Ordnungen gleich.
 ///
 /// **Der erste Messversuch konnte die Frage gar nicht beantworten.** Er fuhr
 /// `test-lethal-strike`: EIN Eintrag, keine Schleife, Ergebnis Gleichstand.
@@ -1303,9 +1308,9 @@ pub fn tripel_zuege(pool: &[Candidate], offen: &[usize]) -> Vec<(usize, usize, u
                 if pool[erzeuger].origin == Origin::Always
                     && SPELLS[pool[erzeuger].spell].control_gain > 0
                 {
-                    // Die Zeile darum, dann der Unterbrecher, dann der Erzeuger
+                    // Der Unterbrecher, dann die Zeile darum, dann der Erzeuger
                     // — gemessen, siehe Doc-Kommentar.
-                    gruppen.push((p_pos, q_pos, e_pos));
+                    gruppen.push((q_pos, p_pos, e_pos));
                 }
             }
         }

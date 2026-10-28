@@ -101,12 +101,14 @@ fn die_gruppe_entsteht_aus_den_daten() {
         pool.len()
     );
 
+    // Die Namen folgen der Ordnung aus `tripel_zuege`: erst der Unterbrecher,
+    // dann die Zeile darum (seit #1027, siehe die_reihenfolge_im_block_ist_gemessen).
     let benannt: Vec<(&str, &str, &str)> = gruppen
         .iter()
-        .map(|(zeile, unterbrecher, erzeuger)| {
+        .map(|(unterbrecher, zeile, erzeuger)| {
             (
-                SPELLS[pool[offen[*zeile]].spell].id,
                 SPELLS[pool[offen[*unterbrecher]].spell].id,
+                SPELLS[pool[offen[*zeile]].spell].id,
                 SPELLS[pool[offen[*erzeuger]].spell].id,
             )
         })
@@ -115,29 +117,33 @@ fn die_gruppe_entsteht_aus_den_daten() {
     assert!(
         benannt
             .iter()
-            .any(|(zeile, unterbrecher, _)| *zeile == "pin" && *unterbrecher == "quench"),
+            .any(|(unterbrecher, zeile, _)| *zeile == "pin" && *unterbrecher == "quench"),
         "die Gruppe aus PIN und QUENCH fehlt; gebildet wurden {benannt:?}"
     );
 
     // Jede Gruppe muss einen ECHTEN Erzeuger tragen. Ohne diese Zeile wäre
     // auch eine Gruppe grün, deren drittes Glied ein beliebiger Füller ist —
     // und dann wäre der Suchraum wieder der, den `tripel_zuege` vermeidet.
-    for (zeile, unterbrecher, erzeuger_id) in &benannt {
+    for (unterbrecher, zeile, erzeuger_id) in &benannt {
         let erzeuger = SPELLS
             .iter()
             .find(|s| s.id == *erzeuger_id)
             .unwrap_or_else(|| panic!("{erzeuger_id} fehlt im Zauberdatensatz"));
         assert!(
             erzeuger.control_gain > 0,
-            "die Gruppe ({zeile}, {unterbrecher}, {erzeuger_id}) traegt als \
+            "die Gruppe ({unterbrecher}, {zeile}, {erzeuger_id}) traegt als \
              drittes Glied einen Zauber ohne control_gain — dann ist es kein \
              Erzeuger, sondern eine beliebige dritte Zeile"
         );
     }
 }
 
-/// Die Ränge im Block stimmen: die Zeile darum, dann der Unterbrecher, dann
+/// Die Ränge im Block stimmen: der Unterbrecher, dann die Zeile darum, dann
 /// der Erzeuger.
+///
+/// Bis #1027 standen die ersten beiden umgekehrt — gemessen unter einem
+/// Simulator, der nach QUENCH erst am nächsten Ereignis neu entschied; siehe
+/// [`tripel_zuege`] und die_reihenfolge_im_block_ist_gemessen.
 ///
 /// # Warum das keine Kosmetik ist
 ///
@@ -163,17 +169,17 @@ fn die_raenge_im_block_stimmen() {
         pool.len()
     );
 
-    for (zeile_pos, unterbrecher_pos, erzeuger_pos) in gruppen {
-        assert_eq!(
-            pool[offen[zeile_pos]].origin,
-            Origin::NextStrikeWindow,
-            "das erste Glied muss die Zeile sein, um die es geht — gemessen an \
-             test-metronome, siehe die_reihenfolge_im_block_ist_gemessen"
-        );
+    for (unterbrecher_pos, zeile_pos, erzeuger_pos) in gruppen {
         assert_eq!(
             pool[offen[unterbrecher_pos]].origin,
             Origin::BossCastWindow,
-            "das zweite Glied muss der Unterbrecher sein"
+            "das erste Glied muss der Unterbrecher sein — gemessen an \
+             test-metronome, siehe die_reihenfolge_im_block_ist_gemessen"
+        );
+        assert_eq!(
+            pool[offen[zeile_pos]].origin,
+            Origin::NextStrikeWindow,
+            "das zweite Glied muss die Zeile sein, um die es geht"
         );
         assert_eq!(
             pool[offen[erzeuger_pos]].origin,
@@ -205,6 +211,10 @@ fn die_raenge_im_block_stimmen() {
 /// Damit kann er scheitern, ohne dass jemand die Erwartung nachzieht: Ist die
 /// vertauschte besser, steht die Zahl in der Meldung, und der Code gehört
 /// geändert, nicht der Test.
+///
+/// **Genau so ist es mit #1027 gekommen.** Seit der Simulator nach einem Wurf
+/// ohne Wartezeit im nächsten Takt neu entscheidet, liegt an `test-metronome`
+/// QUENCH oben vorn (3416 gegen 2784 Leben); geändert wurde `tripel_zuege`.
 #[test]
 fn die_reihenfolge_im_block_ist_gemessen() {
     use rota_sim::apl::{parse, AplName};
@@ -216,7 +226,11 @@ fn die_reihenfolge_im_block_ist_gemessen() {
     // **Die erste Gruppe, nicht die einzige.** Es gibt eine je Erzeuger — heute
     // drei. Für die Frage nach der REIHENFOLGE genügt eine: Sie ist in allen
     // dieselbe, weil `tripel_zuege` sie fest vergibt.
-    let (zeile_pos, unterbrecher_pos, erzeuger_pos) = *gruppen
+    //
+    // **Die Namen sagen den Platz, nicht das Glied** (#1027): Welches Glied
+    // oben steht, ist genau die Frage dieses Falls — Namen nach dem Glied
+    // hätten sie beim Drehen der Ordnung still mitgedreht.
+    let (erster_pos, zweiter_pos, erzeuger_pos) = *gruppen
         .first()
         .expect("ohne Gruppe misst dieser Fall nichts — siehe die_gruppe_entsteht_aus_den_daten");
 
@@ -236,8 +250,8 @@ fn die_reihenfolge_im_block_ist_gemessen() {
             format!("{} if {bedingung}\n", SPELLS[k.spell].id)
         }
     };
-    let erste = als_text(&pool[offen[zeile_pos]]);
-    let zweite = als_text(&pool[offen[unterbrecher_pos]]);
+    let erste = als_text(&pool[offen[erster_pos]]);
+    let zweite = als_text(&pool[offen[zweiter_pos]]);
     let dritte = als_text(&pool[offen[erzeuger_pos]]);
 
     // Ein Füller unten, damit kein Takt leer bleibt und beide Läufe dieselbe
@@ -551,7 +565,7 @@ fn der_schalter_schaltet() {
 ///
 /// # Was diese Zeile verhindert
 ///
-/// Der Erzeuger ist nur dann ein **Glied** der Gruppe, wenn das erste Glied
+/// Der Erzeuger ist nur dann ein **Glied** der Gruppe, wenn die Zeile darum
 /// überhaupt bezahlt werden muss. Ohne diese Bedingung wäre das dritte Glied
 /// eine beliebige zusätzliche Zeile, und der Suchraum genau der, den
 /// `tripel_zuege` vermeiden soll.
@@ -576,10 +590,10 @@ fn ohne_kosten_keine_gruppe() {
          Zusicherung unten das Fehlen aus dem falschen Grund"
     );
 
-    // Und die Bedingung selbst: Das ERSTE Glied — die Zeile, um die es geht —
-    // hat echte Kosten. Es stand zwischenzeitlich an zweiter Stelle; die
-    // Messung an test-metronome hat die Ordnung zurueckgedreht.
-    for (zeile_pos, _, _) in tripel_zuege(&pool, &offen) {
+    // Und die Bedingung selbst: Das ZWEITE Glied — die Zeile, um die es geht —
+    // hat echte Kosten. Es stand zwischenzeitlich an erster Stelle; seit #1027
+    // steht der Unterbrecher wieder davor, gemessen an test-metronome.
+    for (_, zeile_pos, _) in tripel_zuege(&pool, &offen) {
         let kosten = SPELLS[pool[offen[zeile_pos]].spell]
             .control
             .map_or(0, |c| c.cost);

@@ -58,6 +58,7 @@ import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
+import eingecheckterGcdFreierWurf from './recordings/gcd-freier-wurf.json';
 import eingecheckteCondenseRunde from './recordings/condense-merker.json';
 import eingecheckteKontrollFehlschlagRunde from './recordings/kontrolle-fehlschlag.json';
 import eingecheckteRetortRunde from './recordings/retort-erstattung.json';
@@ -154,6 +155,7 @@ import {
   logTaktePayload,
   aetherPayload,
   sublimePayload,
+  gcdFreiPayload,
   condensePayload,
   kontrollFehlschlagPayload,
   retortPayload,
@@ -632,6 +634,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckteSublimeRunde, HINWEIS).toEqual(sublimePayload());
   });
 
+  it('die Entscheidung nach einem Wurf ohne Wartezeit entspricht dem heutigen Spielstand', () => {
+    // Issue #1027. Die Läufe tragen neben den Drücken den Leerlauf der
+    // Schleife aus `runReference` — die Größe, die der Simulator nachrechnet.
+    expect(eingecheckterGcdFreierWurf, HINWEIS).toEqual(gcdFreiPayload());
+  });
+
   it('AETHERs Fenster entspricht dem heutigen Spielstand', () => {
     // Issue #480. Die Aufzeichnung traegt `kindleRest` — die Restzeit, an der
     // die verdoppelte Verkuerzung sichtbar wird.
@@ -1007,6 +1015,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'kern-zauber',
   'putrid-bloom',
   'pin-befreiung',
+  'gcd-freier-wurf',
   'decay-ward',
   'efflux-restzeit',
   'krit-umwandlung',
