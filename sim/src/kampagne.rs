@@ -811,9 +811,10 @@ pub enum CpuRole {
     /// Die CPU koordiniert nur: vergibt Arbeit, sammelt Ergebnisse, führt
     /// Journal und Anzeige — und rechnet **keine** Kampagnenarbeit. Im Plan das
     /// Betriebsprofil `remote-only` („lokal nur Koordinator und Anzeige", E15.1,
-    /// „Regelung: von außen und von selbst"). Rechnet die GPU des Rechners auf
-    /// ausdrücklichen Aufruf mit, ist das kein `remote-only` mehr; die Rolle der
-    /// CPU bleibt dieselbe.
+    /// „Regelung: von außen und von selbst"). Das Profil regelt nur die CPU:
+    /// Rechnet die GPU des Rechners auf ausdrücklichen Aufruf mit (je Lauf
+    /// genannt, etwa `--gpu local`), bleibt es `remote-only`, und die Rolle der
+    /// CPU bleibt dieselbe (Orchestrator, 2026-10-28).
     ///
     /// **Bewusst ohne Rechenangaben statt mit Nullen.** Null nutzbare Stränge,
     /// eine Quote von 0.0 und eine fehlende Quote hießen in [`ComputeRequirement`]
