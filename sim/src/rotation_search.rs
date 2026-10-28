@@ -545,6 +545,14 @@ pub struct SearchResult {
     /// gefragt. Seither darf sie Zeilen verdraengen; gezaehlt werden weiterhin
     /// die Gruppen, nicht die Arten, Platz zu schaffen.
     pub tripel_geprueft: usize,
+    /// Wie viele Runden an der Laengengrenze stattfanden (#1027) — **hoechstens
+    /// eine**: die eine Runde, in der nur noch Dreiergruppen gefragt werden.
+    ///
+    /// Die Zahl steht hier, weil die Beschraenkung sonst an keinem Ergebnis
+    /// sichtbar waere: Mehr Runden an der Grenze aendern die gefundene Liste
+    /// meist nicht, wohl aber die Schranke aus [`restmessungen_hoechstens`],
+    /// die genau eine annimmt.
+    pub grenzrunden: usize,
 }
 
 /// Die Suche: jeder Kandidat wird an **jeder** Position probiert.
@@ -899,6 +907,7 @@ pub fn greedy_zuege(
     let mut runde = 0u64;
     // Ob die eine Runde an der Längengrenze schon stattgefunden hat (#1027).
     let mut grenze_gefragt = false;
+    let mut grenzrunden = 0;
     let stop = loop {
         // **An der Längengrenze bekommt die Dreiergruppe noch einen Zug**
         // (#1027): Sie darf Zeilen verdrängen (siehe unten). Unter Fassung B
@@ -926,6 +935,7 @@ pub fn greedy_zuege(
                 break Stop::LengthLimit;
             }
             grenze_gefragt = true;
+            grenzrunden += 1;
         }
         let aufgehoert = if voll {
             Stop::LengthLimit
@@ -1185,6 +1195,7 @@ pub fn greedy_zuege(
         stop,
         paare_geprueft,
         tripel_geprueft,
+        grenzrunden,
     }
 }
 
@@ -1676,6 +1687,8 @@ pub fn exhaustive(config: &BalanceConfig, pool: &[Candidate], max_len: usize) ->
         // Dasselbe fuer Dreiergruppen (#797): Wer jede Teilmenge prueft, prueft
         // auch jede Dreiergruppe. Die Null steht hier aus demselben Grund.
         tripel_geprueft: 0,
+        // Und sie kennt keine Laengengrenze als Runde: Sie zaehlt Teilmengen auf.
+        grenzrunden: 0,
     }
 }
 
