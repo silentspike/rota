@@ -838,7 +838,7 @@ NOT_CATCH_ALL = r'''
 /* geschachtelt /* matches!(t, Trigger::OnCast) */ t == Trigger::OnCast */
 /// `t == Trigger::OnCast` im Doc-Kommentar
 pub fn literale() -> (&'static str, &'static str, char, char) {
-    ("matches!(t, Trigger::OnCast)", r#"t == "Trigger::OnCast" "#, '"', '\'')
+    ("matches!(t, Trigger::OnCast)", r#"t" == Trigger::OnCast"#, '"', '\'')
 }
 
 pub fn ohne_typ(x: u8) -> u8 {
