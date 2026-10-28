@@ -23,6 +23,33 @@ Die Schritte, jeder ein eigener Bau der Kopie:
       erkennen. Ohne diesen Schritt wäre nicht belegt, dass sie einen Pass, der
       NICHT bricht, überhaupt bemerken kann.
 
+Dasselbe gilt für die übrigen semantischen Typen des Knotens. Welche das sind,
+liest das Werkzeug aus `pub struct EffectNode {`: jede Aufzählung des
+Effekt-Moduls, die ein Feld trägt — direkt oder über eine Struktur desselben
+Moduls. Je Typ, jeder ein eigener Bau:
+
+  T0  ein neuer Wert ohne Einordnung: der Bau bricht, an mindestens einer Stelle.
+  T1  derselbe Wert an jeder gemeldeten Stelle eingeordnet: die Kopie baut wieder.
+
+Was der Übersetzer nicht sehen kann, ist eine Stelle, die einen Typ NICHT
+erschöpfend auswertet — sie übersetzt mit jedem neuen Wert. Deshalb sucht
+
+  S   in sim/src ohne Prüfmodule (`#[cfg(test)]`) nach Auffangformen über
+      EffectOp und jeden dieser Typen: `matches!(…)`, ein Arm `_` oder eine
+      bloße Bindung neben einem Arm, der den Typ nennt, `==`/`!=` neben einem
+      Wert des Typs, `if let`/`while let`/`let … else` mit einem solchen Muster.
+      Jede Fundstelle ist ein Befund. Gelesen wird über Zeichen, nicht über
+      Zeilen: Ein umbrochener Ausdruck ist für ein Zeilenmuster unsichtbar.
+
+  Sie hat ihre eigene Positivkontrolle: Mit dem Auffangzweig aus G und je Typ
+  mit einem Auffangzweig an der ersten Stelle aus T0 muss sie genau eine
+  Fundstelle mehr melden, in der Datei der Stelle. Sonst wäre sie blind.
+
+Was S nicht sieht: einen Wert, der über einen Umweg verglichen wird
+(`[Trigger::OnCast].contains(&t)`, `use Trigger::*` mit bloßen Namen), und einen
+Platzhalter in einem zusammengesetzten Muster (`(Trigger::OnCast, _)`,
+`Some(andere)`).
+
 Die Zuordnung einer Stelle zu einem Pass liest die impl-Blöcke
 `impl EffectAnalysisPass for X` in sim/src; die Registry ist der Aufruf von
 `registry!`. Beides setzt rustfmt-Form voraus, die der sim-Job erzwingt.
@@ -75,6 +102,9 @@ DIENST_AUSGAENGE = {
 }
 
 ENUM_KOPF = re.compile(r'^pub enum EffectOp \{\s*$')
+AUFZAEHLUNG_KOPF = re.compile(r'^pub enum (\w+) \{\s*$')
+STRUKTUR_KOPF = re.compile(r'^pub struct (\w+) \{\s*$')
+FELD = re.compile(r'^\s*pub \w+: (.+?),\s*(?://.*)?$')
 REGISTRY_KOPF = re.compile(r'^\s*(?:\$?crate::|::)?(?:\w+::)*registry!\s*\{\s*$')
 IMPL_KOPF = re.compile(r'^impl\s+(?:[\w:]+::)?EffectAnalysisPass\s+for\s+(\w+)\s*\{\s*$')
 PASS_KENNUNG = re.compile(r'const ID: AnalysisPassId = AnalysisPassId\("([^"]+)"\);')
@@ -192,6 +222,282 @@ def zuordnen(stellen, paesse):
     return je_pass, ausserhalb
 
 
+def _bloecke(text, kopf):
+    """{Name: (Zeile, Zeilen des Rumpfs)} der Blöcke auf oberster Ebene, deren Kopf `kopf` trifft."""
+    zeilen = text.splitlines()
+    funde = {}
+    for i, zeile in enumerate(zeilen):
+        treffer = kopf.match(zeile)
+        if not treffer:
+            continue
+        ende = next((j for j in range(i + 1, len(zeilen)) if zeilen[j].rstrip() == '}'), None)
+        if ende is not None:
+            funde[treffer[1]] = (i + 1, zeilen[i + 1:ende])
+    return funde
+
+
+def semantische_typen(texte, enum):
+    """[(Name, (Datei, Zeile))] der Aufzählungen, die ein EffectNode trägt — ohne EffectOp selbst.
+
+    Gelesen aus den Feldern von `pub struct EffectNode {`, in Feldreihenfolge,
+    und durch jede Struktur des Effekt-Moduls hindurch, die ein Feld trägt
+    (der Monotonie-Hinweis trägt Richtung und Bezug). Varianten-Nutzlasten zählen
+    nicht: Sie sind kein Feld des Knotens.
+    """
+    ordner = enum[0].rsplit('/', 1)[0] + '/'
+    aufzaehlungen, strukturen = {}, {}
+    for datei, text in texte.items():
+        if not datei.startswith(ordner):
+            continue
+        for name, (zeile, _) in _bloecke(text, AUFZAEHLUNG_KOPF).items():
+            aufzaehlungen.setdefault(name, []).append((datei, zeile))
+        for name, (_, rumpf) in _bloecke(text, STRUKTUR_KOPF).items():
+            strukturen.setdefault(name, []).append(
+                [m[1] for z in rumpf if (m := FELD.match(z.split('//', 1)[0]))])
+    if len(strukturen.get('EffectNode', [])) != 1:
+        raise NichtGelaufen(f'`pub struct EffectNode {{` steht {len(strukturen.get("EffectNode", []))}-mal '
+                            f'in {ordner}, erwartet genau einmal — ohne ihn sind die semantischen Typen unbekannt')
+    ergebnis, gesehen = [], set()
+
+    def besuche(feldtyp):
+        for name in re.findall(r'[A-Za-z_]\w*', feldtyp):
+            if name in gesehen:
+                continue
+            gesehen.add(name)
+            if name in aufzaehlungen:
+                if len(aufzaehlungen[name]) != 1:
+                    raise NichtGelaufen(f'`pub enum {name} {{` steht {len(aufzaehlungen[name])}-mal in {ordner}')
+                ergebnis.append((name, aufzaehlungen[name][0]))
+            elif len(strukturen.get(name, [])) == 1:
+                for weiterer in strukturen[name][0]:
+                    besuche(weiterer)
+
+    gesehen.add('EffectNode')
+    for feldtyp in strukturen['EffectNode'][0]:
+        besuche(feldtyp)
+    return [(name, ort) for name, ort in ergebnis if name != 'EffectOp']
+
+
+# ------------------------------------------------------------- Auffangformen
+
+_MEHRZEICHEN = ('..=', '...', '<<=', '>>=', '::', '=>', '==', '!=', '<=', '>=', '&&', '||', '->', '..',
+                '+=', '-=', '*=', '/=', '%=', '^=', '&=', '|=', '<<', '>>')
+_ZEICHEN = re.compile(r"'(?:\\u\{[0-9A-Fa-f]+\}|\\.|[^'\\\n])'")
+_ROH = re.compile(r'(?:b|c)?r(#*)"')
+_MAKRO = re.compile(r'!\s*[(\[{]')
+_BEZEICHNER = re.compile(r'[A-Za-z_]\w*')
+_ZAHL = re.compile(r'\d[\w]*(?:\.\d[\w]*)?')
+
+
+def lexeme(text):
+    """Die Zeichen eines Rust-Texts als [(Wert, Zeile)] — ohne Kommentare, Literale als `"…"`.
+
+    Von Hand statt über einen Ausdruck, weil Blockkommentare in Rust verschachtelt
+    sind und rohe Zeichenketten ihr Ende an der Zahl der `#` tragen. Ein Makroaufruf
+    `name!(`, `name![`, `name!{` wird zu einem Zeichen `name!`.
+    """
+    aus, i, zeile, n = [], 0, 1, len(text)
+    while i < n:
+        c = text[i]
+        if c == '\n':
+            zeile += 1
+            i += 1
+        elif c.isspace():
+            i += 1
+        elif text.startswith('//', i):
+            ende = text.find('\n', i)
+            i = n if ende == -1 else ende
+        elif text.startswith('/*', i):
+            tiefe, j = 1, i + 2
+            while j < n and tiefe:
+                if text.startswith('/*', j):
+                    tiefe, j = tiefe + 1, j + 2
+                elif text.startswith('*/', j):
+                    tiefe, j = tiefe - 1, j + 2
+                else:
+                    j += 1
+            zeile += text.count('\n', i, j)
+            i = j
+        elif c in 'bcr' and (roh := _ROH.match(text, i)):
+            schluss = '"' + roh[1]
+            ende = text.find(schluss, i + roh.end())
+            ende = n if ende == -1 else ende + len(schluss)
+            aus.append(('"…"', zeile))
+            zeile += text.count('\n', i, ende)
+            i = ende
+        elif c == '"' or (c in 'bc' and text.startswith('"', i + 1)):
+            j = i + (1 if c == '"' else 2)
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == '\\' else 1
+            aus.append(('"…"', zeile))
+            zeile += text.count('\n', i, j + 1)
+            i = j + 1
+        elif c == "'" or (c == 'b' and text.startswith("'", i + 1)):
+            anfang = i + (0 if c == "'" else 1)
+            zeichen = _ZEICHEN.match(text, anfang)
+            if zeichen:
+                aus.append(("'…'", zeile))
+                i = zeichen.end()
+            else:
+                name = _BEZEICHNER.match(text, anfang + 1)
+                aus.append(("'" + (name[0] if name else ''), zeile))
+                i = name.end() if name else anfang + 1
+        elif c.isalpha() or c == '_':
+            name = _BEZEICHNER.match(text, i)
+            j = name.end()
+            if text.startswith('r#', i) and j == i + 1:
+                name = _BEZEICHNER.match(text, i + 2)
+                j = name.end()
+            wert = name[0]
+            if _MAKRO.match(text, j):
+                wert += '!'
+                j += 1
+            aus.append((wert, zeile))
+            i = j
+        elif c.isdigit():
+            zahl = _ZAHL.match(text, i)
+            aus.append((zahl[0], zeile))
+            i = zahl.end()
+        else:
+            wert = next((op for op in _MEHRZEICHEN if text.startswith(op, i)), c)
+            aus.append((wert, zeile))
+            i += len(wert)
+    return aus
+
+
+_PAARE = {'(': ')', '[': ']', '{': '}'}
+
+
+def _schliessende(lex, i):
+    """Index der Klammer, die `lex[i]` schließt."""
+    auf, tiefe = lex[i][0], 0
+    for j in range(i, len(lex)):
+        if lex[j][0] == auf:
+            tiefe += 1
+        elif lex[j][0] == _PAARE[auf]:
+            tiefe -= 1
+            if tiefe == 0:
+                return j
+    return len(lex) - 1
+
+
+def ohne_pruefmodule(lex):
+    """Die Zeichen ohne Elemente hinter `#[cfg(test)]` — sie übersetzt `cargo check --lib` nicht."""
+    aus, i = [], 0
+    while i < len(lex):
+        if [w for w, _ in lex[i:i + 7]] == ['#', '[', 'cfg', '(', 'test', ')', ']']:
+            j = i + 7
+            while j < len(lex) and lex[j][0] == '#' and j + 1 < len(lex) and lex[j + 1][0] == '[':
+                j = _schliessende(lex, j + 1) + 1
+            while j < len(lex) and lex[j][0] not in ('{', ';'):
+                j = _schliessende(lex, j) + 1 if lex[j][0] in ('(', '[') else j + 1
+            i = (_schliessende(lex, j) if j < len(lex) and lex[j][0] == '{' else j) + 1
+            continue
+        aus.append(lex[i])
+        i += 1
+    return aus
+
+
+def _nennt(lex, anfang, ende, typen):
+    """Der erste Typ aus `typen`, der in lex[anfang:ende] als Pfad `Typ::` steht."""
+    for k in range(max(anfang, 0), min(ende, len(lex)) - 1):
+        if lex[k][0] in typen and lex[k + 1][0] == '::':
+            return lex[k][0]
+    return None
+
+
+def _bis_tiefe_null(lex, k, ende, halt):
+    """Erster Index ab k vor `ende`, an dem `lex` auf Klammertiefe 0 ein Zeichen aus `halt` trägt."""
+    tiefe = 0
+    while k < ende:
+        wert = lex[k][0]
+        if tiefe == 0 and wert in halt:
+            return k
+        if wert in _PAARE:
+            tiefe += 1
+        elif wert in (')', ']', '}'):
+            tiefe -= 1
+        k += 1
+    return ende
+
+
+def _arme(lex, auf, zu):
+    """[(Anfang, Ende)] der Muster eines match-Rumpfs `lex[auf] … lex[zu]`."""
+    muster, k = [], auf + 1
+    while k < zu:
+        while k < zu and lex[k][0] == '#' and lex[k + 1][0] == '[':
+            k = _schliessende(lex, k + 1) + 1
+        pfeil = _bis_tiefe_null(lex, k, zu, ('=>',))
+        if pfeil >= zu:
+            break
+        muster.append((k, pfeil))
+        k = pfeil + 1
+        if k < zu and lex[k][0] == '{':
+            k = _schliessende(lex, k) + 1
+            if k < zu and lex[k][0] == ',':
+                k += 1
+        else:
+            k = _bis_tiefe_null(lex, k, zu, (',',)) + 1
+    return muster
+
+
+def _ist_auffang(alternative):
+    """Ob ein Arm-Muster (eine Alternative, ohne Wächter) jeden Wert nimmt: `_` oder eine bloße Bindung."""
+    werte = [w for w in alternative if w not in ('ref', 'mut')]
+    bindung = bool(werte) and werte[0] not in ('true', 'false') and re.fullmatch(r'[a-z_]\w*', werte[0])
+    return werte == ['_'] or (bindung and (len(werte) == 1 or werte[1:] == ['@', '_']))
+
+
+def auffangformen(texte, typen):
+    """[(Datei, Zeile, Form, Typ)] aller Auffangformen über `typen` in Bibliothekscode ohne Prüfmodule."""
+    typen = set(typen)
+    funde = []
+    for datei, text in sorted(texte.items()):
+        lex = ohne_pruefmodule(lexeme(text))
+        for i, (wert, zeile) in enumerate(lex):
+            if wert == 'matches!' and i + 1 < len(lex) and lex[i + 1][0] == '(':
+                if (typ := _nennt(lex, i + 2, _schliessende(lex, i + 1), typen)):
+                    funde.append((datei, zeile, 'matches!(…)', typ))
+            elif wert == 'match':
+                auf = _bis_tiefe_null(lex, i + 1, len(lex), ('{',))
+                if auf >= len(lex):
+                    continue
+                zu = _schliessende(lex, auf)
+                muster = _arme(lex, auf, zu)
+                genannt = sorted({t for a, b in muster if (t := _nennt(lex, a, b, typen))})
+                if not genannt:
+                    continue
+                for a, b in muster:
+                    ende = next((k for k in range(a, b) if lex[k][0] == 'if'), b)
+                    alternativen, anfang = [], a
+                    while anfang < ende:
+                        strich = _bis_tiefe_null(lex, anfang, ende, ('|',))
+                        if strich > anfang:
+                            alternativen.append([w for w, _ in lex[anfang:strich]])
+                        anfang = strich + 1
+                    if any(_ist_auffang(alt) for alt in alternativen):
+                        text_arm = ' '.join(w for w, _ in lex[a:b])
+                        funde.append((datei, lex[a][1], f'Arm `{text_arm}`', '/'.join(genannt)))
+            elif wert in ('==', '!='):
+                links, k = [], i - 1
+                while k >= 0 and (lex[k][0] == '::' or _BEZEICHNER.fullmatch(lex[k][0])):
+                    links.insert(0, lex[k])
+                    k -= 1
+                rechts, k = [], i + 1
+                while k < len(lex) and (lex[k][0] == '::' or _BEZEICHNER.fullmatch(lex[k][0])):
+                    rechts.append(lex[k])
+                    k += 1
+                if (typ := _nennt(links, 0, len(links), typen) or _nennt(rechts, 0, len(rechts), typen)):
+                    funde.append((datei, zeile, f'`{wert}` mit einem Wert', typ))
+            elif wert == 'let':
+                gleich = _bis_tiefe_null(lex, i + 1, len(lex), ('=', ';'))
+                if (typ := _nennt(lex, i + 1, gleich, typen)):
+                    vorher = lex[i - 1][0] if i else ''
+                    form = f'{vorher} let' if vorher in ('if', 'while') else 'let … else'
+                    funde.append((datei, zeile, form, typ))
+    return funde
+
+
 # ------------------------------------------------------------------- Mutationen
 
 def _zeilen(text):
@@ -215,13 +521,13 @@ def modulpfad(datei):
 
 
 def mit_baustein(texte, enum):
-    """Fügt den Gegenproben-Baustein als erste Variante von EffectOp ein."""
+    """Fügt den Gegenproben-Wert als erste Variante der Aufzählung ein, deren Kopf an `enum` steht."""
     datei, nummer = enum
     zeilen = _zeilen(texte[datei])
     umbruch = _umbruch(zeilen[nummer - 1])
     einzug = _einzug(zeilen[nummer]) if nummer < len(zeilen) and zeilen[nummer].strip() else '    '
     zeilen[nummer:nummer] = [
-        f'{einzug}/// Wegwerf-Baustein der Baubruch-Gegenprobe (#892), nur in der Kopie.{umbruch}',
+        f'{einzug}/// Wegwerf-Wert der Baubruch-Gegenprobe (#892), nur in der Kopie.{umbruch}',
         f'{einzug}{VARIANTE},{umbruch}',
     ]
     return {**texte, datei: ''.join(zeilen)}
@@ -244,13 +550,18 @@ def _schluss(zeilen, i, ort):
     raise NichtGelaufen(f'{ort}: keine schließende Klammer der Fallunterscheidung gefunden')
 
 
-def einordnen(texte, stellen, modul, auffangzweig=False):
-    """Ordnet den Baustein an den Stellen ein — oder setzt dort einen Auffangzweig.
+def einordnen(texte, stellen, modul, auffangzweig=False, typ='EffectOp'):
+    """Ordnet den neuen Wert an den Stellen ein — oder setzt dort einen Auffangzweig.
 
-    Die Einordnung ist ein eigener Arm `<modul>::EffectOp::<Variante> =>
-    unreachable!(…)` direkt hinter der öffnenden Klammer; der Auffangzweig ein
-    `_ => unreachable!(…)` vor der schließenden. Je Datei von unten nach oben,
+    Die Einordnung ist ein eigener Arm `<modul>::<typ>::<Variante> =>
+    panic!("…")` direkt hinter der öffnenden Klammer; der Auffangzweig ein
+    `_ => panic!("…")` vor der schließenden. Je Datei von unten nach oben,
     damit die gemeldeten Zeilennummern für die übrigen Stellen gültig bleiben.
+
+    `panic!` mit fester Zeichenkette und nicht `unreachable!("…")`: Eine Stelle
+    kann in einer `const fn` liegen, und dort verweigert der Übersetzer jedes
+    formatierende Makro (E0015, gemessen an `austausch.rs`,
+    `kann_durch_krit_ausgeloest_werden`, im ersten Lauf über `Trigger`).
     """
     neu = dict(texte)
     for datei in sorted({d for d, _ in stellen}):
@@ -263,10 +574,10 @@ def einordnen(texte, stellen, modul, auffangzweig=False):
             umbruch, einzug = _umbruch(zeilen[i]), _einzug(zeilen[i]) + '    '
             if auffangzweig:
                 zeilen.insert(_schluss(zeilen, i, ort),
-                              f'{einzug}_ => unreachable!("Auffangzweig der Gegenprobe #892"),{umbruch}')
+                              f'{einzug}_ => panic!("Auffangzweig der Gegenprobe #892"),{umbruch}')
             else:
-                zeilen.insert(i + 1, f'{einzug}{modul}::EffectOp::{VARIANTE} => '
-                                     f'unreachable!("Baubruch-Gegenprobe #892"),{umbruch}')
+                zeilen.insert(i + 1, f'{einzug}{modul}::{typ}::{VARIANTE} => '
+                                     f'panic!("Baubruch-Gegenprobe #892"),{umbruch}')
         neu[datei] = ''.join(zeilen)
     return neu
 
@@ -431,7 +742,7 @@ def gegenprobe(befehl, timeout, protokoll):
     if protokoll is not None:
         protokoll.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='rota-wirkung-baubruch-') as temporaer:
-        registriert, bauten = _schritte(befehl, timeout, protokoll, Path(temporaer) / 'kopie', befund)
+        registriert, typen, bauten = _schritte(befehl, timeout, protokoll, Path(temporaer) / 'kopie', befund)
     nachher = fingerabdruck(ROOT)
     if nachher != vorher:
         geaendert = sorted(k for k in vorher.keys() | nachher.keys() if vorher.get(k) != nachher.get(k))
@@ -440,18 +751,34 @@ def gegenprobe(befehl, timeout, protokoll):
         print(f'Ergebnis: BEFUND — {len(befunde)} Abweichung(en) in {bauten} Bauten, siehe BEFUND-Zeilen. '
               'Exit 1', flush=True)
         return 1
+    weitere = (f'ein neuer Wert jedes der {typen} weiteren semantischen Typen bricht ihn ebenfalls'
+               if typen else 'keine weiteren semantischen Typen')
     print(f'Ergebnis: BELEGT — jede der {registriert} registrierten Analysen bricht den Bau, auch '
-          f'einzeln; {bauten} Bauten, echter Arbeitsbaum unverändert. Exit 0', flush=True)
+          f'einzeln; {weitere}; keine Auffangform; {bauten} Bauten, echter Arbeitsbaum unverändert. '
+          'Exit 0', flush=True)
     return 0
 
 
+def _sieht_auffangzweig(mit, ohne, datei, typen):
+    """Ob die Suche in `mit` genau eine Auffangform mehr findet als in `ohne`, und zwar in `datei`.
+
+    Verglichen wird die Zahl, nicht die Zeile: Der eingefügte Arm verschiebt die
+    Zeilennummern dahinter.
+    """
+    vorher, nachher = auffangformen(ohne, typen), auffangformen(mit, typen)
+    in_datei = sum(f[0] == datei for f in nachher) - sum(f[0] == datei for f in vorher)
+    return len(nachher) == len(vorher) + 1 and in_datei == 1
+
+
 def _schritte(befehl, timeout, protokoll, kopie, befund):
-    """K0, M0, K1, Mutation je Pass, G. Gibt (Zahl der registrierten Analysen, Bauten) zurück."""
+    """S, K0, die EffectOp-Schritte, T0/T1 je Typ. Gibt (Analysen, weitere Typen, Bauten) zurück."""
     kopiere(ROOT, kopie, befehl)
     urtext = lies_rust(kopie)
     enum = finde_enum(urtext)
     reg_datei, reg_zeile, registriert = lies_registry(urtext)
     paesse = finde_paesse(urtext)
+    typen = semantische_typen(urtext, enum)
+    alle_typen = ['EffectOp', *(name for name, _ in typen)]
     modul = modulpfad(enum[0])
     bauten = 0
 
@@ -466,31 +793,83 @@ def _schritte(befehl, timeout, protokoll, kopie, befund):
     print(f'  Registriert: {len(registriert)} Analysen in {reg_datei}:{reg_zeile} — '
           f'{", ".join(registriert)}', flush=True)
     print(f'  Baustein: {modul}::EffectOp::{VARIANTE}, eingefügt in {enum[0]}:{enum[1]}', flush=True)
+    print(f'  Weitere semantische Typen aus EffectNode: '
+          f'{", ".join(f"{name} ({ort[0]}:{ort[1]})" for name, ort in typen) or "keine"}', flush=True)
     for name in registriert:
         if name not in paesse:
             befund(f'{name} steht in der Registry ({reg_datei}:{reg_zeile}), aber kein '
                    f'`impl EffectAnalysisPass for {name}` in {QUELLEN} — ob er bricht, ist nicht zuordenbar')
+
+    # S: Was der Übersetzer nicht sehen kann — eine Stelle, die mit jedem neuen
+    # Wert weiter übersetzt.
+    funde = auffangformen(urtext, alle_typen)
+    for datei, zeile, form, typ in funde:
+        befund(f'S: Auffangform über {typ} in {datei}:{zeile} — {form}; ein neuer Wert liefe hier still durch')
+    if not funde:
+        print(f'S   Suche nach Auffangformen über {len(alle_typen)} Typen in {len(urtext)} Dateien, ohne '
+              'Prüfmodule: keine — wie erwartet', flush=True)
 
     # K0: Ohne grünen Bestand hätte jeder rote Bau danach keine Aussage.
     k0 = bauen('k0', urtext)
     if k0.gebrochen:
         befund('K0: die unbeschädigte Kopie baut nicht — jeder rote Bau danach wäre ohne Aussage: '
                + '; '.join(k0.fremd[:3] or [_orte(k0.stellen)]))
-        return len(registriert), bauten
+        return len(registriert), len(typen), bauten
     print(f'K0  Kontrolle, unbeschädigte Kopie: baut ({_dauer(k0)}) — wie erwartet', flush=True)
 
+    _effectop_schritte(urtext, enum, registriert, paesse, modul, alle_typen, bauen, befund)
+    for typ, ort in typen:
+        _typ_schritte(urtext, typ, ort, alle_typen, bauen, befund)
+    return len(registriert), len(typen), bauten
+
+
+def _typ_schritte(urtext, typ, ort, alle_typen, bauen, befund):
+    """T0 und T1 für einen semantischen Typ, dazu die Positivkontrolle der Suche S."""
+    modul = modulpfad(ort[0])
+    t_text = mit_baustein(urtext, ort)
+    t0 = bauen(f't0-{typ}', t_text)
+    if not t0.gebrochen:
+        befund(f'T0 {typ}: ein neuer Wert ohne Einordnung bricht den Bau NICHT — keine Stelle in {QUELLEN} '
+               f'wertet {typ} erschöpfend aus')
+        return
+    if t0.fremd:
+        befund(f'T0 {typ}: der Bau bricht auch aus fremdem Grund: ' + '; '.join(t0.fremd[:3]))
+    if not t0.stellen:
+        befund(f'T0 {typ}: keine einzige E0004-Stelle nennt {VARIANTE} — nichts einzuordnen')
+        return
+    print(f'T0  {typ}: neuer Wert ohne Einordnung bricht an {len(t0.stellen)} Stelle(n) ({_dauer(t0)}): '
+          f'{_orte(t0.stellen)}', flush=True)
+    t1 = bauen(f't1-{typ}', einordnen(t_text, t0.stellen, modul, typ=typ))
+    if t1.gebrochen:
+        befund(f'T1 {typ}: an allen gemeldeten Stellen eingeordnet, baut die Kopie trotzdem nicht — die '
+               'Mutation selbst ist fehlerhaft, oder T0 hat nicht jede Stelle gemeldet: '
+               + '; '.join(t1.fremd[:3] or [_orte(t1.stellen)]))
+    else:
+        print(f'T1  {typ}: an jeder gemeldeten Stelle eingeordnet: baut ({_dauer(t1)}) — wie erwartet', flush=True)
+    erste = t0.stellen[0]
+    mit_auffang = einordnen(t_text, [erste], modul, auffangzweig=True, typ=typ)
+    if _sieht_auffangzweig(mit_auffang, t_text, erste[0], alle_typen):
+        print(f'S   Kontrolle {typ}: mit Auffangzweig an {_orte([erste])} meldet die Suche ihn — wie erwartet',
+              flush=True)
+    else:
+        befund(f'S-Kontrolle {typ}: mit Auffangzweig an {_orte([erste])} meldet die Suche nach Auffangformen '
+               'nicht genau eine Fundstelle mehr in dieser Datei — sie wäre dort blind')
+
+
+def _effectop_schritte(urtext, enum, registriert, paesse, modul, alle_typen, bauen, befund):
+    """M0, K1, Mutation je Pass und G für EffectOp."""
     # M0: der neue Baustein, nirgends eingeordnet.
     m0_text = mit_baustein(urtext, enum)
     m0 = bauen('m0', m0_text)
     if not m0.gebrochen:
         befund(f'M0: der Bau bricht NICHT, obwohl {VARIANTE} nirgends eingeordnet ist — die Zusicherung, '
                'dass ein neuer Baustein den Bau bricht, gilt nicht')
-        return len(registriert), bauten
+        return
     if m0.fremd:
         befund('M0: der Bau bricht auch aus fremdem Grund: ' + '; '.join(m0.fremd[:3]))
     if not m0.stellen:
         befund(f'M0: keine einzige E0004-Stelle nennt {VARIANTE} — nichts zuzuordnen')
-        return len(registriert), bauten
+        return
     m0_paesse = finde_paesse(m0_text)
     je_pass, ausserhalb = zuordnen(m0.stellen, m0_paesse)
     print(f'M0  Gegenprobe, Baustein ohne Einordnung: bricht an {len(m0.stellen)} Stellen '
@@ -560,7 +939,15 @@ def _schritte(befehl, timeout, protokoll, kopie, befund):
         else:
             print(f'G   Gegenprobe der Gegenprobe, Auffangzweig in {ziel}: als ungebrochen erkannt, '
                   f'{len(noch)} weitere brechen ({_dauer(bau)}) — wie erwartet', flush=True)
-    return len(registriert), bauten
+        # Derselbe Auffangzweig ist die Positivkontrolle der Suche S: Was der
+        # Übersetzer nicht mehr meldet, muss sie finden.
+        datei = je_pass[ziel][0][0]
+        if _sieht_auffangzweig(zustand, m0_text, datei, alle_typen):
+            print(f'S   Kontrolle EffectOp: den Auffangzweig aus G in {datei} meldet die Suche — wie erwartet',
+                  flush=True)
+        else:
+            befund(f'S-Kontrolle EffectOp: den Auffangzweig aus G in {datei} meldet die Suche nach '
+                   'Auffangformen nicht als genau eine Fundstelle mehr — sie wäre dort blind')
 
 
 def main(argv=None):

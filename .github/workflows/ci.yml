@@ -343,7 +343,10 @@ jobs:
       # deshalb baut dieser Schritt eine Wegwerfkopie mit genau diesem Compiler:
       # Kontrolle, Baustein ohne Einordnung, Kontrolle eingeordnet, je Pass eine
       # Mutation, die nur ihn offen lässt, und eine Gegenprobe der Gegenprobe
-      # mit Auffangzweig. Der Arbeitsbaum bleibt unberührt (SHA-256-Rücklesung).
+      # mit Auffangzweig. Dasselbe je semantischem Typ des Knotens (neuer Wert
+      # ohne und mit Einordnung), dazu eine Suche nach Auffangformen, die der
+      # Übersetzer nicht sieht (`matches!`, `_`, `==` gegen einen Wert).
+      # Der Arbeitsbaum bleibt unberührt (SHA-256-Rücklesung).
       # Exit 1 ist ein Befund, Exit 2 heißt „nicht gelaufen“ — beides bricht die
       # Stufe. Darum hat der Schritt kein `if:`, kein `continue-on-error:`, keine
       # eigene `shell:` und keinen Zusatz hinter dem Befehl; das prüft
