@@ -732,8 +732,67 @@ def lauf(befehl, timeout):
     return p.returncode, (aus or "")
 
 
+# Wie lange `_gruppe_beenden` nach SIGKILL auf die übrigen Mitglieder wartet.
+# Ein Python-Enkel brauchte bis zum Zombie 1 bis 2 ms (gemessen 28.10.); die
+# Frist gilt dem Prozess, der in einem nicht unterbrechbaren Aufruf hängt.
+GRUPPEN_FRIST_S = 5
+
+
+def _lebende_mitglieder(gruppe):
+    """PIDs der Prozessgruppe, von denen noch ein Thread läuft; None ohne /proc.
+
+    **`p.wait()` sammelt nur das eigene Kind ein, und das ist die Hülle.** Die
+    Arbeit tun ihre Kinder: dash 0.5.12, das `/bin/sh` der CI, forkt für
+    `sh -c 'cmd'` und ersetzt sich nicht per exec (gemessen: das Kommando bekam
+    eine eigene PID); npx und cargo remote starten ohnehin weitere Prozesse.
+    Sie bekommen SIGKILL, sterben aber danach, nicht davor: Ein Enkel stand in
+    50 von 50 Läufen noch auf `R`, als `_alle_beenden()` zurückkehrte — und
+    gleich danach stellte das Werkzeug die Daten zurück. Daher wackelte
+    `test_sigterm_stops_both_real_children_and_joins_before_restoring`
+    (`'R' != 'Z'`) nur unter Last: Dort reichte das Abwickeln nicht mehr, um
+    den Enkel vorher sterben zu lassen.
+
+    Ein Zombie (`Z`) zählt als beendet: Er führt nichts mehr aus, und
+    einsammeln kann ihn nur sein neuer Elternprozess, nicht dieses Werkzeug.
+    Geprüft wird jeder Thread, nicht nur der erste — der erste Thread eines
+    Prozesses kann schon Zombie sein, während andere noch sterben.
+    """
+    try:
+        eintraege = os.listdir("/proc")
+    except OSError:
+        return None
+    lebend = []
+    for name in eintraege:
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat") as f:
+                # Der Prozessname kann Leerzeichen und Klammern tragen; erst
+                # hinter der LETZTEN ") " stehen Zustand, Eltern, Gruppe.
+                felder = f.read().rpartition(") ")[2].split()
+            if len(felder) < 3 or int(felder[2]) != gruppe:
+                continue
+            threads = os.listdir(f"/proc/{name}/task")
+        except OSError:  # beendet und eingesammelt, während wir lasen
+            continue
+        for tid in threads:
+            try:
+                with open(f"/proc/{name}/task/{tid}/stat") as f:
+                    zustand = f.read().rpartition(") ")[2][:1]
+            except OSError:  # dieser Thread ist schon fort
+                continue
+            if zustand not in ("Z", "X"):
+                lebend.append(int(name))
+                break
+    return lebend
+
+
 def _gruppe_beenden(p):
-    """Beendet die Prozessgruppe eines Kindes, erst freundlich, dann hart."""
+    """Beendet die Prozessgruppe eines Kindes, erst freundlich, dann hart.
+
+    Kehrt erst zurück, wenn kein Mitglied der Gruppe mehr läuft — nicht schon,
+    wenn das eigene Kind eingesammelt ist. Der Rückbau folgt unmittelbar.
+    """
     if p is None:
         return
     for signal_nr, gnade in ((signal.SIGTERM, 5), (signal.SIGKILL, 0)):
@@ -749,6 +808,20 @@ def _gruppe_beenden(p):
             except subprocess.TimeoutExpired:
                 pass
     p.wait()
+    frist = time.monotonic() + GRUPPEN_FRIST_S
+    while True:
+        lebend = _lebende_mitglieder(p.pid)
+        if not lebend or time.monotonic() >= frist:
+            break
+        time.sleep(0.005)
+    if lebend:
+        # Nicht abbrechen: Ohne Rückbau bliebe die Mutation im Baum liegen.
+        print(f"WARNUNG: Prozessgruppe {p.pid} läuft {GRUPPEN_FRIST_S} s nach SIGKILL noch "
+              f"(PID {', '.join(map(str, lebend))}). Der Rückbau folgt trotzdem.",
+              file=sys.stderr)
+    elif lebend is None:
+        print(f"HINWEIS: /proc nicht lesbar — ob Prozessgruppe {p.pid} vor dem Rückbau "
+              "geendet hat, ist nicht geprüft.", file=sys.stderr)
 
 
 def _alle_beenden():
