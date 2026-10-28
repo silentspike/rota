@@ -87,6 +87,18 @@ engine.library.put('dev://click', makeClick(ctx));
 engine.library.put('dev://noise', makeNoiseHit(ctx));
 engine.library.put('dev://tone', makeSeamlessTone(ctx));
 
+/**
+ * Hervorheben per Adresse: `?neu=id1,id2` stellt genau diese Klaenge an den
+ * Anfang, markiert sie und gibt ihnen die ersten Tasten. Fuer die Hoerabnahme
+ * einzelner neuer Klaenge — zwischen allen anderen findet man sie sonst nicht.
+ */
+const hervorgehoben = new Set(
+  (new URLSearchParams(location.search).get('neu') ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id !== ''),
+);
+
 const entries: Entry[] = defs.map((def) => ({
   def,
   key: null,
@@ -94,6 +106,9 @@ const entries: Entry[] = defs.map((def) => ({
   purpose: purposes.get(def.id) ?? '',
   handle: -1,
 }));
+// Stabil sortiert: Die Hervorgehobenen behalten untereinander die Reihenfolge
+// des Verzeichnisses, alle anderen ebenso.
+entries.sort((a, b) => Number(hervorgehoben.has(b.def.id)) - Number(hervorgehoben.has(a.def.id)));
 const byKey = new Map<string, Entry>();
 
 /**
@@ -174,6 +189,22 @@ const statusEl = document.getElementById('status') as HTMLPreElement;
 const latencyEl = document.getElementById('latency') as HTMLPreElement;
 const soundsEl = document.getElementById('sounds') as HTMLTableSectionElement;
 const fadersEl = document.getElementById('faders') as HTMLDivElement;
+const hervorhebungEl = document.getElementById('hervorhebung') as HTMLParagraphElement;
+
+/** Sagt, was hervorgehoben ist — und welche angefragte Kennung es nicht gibt. */
+function renderHervorhebung(): void {
+  if (hervorgehoben.size === 0) {
+    hervorhebungEl.textContent = '';
+    return;
+  }
+  const bekannt = new Set(entries.map((entry) => entry.def.id));
+  const unbekannt = [...hervorgehoben].filter((id) => !bekannt.has(id));
+  const gefunden = hervorgehoben.size - unbekannt.length;
+  hervorhebungEl.textContent =
+    `${gefunden} Klang/Klaenge hervorgehoben und oben einsortiert (Adresse ?neu=…), ` +
+    `Tasten 1 bis ${Math.min(gefunden, 9)}.` +
+    (unbekannt.length > 0 ? ` Unbekannte Kennung: ${unbekannt.join(', ')}.` : '');
+}
 
 function renderStatus(extra = ''): void {
   statusEl.textContent = [
@@ -258,6 +289,13 @@ function renderSounds(): void {
 
     const id = document.createElement('td');
     id.textContent = entry.def.id;
+    if (hervorgehoben.has(entry.def.id)) {
+      tr.className = 'neu';
+      const marke = document.createElement('span');
+      marke.className = 'marke';
+      marke.textContent = 'NEU';
+      id.append(' ', marke);
+    }
     const purpose = document.createElement('td');
     purpose.className = 'dim';
     purpose.textContent = entry.purpose || entry.origin;
@@ -331,7 +369,14 @@ let loadReport = '';
 
 assignKeys();
 renderFaders();
+renderHervorhebung();
 renderSounds();
+// Die Liste steht unter Zustand, Lautstaerke und Verzoegerung — wer
+// hervorhebt, will sofort dorthin. Erst nach dem Fuellen der Liste, sonst ist
+// die Seite zu kurz, um zu scrollen.
+if (hervorgehoben.size > 0) {
+  hervorhebungEl.scrollIntoView({ block: 'start' });
+}
 renderStatus();
 renderLatency();
 
