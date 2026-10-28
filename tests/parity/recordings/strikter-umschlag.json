@@ -5,6 +5,7 @@
   "seed": 0,
   "ticks": 3000,
   "tickMs": 10,
+  "nullzeitBudget": 70,
   "bindings": [
     {
       "slot": 0,
