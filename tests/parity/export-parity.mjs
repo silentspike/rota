@@ -74,6 +74,8 @@ import {
   SCHLUESSEL_NACHLAUF_NAME,
   schluesselNachlagePayload,
   SCHLUESSEL_NACHLAGE_NAME,
+  schluesselNachlageAblaufPayload,
+  SCHLUESSEL_NACHLAGE_ABLAUF_NAME,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -708,6 +710,20 @@ console.log(`geschrieben: ${schluesselNachlagePath}`);
 console.log(
   `  Nachlage        in Takt ${schluesselNachlage.expected.refunds.join(' und ')}, ` +
     `Schild am Ende ${schluesselNachlage.expected.shield}`,
+);
+// Der gelegte Schild laeuft ungebrochen ab, danach brechen Umwandlungs-
+// Schichten — und keine legt nach (Abnahme von #1146).
+const schluesselNachlageAblauf = schluesselNachlageAblaufPayload();
+const schluesselNachlageAblaufPath = join(
+  here,
+  'recordings',
+  `${SCHLUESSEL_NACHLAGE_ABLAUF_NAME}.json`,
+);
+writeFileSync(schluesselNachlageAblaufPath, serialize(schluesselNachlageAblauf), 'utf8');
+console.log(`geschrieben: ${schluesselNachlageAblaufPath}`);
+console.log(
+  `  Ablauf          Brueche in Takt ${schluesselNachlageAblauf.expected.breaks.join(' und ')}, ` +
+    `Nachlagen: ${schluesselNachlageAblauf.expected.refunds.length}`,
 );
 
 const buffCombat = buffCombatPayload();

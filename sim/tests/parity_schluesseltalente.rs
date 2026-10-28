@@ -6,12 +6,14 @@
 //! `decay-echo` (PUTREFACTION) und `shield-refund` (COAGULATION) legen
 //! Kampfzustand an — den Endpunkt des Nachlaufs, den Merker der Nachlage und
 //! ihre Grundlage. Seit #419 steht er in beiden Pruefsummen, aber NUR bei
-//! verteiltem Talent; jede andere Aufzeichnung bleibt bitgleich. Diese zwei
+//! verteiltem Talent; jede andere Aufzeichnung bleibt bitgleich. Diese drei
 //! sind deshalb die einzigen, die ihn ueberhaupt vergleichen.
 //!
 //! Je Aufzeichnung: Takt fuer Takt dieselbe Pruefsumme, dieselbe Feldfolge
 //! mit Talent, dieselben Ergebnisse — und die positive Kontrolle, dass das
-//! Talent in dieser Runde etwas aendert.
+//! Talent in dieser Runde etwas aendert. Die dritte (`schluessel-nachlage-
+//! ablauf`) belegt das Gegenteil: Dort darf es NICHTS aendern, weil der
+//! gelegte Schild ungebrochen ablaeuft (Abnahme von #1146).
 //!
 //! # Die Verteilung kommt als PROMILLE und SCHALTER herein
 //!
@@ -36,6 +38,7 @@ mod gemeinsam;
 
 const NACHLAUF: &str = "tests/parity/recordings/schluessel-nachlauf.json";
 const NACHLAGE: &str = "tests/parity/recordings/schluessel-nachlage.json";
+const NACHLAGE_ABLAUF: &str = "tests/parity/recordings/schluessel-nachlage-ablauf.json";
 
 /// Die Aufzeichnung, **zur Laufzeit** gefunden statt zur Bauzeit eingesetzt —
 /// derselbe Weg wie in `parity_kontrolle_preis_talent.rs`.
@@ -337,5 +340,98 @@ fn nachlage_ohne_das_talent_laeuft_die_runde_anders() {
         "ohne Nachlage muesste mehr ankommen: ohne {}, mit {}",
         ohne.damage_taken,
         mit.damage_taken
+    );
+}
+
+// ---------------------------------------------------------------------------
+// shield-refund, wenn der gelegte Schild ungebrochen ablaeuft
+// ---------------------------------------------------------------------------
+//
+// Die Abnahme von #1146: Die Nachlage kommt aus dem Schild, der GELEGT wurde
+// und JETZT bricht. Vorher gab eine Umwandlungs-Schicht (TEMPER) beim Bruch
+// die Haelfte einer CRUST, die laengst ungebrochen abgelaufen war — 495 bei
+// 15 000 ms, auf beiden Seiten gleich.
+
+fn zahlen(json: &Value, feld: &str) -> Vec<u32> {
+    json["expected"][feld]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected.{feld} fehlt"))
+        .iter()
+        .map(|v| zahl(v, feld))
+        .collect()
+}
+
+#[test]
+fn ablauf_die_runde_faehrt_ablauf_und_zwei_brueche_ohne_nachlage() {
+    // **Die Zusicherung in der Datei**: Die CRUST laeuft ab (Takt 1201), und
+    // zwei Umwandlungs-Schichten brechen (1500, 2300). Fehlte der Ablauf, waere
+    // der Merker verbraucht und die leere `refunds`-Liste belegte nichts.
+    let json = daten(NACHLAGE_ABLAUF);
+    assert_eq!(
+        zahlen(&json, "expiries"),
+        vec![1201],
+        "die CRUST laeuft nicht ab"
+    );
+    assert_eq!(
+        zahlen(&json, "breaks"),
+        vec![1500, 2300],
+        "die Umwandlung bricht nicht"
+    );
+    assert!(
+        zahlen(&json, "refunds").is_empty(),
+        "eine Umwandlung legt nach"
+    );
+    assert!(
+        zahl(&json["expected"]["converted"], "converted") > 0,
+        "TEMPER wandelt nichts um"
+    );
+}
+
+#[test]
+fn ablauf_die_pruefsumme_stimmt_in_jedem_takt() {
+    pruefsumme_in_jedem_takt(NACHLAGE_ABLAUF);
+}
+
+#[test]
+fn ablauf_dieselbe_feldfolge_mit_talent() {
+    feldfolge_mit_talent(NACHLAGE_ABLAUF);
+}
+
+#[test]
+fn ablauf_beide_seiten_rechnen_dasselbe_ergebnis() {
+    let json = daten(NACHLAGE_ABLAUF);
+    let erwartet = &json["expected"];
+    let (fight, ergebnis) = spielt(&json, |_| {});
+    for (feld, simulator) in [
+        ("shield", fight.shield()),
+        ("shieldAbsorbed", ergebnis.shield_absorbed),
+        ("converted", ergebnis.converted),
+        ("damageTaken", ergebnis.damage_taken),
+        ("playerHp", fight.player_hp()),
+    ] {
+        assert_eq!(
+            erwartet[feld].as_u64(),
+            Some(u64::from(simulator)),
+            "{feld}: Spiel {}, Simulator {simulator}",
+            erwartet[feld]
+        );
+    }
+}
+
+#[test]
+fn ablauf_mit_und_ohne_talent_kommt_gleich_viel_an() {
+    // **Die Aussage der Runde, am Schaden gemessen**: Keine Nachlage — also
+    // nimmt das Talent hier nichts ab. Vor der Abnahme kamen mit Talent 500
+    // an, ohne 995: Die abgelaufene CRUST hatte nachgelegt.
+    let json = daten(NACHLAGE_ABLAUF);
+    let (_, mit) = spielt(&json, |_| {});
+    let (_, ohne) = spielt(&json, |c| c.shield_refund = false);
+    assert!(
+        mit.damage_taken > 0,
+        "es kommt gar nichts an — der Vergleich misst nichts"
+    );
+    assert_eq!(
+        mit.damage_taken, ohne.damage_taken,
+        "mit Talent kommt weniger an — eine Umwandlungs-Schicht hat nachgelegt"
     );
 }

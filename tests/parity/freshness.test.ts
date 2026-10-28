@@ -121,6 +121,7 @@ import eingecheckteEntladerSpur from './recordings/spender-talent.json';
 import eingecheckterKontrollPreis from './recordings/kontrolle-preis-talent.json';
 import eingecheckterNachlauf from './recordings/schluessel-nachlauf.json';
 import eingecheckteNachlage from './recordings/schluessel-nachlage.json';
+import eingecheckterNachlageAblauf from './recordings/schluessel-nachlage-ablauf.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVieleBraende from './recordings/ember-viele-braende.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -189,6 +190,7 @@ import {
   kontrollPreisTalentPayload,
   schluesselNachlaufPayload,
   schluesselNachlagePayload,
+  schluesselNachlageAblaufPayload,
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
@@ -277,11 +279,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckterKontrollPreis, HINWEIS).toEqual(kontrollPreisTalentPayload());
   });
 
-  it('die zwei Schlüssel-Runden entsprechen dem heutigen Spielstand', () => {
+  it('die drei Schlüssel-Runden entsprechen dem heutigen Spielstand', () => {
     // Die einzigen Aufzeichnungen mit verteiltem Schlüsseltalent (#419, #418
     // AC4) — und damit die einzigen, in deren Prüfsumme dessen Zustand steht.
     expect(eingecheckterNachlauf, HINWEIS).toEqual(schluesselNachlaufPayload());
     expect(eingecheckteNachlage, HINWEIS).toEqual(schluesselNachlagePayload());
+    expect(eingecheckterNachlageAblauf, HINWEIS).toEqual(schluesselNachlageAblaufPayload());
   });
 
   it('die Synergie-Runde entspricht dem heutigen Spielstand', () => {
@@ -1035,6 +1038,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'kontrolle-preis-talent',
   'schluessel-nachlauf',
   'schluessel-nachlage',
+  'schluessel-nachlage-ablauf',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {
