@@ -15,11 +15,18 @@ use rota_sim::data::{EFFECT_NODES, SPELLS};
 use rota_sim::effects::registry::{alle_analysen, Verdict};
 use rota_sim::effects::EffectOp;
 
-/// Die elf Zusatz-Systeme der Bossdaten.
+/// Die Bossregeln, die `sim/build.rs` mit Semantik deklariert — als Signatur.
 ///
 /// **Eine Liste, keine Zahl** — bei der Planung stand hier „sieben", und
 /// nachgezaehlt waren es elf. Eine Zahl haette den Irrtum nicht gemeldet,
 /// diese Liste nennt beim Namen, was fehlt.
+///
+/// # Seit #892 in beide Richtungen
+///
+/// Bis dahin prüfte der Fall nur, dass jeder Eintrag einen Knoten hat. Eine neu
+/// deklarierte Regel fehlte der Liste, ohne dass es auffiel. Jetzt muss sie
+/// genau die deklarierten Signaturen der Daten nennen — eine Abschrift, die
+/// bemerkt, dass sie veraltet.
 const BOSS_SYSTEME: &[&str] = &[
     "energy",
     "doom",
@@ -141,27 +148,47 @@ fn jeder_zauber_mit_abklingzeit_verkuerzung_hat_seinen_knoten() {
 }
 
 #[test]
-fn alle_elf_boss_systeme_sind_beschrieben() {
-    let vorhanden: Vec<&str> = EFFECT_NODES
+fn die_boss_systeme_sind_genau_die_deklarierten() {
+    // Deklariert heißt: mit Semantik, also ohne Lücke. Ein unbekannter
+    // Schlüssel der Bossdaten bekommt eine Signatur OHNE Semantik und fällt in
+    // jeder Analyse zurück (build.rs, `knoten_fuer_boss`) — er ist keine
+    // deklarierte Regel und gehört nicht in diese Liste.
+    let mut deklariert: Vec<&str> = EFFECT_NODES
         .iter()
+        .filter(|n| !n.hat_luecke())
         .filter_map(|n| match n.op {
             EffectOp::CustomSignature(id) => Some(id.0),
             _ => None,
         })
         .collect();
-    let mut fehlend: Vec<&str> = Vec::new();
-    for system in BOSS_SYSTEME {
-        if !vorhanden.contains(system) {
-            fehlend.push(system);
-        }
-    }
+    deklariert.sort_unstable();
+    deklariert.dedup();
     assert!(
-        fehlend.is_empty(),
-        "Diese Boss-Systeme haben keinen Knoten: {fehlend:?}. Sie stehen in `data/bosses/`, \
-         werden aber von keiner Analyse gesehen."
+        !deklariert.is_empty(),
+        "Keine einzige deklarierte Signatur in den Daten — dann prüft dieser Fall nichts."
     );
-    // Das elfte System sind die Phasen — sie tragen einen eigenen Baustein und
-    // stehen deshalb nicht in der Signatur-Liste.
+    let mut liste = BOSS_SYSTEME.to_vec();
+    liste.sort_unstable();
+    let doppelt = liste.windows(2).filter(|p| p[0] == p[1]).count();
+    let fehlend: Vec<&str> = liste
+        .iter()
+        .copied()
+        .filter(|s| !deklariert.contains(s))
+        .collect();
+    let neu: Vec<&str> = deklariert
+        .iter()
+        .copied()
+        .filter(|s| !liste.contains(s))
+        .collect();
+    assert!(
+        fehlend.is_empty() && neu.is_empty() && doppelt == 0,
+        "Ohne deklarierten Knoten: {fehlend:?} — sie stehen in der Liste, werden aber von \
+         keiner Analyse gesehen. Deklariert, aber nicht in der Liste: {neu:?} — eine neue Regel \
+         gehört hierher. Doppelt: {doppelt}. Deklariert sind {} Signaturarten.",
+        deklariert.len()
+    );
+    // Die Phasen tragen einen eigenen Baustein und stehen deshalb nicht in der
+    // Signatur-Liste.
     assert!(
         EFFECT_NODES
             .iter()
