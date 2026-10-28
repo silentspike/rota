@@ -37,7 +37,8 @@ export interface OneShotDef {
 
 /**
  * Ein Klang, der so lange laeuft wie der Spieleffekt — dreiteilig aufgebaut
- * (GAME-DESIGN 17.1, suno-sfx.md 4.2):
+ * (GAME-DESIGN 17.1; suno/suno-sfx.md 4.2 im privaten Werkzeug-Repo
+ * silentspike/rota-werkzeuge):
  *
  * | Teil    | Quelle   | Abspielweise                          |
  * | ------- | -------- | ------------------------------------- |
@@ -62,8 +63,9 @@ export interface SustainedDef {
    * Schleifen-Grenzen in Sekunden innerhalb der Koerper-Datei. Ohne Angabe
    * laeuft die Schleife ueber die ganze Datei.
    *
-   * Loop-Dateien werden in der Nachbearbeitung nie beschnitten (suno-sfx.md
-   * 4.2) — die Naht liegt also exakt an den Dateigrenzen.
+   * Loop-Dateien werden in der Nachbearbeitung nie beschnitten
+   * (suno/suno-sfx.md 4.2 im Werkzeug-Repo) — die Naht liegt also exakt an den
+   * Dateigrenzen.
    */
   readonly loopStart?: number;
   readonly loopEnd?: number;

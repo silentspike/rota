@@ -53,7 +53,9 @@ ohne_codebloecke() {
 # Abschnittsnummern tragen (suno-sfx.md, VERIFICATION.md und STEP1-SPEC.md
 # fehlten). Ein sechstes Dokument haette der Waechter nie zu sehen bekommen,
 # und er haette weiter brav "keine doppelt" gemeldet — ueber die zwei, die er
-# kannte.
+# kannte. (Stand von #1023. suno-sfx.md liegt seit 2026-10-28 im privaten
+# Werkzeug-Repo silentspike/rota-werkzeuge, die Ablesung fand sie danach von
+# selbst nicht mehr.)
 #
 # Eine Liste dort, wo eine Ablesung hingehoert: Der Waechter waechst dann nicht
 # mit dem Bestand, sondern muss gepflegt werden — und wer ihn pflegen muesste,

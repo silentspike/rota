@@ -3,8 +3,9 @@
  *
  * `data/sound-manifest.json` ist die eine Wahrheit darueber, welche Klaenge es
  * gibt, wofuer sie da sind, wie lang sie werden sollen und mit welchem Prompt
- * sie erzeugt wurden. Die Erzeugung (`tools/suno_api.py`) und das Spiel lesen
- * dieselbe Datei — sonst driften Prompt-Sammlung und Auslieferung auseinander.
+ * sie erzeugt wurden. Die Erzeugung (`suno/` im privaten Werkzeug-Repo
+ * silentspike/rota-werkzeuge) und das Spiel lesen dieselbe Datei — sonst
+ * driften Prompt-Sammlung und Auslieferung auseinander.
  *
  * Die Datei wird von Hand gepflegt. Deshalb wird sie hier geprueft, statt ihr
  * zu vertrauen: Ein Tippfehler in einem Weg-Namen soll beim Laden auffallen und

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "Verzeichnis aller Klaenge (GAME-DESIGN 17.1). Prompt-Regeln: docs/suno-sfx.md 2. Erzeugung: tools/suno_api.py batch, Nachbearbeitung: tools/sfx-post.sh.",
+  "note": "Verzeichnis aller Klaenge (GAME-DESIGN 17.1). Prompt-Regeln: suno/suno-sfx.md 2, Erzeugung: suno/suno_api.py batch — beide im privaten Werkzeug-Repo silentspike/rota-werkzeuge. Nachbearbeitung: tools/sfx-post.sh.",
   "coverage": {
     "note": "Soll aus GAME-DESIGN 17.1. Die 47 ableitbaren Slots sind vollstaendig beschrieben. Was fehlt, steht unter 'placeholders' mit dem Epic, das es ausarbeitet — es fehlt nicht aus Nachlaessigkeit, sondern weil die Vorlage dafuer noch nicht existiert (GAME-DESIGN 22).",
     "groups": {

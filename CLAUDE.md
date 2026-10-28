@@ -14,10 +14,10 @@ angelehnt an World-of-Warcraft-Rotationen (Global Cooldown, Cooldown-Management,
 
 ## SSOT-Dokumente
 
-| Dokument              | Inhalt                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/GAME-DESIGN.md` | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
-| `docs/suno-sfx.md`    | Sound-Produktion mit Suno Sounds: Prompt-Regeln, Workflow, Prompt-Vorlagen                                                                    |
+| Dokument                                                         | Inhalt                                                                                                                                        |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/GAME-DESIGN.md`                                            | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
+| `suno/suno-sfx.md` im privaten Repo `silentspike/rota-werkzeuge` | Sound-Produktion mit Suno Sounds: Prompt-Regeln, Workflow, Prompt-Vorlagen (seit 2026-10-28 dort, nicht mehr in diesem Repo)                  |
 
 Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMMER das Design-Dokument.
 
@@ -135,7 +135,7 @@ Einzelheiten in [`docs/IPC.md`](docs/IPC.md).
     liegt unter `/rota/favicon.svg` und wird korrekt geladen.
 - **Browser-Tests:** `playwright-cli -s=rota ...` (headless; `--headed` nur wenn der User zuschauen will).
   Session am Ende mit `close` beenden.
-- **Sound:** Erzeugung via Suno Sounds (siehe `docs/suno-sfx.md`). ElevenLabs hat KEIN Guthaben.
+- **Sound:** Erzeugung via Suno Sounds (siehe `suno/suno-sfx.md` im privaten Werkzeug-Repo `silentspike/rota-werkzeuge`, lokal `/work/rota-ipc/suno/`). ElevenLabs hat KEIN Guthaben.
   Claude kann nicht hören → Sounds technisch prüfen (ffprobe/ffmpeg: Länge, Pegel, Anfangs-Stille,
   Clipping), ästhetische Abnahme macht der User über ein Abhör-Soundboard.
 - **Speicherung:** Spielstand im Browser (localStorage), laufend automatisch.
