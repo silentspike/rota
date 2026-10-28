@@ -100,6 +100,21 @@
       .dim {
         color: var(--dim);
       }
+      tr.neu td {
+        background: #2a2014;
+      }
+      tr.neu td:first-child {
+        box-shadow: inset 3px 0 0 var(--accent);
+        padding-left: 8px;
+      }
+      .marke {
+        background: var(--accent);
+        color: #111;
+        border-radius: 3px;
+        padding: 0 6px;
+        font-size: 11px;
+        font-weight: bold;
+      }
       pre {
         margin: 0;
         white-space: pre-wrap;
@@ -131,6 +146,7 @@
 
     <section>
       <h2>Klaenge</h2>
+      <p id="hervorhebung" class="dim"></p>
       <table>
         <thead>
           <tr>
