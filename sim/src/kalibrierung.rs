@@ -1174,11 +1174,42 @@ pub fn gespeicherte_rate(text: &str, art: Arbeitsart) -> Option<f64> {
 
 /// Der kurze Bestätigungslauf aus AC4: [`MINDESTDAUER`] lang, ohne adaptive
 /// Verlängerung.
-pub fn bestaetigungslauf<F>(arbeit: F) -> RateModel
+///
+/// # Warum eine feste Dauer hier richtig ist
+///
+/// Er **kalibriert nicht**, er prüft, ob ein gespeichertes Profil noch gilt —
+/// gegen eine Schwelle von 25 %, nicht von 3. Seine Rate trägt
+/// [`Abbruchgrund::FesteDauer`], gilt also nie als Kalibrierung und wird nie
+/// abgelegt. Gemessen am 28.10. auf node3: Mit Profil lief bis dahin dieselbe
+/// volle Erhebung wie ohne (2:13 gegen 2:39) — genau der Aufwand, den AC4
+/// sparen soll.
+///
+/// Vorprüfung und Aufwärmen sind dieselben wie bei [`kalibriere`]: Unter
+/// Fremdlast vor der Messung gibt es keinen Abschnitt.
+pub fn bestaetigungslauf<F>(mut arbeit: F) -> RateModel
 where
     F: FnMut() -> f64,
 {
-    kalibriere(arbeit)
+    let kerne = erlaubte_kerne().unwrap_or_default();
+    if let Some(abbruch) = vorpruefung() {
+        return abbruch;
+    }
+    let warm_bis = Instant::now() + AUFWAERMEN;
+    while Instant::now() < warm_bis {
+        let _ = arbeit();
+    }
+    let start = Instant::now();
+    let mut abschnitte: Vec<Abschnitt> = Vec::new();
+    while start.elapsed() < MINDESTDAUER {
+        abschnitte.push(abschnitt_messen(&mut arbeit, &kerne));
+    }
+    let takte: Vec<f64> = abschnitte.iter().filter_map(|a| a.takt_mhz).collect();
+    modell(
+        &abschnitte,
+        Abbruchgrund::FesteDauer,
+        start.elapsed(),
+        takt_drift(&takte),
+    )
 }
 
 /// Welcher Lauf gefragt ist.
@@ -1231,23 +1262,57 @@ impl Erhebung {
         }
     }
 
-    /// Was davon ins Profil gehört.
+    /// Was davon ins Profil gehört: eine volle Erhebung, die stabil ist und
+    /// nicht abwich — sonst nichts, und das alte Profil bleibt stehen.
+    ///
+    /// **Eine abgewichene Rate legt NICHT ab.** Sie ist der Befund, nicht die
+    /// neue Wahrheit (gemessen am 2026-08-22 auf gonet: Unter Fremdlast war
+    /// `crit_dp` um 43,5 % gedrückt und dabei `Stabil` — gleichmäßiger Druck
+    /// erzeugt gleichmäßig falsche Raten). Ein Bestätigungslauf legt nie ab:
+    /// Er kalibriert nicht.
     #[must_use]
     pub fn abzulegen(&self) -> Option<&RateModel> {
-        None
+        match self {
+            Self::Fehlt { voll }
+            | Self::NeuErhoben {
+                voll,
+                urteil: Bestaetigung::Bestaetigt,
+                ..
+            } if voll.reason.brauchbar() => Some(voll),
+            _ => None,
+        }
     }
 }
 
 /// Erhebt eine Arbeitsart: mit Profil kurz bestätigen, ohne voll erheben
 /// (AC4, AC5).
+///
+/// `messen` bekommt den gefragten [`Lauf`] und liefert seine Rate —
+/// gewöhnlich [`bestaetigungslauf`] für `Kurz` und [`kalibriere`] für `Voll`.
+/// Als Funktion übergeben, damit sich prüfen lässt, welcher Lauf gefragt
+/// wurde: Dass mit passendem Profil KEINE volle Erhebung läuft, ist die
+/// Eigenschaft, um die es in AC4 geht.
 pub fn erheben_mit<M>(gespeichert: Option<f64>, mut messen: M) -> Erhebung
 where
     M: FnMut(Lauf) -> RateModel,
 {
-    let _ = gespeichert;
-    Erhebung::Fehlt {
-        voll: messen(Lauf::Voll),
+    let Some(erwartet) = gespeichert else {
+        return Erhebung::Fehlt {
+            voll: messen(Lauf::Voll),
+        };
+    };
+    let kurz = messen(Lauf::Kurz);
+    // Kein Abschnitt heißt: nicht gemessen. Eine volle Erhebung träfe dieselbe
+    // Vorprüfung, und `bestaetigen` hielte die Rate 0 für eine Abweichung.
+    if kurz.samples == 0 {
+        return Erhebung::NichtGemessen { kurz };
     }
+    if bestaetigen(Some(erwartet), &kurz) == Bestaetigung::Bestaetigt {
+        return Erhebung::Bestaetigt { kurz };
+    }
+    let voll = messen(Lauf::Voll);
+    let urteil = bestaetigen(Some(erwartet), &voll);
+    Erhebung::NeuErhoben { kurz, voll, urteil }
 }
 
 #[cfg(test)]
