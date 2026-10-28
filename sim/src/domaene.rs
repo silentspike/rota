@@ -49,9 +49,11 @@ use crate::effects::{
 /// Bezüglich **Zaubervielfalt** ist er streng fallend. Ein Zertifikat ohne
 /// Bezugsgröße liest sich wie „unbedenklich" — und hier ist es das Gegenteil.
 ///
-/// Deshalb ist [`Self::domain`] ein Pflichtfeld und kein `Option`: Ein
-/// Zertifikat ohne Bezug lässt sich in dieser Struktur gar nicht erst
-/// hinschreiben.
+/// Deshalb ist [`Self::domain`] ein Pflichtfeld und kein `Option`. Ein
+/// Zertifikat ohne Bezug lässt sich trotzdem hinschreiben —
+/// [`MonotonicityDomain::Unspecified`] —, aber es trägt für keinen Bezug, auch
+/// nicht für die Frage „ohne Bezug“ (bis #892 tat es das, siehe
+/// `ein_zertifikat_ohne_bezug_traegt_auch_nicht_fuer_ohne_bezug`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MonotonieZertifikat {
     /// Die Richtung — steigend, fallend, nachweislich nicht monoton.
@@ -89,6 +91,22 @@ pub enum TraceRegionBezug {
     Keine,
 }
 
+impl TraceRegionBezug {
+    /// Ob eine Region benannt ist.
+    ///
+    /// Ein `match` ohne Auffangzweig statt `!= Keine` (Epic #892): Eine neue
+    /// Region muss hier entscheiden, ob sie eine ist, statt still als benannt
+    /// durchzugehen.
+    #[must_use]
+    pub const fn ist_benannt(self) -> bool {
+        match self {
+            TraceRegionBezug::StabilerTrace
+            | TraceRegionBezug::StueckweiseZwischenSprungstellen => true,
+            TraceRegionBezug::Keine => false,
+        }
+    }
+}
+
 impl MonotonieZertifikat {
     /// Trägt dieses Zertifikat für die gefragte Zielgröße?
     ///
@@ -103,7 +121,9 @@ impl MonotonieZertifikat {
         if self.direction.ist_unbekannt() {
             return Err(ZertifikatVerweigert::KeinHinweis);
         }
-        if self.domain != gefragt {
+        // Ohne Bezug trägt es nicht, auch wenn die Frage ebenfalls keinen nennt —
+        // dieselbe Regel wie in `LocalMonotonicityHint::traegt_fuer`.
+        if self.domain.ist_unbestimmt() || self.domain != gefragt {
             return Err(ZertifikatVerweigert::FalscherBezug {
                 hinweis: self.domain,
                 gefragt,
@@ -112,7 +132,7 @@ impl MonotonieZertifikat {
         if !self.bedarf.vollstaendig() {
             return Err(ZertifikatVerweigert::ZutatenFehlen);
         }
-        if self.trace_region == TraceRegionBezug::Keine {
+        if !self.trace_region.ist_benannt() {
             return Err(ZertifikatVerweigert::ZutatenFehlen);
         }
         Ok(())
