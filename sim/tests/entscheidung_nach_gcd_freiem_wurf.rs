@@ -1,11 +1,25 @@
 //! Entscheidung und Leerlauf nach einem Wurf ohne Wartezeit (Issue #1027).
 //!
 //! Die Sollwerte sind hier **von Hand hergeleitet**, aus der Regel des Spiels
-//! (`driveRotation` in `src/devtools/reference-run.ts`): je Takt eine
-//! Entscheidung, nur bei bereiter globaler Wartezeit, und je Takt, in dem dabei
-//! nichts gewählt wird, 10 ms Leerlauf. Dieselben Lagen fährt
-//! `parity_gcd_freier_wurf.rs` gegen die Aufzeichnung des Spiels; dieser Fall
-//! hängt an keiner Datei und zeigt, was die Zahl bedeutet.
+//! (`driveRotation` in `src/devtools/reference-run.ts`) und dem
+//! Entscheidungsmodell, das der Orchestrator am 2026-10-28 an #1027 festgelegt
+//! hat:
+//!
+//! | | |
+//! | --- | --- |
+//! | (a) | nach einem Wurf entscheidet die Liste beim **selben** Zeitstempel erneut, solange sie etwas wählt |
+//! | (b) | ein Zauber ohne Wartezeit kommt auch **während** einer laufenden zum Zug |
+//! | (c) | ein Nullzeit-Budget begrenzt die Würfe je Zeitstempel |
+//!
+//! Je Takt, in dem die Wartezeit bereit war und nichts gewirkt wurde, 10 ms
+//! Leerlauf. Dieselben Lagen fährt `parity_gcd_freier_wurf.rs` gegen die
+//! Aufzeichnung des Spiels; dieser Fall hängt an keiner Datei und zeigt, was die
+//! Zahl bedeutet.
+//!
+//! **Das Spiel selbst konnte beides schon immer** (`Session.tick` arbeitet alle
+//! Drücke eines Takts ab, QUENCH wird von keiner Wartezeit gesperrt); nur die
+//! Schleife und der Simulator konnten es nicht. Bis zu dieser Festlegung
+//! entschieden beide nach QUENCH einen Takt später und nie während eines GCD.
 //!
 //! # Was bis #1027 geschah
 //!
@@ -49,12 +63,14 @@ fn wuerfe(fight: &Fight, id: &str) -> Vec<u32> {
         .collect()
 }
 
-/// QUENCH bei 0 löst keine Wartezeit aus; im nächsten Takt ist der Füller dran.
+/// QUENCH bei 0 löst keine Wartezeit aus; (a) der Füller folgt beim selben
+/// Zeitstempel.
 ///
-/// **Nicht im selben Takt:** Die Schleife des Spiels entscheidet je Takt einmal.
-/// Ein Füller bei 0 wäre eine Regel, die dort niemand fährt.
+/// Bis zur Festlegung vom 2026-10-28 stand hier 10 — „im nächsten Takt", weil
+/// die Schleife je Takt einmal entschied. Ein Spieler kann im selben Takt
+/// nachdrücken, und so entscheidet jetzt auch die Liste.
 #[test]
-fn nach_quench_wirft_die_liste_den_fueller_einen_takt_spaeter() {
+fn nach_quench_wirft_die_liste_den_fueller_beim_selben_zeitstempel() {
     let (fight, _) = lauf("quench\nkindle\n");
     assert_eq!(
         wuerfe(&fight, "quench").first(),
@@ -63,16 +79,16 @@ fn nach_quench_wirft_die_liste_den_fueller_einen_takt_spaeter() {
     );
     assert_eq!(
         wuerfe(&fight, "kindle").first(),
-        Some(&10),
-        "der Füller kommt nicht einen Takt nach QUENCH"
+        Some(&0),
+        "der Füller kommt nicht beim selben Zeitstempel wie QUENCH"
     );
 }
 
 /// SUBLIME bei 0 (mit Wartezeit bis 1500) befreit KINDLE bei 1500. Danach ist die
 /// Wartezeit bereit, KINDLE abgeklungen erst bei 3000 — SMOULDER, nie gelegt,
-/// ist bei 1510 dran.
+/// ist (a) noch bei 1500 dran. Bis zur Festlegung vom 2026-10-28: 1510.
 #[test]
-fn nach_dem_befreiten_wurf_entscheidet_die_liste_einen_takt_spaeter() {
+fn nach_dem_befreiten_wurf_entscheidet_die_liste_beim_selben_zeitstempel() {
     let (fight, _) = lauf("sublime\nkindle\nsmoulder if dot.smoulder.remains <= 1500\n");
     assert_eq!(
         wuerfe(&fight, "kindle").first(),
@@ -81,8 +97,8 @@ fn nach_dem_befreiten_wurf_entscheidet_die_liste_einen_takt_spaeter() {
     );
     assert_eq!(
         wuerfe(&fight, "smoulder").first(),
-        Some(&1510),
-        "nach dem befreiten Wurf entscheidet die Liste nicht im nächsten Takt"
+        Some(&1500),
+        "nach dem befreiten Wurf entscheidet die Liste nicht beim selben Zeitstempel"
     );
 }
 
@@ -121,4 +137,55 @@ fn leerlauf_nach_einem_wurf_ohne_wartezeit_zaehlt_mit() {
         ergebnis.idle_ms, 29_940,
         "Leerlauf: 2994 leere Takte zu 10 ms"
     );
+}
+
+/// (b) QUENCH steht UNTER dem Füller. KINDLE ist an jedem GCD-Ende bereit, also
+/// kam QUENCH bis zur Festlegung vom 2026-10-28 **nie** zum Zug. Jetzt: nach
+/// KINDLE bei 0 im selben Takt, danach am Ende jeder Abklingzeit — bei 5000
+/// mitten im GCD des KINDLE von 4500.
+#[test]
+fn quench_unter_dem_fueller_kommt_waehrend_der_wartezeit() {
+    let (fight, ergebnis) = lauf("kindle\nquench\n");
+    assert_eq!(
+        wuerfe(&fight, "quench"),
+        vec![0, 5000, 10_000, 15_000, 20_000, 25_000],
+        "QUENCH-Würfe"
+    );
+    assert_eq!(
+        ergebnis.casts[index_of("kindle").expect("kindle")],
+        20,
+        "KINDLE-Würfe: QUENCH darf keinen GCD verdrängen"
+    );
+    assert_eq!(
+        ergebnis.idle_ms, 0,
+        "kein Takt mit bereiter Wartezeit bleibt leer"
+    );
+}
+
+/// (b) Eine Bedingung, die mitten im GCD wahr wird, greift an ihrem Takt —
+/// dafür braucht der Simulator einen Weckruf **innerhalb** der Wartezeit, nicht
+/// erst an ihrem Ende (1500).
+#[test]
+fn eine_bedingung_mitten_im_gcd_greift_an_ihrem_takt() {
+    let (fight, ergebnis) = lauf("kindle\nquench if time >= 700\n");
+    assert_eq!(
+        wuerfe(&fight, "quench").first(),
+        Some(&700),
+        "QUENCH nicht bei 700, im GCD des KINDLE von 0"
+    );
+    assert_eq!(ergebnis.idle_ms, 0, "Leerlauf");
+}
+
+/// Leerlauf: Der Takt mit QUENCH ist nicht leer, die danach schon — QUENCH bei
+/// 0 und 5000, KINDLE ab 5000: leer sind die Takte 10 bis 4990.
+#[test]
+fn nach_quench_beginnt_der_leerlauf_im_naechsten_takt() {
+    let (fight, ergebnis) = lauf("quench\nkindle if time >= 5000\n");
+    assert_eq!(wuerfe(&fight, "quench")[..2], [0, 5000], "QUENCH-Würfe");
+    assert_eq!(
+        wuerfe(&fight, "kindle").first(),
+        Some(&5000),
+        "KINDLE nicht beim selben Zeitstempel wie QUENCH bei 5000"
+    );
+    assert_eq!(ergebnis.idle_ms, 4990, "Leerlauf: 499 leere Takte zu 10 ms");
 }
