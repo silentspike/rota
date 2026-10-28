@@ -647,6 +647,11 @@ def script_load(name, language, ctx, depth, missing_is_quiet=False):
     kinds = program_load(name, ctx)
     if kinds:
         return kinds
+    if DYNAMIC in name:
+        # `bash "$DIR/x.sh"`: which script runs is decided at run time. The
+        # placeholder reached open() before and raised ValueError (6 of
+        # 33,268 corpus calls).
+        raise ShellError('script path is only known at run time')
     path = ctx.path(name)
     body = ctx.written.get(path)
     if body is None:
