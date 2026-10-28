@@ -35,6 +35,7 @@
 //! müssten ihn ständig abgleichen und wären langsamer als einer. Zwei Kerne, die
 //! **verschiedene** Durchgänge rechnen, teilen dagegen nichts.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Instant;
 
@@ -740,6 +741,19 @@ pub fn run_vollstaendig(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
     run_with_control(config, apl, false, None)
 }
 
+/// Wie viele Stränge [`run`] und seine Geschwister je gestartet haben.
+static STRAENGE_GESTARTET: AtomicUsize = AtomicUsize::new(0);
+
+/// Wie viele Stränge die parallelen Läufe dieses Prozesses bisher gestartet
+/// haben (#912).
+///
+/// Eine Diagnosegröße: Sie wächst mit jedem Strang, der für einen
+/// parallelen Abschnitt neu entsteht.
+#[must_use]
+pub fn straenge_gestartet() -> usize {
+    STRAENGE_GESTARTET.load(Ordering::Relaxed)
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
@@ -859,6 +873,7 @@ fn run_with_control(
                 .enumerate()
                 .map(|(nummer, &(offset, len))| {
                     let arbeiter = leitstrang.as_ref().map(|s| s.arbeiter(nummer));
+                    STRAENGE_GESTARTET.fetch_add(1, Ordering::Relaxed);
                     scope.spawn(move || {
                         let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
                         if kampfzaehler {
