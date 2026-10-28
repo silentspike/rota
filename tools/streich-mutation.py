@@ -20,6 +20,25 @@ VIER AUSGÄNGE, die auseinandergehalten werden müssen:
 
 BAU ist kein Nachweis der Wertdeckung. Auch GRUEN beantwortet die Deckungsfrage
 erst mit einer wirksamen Gegenrichtung; siehe die beiden Modi weiter unten.
+Mit `--delta` kommt GRUEN? dazu: grün, aber keine Entscheidung genau auf dem
+Wert belegt — ohne Aussage (AC7 #1087, `--entscheidung`).
+
+EXIT-CODES, damit „nicht gemessen" nie wie ein Befund aussieht:
+  0   Durchgang beendet, kein Feld FEHLER oder ABBRUCH
+  1   mindestens ein Feld FEHLER (Suite unvollständig, Daten im Lauf verändert),
+      oder ein Abbruch mit Ausnahme (Zeitüberschreitung, Rückbau abweichend)
+  2   NICHT GESTARTET oder NICHT GELAUFEN: unzulässiger Schritt, unbekanntes
+      Feld, verunreinigter Datensatz, unlesbare Zeitregel; oder der Bau-Dienst
+      lehnte ab bzw. die Übertragung brach (75, 70, 74, 130, 2, 12, 23, 255)
+  3   die Nullprobe oder eine Vorprobe lieferte nicht ihren Ausgang
+  143 SIGTERM; die Kindgruppen sind beendet, der Datensatz zurückgestellt
+
+DREI VORPROBEN (#1055, `--vorproben`; der Volllauf fährt sie): die Nullprobe
+ohne Mutation (GRÜN), die BAU-Vorprobe (Pflichtfeld `id` gestrichen, muss mit
+build.rs-Panic als BAU erkannt werden — genau dort, wo die alte Textregel
+nichts fand) und die ROT-Vorprobe (`baseDamage` +1, muss Rust- UND TS-Namen
+färben). Ohne sie ist eine leere BAU-Spalte nicht deutbar: „kein Feld bricht
+den Bau" und „die Erkennung greift nicht" sähen gleich aus.
 
 Die Grundwerte `baseDamage`, `castTimeMs`, `cooldownMs`, `triggersGcd` stehen in
 den Zaubern und sind Stammdaten, keine Wirkfelder — sie bleiben draußen.
@@ -42,7 +61,11 @@ beim ersten Lesen niemand gesehen hat:
                         bricht der Bau?    AUFRUFE   Feldnamen
     uint() unbewacht    ja                      62          40
     uint() BEWACHT      nein                     1           1
-    opt_uint()          nein                    12          11
+    opt_uint()          nein                    11          11
+
+Gezählt am 2026-10-28 an cf720d73, nur Code, ohne Definitionen und
+Kommentare. Die erste Fassung nannte für `opt_uint()` 12 Aufrufe; an ihrem
+eigenen Stand (20336f30) waren es nach derselben Zählung 11.
 
 Die Einheit steht in der Überschrift, nicht in der Zelle — der erste Entwurf
 zählte in den ersten zwei Zeilen Aufrufe und in der dritten Feldnamen. Wer ihn
@@ -52,13 +75,19 @@ Klasse, die dieser Dateikopf beschreibt, in ihm selbst.**
 **Jede dieser Zahlen braucht ihre Definition daneben**, sonst widersprechen
 sie einander morgen. Für `uint()` gibt es vier richtige Antworten:
 
-    65   Regex-Treffer auf `uint(`                      einschl. der Definition
+    66   Treffer auf `uint(` an einer Wortgrenze        einschl. der Definition
+                                                        und einer Kommentarzeile
     64   echte Aufrufe                                  ohne `fn uint(…)`
     63   Aufrufe mit LITERALEM Feldnamen                <- die brauchbare Zahl
     41   verschiedene Feldnamen                         Aufrufe mehrfach gezählt
 
+Die 66 war am 2026-08-22 noch 65: #1104 schrieb in `emit_putrefaction` einen
+Kommentar mit „`uint()` waere falsch". Die Aufrufe blieben, die Regex-Zahl
+wanderte — der Grund, warum die brauchbare Zahl die der Aufrufe ist.
+
 Die 63 ist die brauchbare, weil nur ein literaler Feldname sich einem
-Tabellenfeld zuordnen lässt. Der eine Ausreißer steht in `build.rs:2168`:
+Tabellenfeld zuordnen lässt. Der eine Ausreißer steht in `emit_fixation`
+(sim/build.rs):
 
     let amount = uint(node, feld, &whose);
 
@@ -83,7 +112,7 @@ sondern „unzulässiger Wert".
 Wer `--delta` mit einem negativen Wert über die Tabelle laufen lässt, muss
 damit rechnen. Bei einem Feld mit Wert 1 genügt `--delta -1`.
 
-Das eine bewachte steht in `build.rs:820`:
+Das eine bewachte steht in `emit_dot` (sim/build.rs):
 
     let decay_per_tick = if dot.get("decayPerTick").is_some() {
         uint(dot, "decayPerTick", &whose)
@@ -124,42 +153,41 @@ gedeckt", sondern schaltet auf einen anderen Fall um, und bei `1 + 1 = 2` womög
 auf gar keinen. Wer die Tabelle über alle Zahlenfelder laufen lässt, muss diese
 Unterklasse getrennt lesen.
 
-**Und die EINHEIT entscheidet, ob `+1` überhaupt etwas bewirken kann:**
+**Und die EINHEIT entschied, ob `+1` überhaupt etwas bewirken kann** — so
+stand es hier bis #1104, und die Tabelle bleibt als Herkunft:
 
     Aufzählung      `+1` wechselt den FALL             buff.kind [0,1]
-    feine Größe     `+1` kann im Raster verschwinden   extendShieldMs (ms)
+    feine Größe     `+1` konnte im Raster verschwinden extendShieldMs (ms)
     grobe Größe     `+1` wirkt immer                   dotExtendTicks (Ticks)
 
-Gemessen an `extendShieldMs` (Wert 12000): `combat.ts` addiert dort ohne
-`snapUp` und vergleicht gegen `seitBeginn`, das nur Vielfache von `TICK_MS`
-(10) annimmt. 12000 und 12001 laufen **beide erst bei 12010** ab — die
-Änderung verschwindet. Bei `dotExtendTicks` dagegen verschiebt ein Tick um
-1000 oder 2000 ms, also um 100 bis 200 Takte.
+Am 2026-08-22 an `extendShieldMs` (Wert 12000): Die Mutation 12000 → 12001
+blieb grün, kein Fall färbte (gemessen). Warum, steht in `combat.ts` (gelesen,
+kein Lauf — so auch #1104): Es addiert dort ohne `snapUp` und vergleicht gegen
+`seitBeginn`, das nur Vielfache von `TICK_MS` (10) annimmt; 12000 und 12001
+laufen damit **beide erst bei 12010** ab. `extendShieldMs` und `extendDecayMs`
+waren damals die einzigen `Ms`-Felder ohne Rasterprüfung, in beiden Sprachen.
 
-**Dass `extendShieldMs` diese Klasse überhaupt vorführen kann, ist ein
-Sonderfall — und der Grund dafür ist ein Befund über den Bestand.** Fast alle
-`Ms`-Felder brechen bei einem Schritt neben dem Raster den Bau, bevor
-irgendetwas läuft: `build.rs` erzwingt `is_multiple_of(RASTER_MS)` an **20**
-Stellen (`atMs`, `perStepMs`, `castTimeMs`, `windowMs`, `overMs`,
-`tickIntervalMs`, `amountMs`, fünf `durationMs` und weitere).
+**SEIT #1104 GIBT ES DIESE MITTLERE ZEILE NICHT MEHR.** a821ceed zog die zwei
+Felder aufs Raster (sim/build.rs, src/core/data.ts), d19d7d7e machte daraus
+eine Regel für ALLE: `time_fields::validate` (sim/time_fields.rs, in build.rs
+für jede Zauberdatei vor dem Übersetzen aufgerufen) und `validateSpellTimes`
+(src/core/data.ts) verlangen jedes `…Ms`-Feld auf dem Takt, außer den
+ausdrücklich benannten Vergleichsschwellen — heute genau
+`cooldownReductionBelowMs`. Von den 16 `Ms`-Feldern der Zauberdaten bricht
+damit laut dieser Regel an 15 ein Schritt neben dem Takt den Bau (aus der
+Regel gelesen, nicht an 15 Bauten gemessen). Ein solcher Schritt startet hier
+gar nicht erst (`schritt_unzulaessig`, Exit 2): Er misst den Bau, nicht die
+Deckung. Der kleinste zulässige Schritt an einem Rasterfeld ist ±10.
 
-`extendShieldMs` und `extendDecayMs` gehören zu keiner davon — in **keiner**
-der beiden Sprachen:
+Die Schwelle bleibt der eine Ort, an dem `+1` zulässig ist und trotzdem
+verschwinden kann: `shortenCooldowns` (combat.ts) vergleicht
+`readyAt - timeMs >= grenze`. Ein Schritt von `g` auf `g+1` ändert dort nur
+etwas, wenn eine Restzeit genau `g` beträgt — die Frage nach der Entscheidung
+auf dem Wert.
 
-    sim/build.rs:1862   spell.get("extendShieldMs")
-                            .and_then(Value::as_u64).unwrap_or(0)
-                        kein uint(), kein assert!, keine Rasterprüfung —
-                        und bei fehlender Angabe still 0
-
-    src/core/data.ts:1741   wert <= 0            -> Meldung
-                            !Number.isInteger    -> Meldung
-                            sonst nichts
-
-Ein `extendShieldMs` von 12001 kommt heute durch Bau und Prüfung und **wirkt
-als 12010**. Ob das Absicht ist, steht in keinem Kommentar an den beiden
-Lesestellen; an den 20 anderen hat jemand entschieden, dass es ein Fehler ist.
-Das ist eine Design-Frage und wurde als solche gemeldet, nicht hier
-entschieden.
+Die Regel liest dieses Werkzeug nicht selbst, sondern über `policy()` in
+tools/spell-time-audit.py (`zeitregel()`); weichen TS- und Rust-Seite
+voneinander ab, startet nichts.
 
 **WAS SICH DARAUS NICHT ABLEITEN LÄSST: eine automatische Einteilung.** Ein
 Versuch, die 45 Zahlenfelder nach ihren Werten zu sortieren („höchstens zwei
@@ -170,6 +198,11 @@ Aufzählung. Der Unterschied steht in der Verwendung, nicht in der
 Werteverteilung, und wer nach Werten sortiert, misst das Leichte statt des
 Nötigen.
 
+`feldart()` ist deshalb KEINE solche Einteilung. Sie nennt, was der Bau an
+einem Feld erzwingt (raster, schwelle) und welche Zahlen es trägt (ganzzahl,
+bruchzahl, keine-zahl) — und entscheidet damit nur, welcher Schritt zulässig
+ist. Ob eine ganze Zahl eine Menge oder eine Aufzählung ist, sagt sie nicht.
+
 **Der Prüfschritt statt der Einteilung**, und er gilt je Feld:
 
 > Liegt eine Entscheidung GENAU auf dem Wert? Bei `decayWard.durationMs`
@@ -177,16 +210,19 @@ Nötigen.
 > entscheidet dort. Bei `extendShieldMs` nein. Wenn nein, ist `+1`
 > wahrscheinlich wirkungslos, und ein `GRÜN` heißt nichts.
 
-Sechzehn der 45 Zahlenfelder tragen die Endung `Ms`. Für sie ist diese Frage
-Pflicht, bevor ein `GRÜN` als „ungedeckt" in die Tabelle geht.
+Sechzehn der 45 Zahlenfelder tragen die Endung `Ms`. Gestellt wird die Frage
+seit #1087 AC7 bei JEDEM `--delta`-Lauf, vor dem Lauf, im Protokoll:
+`--entscheidung FELD=ja:FUNDSTELLE` (oder `nein`) beantwortet sie, und nur mit
+„ja" geht ein `GRÜN` als „ungedeckt" in die Tabelle. Ohne Antwort heißt es
+`GRUEN?`.
 
 **Nicht die GRÖSSE der Änderung entscheidet, sondern ob sie eine Grenze
 überschreitet.** Der Beleg steht in `decayWard.durationMs` (Wert 6000) und
-seinem Prüffall `tests/unit/putrefaction-fenster.test.ts:182` — „der Schlag bei
-12000 ms liegt gerade noch darin". Die Logik dazu:
+seinem Prüffall in `tests/unit/putrefaction-fenster.test.ts`, „der Schlag bei
+12000 ms liegt gerade noch darin". Die Logik dazu, in `combat.ts`:
 
-    combat.ts:2485   decayWardUntilMs = seitBeginn + durationMs
-    combat.ts:3412   seitBeginnFuerDecay <= decayWardUntilMs
+    gesetzt      decayWardUntilMs = seitBeginn + decayWard.durationMs
+    verglichen   seitBeginnFuerDecay <= this.decayWardUntilMs
 
 Daraus folgt, ohne einen Lauf:
 
@@ -207,9 +243,12 @@ erst hinterher zur Erklärung wird, ist keine Prüfung.
 
     decay: 6000->6001     BAU     Build bricht ab     0,6 min
 
-    sim/build.rs:1994, im Wortlaut aus der Bauausgabe:
+    damals sim/build.rs, im Wortlaut aus der Bauausgabe:
     calcination.json/spells[decay]/decayWard: durationMs 6001 liegt nicht
     auf dem 10-ms-Raster
+    (der Dateiname darin war falsch, `decay` steht in putrefaction.json —
+    siehe #1104; heute lehnt `time_fields::validate` den Wert vor jeder
+    Übersetzung ab, und ein solcher Lauf startet hier gar nicht mehr)
 
 Die Rechnung oben ist richtig und **kommt nie zur Anwendung** — der Wert
 erreicht den Simulator gar nicht. `build.rs` erzwingt das Raster mit
@@ -225,8 +264,9 @@ Feld, zwei gleich große Änderungen, entgegengesetzte Ausgänge:
 
 Damit hat `--delta` bei gerasterten `Ms`-Feldern eine eigene Vorbedingung, die
 in keiner der drei Einheiten-Klassen steht: **Ist der Schritt selbst
-zulässig?** Ein Schritt neben dem Raster erzeugt `BAU` — und `BAU` sagt nichts
-über die Deckung des Wertes, nur über die Zulässigkeit der Mutation.
+zulässig?** Ein Schritt neben dem Raster erzeugte `BAU` — und `BAU` sagt nichts
+über die Deckung des Wertes, nur über die Zulässigkeit der Mutation. Seit
+#1087 prüft das `schritt_unzulaessig` vor dem Lauf.
 
 **`+10` gefahren, und das Ergebnis ist der Fall, vor dem dieser Modus warnt:**
 
@@ -237,17 +277,20 @@ Das Feld ist **nicht** ungedeckt. Der Prüffall steht direkt darauf — er sieht
 nur diese Richtung nicht: 12000 <= 12010 lässt den Schlag weiter hinein.
 `--delta -10` färbt dieselbe Zeile.
 
-**Daraus folgen VIER Ausgänge, von denen zwei gleich aussehen:**
+**Daraus folgten VIER Ausgänge, von denen zwei gleich aussahen:**
 
     BAU     die Änderung ist unzulässig     gerastertes Feld, ±1
     GRÜN    die Änderung ist wirkungslos    decayWard.durationMs, +10
     GRÜN    das Feld ist ungedeckt          der gesuchte Fall
     ROT     das Feld ist gedeckt
 
-Die beiden `GRÜN` trennt kein Lauf, sondern nur die **Gegenrichtung**: Wird
-dasselbe Feld in die andere Richtung rot, war das `GRÜN` Wirkungslosigkeit.
-Bleibt es auch dort grün, ist der Wert wirklich ungedeckt. Ein einzelner
-`--delta`-Lauf kann „ungedeckt" nicht belegen — er kann es nur behaupten.
+Heute startet die erste Zeile nicht mehr (Exit 2), und die beiden `GRÜN` sind
+im Bericht getrennt: `GRUEN` nur mit belegter Entscheidung auf dem Wert,
+sonst `GRUEN?` unter OHNE AUSSAGE. Endgültig trennt sie trotzdem erst die
+**Gegenrichtung**: Wird dasselbe Feld in die andere Richtung rot, war das
+`GRÜN` Wirkungslosigkeit. Bleibt es auch dort grün, ist der Wert wirklich
+ungedeckt. Ein einzelner `--delta`-Lauf kann „ungedeckt" nicht belegen — er
+kann es nur behaupten.
 
 **`build.rs` wird NICHT angefasst.** Man könnte `uint()` durch `opt_uint(…, 0)`
 ersetzen, dann bräche der Bau nicht mehr. Das tauschte eine härtere Zusicherung
@@ -262,7 +305,10 @@ einen anderen Typ verwandelt hat. Das Ergebnis wäre ein `BAU` in der Tabelle,
 das genau die Verwechslung wiederholt, gegen die dieser Modus gebaut ist.
 
 Gezeigt hat es `build.rs`, nicht die Gegenprobe. Der Typ-Erhalt ist damit eine
-**Bedingung dafür, dass die Messung überhaupt misst** — keine Politur.
+**Bedingung dafür, dass die Messung überhaupt misst** — keine Politur. Er
+greift bei JEDEM Lauf, denn `--delta` liest der Aufruf als Gleitkommazahl.
+Ein Schritt mit Nachkommastellen an einem Ganzzahlfeld startet seit #1087
+gar nicht erst (Exit 2).
 
 ═══════════════════════════════════════════════════════════════════════════════
  WAS EIN ALTES "gedeckt" BEI EINEM PFLICHTFELD HEISST
@@ -415,7 +461,7 @@ def aufloesung(art, takt):
     if art == "schwelle":
         # src/core/combat.ts, shortenCooldowns: `readyAt - timeMs >= grenze` —
         # ein Schritt unter dem Takt wirkt nur, wenn eine Restzeit genau darauf fällt.
-        return f"Vergleichsschwelle gegen Restzeiten auf dem {takt}-ms-Takt"
+        return f"Vergleichsschwelle readyAt - timeMs >= Wert, Takt {takt} ms"
     return None
 
 
