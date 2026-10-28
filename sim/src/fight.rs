@@ -5789,3 +5789,257 @@ pub fn vessel_with_gear(base: u32, worn_permille: u32) -> u32 {
     }
     u32::try_from(u64::from(base) * (1000 + u64::from(worn_permille)) / 1000).unwrap_or(u32::MAX)
 }
+
+/// Der Zustand der Schluesseltalente steht in der Pruefsumme (#419, #418 AC5).
+///
+/// Spiegelbild von `tests/unit/schluesseltalent-pruefsumme.test.ts`.
+///
+/// **Hier und nicht unter `tests/`**, weil die Stoerung ein privates Feld
+/// verstellt. Von aussen ist es nicht erreichbar, und ein Zugang nur fuer den
+/// Test waere ein Eingriff in die Schnittstelle.
+///
+/// # Wie gemessen wird
+///
+/// An EINEM Zustand mit EINER gezielten Stoerung: zwei gleiche Kaempfe, in
+/// einem ist genau ein Feld verstellt. Zwei Laeufe mit verschiedenen Eingaben
+/// verschoeben die Summe auch dann, wenn das Feld gar nicht eingeht.
+///
+/// **Zu jeder Stoerung die positive Kontrolle:** Der verstellte Kampf rechnet
+/// danach messbar anders. Ohne sie bewiese eine gleiche Pruefsumme nur, dass
+/// das Feld bedeutungslos ist — und dann gehoerte es auch nicht hinein.
+#[cfg(test)]
+mod schluesseltalent_pruefsumme {
+    use super::*;
+    use crate::checksum::record_fields;
+    use crate::data::{boss_by_id, index_of};
+    use crate::replay::{Binding, Press};
+
+    /// Ein Zauber bei Takt 0, dann warten bis `ticks - 1`.
+    fn lauf(
+        boss_id: &str,
+        zauber: &str,
+        ticks: u32,
+        talente: impl FnOnce(&mut FightConfig),
+    ) -> Fight {
+        let mut config = FightConfig {
+            boss: boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} fehlt")),
+            duration_ms: Some(ticks * TICK_MS),
+            ..FightConfig::default()
+        };
+        talente(&mut config);
+        let mut fight = Fight::new(config);
+        let recording = Recording {
+            name: "schluesseltalent-pruefsumme".to_owned(),
+            seed: 0,
+            ticks,
+            bindings: vec![Binding {
+                slot: 0,
+                spell: index_of(zauber).unwrap_or_else(|| panic!("{zauber} fehlt")),
+            }],
+            presses: vec![Press { tick: 0, slot: 0 }],
+        };
+        let _ = fight.replay(&recording, false);
+        fight
+    }
+
+    /// Dieselben Promille wie die spielbare Verteilung im Spiel-Fall:
+    /// `putrefaction-trunk 1`, `putrefaction-duration 1`, `putrefaction-keystone 1`.
+    fn nachlauf(c: &mut FightConfig) {
+        c.talent_permille = 20;
+        c.talent_decay_ward_permille = 120;
+        c.decay_echo = true;
+    }
+
+    /// `coagulation-trunk 1`, `coagulation-thicker 1`, `coagulation-keystone 1`.
+    fn nachlage(c: &mut FightConfig) {
+        c.talent_permille = 20;
+        c.talent_shield_amount_permille = 100;
+        c.shield_refund = true;
+    }
+
+    /// ROT bei 0 ms; bei 6000 ms ist der Brand aus und der Nachlauf laeuft.
+    fn nachlauf_kampf(talente: impl FnOnce(&mut FightConfig)) -> (Fight, usize) {
+        (
+            lauf("first-crucible", "rot", 601, talente),
+            index_of("rot").expect("rot fehlt"),
+        )
+    }
+
+    /// CRUST bei 0 ms gegen `test-onslaught`; bei 1000 ms liegt die Schicht,
+    /// der erste Schlag faellt erst bei 5000 ms.
+    fn nachlage_kampf(talente: impl FnOnce(&mut FightConfig)) -> Fight {
+        lauf("test-onslaught", "crust", 101, talente)
+    }
+
+    #[test]
+    fn die_messung_trifft_einen_laufenden_nachlauf() {
+        let (fight, rot) = nachlauf_kampf(nachlauf);
+        assert_eq!(fight.time, 6000, "der Lauf endet nicht bei 6000 ms");
+        assert!(!fight.dot_active(rot), "ROT brennt noch");
+        assert!(
+            fight.decay_count > 0,
+            "ohne Stapel gaebe es nichts nachzuhalten"
+        );
+        assert!(
+            fight.decay_echo_until[rot] > 6000,
+            "kein Nachlauf vorgemerkt"
+        );
+    }
+
+    #[test]
+    fn ein_verstellter_endpunkt_aendert_die_pruefsumme() {
+        let (mut echt, rot) = nachlauf_kampf(nachlauf);
+        let (mut verstellt, _) = nachlauf_kampf(nachlauf);
+        // Der Nachlauf endet damit bei 7000 statt bei 16 000 ms.
+        verstellt.decay_echo_until[rot] = 7000;
+
+        assert_ne!(
+            verstellt.checksum_at(6000),
+            echt.checksum_at(6000),
+            "zwei Kaempfe mit verschiedenem Nachlauf ergeben dieselbe Pruefsumme — \
+             decay_echo_until geht nicht in checksum_at ein"
+        );
+
+        // Die positive Kontrolle: Bei 8000 ms laeuft nur der echte noch nach.
+        echt.time = 8000;
+        verstellt.time = 8000;
+        assert!(
+            echt.im_decay_echo(rot),
+            "der echte Nachlauf ist schon vorbei"
+        );
+        assert!(
+            !verstellt.im_decay_echo(rot),
+            "der verstellte Endpunkt wirkt nicht"
+        );
+    }
+
+    #[test]
+    fn die_messung_trifft_eine_liegende_unverbrauchte_schicht() {
+        let fight = nachlage_kampf(nachlage);
+        assert!(fight.shield > 0, "CRUST legt keine Schicht");
+        assert!(
+            !fight.shield_refund_used,
+            "die Nachlage ist schon verbraucht"
+        );
+        assert_eq!(
+            fight.shield_last_amount, fight.shield,
+            "die Dicke ist nicht gemerkt"
+        );
+    }
+
+    #[test]
+    fn ein_verbrauchter_merker_aendert_die_pruefsumme() {
+        let mut echt = nachlage_kampf(nachlage);
+        let mut verstellt = nachlage_kampf(nachlage);
+        verstellt.shield_refund_used = true;
+
+        assert_ne!(
+            verstellt.checksum_at(1000),
+            echt.checksum_at(1000),
+            "zwei Kaempfe, einer mit verbrauchter Nachlage, ergeben dieselbe \
+             Pruefsumme — shield_refund_used geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Nach dem Bruch legt nur der echte nach.
+        echt.hit_player(2000);
+        verstellt.hit_player(2000);
+        assert!(
+            echt.shield > 0,
+            "der Schlag hat die Schicht nicht gebrochen"
+        );
+        assert_eq!(
+            verstellt.shield, 0,
+            "der verbrauchte Merker legt trotzdem nach"
+        );
+    }
+
+    #[test]
+    fn eine_verstellte_dicke_aendert_die_pruefsumme() {
+        let mut echt = nachlage_kampf(nachlage);
+        let mut verstellt = nachlage_kampf(nachlage);
+        verstellt.shield_last_amount = 400;
+
+        assert_ne!(
+            verstellt.checksum_at(1000),
+            echt.checksum_at(1000),
+            "zwei Kaempfe mit verschiedener Nachlage-Grundlage ergeben dieselbe \
+             Pruefsumme — shield_last_amount geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Die Nachlage ist die Haelfte dessen, was gemerkt war.
+        echt.hit_player(2000);
+        verstellt.hit_player(2000);
+        assert_eq!(verstellt.shield, 200);
+        assert_ne!(echt.shield, verstellt.shield);
+    }
+
+    #[test]
+    fn die_neuen_felder_tragen_ihre_namen_angehaengt() {
+        // **Am Ende, nicht dazwischen** (#96) — und mit WOERTLICH denselben
+        // Namen wie im Spiel; der Gleichlauf-Waechter vergleicht sie.
+        let ohne = Fight::new(FightConfig::default());
+        let beide = Fight::new(FightConfig {
+            decay_echo: true,
+            shield_refund: true,
+            ..FightConfig::default()
+        });
+        let folge_ohne: Vec<&str> = record_fields(|| {
+            let _ = ohne.checksum_at(0);
+        })
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+        let folge_mit: Vec<&str> = record_fields(|| {
+            let _ = beide.checksum_at(0);
+        })
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+
+        assert_eq!(
+            &folge_mit[..folge_ohne.len().min(folge_mit.len())],
+            &folge_ohne[..]
+        );
+        let mut angehaengt = vec!["decayEchoUntil"; SPELL_COUNT];
+        angehaengt.extend(["shieldRefundUsed", "shieldLastAmount"]);
+        assert_eq!(
+            &folge_mit[folge_ohne.len().min(folge_mit.len())..],
+            &angehaengt[..]
+        );
+    }
+
+    #[test]
+    fn ohne_talent_gehen_die_felder_nicht_ein_und_bewirken_nichts() {
+        // **Der Grund, warum nur mit Talent gemischt wird.** Ohne Talent
+        // schreibt `merke_decay_echo` den Endpunkt trotzdem, und das Legen
+        // einer Schicht merkt sich ihre Dicke — gelesen wird beides nie. Ginge
+        // es ein, aenderte sich die Pruefsumme jedes Kampfes mit ROT oder CRUST.
+        let (echt, rot) = nachlauf_kampf(|_| {});
+        let (mut verstellt, _) = nachlauf_kampf(|_| {});
+        assert!(
+            echt.decay_echo_until[rot] > 0,
+            "der Endpunkt wird ohne Talent nicht geschrieben"
+        );
+        verstellt.decay_echo_until[rot] = 7000;
+        assert_eq!(verstellt.checksum_at(6000), echt.checksum_at(6000));
+        verstellt.time = 8000;
+        assert!(
+            !verstellt.im_decay_echo(rot),
+            "ohne Talent laeuft nichts nach"
+        );
+
+        let mut echt = nachlage_kampf(|_| {});
+        let mut verstellt = nachlage_kampf(|_| {});
+        verstellt.shield_refund_used = true;
+        verstellt.shield_last_amount = 400;
+        assert_eq!(verstellt.checksum_at(1000), echt.checksum_at(1000));
+        echt.hit_player(2000);
+        verstellt.hit_player(2000);
+        assert_eq!(
+            echt.shield, 0,
+            "ohne Talent darf nach dem Bruch nichts nachkommen"
+        );
+        assert_eq!(verstellt.shield, 0);
+        assert_eq!(verstellt.checksum_at(1000), echt.checksum_at(1000));
+    }
+}
