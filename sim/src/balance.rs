@@ -747,8 +747,9 @@ static STRAENGE_GESTARTET: AtomicUsize = AtomicUsize::new(0);
 /// Wie viele Stränge die parallelen Läufe dieses Prozesses bisher gestartet
 /// haben (#912).
 ///
-/// Eine Diagnosegröße: Sie wächst mit jedem Strang, der für einen
-/// parallelen Abschnitt neu entsteht.
+/// Eine Diagnosegröße: Sie wächst nur, wenn der Vorrat der Helfer zu klein
+/// ist — beim ersten parallelen Lauf um `threads - 1`, danach nicht mehr,
+/// solange niemand gleichzeitig mehr Helfer braucht.
 #[must_use]
 pub fn straenge_gestartet() -> usize {
     STRAENGE_GESTARTET.load(Ordering::Relaxed)
@@ -867,48 +868,30 @@ fn run_with_control(
         // kommen nach dem Ende in den Leitstrang zurück. Der Trace-Hash bleibt
         // einsträngig (siehe `diagnostics::vereinigen`).
         let kampfzaehler = crate::diagnostics::is_enabled();
-        thread::scope(|scope| {
-            let handles: Vec<_> = ranges
-                .iter()
-                .enumerate()
-                .map(|(nummer, &(offset, len))| {
-                    let arbeiter = leitstrang.as_ref().map(|s| s.arbeiter(nummer));
-                    STRAENGE_GESTARTET.fetch_add(1, Ordering::Relaxed);
-                    scope.spawn(move || {
-                        let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
-                        if kampfzaehler {
-                            crate::diagnostics::enable();
-                        }
-                        let beginn = Instant::now();
-                        let cpu_vorher = crate::engpass::strang_cpu_ns();
-                        let teil = run_range(config, apl, offset, len, control);
-                        let cpu = crate::engpass::strang_cpu_ns()
-                            .zip(cpu_vorher)
-                            .map(|(nachher, vorher)| nachher.saturating_sub(vorher));
-                        let ende = Instant::now();
-                        let zaehler = kampfzaehler.then(crate::diagnostics::snapshot);
-                        (teil, (beginn, ende, cpu), zaehler)
-                    })
-                })
-                .collect();
-            let mut all = Vec::with_capacity(iterations as usize);
-            let mut zeiten = Vec::with_capacity(handles.len());
-            for handle in handles {
-                let ((s, c, _), zeit, zaehler) = handle.join().expect("ein Strang ist abgestuerzt");
-                for (i, n) in c.iter().enumerate() {
-                    casts_total[i] += *n;
-                }
-                if let Some(z) = zaehler {
-                    crate::diagnostics::vereinigen(&z);
-                }
-                zeiten.push(zeit);
-                all.extend(s);
+        let teile = parallel_rechnen(
+            config,
+            apl,
+            &ranges,
+            control,
+            leitstrang.as_ref(),
+            kampfzaehler,
+        );
+        let mut all = Vec::with_capacity(iterations as usize);
+        let mut zeiten = Vec::with_capacity(teile.len());
+        for ((s, c, _), zeit, zaehler) in teile {
+            for (i, n) in c.iter().enumerate() {
+                casts_total[i] += *n;
             }
-            if let Some(s) = &leitstrang {
-                abschnitt_eintragen(s, &zeiten, threads);
+            if let Some(z) = zaehler {
+                crate::diagnostics::vereinigen(&z);
             }
-            all
-        })
+            zeiten.push(zeit);
+            all.extend(s);
+        }
+        if let Some(s) = &leitstrang {
+            abschnitt_eintragen(s, &zeiten, threads);
+        }
+        all
     };
 
     // **Der entscheidende Schritt** (GAME-DESIGN 18.4): Erst sortieren, dann
@@ -977,6 +960,334 @@ fn run_with_control(
     // Auswertung angestoßen hat, einmal je Lauf und nicht je Kampf.
     crate::fortschritt::kandidat(weg, u64::from(iterations));
     ergebnis
+}
+
+/// Ein fertig gerechneter Bereich: die Kämpfe mit ihren Cast- und
+/// Würfelzahlen, Beginn und Ende an der Wanduhr mit der CPU-Zeit des Strangs,
+/// und — falls eingeschaltet — die Kampfzähler des Strangs, der ihn rechnete.
+type Teil = (Bereich, Zeitnahme, Option<crate::diagnostics::Counters>);
+
+/// Die Kämpfe eines Bereichs mit ihren Cast- und Würfelzahlen, wie
+/// [`run_range`] sie liefert.
+type Bereich = (Vec<Sample>, [u32; crate::data::SPELL_COUNT], u32);
+
+/// Beginn und Ende eines Bereichs an der Wanduhr und die CPU-Zeit seines
+/// Strangs, falls lesbar (#934).
+type Zeitnahme = (Instant, Instant, Option<u64>);
+
+/// Rechnet die Bereiche eines parallelen Laufs und gibt sie in ihrer
+/// Reihenfolge zurück.
+///
+/// # Der Aufrufer rechnet mit (#912)
+///
+/// Bereich 0 rechnet der Aufrufer selbst; nur die übrigen gehen an Helfer.
+/// Bis zum 28.10. startete jeder Lauf `threads` neue Stränge und wartete
+/// währenddessen — der Aufrufer war damit ein Strang mehr, als Kerne
+/// rechneten. Gemessen auf node3, `engpass-pakete --iterations 400` auf vier
+/// gebundenen Kernen: mit 4 Strängen PSI cpu 14,95 und 15,20, mit 3 Strängen
+/// 1,76, mit 4 Strängen auf fünf Kernen 1,94. Mit einem Helfer weniger sind
+/// nie mehr Stränge lauffähig, als der Lauf verlangt.
+///
+/// # Die Helfer leben über die Läufe
+///
+/// Sie kommen aus [`vorrat`], einmal gestartet und danach wiederverwendet;
+/// ein 20k-Paket mit 16 Strängen startete bis dahin 16 neue (gezählt über
+/// `ns_last_pid` im Container). Gebraucht wird `'static` — deshalb reisen
+/// Konfiguration und Liste als Kopie mit. Nur der gedrosselte Lauf
+/// ([`run_controlled`]) leiht sich seine Steuerung und rechnet weiter mit
+/// Strängen je Lauf; auch dort rechnet der Aufrufer Bereich 0.
+///
+/// **Die Aufteilung ist dieselbe wie vorher**: Bereich `n` hat Platz `n` im
+/// Zählwerk und seine eigene Zeile in [`abschnitt_eintragen`].
+fn parallel_rechnen(
+    config: &BalanceConfig,
+    apl: &Apl,
+    ranges: &[(u32, u32)],
+    control: Option<&crate::drosselung::RuntimeControl>,
+    leitstrang: Option<&crate::fortschritt::Strang>,
+    kampfzaehler: bool,
+) -> Vec<Teil> {
+    let Some((&(offset0, len0), uebrige)) = ranges.split_first() else {
+        return Vec::new();
+    };
+    if let Some(control) = control {
+        return thread::scope(|scope| {
+            let handles: Vec<_> = uebrige
+                .iter()
+                .enumerate()
+                .map(|(i, &(offset, len))| {
+                    let arbeiter = leitstrang.map(|s| s.arbeiter(i + 1));
+                    STRAENGE_GESTARTET.fetch_add(1, Ordering::Relaxed);
+                    scope.spawn(move || {
+                        helfer_bereich(
+                            config,
+                            apl,
+                            offset,
+                            len,
+                            Some(control),
+                            arbeiter,
+                            kampfzaehler,
+                        )
+                    })
+                })
+                .collect();
+            let eigener = aufrufer_bereich(
+                config,
+                apl,
+                offset0,
+                len0,
+                Some(control),
+                leitstrang.map(|s| s.arbeiter(0)),
+            );
+            let mut teile = vec![eigener];
+            for handle in handles {
+                teile.push(handle.join().expect("ein Strang ist abgestuerzt"));
+            }
+            teile
+        });
+    }
+
+    let sammlung = std::sync::Arc::new(vorrat::Sammlung::neu(uebrige.len()));
+    let geteilt = std::sync::Arc::new((*config, apl.clone()));
+    let auftraege: Vec<vorrat::Auftrag> = uebrige
+        .iter()
+        .enumerate()
+        .map(|(i, &(offset, len))| {
+            let (sammlung, geteilt) = (
+                std::sync::Arc::clone(&sammlung),
+                std::sync::Arc::clone(&geteilt),
+            );
+            let arbeiter = leitstrang.map(|s| s.arbeiter(i + 1));
+            Box::new(move || {
+                let (config, apl) = &*geteilt;
+                let teil = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    helfer_bereich(config, apl, offset, len, None, arbeiter, kampfzaehler)
+                }));
+                sammlung.ablegen(i, teil);
+            }) as vorrat::Auftrag
+        })
+        .collect();
+    vorrat::verteilen(auftraege);
+    let eigener = aufrufer_bereich(
+        config,
+        apl,
+        offset0,
+        len0,
+        None,
+        leitstrang.map(|s| s.arbeiter(0)),
+    );
+    let mut teile = vec![eigener];
+    teile.extend(
+        sammlung
+            .abwarten()
+            .into_iter()
+            .map(|t| t.expect("ein Strang ist abgestuerzt")),
+    );
+    teile
+}
+
+/// Rechnet einen Bereich und misst, was das Zählwerk über ihn wissen will.
+fn bereich_messen(
+    config: &BalanceConfig,
+    apl: &Apl,
+    offset: u32,
+    len: u32,
+    control: Option<&crate::drosselung::RuntimeControl>,
+) -> (Bereich, Zeitnahme) {
+    let beginn = Instant::now();
+    let cpu_vorher = crate::engpass::strang_cpu_ns();
+    let teil = run_range(config, apl, offset, len, control);
+    let cpu = crate::engpass::strang_cpu_ns()
+        .zip(cpu_vorher)
+        .map(|(nachher, vorher)| nachher.saturating_sub(vorher));
+    (teil, (beginn, Instant::now(), cpu))
+}
+
+/// Ein Bereich auf einem Helfer: angemeldet auf dem Platz des Bereichs, mit
+/// eigenen Kampfzählern, die danach zurückgehen.
+///
+/// **Wie auf einem frischen Strang.** Ein Helfer rechnet viele Läufe; seine
+/// Zähler werden deshalb vor dem Bereich geleert und danach wieder
+/// abgeschaltet — sonst trüge er die Zählung eines früheren Laufs in den
+/// nächsten.
+fn helfer_bereich(
+    config: &BalanceConfig,
+    apl: &Apl,
+    offset: u32,
+    len: u32,
+    control: Option<&crate::drosselung::RuntimeControl>,
+    arbeiter: Option<crate::fortschritt::Strang>,
+    kampfzaehler: bool,
+) -> Teil {
+    let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
+    if kampfzaehler {
+        crate::diagnostics::reset();
+        crate::diagnostics::enable();
+    }
+    let (teil, zeit) = bereich_messen(config, apl, offset, len, control);
+    let zaehler = kampfzaehler.then(crate::diagnostics::snapshot);
+    if kampfzaehler {
+        crate::diagnostics::disable();
+        crate::diagnostics::reset();
+    }
+    (teil, zeit, zaehler)
+}
+
+/// Bereich 0 auf dem Aufrufer: angemeldet auf dem Platz des Bereichs, wie
+/// ein Arbeitsstrang, und ohne Trace-Hash.
+///
+/// Seine Kampfzähler zählen gleich in die eigenen — es sind dieselben, in die
+/// [`crate::diagnostics::vereinigen`] die der Helfer einrechnet. Den
+/// Trace-Hash schaltet er für den Bereich ab: Der bleibt einsträngig, und
+/// vor #912 rechnete der Aufrufer hier gar nicht.
+fn aufrufer_bereich(
+    config: &BalanceConfig,
+    apl: &Apl,
+    offset: u32,
+    len: u32,
+    control: Option<&crate::drosselung::RuntimeControl>,
+    arbeiter: Option<crate::fortschritt::Strang>,
+) -> Teil {
+    /// Stellt den Trace-Schalter zurück, auch wenn der Bereich abbricht.
+    struct TraceZurueck(bool);
+    impl Drop for TraceZurueck {
+        fn drop(&mut self) {
+            if self.0 {
+                crate::diagnostics::enable_trace();
+            }
+        }
+    }
+    let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
+    let _trace = TraceZurueck(crate::diagnostics::is_trace_enabled());
+    crate::diagnostics::disable_trace();
+    let (teil, zeit) = bereich_messen(config, apl, offset, len, control);
+    (teil, zeit, None)
+}
+
+/// Die Helfer der parallelen Läufe: Stränge, die über die Läufe leben (#912).
+///
+/// **Gewartet wird blockierend** (`Mutex` und `Condvar`), nicht drehend: Ein
+/// wartender Helfer belegt keinen Kern. Ein Versuchsbau mit Kanälen, deren
+/// Empfänger erst kurz drehen, trieb PSI in `messumgebung` auf 15–19 statt
+/// es zu senken.
+mod vorrat {
+    use std::collections::VecDeque;
+    use std::sync::atomic::Ordering;
+    use std::sync::{Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
+
+    /// Ein Auftrag an einen Helfer.
+    pub(super) type Auftrag = Box<dyn FnOnce() + Send + 'static>;
+
+    #[derive(Default)]
+    struct Stand {
+        schlange: VecDeque<Auftrag>,
+        /// Helfer, die es gibt.
+        lebend: usize,
+        /// Helfer, denen ein Auftrag zugedacht ist — in der Schlange oder in
+        /// Arbeit.
+        belegt: usize,
+    }
+
+    struct Vorrat {
+        stand: Mutex<Stand>,
+        neu: Condvar,
+    }
+
+    fn vorrat() -> &'static Vorrat {
+        static VORRAT: OnceLock<Vorrat> = OnceLock::new();
+        VORRAT.get_or_init(|| Vorrat {
+            stand: Mutex::new(Stand::default()),
+            neu: Condvar::new(),
+        })
+    }
+
+    fn sperren(v: &Vorrat) -> MutexGuard<'_, Stand> {
+        v.stand.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Gibt jedem Auftrag einen Helfer; fehlen freie, startet er neue.
+    ///
+    /// **Belegt wird beim Verteilen, frei beim Ablegen des Ergebnisses** —
+    /// nicht erst, wenn der Helfer wieder wartet. Sonst sähe ein Lauf, der
+    /// gleich nach dem vorigen beginnt, dessen Helfer noch als belegt und
+    /// startete neue.
+    pub(super) fn verteilen(auftraege: Vec<Auftrag>) {
+        if auftraege.is_empty() {
+            return;
+        }
+        let v = vorrat();
+        let mut s = sperren(v);
+        let frei = s.lebend - s.belegt;
+        for _ in frei..auftraege.len() {
+            std::thread::spawn(helfer);
+            s.lebend += 1;
+            super::STRAENGE_GESTARTET.fetch_add(1, Ordering::Relaxed);
+        }
+        s.belegt += auftraege.len();
+        let anzahl = auftraege.len();
+        s.schlange.extend(auftraege);
+        drop(s);
+        for _ in 0..anzahl {
+            v.neu.notify_one();
+        }
+    }
+
+    fn helfer() {
+        let v = vorrat();
+        loop {
+            let auftrag = {
+                let mut s = sperren(v);
+                loop {
+                    if let Some(a) = s.schlange.pop_front() {
+                        break a;
+                    }
+                    s = v.neu.wait(s).unwrap_or_else(PoisonError::into_inner);
+                }
+            };
+            auftrag();
+        }
+    }
+
+    /// Die Ergebnisse der Helfer eines Laufs, je Bereich ein Platz.
+    pub(super) struct Sammlung {
+        plaetze: Mutex<(Vec<Option<std::thread::Result<super::Teil>>>, usize)>,
+        fertig: Condvar,
+    }
+
+    impl Sammlung {
+        pub(super) fn neu(anzahl: usize) -> Self {
+            Self {
+                plaetze: Mutex::new(((0..anzahl).map(|_| None).collect(), anzahl)),
+                fertig: Condvar::new(),
+            }
+        }
+
+        /// Legt das Ergebnis eines Helfers ab und meldet ihn frei.
+        pub(super) fn ablegen(&self, platz: usize, teil: std::thread::Result<super::Teil>) {
+            {
+                let mut s = sperren(vorrat());
+                s.belegt -= 1;
+            }
+            let mut p = self.plaetze.lock().unwrap_or_else(PoisonError::into_inner);
+            p.0[platz] = Some(teil);
+            p.1 -= 1;
+            if p.1 == 0 {
+                self.fertig.notify_one();
+            }
+        }
+
+        /// Wartet, bis jeder Helfer abgelegt hat, und gibt die Ergebnisse in
+        /// der Reihenfolge der Bereiche.
+        pub(super) fn abwarten(&self) -> Vec<std::thread::Result<super::Teil>> {
+            let mut p = self.plaetze.lock().unwrap_or_else(PoisonError::into_inner);
+            while p.1 > 0 {
+                p = self.fertig.wait(p).unwrap_or_else(PoisonError::into_inner);
+            }
+            p.0.iter_mut()
+                .map(|t| t.take().expect("jeder Helfer hat abgelegt"))
+                .collect()
+        }
+    }
 }
 
 /// Trägt einen parallelen Abschnitt ins Zählwerk ein: je Strang des Laufs,
