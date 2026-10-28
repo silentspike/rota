@@ -12,6 +12,7 @@ use super::fenster::Raten;
 use super::restzeit::{Herleitung, Kampfzahl, Kostenbild, Restkosten, Restzeit};
 use super::zaehlwerk::{Arbeitsmenge, Momentaufnahme, Weg, WEGE_OHNE_LAUF};
 use crate::drosselung::ControlSnapshot;
+use crate::engpass::Engpassbild;
 use crate::kampagne::{json_number, json_string};
 
 /// Breite des Fortschrittsbalkens in Zeichen.
@@ -81,14 +82,24 @@ pub struct Anzeige {
     pub rechner: Vec<RechnerZeile>,
     /// Die aktive Drosselung — `None` ohne Steuerdatei.
     pub drosselung: Option<ControlSnapshot>,
+    /// Die Engpassdiagnose über das Fenster (#934) — `None`, wenn der Lauf
+    /// keine Erhebung angelegt hat.
+    pub engpass: Option<Engpassbild>,
 }
+
+/// Die Zeile „Engpass", wenn der Lauf nichts erhebt.
+///
+/// **Nicht „keine Diagnose" allein.** Das hieße, der Wächter habe geprüft und
+/// nichts gefunden. Ohne Erhebung hat er nichts geprüft — und das steht da.
+const OHNE_ERHEBUNG: &str = "keine Diagnose — dieser Lauf erhebt keine Messwerte \
+     (rota-sim legt die Erhebung mit --progress, --jsonl oder --baseline an)";
 
 impl Anzeige {
     /// Die Zeilen für Menschen.
     #[must_use]
     pub fn zeilen(&self) -> Vec<String> {
         let p = &self.probe;
-        vec![
+        let mut zeilen = vec![
             self.kopfzeile(),
             format!(
                 "  Kandidaten   {:<34} seit {}",
@@ -101,16 +112,19 @@ impl Anzeige {
             format!("  Restzeit     {}", self.restzeit_text()),
             format!("  Systeme      {}", self.rechner_text()),
             format!("  Drosselung   {}", self.drossel_text()),
-            "  Engpass      keine Diagnose — die Engpasserkennung folgt mit E15.3 (#934)"
-                .to_owned(),
-            format!("  Bestes       {}", self.bestes_text()),
-            format!(
-                "  Meldung      #{} · {} · {}",
-                self.sequenz,
-                self.utc,
-                self.ereignis.name()
-            ),
-        ]
+        ];
+        match &self.engpass {
+            Some(bild) => zeilen.extend(bild.zeilen()),
+            None => zeilen.push(format!("  Engpass      {OHNE_ERHEBUNG}")),
+        }
+        zeilen.push(format!("  Bestes       {}", self.bestes_text()));
+        zeilen.push(format!(
+            "  Meldung      #{} · {} · {}",
+            self.sequenz,
+            self.utc,
+            self.ereignis.name()
+        ));
+        zeilen
     }
 
     /// Eine Zeile JSON Lines, ohne Zeilenende.
@@ -161,8 +175,16 @@ impl Anzeige {
             self.drosselung
                 .map_or_else(|| "null".to_owned(), |d| drossel_json(&d))
         );
-        m.push_str(
-            "\"bottleneck\":{\"diagnosis\":null,\"reason\":\"keine Diagnose: E15.3 (#934) ist nicht gebaut\"}}",
+        let _ = write!(
+            m,
+            "\"bottleneck\":{}}}",
+            self.engpass.as_ref().map_or_else(
+                || format!(
+                    "{{\"state\":\"not_collected\",\"diagnosis\":null,\"sentence\":{}}}",
+                    json_string(OHNE_ERHEBUNG)
+                ),
+                Engpassbild::json
+            )
         );
         format!(
             "{{\"schema_version\":1,\"run_id\":{},\"event\":{},\"timestamp_utc\":{},\

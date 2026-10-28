@@ -39,6 +39,20 @@ V2_PASS = ('cargo-remote: job a91655beba11287563f0ab73 | linux-gnu-bookworm | Ru
            'test j ... ok\n\n'
            'test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.20s\n\n'
            'cargo-remote: succeeded | exit 0 | 20.16s\n')
+# cargo remote v2 uploads with `subprocess.run(rsync, check=True)` and exits
+# with rsync's own code (client.py: CalledProcessError -> exc.returncode).
+# 12 and 23 are rsync transfer errors, 255 is ssh failing underneath rsync.
+# The texts follow rsync 3.x's message format; the tool decides on the exit
+# code alone, so the wording is not load-bearing.
+V2_HEADER = ('cargo-remote: job a91655beba11287563f0ab73 | linux-gnu-bookworm | Rust 1.98.1 | normal | '
+             'workspace ad6fb34f55843cbc0a7efaef69c89ba0\n')
+TRANSPORT_EXITS = {
+    12: V2_HEADER + 'rsync error: error in rsync protocol data stream (code 12) at io.c(232) [sender=3.4.1]\n',
+    23: V2_HEADER + 'rsync error: some files/attrs were not transferred (see previous errors) '
+                    '(code 23) at main.c(1338) [sender=3.4.1]\n',
+    255: V2_HEADER + 'rsync: connection unexpectedly closed (0 bytes received so far) [sender]\n'
+                     'rsync error: unexplained error (code 255) at io.c(232) [sender=3.4.1]\n',
+}
 
 
 class MutationEvidence(unittest.TestCase):
@@ -223,6 +237,135 @@ class MutationEvidence(unittest.TestCase):
         self.assertEqual(evidence['fields']['heal.amount']['status'], 'ABBRUCH')
         self.assert_restored()
 
+    def fresh_tool(self):
+        """A new module instance: an aborted run leaves the module's abort flag set."""
+        spec = importlib.util.spec_from_file_location('streich_evidence', ROOT / 'tools/streich-mutation.py')
+        self.tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.tool)
+
+    def test_transport_exits_of_the_v2_client_are_not_verdicts(self):
+        # Without this, exit 12 in a field build counts as a broken build (BAU)
+        # and exit 255 in the Rust stage as a red suite — while nothing was
+        # uploaded, let alone compiled.
+        for code, output in TRANSPORT_EXITS.items():
+            for stage in ('baseline-build', 'field-build', 'field-rust'):
+                with self.subTest(code=code, stage=stage):
+                    self.fresh_tool()
+
+                    def process(command, _timeout, code=code, output=output, stage=stage):
+                        mutated = self.missing() is not None
+                        if command.startswith('npx'):
+                            return (1, TS_FAIL) if mutated else (0, TS_PASS)
+                        if '--no-run' in command:
+                            if stage == 'baseline-build' or (stage == 'field-build' and mutated):
+                                return code, output
+                            return 0, 'Finished test profile\n'
+                        if stage == 'field-rust' and mutated:
+                            return code, output
+                        return 0, RUST_PASS
+
+                    with self.assertRaises(self.tool.NichtGelaufen) as raised:
+                        self.drive(process, '--feld', 'heal.amount')
+                    self.assertIn(f'Exit {code}', str(raised.exception))
+                    evidence = json.loads((self.root / 'evidence.json').read_text())
+                    if stage == 'baseline-build':
+                        self.assertEqual(evidence['fields'], {})
+                    else:
+                        entry = evidence['fields']['heal.amount']
+                        self.assertEqual(entry['status'], 'ABBRUCH')
+                        self.assertIn('NichtGelaufen', entry['detail'])
+                        self.assertTrue(entry['restored'])
+                    self.assertFalse(evidence['completed'] or evidence['full_pass'])
+                    self.assert_restored()
+
+    BUILD_PANIC = ("error: failed to run custom build command for `rota-sim v0.1.0 (/src/sim)`\n"
+                   "thread 'main' panicked at sim/build.rs:556:20:\n"
+                   "common.json/spells[?]: Feld \"id\" fehlt\n")
+    RUST_FAIL = ('     Running tests/probe.rs (target/debug/deps/probe-1234)\n'
+                 'running 2 tests\ntest first ... ok\ntest parity_damage_matches ... FAILED\n'
+                 'test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out\n')
+
+    def with_base_damage(self):
+        """The probes need a base value that every damage computation reads."""
+        for school in self.tool.SCHULEN:
+            text = json.dumps({'spells': [{'id': school, 'baseDamage': 100, 'heal': {'amount': 40},
+                                           'shield': {'amount': 30}}]}) + '\n'
+            (self.root / f'data/spells/{school}.json').write_text(text)
+            self.originals[school] = text
+
+    def probe_state(self):
+        first = json.loads((self.root / 'data/spells/calcination.json').read_text())['spells'][0]
+        common = json.loads((self.root / 'data/spells/common.json').read_text())['spells'][0]
+        return 'bau' if 'id' not in common else 'rot' if first['baseDamage'] != 100 else None
+
+    def probe_process(self, bau_build=None, rust_names=True):
+        calls = []
+        bau_build = bau_build or (101, self.BUILD_PANIC)
+
+        def process(command, _timeout):
+            state, field = self.probe_state(), self.missing()
+            calls.append((command.split()[0], state, field))
+            if '--no-run' in command:
+                return bau_build if state == 'bau' else (0, 'Finished\n')
+            if command.startswith('cargo'):
+                return (101, self.RUST_FAIL) if state == 'rot' and rust_names else (0, RUST_PASS)
+            return (1, TS_FAIL) if state or field else (0, TS_PASS)
+        return process, calls
+
+    def test_probes_run_after_the_baseline_and_before_any_field(self):
+        self.with_base_damage()
+        process, calls = self.probe_process()
+        self.assertEqual(self.drive(process, '--vorproben'), 0)
+        evidence = json.loads((self.root / 'evidence.json').read_text())
+        bau, rot = evidence['probes']['bau'], evidence['probes']['rot']
+        self.assertEqual(bau['status'], 'BAU')
+        self.assertEqual(bau['build']['exit'], 101)
+        self.assertFalse(bau['old_rule_detects'], 'the old text rule must miss exactly this case')
+        self.assertEqual(bau['rust']['status'], 'SKIPPED')
+        self.assertEqual(rot['status'], 'ROT')
+        self.assertEqual(rot['failure_names'], {'rust': ['parity_damage_matches'],
+                                                'ts': ['value changes the outcome']})
+        self.assertTrue(evidence['probes_passed'])
+        self.assertTrue(all(p['restored'] and p['sha256']['after_restore'] == p['sha256']['before']
+                            for p in (bau, rot)))
+        first_field = next(i for i, (_, _, field) in enumerate(calls) if field)
+        probe_calls = [i for i, (_, state, _) in enumerate(calls) if state]
+        self.assertTrue(probe_calls and max(probe_calls) < first_field)
+        self.assertTrue(evidence['historical_comparison']['full_pass'])
+        self.assert_restored()
+
+    def test_a_probe_with_the_wrong_outcome_stops_before_any_field(self):
+        # Each condition of the BAU probe on its own: a build that passes, one
+        # that passes with the panic text in its log, one that breaks elsewhere.
+        cases = (((0, 'Finished\n'), True, 'bau'),
+                 ((0, "Finished\nwarning: a test named 'panicked at sim/build.rs'\n"), True, 'bau'),
+                 ((101, 'error: linking with `cc` failed: exit status: 1\n'), True, 'bau'),
+                 (None, False, 'rot'))
+        for bau_build, rust_names, failing in cases:
+            with self.subTest(failing=failing, build=bau_build):
+                self.fresh_tool()
+                self.with_base_damage()
+                process, calls = self.probe_process(bau_build, rust_names)
+                self.assertEqual(self.drive(process, '--vorproben'), 3)
+                evidence = json.loads((self.root / 'evidence.json').read_text())
+                self.assertEqual(evidence['fields'], {})
+                self.assertFalse(evidence['probes_passed'])
+                self.assertNotEqual(evidence['probes'][failing]['status'],
+                                    evidence['probes'][failing]['expected'])
+                self.assertFalse(any(field for _, _, field in calls))
+                self.assert_restored()
+
+    def test_without_probes_a_complete_pass_is_no_acceptance(self):
+        def process(command, _timeout):
+            if command.startswith('npx'):
+                return (1, TS_FAIL) if self.missing() else (0, TS_PASS)
+            return 0, RUST_PASS
+
+        self.assertEqual(self.drive(process), 0)
+        evidence = json.loads((self.root / 'evidence.json').read_text())
+        self.assertTrue(evidence['completed'] and evidence['full_pass'])
+        self.assertFalse(evidence['historical_comparison']['full_pass'])
+
     def test_real_cargo_remote_v2_output_is_a_complete_rust_summary(self):
         proof = self.tool.suite_nachweis(0, V2_PASS, 'rust')
         self.assertEqual(proof['status'], 'PASS')
@@ -264,6 +407,35 @@ class MutationEvidence(unittest.TestCase):
                  'running 0 tests\ntest result: ok. 0 passed; 0 failed; 0 ignored\n')
         self.assertEqual(self.tool.suite_nachweis(0, empty, 'rust')['status'], 'ERROR')
         self.assertEqual(self.tool.suite_nachweis(1, failed + empty, 'rust')['status'], 'FAIL')
+
+    def test_remote_stdout_stderr_can_append_the_next_target_to_a_summary(self):
+        # Real zero-test example line from the first full-run baseline.
+        output = (RUST_PASS.rstrip('\n')
+                  + '     Running unittests examples/suchguete.rs '
+                    '(target/debug/examples/suchguete-59b410dc0c687d9e)\n'
+                    'running 0 tests\n'
+                    'test result: ok. 0 passed; 0 failed; 0 ignored\n')
+        proof = self.tool.suite_nachweis(0, output, 'rust')
+        self.assertEqual(proof['status'], 'PASS')
+        self.assertEqual(proof['executed'], 2)
+        self.assertTrue(proof['complete_summary'])
+        aborted = output + '     Running tests/later.rs (target/debug/deps/later-1234)\n'
+        self.assertEqual(self.tool.suite_nachweis(1, aborted, 'rust')['status'], 'ERROR')
+
+    def test_ts_worker_errors_or_process_signals_invalidate_preceding_failed_cases(self):
+        for suffix in (
+            '\nErrors 1 error\n',
+            '\nVitest caught 1 unhandled error during the test run.\n',
+            '\nVitest found 2 errors not related to your test files.\n',
+        ):
+            with self.subTest(suffix=suffix):
+                proof = self.tool.suite_nachweis(1, TS_FAIL + suffix, 'ts')
+                self.assertEqual(proof['status'], 'ERROR')
+                self.assertFalse(proof['complete_summary'])
+                self.assertEqual(proof['executed'], 2)
+        for code in (-9, 137, 143):
+            self.assertEqual(self.tool.suite_nachweis(code, TS_FAIL, 'ts')['status'], 'ERROR')
+        self.assertEqual(self.tool.suite_nachweis(1, TS_FAIL, 'ts')['status'], 'FAIL')
 
 
 if __name__ == '__main__':
