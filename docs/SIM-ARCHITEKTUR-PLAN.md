@@ -43,7 +43,8 @@ dieses Plans gebaut. Und die Zeit gilt nur gegen ein **benanntes Referenzprofil*
 ```
 Referenzprofil "standard"
   Rechner        node3 rechnet (Proxmox-Knoten ovh-pve1, Ryzen 7 9700X, Container CT 105)
-                 Laptop koordiniert — keine Rechenstränge · beide erreichbar
+                 Laptop: CPU koordiniert, keine Rechenstränge · GPU nur auf Aufruf
+                 beide erreichbar
   Profil         remote-only auf dem Laptop: „lokal nur Koordinator und Anzeige" (E15.1)
   Datenstand     versionierter Endausbau-Datensatz
   Vertrag        versionierter CampaignRunContract
@@ -63,9 +64,16 @@ Referenzprofil "standard"
 > das 12 statt 14 Stränge)": Der Laptop rechnete mit zwölf Strängen mit. Auf die Frage, ob er
 > weiter mitrechnet oder nur koordiniert, hat der Auftraggeber entschieden: **„Nur
 > koordinieren".** Seitdem rechnet nur node3; der Laptop hat im Profil keine Rechenstränge und keine
-> CPU-Quote für Rechenarbeit (`HostRole::Coordinator`). Weil sich der Inhalt geändert hat, ist das
+> CPU-Quote für Rechenarbeit (`CpuRole::Coordinator`). Weil sich der Inhalt geändert hat, ist das
 > Profil im Code eine neue Fassung mit neuer Version (E21.0). Die Regel zu
 > `reserved_physical_cores` bleibt in E15.1 stehen — für Läufe, in denen der Laptop rechnet.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Auf die Frage, ob der Laptop außer
+> Koordinieren rechnen darf: **GPU-Arbeit ja** — auf ausdrücklichen Aufruf und im zugeteilten
+> Messfenster —, **die CPU nur als Rückfall.** „Koordiniert nur" gilt deshalb der CPU: Im Code ist
+> die Rolle eine CPU-Rolle (`CpuRole`), und die Grafik-Einschaltdauer steht bei jedem Rechner, auch
+> beim Koordinator. Im Referenzlauf ist sie 0 %, weil es noch keinen GPU-Pfad gibt und GPU-Arbeit
+> nicht von selbst läuft. Läuft die GPU des Laptops auf Aufruf mit, ist das kein `remote-only` mehr.
 
 **Bei weniger Rechnern bleibt die Arbeit gleich — nur die ETA wächst.** Das ist der Zweck des
 eingefrorenen Arbeitsbudgets (E21.0): Ein Rechnerausfall darf das **Ergebnis** nicht ändern.
@@ -88,8 +96,14 @@ eingefrorenen Arbeitsbudgets (E21.0): Ein Rechnerausfall darf das **Ergebnis** n
 > **Fällt node3 aus, übernimmt der Laptop von selbst keine Arbeit.** Es gilt die Regel aus E15.5:
 > Bleibt der Heartbeat aus, läuft die Lease ab, und der Job wird neu vergeben — im Profil
 > „standard" an einen rechnenden Rechner, und der einzige ist node3. Der Lauf wartet also auf ihn.
-> Rechnen lässt der Laptop sich nur auf ausdrücklichen Aufruf (`--hosts local`, E15.5): dasselbe
-> eingefrorene Arbeitsbudget und damit dasselbe Ergebnis (E21.0), nur in längerer Zeit.
+> Auf der CPU rechnen lässt der Laptop sich nur auf ausdrücklichen Aufruf (`--hosts local`, E15.5):
+> dasselbe eingefrorene Arbeitsbudget und damit dasselbe Ergebnis (E21.0), nur in längerer Zeit.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die CPU des Laptops rechnet nur als
+> Rückfall. Erst dann wird sie kalibriert (E15.0, „Fertig, wenn"), und der Lauf sagt ausdrücklich,
+> dass er auf dem Laptop rechnet (E20, Punkt 4). Seine GPU darf auf ausdrücklichen Aufruf und im
+> zugeteilten Messfenster rechnen; in der Tabelle steht sie nicht, weil der Referenzlauf sie nicht
+> nutzt.
 
 **Was ausdrücklich nicht zugesichert wird:** den Vollraum zu rechnen. Bei 350 000 Kämpfen/s
 bräuchte allein der **reduzierte** Raum 2,8·10²⁵ Jahre. Kein Issue in diesem Plan darf mit
@@ -455,6 +469,10 @@ System gelaufen._
 > E11.7-Pfad läuft also auf beiden. Was node3 darüber hinaus hat (AVX-512F, AVX-512-VNNI,
 > AVX-VNNI, GFNI), entscheidet die Befehlssatz-Tabelle in E15.6 — dort steht nein. Eine
 > Rechen-GPU hat weiterhin nur der Laptop.
+>
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Diese GPU darf rechnen, obwohl die CPU
+> des Laptops im Profil nur koordiniert: auf ausdrücklichen Aufruf und im zugeteilten
+> Messfenster. Die CPU des Laptops rechnet nur als Rückfall (Kopf des Dokuments).
 
 **Erster Befund: Es sind drei Systeme, nicht vier.** `rustbuild` ist **CT 155 auf gonet** —
 derselbe i7-3930K, nur ein Container darauf.
@@ -639,7 +657,7 @@ ohne gonet        587 000        Faktor 1,61
 > ungemessen** (Aufnahme mit #912). Ein Faktor für das neue Profil entsteht erst daraus.
 >
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers, die zweite dieses Tages.** Hier stand
-> „Für Laptop + node3 fehlt der zweite Summand". Der Laptop rechnet im Profil nicht mehr mit
+> „Für Laptop + node3 fehlt der zweite Summand". Die CPU des Laptops rechnet im Profil nicht mehr mit
 > (Referenzprofil am Anfang).
 
 #### Und woran sie scheitert, wenn man sie zu fein schneidet
@@ -723,8 +741,8 @@ Eigenschaften, die keine andere Maßnahme hat:
 > „derselbe Faktor 1,94" gelten für Laptop, proxmox und gonet. **Für das Profil „standard" — node3
 > rechnet, der Laptop koordiniert — ist der Faktor ungemessen**, bis die Kampfrate auf node3
 > vorliegt (#912), und „gemessen bestätigt" gilt dort erst mit dem Hash auf node3 (Nachtrag oben).
-> Die drei Eigenschaften selbst hängen nicht an der Zahl; die dritte trifft seitdem ganz zu — die
-> Arbeitsmaschine rechnet im Profil nicht mehr mit.
+> Die drei Eigenschaften selbst hängen nicht an der Zahl; die dritte trifft seitdem zu — die CPU
+> der Arbeitsmaschine rechnet im Profil nicht mehr mit.
 >
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers, die zweite dieses Tages.** Hier stand
 > „Für Laptop + node3 ist der Faktor ungemessen".
@@ -739,12 +757,14 @@ Eigenschaften, die keine andere Maßnahme hat:
 **node3 ist der einzige Zusatzrechner — als eigener LXC.** `cores` großzügig, `cpuunits`
 niedrig, Speicher **nur als Obergrenze**, keine Reservierung: Der Container belegt, was er gerade
 braucht. Er steht seit 2026-10-28 als CT 105 `rota-sim` im LAN, ohne Internetzugang, nur per SSH
-mit Schlüssel erreichbar (Teil 2.1, Nachtrag). **node3 rechnet allein; der Laptop koordiniert nur
-und bleibt für die Arbeit an ihm frei.**
+mit Schlüssel erreichbar (Teil 2.1, Nachtrag). **node3 rechnet allein auf der CPU; die CPU des
+Laptops koordiniert nur und bleibt für die Arbeit an ihm frei — seine GPU rechnet auf
+ausdrücklichen Aufruf.**
 
 > **Nachgetragen am 2026-10-28 — Entscheidung des Auftraggebers.** Der letzte Satz ist neu: Auf
 > die Frage, ob der Laptop weiter mitrechnet oder nur koordiniert, hat der Auftraggeber „Nur
-> koordinieren" entschieden. Bis dahin rechnete der Laptop mit zwölf Strängen mit.
+> koordinieren" entschieden. Bis dahin rechnete der Laptop mit zwölf Strängen mit. Den Halbsatz zur
+> GPU trägt die Entscheidung „NUR GPU" vom selben Abend (Kopf des Dokuments).
 
 **Der Vorbehalt, der früher gonet galt, gilt jetzt für node3:** Dort läuft der Bau-Dienst
 (`rustbuild-ovh`, VM 156) neben elf weiteren VMs und zwei LXC, bei Load 3,7–4,8 auf 16
@@ -881,7 +901,7 @@ Bedingung nennt, ergänzt sie diese Tabelle — sie ersetzt sie nicht._
 > Summe über die Rechner vom 2026-08-14, kein Verbundlauf).
 >
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier stand „ist für Laptop + node3
-> ungemessen"; der Laptop rechnet im Profil nicht mehr mit.
+> ungemessen"; die CPU des Laptops rechnet im Profil nicht mehr mit.
 
 ### 4.1 Woran jedes Issue hängt
 
@@ -1240,6 +1260,10 @@ Cache kalt UND warm
 
 Nur wenn E13 seinen Break-even-Vertrag bestanden hat: CPU gegen GPU gegen CPU+GPU,
 GPU-Ausfall, CPU-Rückfall.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die GPU ist die des Laptops, und sie
+> darf rechnen — auf ausdrücklichen Aufruf und im zugeteilten Messfenster. Die CPU des Laptops
+> rechnet nur als Rückfall; „CPU" in den Varianten ist im Profil „standard" damit node3.
 
 **Fertig, wenn** — und die Wanduhr allein genügt nicht:
 
@@ -2648,6 +2672,10 @@ VulkanComputeBackend   später, optional
 > darunter bleiben als Begründung stehen, falls wieder einer dazukommt. Was node3 darüber hinaus
 > hat, AVX-512F, entscheidet die Befehlssatz-Tabelle in E15.6: nein.
 
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** `CudaBackend` bleibt beim Laptop: Seine
+> GPU darf rechnen, auf ausdrücklichen Aufruf und im zugeteilten Messfenster, obwohl seine CPU im
+> Profil nur koordiniert. `Avx2F64Backend` auf dem Laptop greift damit nur im CPU-Rückfall.
+
 **Ohne FMA rechnet der AVX1-Pfad sogar leichter paritätstreu** — die Rundungsfrage aus der
 Auflage unten stellt sich dort nicht.
 
@@ -3163,6 +3191,12 @@ E14.6  die Fehlergrenze der DP-Masse UND aller daraus abgeleiteten Statistiken i
 
 ### E13 — Die CUDA-Pipeline, konkretisiert
 
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die Pipeline läuft auf der GPU des
+> Laptops, und das ist erlaubt — auf ausdrücklichen Aufruf und im zugeteilten Messfenster —, obwohl
+> seine CPU im Profil „standard" nur koordiniert. Die „Neuvergabe auf der CPU" nach einem
+> GPU-Fehler (Fertig-Kriterien unten) geht dort an node3; die CPU des Laptops rechnet nur als
+> Rückfall.
+
 E13 nennt bisher nur, **was** auf die GPU soll. Was fehlt, ist **wie**:
 
 ```
@@ -3223,6 +3257,12 @@ JointPerfProfile { cpu_rate_when_gpu_active, gpu_rate_when_cpu_active,
 
 **Nur der gemessene Gesamtdurchsatz entscheidet**, ob beide gleichzeitig laufen. Dieselbe
 Kalibrierung beantwortet die iGPU-Frage aus Teil 2.1, ohne dass jemand sie schätzen muss.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die GPU des Laptops darf rechnen, auf
+> ausdrücklichen Aufruf und im zugeteilten Messfenster; seine CPU rechnet nur als Rückfall. Die
+> Kombinationen mit der Laptop-CPU — „CPU allein", „CPU+dGPU", „CPU+iGPU" — betreffen damit nur
+> den Rückfall, und kalibriert wird die Laptop-CPU erst, wenn er tatsächlich greift (E15.0,
+> „Fertig, wenn").
 
 ##### Datenlayout: der Simulator wird nicht global umgestellt
 
@@ -3373,9 +3413,17 @@ Durchsatzmittel.
 > (nicht als Teil des Profils). _(Berichtigt am 2026-10-28: Am selben Tag stand hier „Gebaut" für
 > die Vorräte selbst — das war zu stark.)_
 
-**Fertig, wenn:** die Kalibrierung auf beiden Rechnern des Referenzprofils läuft und eine
-**gleichzeitig auf derselben Maschine erhobene** Referenz innerhalb von 10 % trifft. Trifft sie
-nicht, ist der Kalibrierlauf nicht repräsentativ für die echte Arbeit — und dann ist er wertlos.
+**Fertig, wenn:** die Kalibrierung auf dem rechnenden Rechner des Referenzprofils, node3, läuft und
+eine **gleichzeitig auf derselben Maschine erhobene** Referenz innerhalb von 10 % trifft. Trifft
+sie nicht, ist der Kalibrierlauf nicht repräsentativ für die echte Arbeit — und dann ist er
+wertlos. **Der Laptop wird nur bei Bedarf kalibriert:** für die Restzeit erst, wenn der Rückfall
+`--hosts local` tatsächlich greift — keine Dauerkalibrierung.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Hier stand „die Kalibrierung auf beiden
+> Rechnern des Referenzprofils läuft". Die CPU des Laptops rechnet nur als Rückfall; kalibriert wird
+> sie deshalb erst, wenn er greift. Das gilt auch für „wiederholt sich bei jedem Lauf" oben: Für
+> den Laptop beginnt die Wiederholung erst im Rückfall. Der Vermerk darunter („für node3 im
+> Container, für den Laptop ebenso") beschreibt den Maßstab, nicht mehr den Umfang.
 
 > **Geändert am 2026-10-28.** Hier stand „auf allen drei Systemen" (Entscheidung des
 > Auftraggebers, nur noch Laptop + node3) und „die gemessenen Durchsätze aus Teil 2.1". Das
@@ -3563,18 +3611,22 @@ Schnell weg, langsam zurück — ein symmetrischer Regler verbringt seine Zeit m
 
 **Fünf Betriebsprofile statt einer Zahl:**
 
-| Profil        | Verhalten                                                        |
-| ------------- | ---------------------------------------------------------------- |
-| `max`         | volle lokale CPU- und GPU-Auslastung                             |
-| `balanced`    | Laptop behält 2 Kerne und VRAM-Reserve — **Voreinstellung dort** |
-| `background`  | `cpu.idle`, niedrigstes Gewicht, GPU aus                         |
-| `remote-only` | lokal nur Koordinator und Anzeige                                |
-| `custom`      | ausdrückliche Grenzen                                            |
+| Profil        | Verhalten                                                   |
+| ------------- | ----------------------------------------------------------- |
+| `max`         | volle lokale CPU- und GPU-Auslastung                        |
+| `balanced`    | Laptop behält 2 Kerne und VRAM-Reserve — im CPU-Rückfall    |
+| `background`  | `cpu.idle`, niedrigstes Gewicht, GPU aus                    |
+| `remote-only` | lokal nur Koordinator und Anzeige — **Voreinstellung dort** |
+| `custom`      | ausdrückliche Grenzen                                       |
 
-> **Nachgetragen am 2026-10-28 — Entscheidung des Auftraggebers.** Im Referenzprofil „standard"
-> läuft der Laptop seitdem als `remote-only`: Er koordiniert nur, node3 rechnet allein (Kopf des
-> Dokuments). Ob `balanced` **außerhalb** dieses Profils die Voreinstellung auf dem Laptop bleibt,
-> ist damit nicht entschieden (E20, „Voreinstellungen, die stimmen").
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Hier stand bei `balanced` „Laptop behält
+> 2 Kerne und VRAM-Reserve — **Voreinstellung dort**" und bei `remote-only` nur „lokal nur
+> Koordinator und Anzeige". Die Voreinstellung auf dem Laptop ist seitdem `remote-only` — im
+> Referenzprofil „standard" wie außerhalb davon (E20, Punkt 4): Seine CPU koordiniert, node3
+> rechnet. Die CPU des Laptops rechnet nur als Rückfall, wenn node3 nicht erreichbar ist; dann gilt
+> dort weiter die Grenze aus „Der Sonderfall Laptop" unten, also `balanced`. Seine GPU darf auf
+> ausdrücklichen Aufruf und im zugeteilten Messfenster rechnen — ein solcher Lauf ist kein
+> `remote-only` mehr.
 
 **Der Sonderfall Laptop:** Er ist die Maschine, an der gearbeitet wird. Dort gilt zusätzlich
 eine Obergrenze, die nicht der Regler setzt, sondern der Nutzer.
@@ -3676,7 +3728,7 @@ E11.5 LNS · Boss 12/68 · Runde 7        ██████░░░░░░�
      Kernel      1 240 000 /s roh              (nur die 8 % laufen wirklich durch)
   ETA            00:02:17     ± 0:24
   Systeme        node3 16/16 · laptop 0/16
-                 (laptop koordiniert nur: Referenzprofil „standard", remote-only)
+                 (CPU des Laptops koordiniert nur: Referenzprofil „standard")
   Drosselung     RAM 2,1 GB frei → Cache auf 512 MB begrenzt
   Engpass        Speicherbandbreite  (IPC 1,81 gegen 2,65 Referenz)
   Bestes         14 208,0  seit 00:01:37 unverändert
@@ -3684,7 +3736,7 @@ E11.5 LNS · Boss 12/68 · Runde 7        ██████░░░░░░�
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** In der Zeile „Systeme" stand
 > „laptop 12/16 · node3 16/16" und darunter „(12, nicht 14: reserved_physical_cores = 2 samt
-> SMT-Geschwistern)". Im Profil „standard" rechnet der Laptop seitdem nicht mehr mit. Die Regel zu
+> SMT-Geschwistern)". Im Profil „standard" rechnet die CPU des Laptops seitdem nicht mehr mit. Die Regel zu
 > `reserved_physical_cores` steht in E15.1 und gilt, wenn er rechnet.
 
 **Die beiden Durchsatzzahlen stehen mit Absicht nebeneinander.** `full_fights/s` misst den
@@ -3722,6 +3774,11 @@ Kandidaten je Sekunde` wäre deshalb eine Zahl, die genau dann falsch wird, wenn
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier standen zusätzlich „gonet
 > kann kein AVX2" und „P- und E-Kerne haben verschiedene Raten"; beide Rechner gehören nicht mehr
 > zum Profil. Der Schluss trägt ohne sie.
+>
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** „CUDA läuft nur auf dem Laptop" bleibt
+> richtig und erlaubt: Die GPU des Laptops rechnet auf ausdrücklichen Aufruf und im zugeteilten
+> Messfenster, seine CPU nur als Rückfall. Für die Ablaufsimulation unten heißt das: GPU-Aufgaben
+> sind nur auf dem Laptop zulässig, CPU-Aufgaben im Profil „standard" nur auf node3.
 >
 > **Richtig ist eine kleine Ablaufsimulation** über (Aufgabenklasse × Anzahl × Kosten ×
 > zulässige Rechner) und (Rechner × Leistungsvektor × Warteschlange × Drosselung) — mit
@@ -4035,9 +4092,14 @@ Heartbeat aus?       → Lease läuft ab, Job wird neu vergeben (auch lokal)
 
 > **Nachgetragen am 2026-10-28 — Entscheidung des Auftraggebers.** Im Referenzprofil „standard"
 > rechnet nur node3, der Laptop koordiniert (Kopf des Dokuments). „Neu vergeben (auch lokal)"
-> heißt dort: an einen rechnenden Rechner, und lokal nur, wenn der Laptop ausdrücklich rechnet
-> (`--hosts local`). **Von selbst übernimmt er keine Arbeit** — fällt node3 aus, wartet der Lauf,
-> bis node3 wieder zieht. Ohne `--hosts` rechnet im Profil also nur node3.
+> heißt dort: an einen rechnenden Rechner, und lokal nur, wenn die CPU des Laptops ausdrücklich
+> rechnet (`--hosts local`). **Von selbst übernimmt er keine Arbeit** — fällt node3 aus, wartet der
+> Lauf, bis node3 wieder zieht. Ohne `--hosts` rechnet im Profil also nur node3.
+>
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die CPU des Laptops rechnet nur als
+> Rückfall, wenn node3 nicht erreichbar ist, und der Lauf sagt dann ausdrücklich, dass er auf dem
+> Laptop rechnet. Seine GPU darf auf ausdrücklichen Aufruf und im zugeteilten Messfenster rechnen;
+> eine GPU-Aufgabe geht deshalb an den Laptop, eine CPU-Aufgabe im Profil „standard" an node3.
 
 > **KORRIGIERT am 2026-08-14, dritte Runde — zwei Stellen.**
 >
@@ -4716,9 +4778,15 @@ Kandidaten, welche Auswertungswege, welche Rechner, geschätzte Dauer, geschätz
 verhindert einen falsch parametrierten Lauf über Nacht.
 
 **4. Voreinstellungen, die stimmen.** `rota-sim run --boss boss-1-1` muss ohne weitere Optionen
-etwas Sinnvolles tun: Profil `balanced` auf dem Laptop, erreichbare Zusatzrechner mitnehmen,
-Fortschritt anzeigen, Ergebnis auf die Standardausgabe. **Wer eine Option braucht, um
-überhaupt etwas zu bekommen, hat kein Werkzeug.**
+etwas Sinnvolles tun: auf node3 rechnen, Fortschritt anzeigen, Ergebnis auf die Standardausgabe.
+Die CPU des Laptops rechnet nur, wenn node3 nicht erreichbar ist, und das sagt der Lauf dann
+ausdrücklich. **Wer eine Option braucht, um überhaupt etwas zu bekommen, hat kein Werkzeug.**
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Hier stand „Profil `balanced` auf dem
+> Laptop, erreichbare Zusatzrechner mitnehmen". Außerhalb des Referenzprofils gilt dasselbe wie in
+> ihm: Einzelläufe beim Entwickeln laufen auf node3. Bis E15.5 Läufe verteilt, heißt das: direkt im
+> Container CT 105 per ssh. Die GPU des Laptops darf auf ausdrücklichen Aufruf und im zugeteilten
+> Messfenster rechnen.
 
 **5. Zwei Ausgabearten, ein Datenstrom.** Für Menschen eine überschriebene Zeile (E15.2), für
 Automatisierung `--json` bzw. `--jsonl`. **Nie zwei getrennte Zähler** — die Anzeige liest
@@ -4795,8 +4863,9 @@ feste Werteinheiten.
 sagt es nichts über die Zeit. Das Profil nennt Mindestressourcen:
 
 ```
-Laptop    Koordinator — keine Rechenstränge, keine CPU-Quote für Rechenarbeit · RAM als OBERGRENZE
-node3     rechnet · physische Kerne · ausdrücklich "best effort" (keine garantierte CPU-Quote)
+Laptop    CPU: Koordinator — keine Rechenstränge, keine CPU-Quote für Rechenarbeit
+          · GPU-Einschaltdauer (GPU auf ausdrücklichen Aufruf) · RAM als OBERGRENZE
+node3     CPU rechnet · physische Kerne · ausdrücklich "best effort" (keine garantierte CPU-Quote)
           · GPU-Einschaltdauer · RAM als OBERGRENZE
 Netz      Obergrenze für RTT · Untergrenze für Bandbreite (heute ungemessen)
 Thermik   kein aktives Drosseln
@@ -4811,14 +4880,20 @@ Thermik   kein aktives Drosseln
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers, die zweite dieses Tages.** Hier stand
 > beim Laptop „physische Kerne · CPU-Quote · GPU-Einschaltdauer · RAM als OBERGRENZE" und bei node3
-> „ausdrücklich "best effort" (keine garantierte CPU-Quote) · RAM als OBERGRENZE". Der Laptop
-> koordiniert seitdem nur (Kopf des Dokuments). Kerne, CPU-Quote und Grafik-Einschaltdauer führt
-> das Profil nur noch für einen rechnenden Rechner (`HostRole::Compute`); der Laptop hat keine
-> (`HostRole::Coordinator`) — bewusst keine Nullen, weil null Stränge, Quote 0 und „best effort"
+> „ausdrücklich "best effort" (keine garantierte CPU-Quote) · RAM als OBERGRENZE". Die CPU des
+> Laptops koordiniert seitdem nur (Kopf des Dokuments). Kerne und CPU-Quote führt das Profil nur
+> noch für einen Rechner, dessen CPU rechnet (`CpuRole::Compute`); der Laptop hat keine
+> (`CpuRole::Coordinator`) — bewusst keine Nullen, weil null Stränge, Quote 0 und „best effort"
 > dort je etwas anderes heißen. node3 trägt die Zielzeit jetzt allein, und ob er das schafft, ist
 > bis #912 ungemessen. Ein Profil mit neuem Inhalt ist eine **neue Fassung mit neuer Version**,
 > wie für die Zielzeit oben: `REFERENCE_PROFILE_STANDARD` ist Fassung 2, die vergebenen Fassungen
 > stehen eingefroren in `sim/tests/kampagne_versionen.rs`.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die GPU des Laptops darf rechnen, auf
+> ausdrücklichen Aufruf und im zugeteilten Messfenster; seine CPU nur als Rückfall. Die
+> Grafik-Einschaltdauer steht deshalb bei **jedem** Rechner, auch beim Koordinator — wie im
+> AC3-Text von #914 beim Laptop. Im Referenzlauf ist sie auf beiden 0 %: Es gibt noch keinen
+> GPU-Pfad, und GPU-Arbeit läuft nur auf Aufruf.
 
 **Nur ein ausdrücklich verlangter `--hard-deadline 2h` bricht wirklich nach Zeit ab** — und sein
 Ergebnis trägt eine eigene Garantie, nicht dieselbe wie ein abgearbeitetes Budget:
