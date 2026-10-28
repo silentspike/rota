@@ -332,5 +332,20 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
     h = mixNamedInt(h, 'shieldRefundUsed', combat.shieldRefundSpent ? 1 : 0);
     h = mixNamedInt(h, 'shieldLastAmount', combat.shieldRefundBase);
   }
+  // **Der Auswahlmodus der Rücksetzer** (#419, Abnahme von #1146) — dieselbe
+  // Lückenart, angehängt, und NUR solange er scharf steht.
+  //
+  // Wer scharf gestellt hat, entscheidet über „der Rücksetzer wählt sich nicht
+  // selbst"; die offenen Auswahlen darüber, ob der nächste Druck wählt oder
+  // wirkt. Ohne diese Zeilen ergaben zwei Kämpfe mit verschieden geführtem
+  // Modus dieselbe Summe (`auswahlmodus-pruefsumme.test.ts`).
+  //
+  // Nur scharf, weil sonst -1 und 0 in JEDE Prüfsumme eingingen. So ändern
+  // sich genau die Aufzeichnungen, in denen ein Rücksetzer wirkt — auf beiden
+  // Seiten gleich.
+  if (combat.resetArmed) {
+    h = mixNamedInt(h, 'resetArmedFor', combat.resetArmedFor);
+    h = mixNamedInt(h, 'resetChargesLeft', combat.resetChargesLeft);
+  }
   return h >>> 0;
 }
