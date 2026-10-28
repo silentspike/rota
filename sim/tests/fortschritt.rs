@@ -250,7 +250,10 @@ fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
         ende.stand.runde,
         ende.stand.runde_geplant
     );
-    assert!(ueber_plan.is_empty(), "während der Suche über dem Plan: {ueber_plan:?}");
+    assert!(
+        ueber_plan.is_empty(),
+        "während der Suche über dem Plan: {ueber_plan:?}"
+    );
     assert_eq!(
         gesamt,
         ergebnis.measured as u64 + 2,
