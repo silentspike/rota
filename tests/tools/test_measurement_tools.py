@@ -110,15 +110,15 @@ class MeasurementTools(unittest.TestCase):
                 rs.write_text(f'const RASTER_MS: u64 = {raster};')
                 self.assertEqual(self.streich.zeitregel(), (raster, frozenset({'cooldownReductionBelowMs'})))
             ts.write_text('export const TICK_MS = 10;')
-            with self.assertRaisesRegex(SystemExit, 'Zeitregel.*disagree.*Befund'):
+            with self.assertRaisesRegex(self.streich.NichtGestartet, 'Zeitregel.*disagree.*Befund'):
                 self.streich.zeitregel()
             ts.write_text('export const RENAMED = 20;')
-            with self.assertRaisesRegex(SystemExit, 'Zeitregel.*Cannot read'):
+            with self.assertRaisesRegex(self.streich.NichtGestartet, 'Zeitregel.*Cannot read'):
                 self.streich.zeitregel()
             ts.write_text('export const TICK_MS = 20;')
             self.assertEqual(self.streich.zeitregel()[0], 20)
             data_ts.write_text("if (key !== 'cooldownReductionMs' && value % TICK_MS !== 0) {}")
-            with self.assertRaisesRegex(SystemExit, 'Zeitregel.*threshold exceptions disagree'):
+            with self.assertRaisesRegex(self.streich.NichtGestartet, 'Zeitregel.*threshold exceptions disagree'):
                 self.streich.zeitregel()
 
     def test_failed_remote_build_skips_remote_tests_and_restores_data(self):
