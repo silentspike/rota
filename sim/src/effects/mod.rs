@@ -30,6 +30,12 @@
 //! laesst deshalb jede Analyse nicht uebersetzen, bis er ueberall eingeordnet
 //! ist.
 //!
+//! Dasselbe gilt für die übrigen semantischen Typen des Knotens: Jede Stelle,
+//! die einen von ihnen auswertet, tut es erschöpfend — kein `matches!`, kein
+//! `==` gegen einen Wert, kein Auffangzweig. Beides prüft
+//! `tools/wirkung-baubruch-gegenprobe.py` im sim-Job mit dem echten Übersetzer
+//! (Epic #892).
+//!
 //! Ebenfalls **nicht** zugesichert ist Geschwindigkeit. Dieses Modul macht
 //! andere Optimierungen korrekt, nicht schnell.
 //!
@@ -218,6 +224,23 @@ pub enum TimingSemantics {
     Unknown,
 }
 
+impl TimingSemantics {
+    /// Ob das Zeitverhalten nicht angegeben ist — eine Bedingung von
+    /// [`EffectNode::hat_luecke`].
+    ///
+    /// Ein `match` ohne Auffangzweig, wie bei [`EffectOp`] (Epic #892): Ein
+    /// neues Zeitverhalten muss hier entscheiden, ob es eine Lücke ist, statt
+    /// still als angegeben durchzugehen. Dasselbe gilt für `ist_unbekannt` an
+    /// jedem semantischen Typ des Knotens; `tools/wirkung-baubruch-gegenprobe.py`
+    /// prüft es je Typ mit dem echten Übersetzer.
+    pub const fn ist_unbekannt(self) -> bool {
+        match self {
+            TimingSemantics::Immediate | TimingSemantics::Snapshot | TimingSemantics::Live => false,
+            TimingSemantics::Unknown => true,
+        }
+    }
+}
+
 /// Wie sich mehrfaches Auflegen verhaelt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StackingSemantics {
@@ -235,6 +258,23 @@ pub enum StackingSemantics {
     Replace,
     /// Nicht angegeben.
     Unknown,
+}
+
+impl StackingSemantics {
+    /// Ob das Stapelverhalten nicht angegeben ist — eine Bedingung von
+    /// [`EffectNode::hat_luecke`]. Ohne Auffangzweig, siehe
+    /// [`TimingSemantics::ist_unbekannt`].
+    pub const fn ist_unbekannt(self) -> bool {
+        match self {
+            StackingSemantics::None
+            | StackingSemantics::Refresh
+            | StackingSemantics::Extend
+            | StackingSemantics::Additive
+            | StackingSemantics::Capped(_)
+            | StackingSemantics::Replace => false,
+            StackingSemantics::Unknown => true,
+        }
+    }
 }
 
 /// Welche Zufallsquelle ein Effekt anfasst.
@@ -269,8 +309,27 @@ impl RandomnessSemantics {
     ///
     /// [`RandomnessSemantics::Unknown`] antwortet hier `false`: Unbekannt ist
     /// nicht deterministisch.
-    pub fn ist_deterministisch(self) -> bool {
-        matches!(self, RandomnessSemantics::Deterministic)
+    ///
+    /// Ein `match` ohne Auffangzweig, wie bei [`EffectOp`] (Epic #892): Eine
+    /// neue Quelle muss hier entscheiden, ob sie würfelt, statt still als
+    /// „würfelt“ durchzugehen.
+    pub const fn ist_deterministisch(self) -> bool {
+        match self {
+            RandomnessSemantics::Deterministic => true,
+            RandomnessSemantics::CritRoll
+            | RandomnessSemantics::Stream(_)
+            | RandomnessSemantics::Unknown => false,
+        }
+    }
+
+    /// Ob die Quelle nicht angegeben ist — eine Bedingung von [`EffectNode::hat_luecke`].
+    pub const fn ist_unbekannt(self) -> bool {
+        match self {
+            RandomnessSemantics::Deterministic
+            | RandomnessSemantics::CritRoll
+            | RandomnessSemantics::Stream(_) => false,
+            RandomnessSemantics::Unknown => true,
+        }
     }
 
     /// Welche Stroeme dieser Effekt anfassen kann.
@@ -388,6 +447,20 @@ pub enum MonotonicDirection {
     Unknown,
 }
 
+impl MonotonicDirection {
+    /// Ob keine Richtung angegeben ist. Ohne Auffangzweig, siehe
+    /// [`TimingSemantics::ist_unbekannt`]: Eine neue Richtung muss hier
+    /// entscheiden, ob sie etwas aussagt, bevor ein Hinweis mit ihr trägt.
+    pub const fn ist_unbekannt(self) -> bool {
+        match self {
+            MonotonicDirection::Increasing
+            | MonotonicDirection::Decreasing
+            | MonotonicDirection::NonMonotonic => false,
+            MonotonicDirection::Unknown => true,
+        }
+    }
+}
+
 /// Worauf sich ein Monotonie-Hinweis bezieht.
 ///
 /// **Ohne diesen Bezug ist der Hinweis wertlos.** Grundschaden ist monoton
@@ -446,6 +519,22 @@ pub enum MonotonicityDomain {
     SpellDiversity,
     /// Kein Bezug angegeben.
     Unspecified,
+}
+
+impl MonotonicityDomain {
+    /// Ob kein Bezug angegeben ist. Ohne Auffangzweig, siehe
+    /// [`TimingSemantics::ist_unbekannt`]: Ein neuer Bezug muss hier
+    /// entscheiden, ob er einer ist, bevor ein Hinweis für ihn trägt.
+    pub const fn ist_unbestimmt(self) -> bool {
+        match self {
+            MonotonicityDomain::ExpectedDamageStableTrace
+            | MonotonicityDomain::VictoryOutcome
+            | MonotonicityDomain::TimeToVictoryAcrossPhase
+            | MonotonicityDomain::HpPredicate
+            | MonotonicityDomain::SpellDiversity => false,
+            MonotonicityDomain::Unspecified => true,
+        }
+    }
 }
 
 /// Woraus ein Monotonie-**Zertifikat** entsteht.
@@ -547,7 +636,7 @@ pub fn zertifikat(
     bedarf: ZertifikatsBedarf,
     knoten: &EffectNode,
 ) -> Result<(), ZertifikatVerweigert> {
-    if matches!(hinweis.direction, MonotonicDirection::Unknown) {
+    if hinweis.direction.ist_unbekannt() {
         return Err(ZertifikatVerweigert::KeinHinweis);
     }
     if !hinweis.traegt_fuer(gefragt) {
@@ -598,10 +687,10 @@ impl LocalMonotonicityHint {
     /// Hinweis fuer den stabilen Trace sagt ueber den Sieg nichts — das ist der
     /// Kern von AC6 und der Grund, warum der Bezug im Typ steht.
     pub fn traegt_fuer(self, gefragt: MonotonicityDomain) -> bool {
-        if matches!(self.direction, MonotonicDirection::Unknown) {
+        if self.direction.ist_unbekannt() {
             return false;
         }
-        if matches!(self.domain, MonotonicityDomain::Unspecified) {
+        if self.domain.ist_unbestimmt() {
             return false;
         }
         self.domain == gefragt
@@ -779,6 +868,22 @@ pub enum Trigger {
     Unknown,
 }
 
+impl Trigger {
+    /// Ob der Auslöser nicht angegeben ist — eine Bedingung von
+    /// [`EffectNode::hat_luecke`]. Ohne Auffangzweig, siehe
+    /// [`TimingSemantics::ist_unbekannt`].
+    pub const fn ist_unbekannt(self) -> bool {
+        match self {
+            Trigger::OnCast
+            | Trigger::OnTick
+            | Trigger::OnExpire
+            | Trigger::OnTimeline
+            | Trigger::OnPhaseChange => false,
+            Trigger::Unknown => true,
+        }
+    }
+}
+
 /// Worauf ein Effekt wirkt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -792,6 +897,18 @@ pub enum Target {
     OneCooldown,
     /// Nicht angegeben.
     Unknown,
+}
+
+impl Target {
+    /// Ob das Ziel nicht angegeben ist — eine Bedingung von
+    /// [`EffectNode::hat_luecke`]. Ohne Auffangzweig, siehe
+    /// [`TimingSemantics::ist_unbekannt`].
+    pub const fn ist_unbekannt(self) -> bool {
+        match self {
+            Target::Boss | Target::Player | Target::AllCooldowns | Target::OneCooldown => false,
+            Target::Unknown => true,
+        }
+    }
 }
 
 // -------------------------------------------------------------------- Knoten
@@ -868,13 +985,13 @@ impl EffectNode {
     /// Nicht „ob er falsch ist" — nur, ob er an irgendeiner Stelle schweigt.
     /// Schweigen loest den Rueckfall aus.
     pub fn hat_luecke(&self) -> bool {
-        matches!(self.trigger, Trigger::Unknown)
-            || matches!(self.target, Target::Unknown)
+        self.trigger.ist_unbekannt()
+            || self.target.ist_unbekannt()
             || self.reads.is_unknown()
             || self.writes.is_unknown()
-            || matches!(self.timing, TimingSemantics::Unknown)
-            || matches!(self.stacking, StackingSemantics::Unknown)
-            || matches!(self.randomness, RandomnessSemantics::Unknown)
+            || self.timing.ist_unbekannt()
+            || self.stacking.ist_unbekannt()
+            || self.randomness.ist_unbekannt()
             || self.control_flow_effect.unknown
     }
 
@@ -883,8 +1000,25 @@ impl EffectNode {
     /// Das ist das Schlupfloch aus AC4, benannt und pruefbar gemacht: Eine
     /// Signatur, die nichts ueber sich sagt, darf nicht besser wegkommen als
     /// ein unbekannter Baustein.
+    ///
+    /// Ein `match` ohne Auffangzweig (Epic #892): Ein neuer Baustein muss hier
+    /// entscheiden, ob er eine Bossregel ist.
     pub fn signature_ohne_semantik(&self) -> bool {
-        matches!(self.op, EffectOp::CustomSignature(_)) && self.hat_luecke()
+        match self.op {
+            EffectOp::CustomSignature(_) => self.hat_luecke(),
+            EffectOp::DealDamage
+            | EffectOp::ApplyDot
+            | EffectOp::ApplyBuff
+            | EffectOp::ModifyResource
+            | EffectOp::ReduceCooldown
+            | EffectOp::ResetCooldown
+            | EffectOp::FreeNextGcd
+            | EffectOp::Heal
+            | EffectOp::Shield
+            | EffectOp::ConvertDamage
+            | EffectOp::ChangeBossState
+            | EffectOp::ChangePhase => false,
+        }
     }
 }
 

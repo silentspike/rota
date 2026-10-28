@@ -156,11 +156,21 @@ impl EffectAnalysisPass for ActionBoundPass {
                 // (Issue #966): Eine gedeckelte Stapelung begrenzt die Zahl der
                 // Zusatz-Aktionen genauso wirksam wie ein enger Wertebereich,
                 // und ohne diesen Zweig bliebe das Feld ungelesen.
+                //
+                // Ohne Auffangzweig (Epic #892): Ein neues Stapelverhalten muss
+                // hier entscheiden, ob es selbst eine Grenze setzt.
                 let schranke = match node.stacking {
                     StackingSemantics::Capped(grenze) => Some(Bounds::exact(0, i64::from(grenze))),
                     StackingSemantics::None => Some(Bounds::exact(0, 1)),
-                    _ if node.numeric_bounds.ist_eng() => Some(node.numeric_bounds),
-                    _ => None,
+                    // Keine eigene Grenze: Dann trägt nur ein enger Wertebereich.
+                    StackingSemantics::Refresh
+                    | StackingSemantics::Extend
+                    | StackingSemantics::Additive
+                    | StackingSemantics::Replace => {
+                        node.numeric_bounds.ist_eng().then_some(node.numeric_bounds)
+                    }
+                    // Von `hat_luecke` abgefangen; steht für die Vollständigkeit.
+                    StackingSemantics::Unknown => None,
                 };
                 match schranke {
                     Some(bounds) => AnalysisResult::erlaubt(
@@ -239,12 +249,21 @@ impl EffectAnalysisPass for KernelChoicePass {
         if node.hat_luecke() {
             return AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE);
         }
-        if matches!(node.timing, TimingSemantics::Live) {
-            return AnalysisResult::verboten(
-                Self::ID,
-                Evidence::Keine,
-                "liest bei jedem Tick neu — kein Kernel mit festgehaltenen Werten",
-            );
+        // Ohne Auffangzweig (Epic #892): Ein neues Zeitverhalten muss hier
+        // entscheiden, ob es Werte festhält.
+        match node.timing {
+            TimingSemantics::Live => {
+                return AnalysisResult::verboten(
+                    Self::ID,
+                    Evidence::Keine,
+                    "liest bei jedem Tick neu — kein Kernel mit festgehaltenen Werten",
+                );
+            }
+            TimingSemantics::Immediate | TimingSemantics::Snapshot => {}
+            // Von `hat_luecke` abgefangen; steht für die Vollständigkeit.
+            TimingSemantics::Unknown => {
+                return AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE);
+            }
         }
         match node.op {
             EffectOp::DealDamage => AnalysisResult::erlaubt(
@@ -301,10 +320,13 @@ impl EffectAnalysisPass for CacheReusePass {
         if node.hat_luecke() {
             return AnalysisResult::konservativ(Self::ID, Evidence::Keine, LUECKE);
         }
-        let festgehalten = matches!(
-            node.timing,
-            TimingSemantics::Snapshot | TimingSemantics::Immediate
-        );
+        // Ohne Auffangzweig (Epic #892): Ein neues Zeitverhalten muss hier
+        // entscheiden, ob es Werte festhält.
+        let festgehalten = match node.timing {
+            TimingSemantics::Snapshot | TimingSemantics::Immediate => true,
+            // `Unknown` ist von `hat_luecke` abgefangen und hält nichts fest.
+            TimingSemantics::Live | TimingSemantics::Unknown => false,
+        };
         match node.op {
             EffectOp::DealDamage | EffectOp::Heal | EffectOp::Shield => {
                 if festgehalten {
