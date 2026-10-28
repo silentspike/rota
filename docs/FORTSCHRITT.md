@@ -165,7 +165,9 @@ zweiten Ebene geht weniger als die Hälfte auch an der dritten vorbei. Die
 beiden Zeilen, die Zeit messen — Stränge warten, CPU-Zeit je Kampf —, prüfen
 nur, solange der Höchststand von PSI cpu `some avg10` im Fenster bei höchstens
 5 % (`hostcaps::PSI_CPU_MAX`) und der von PSI memory bei höchstens 10 % liegt
-(`PSI_IO_MEM_MAX`); darüber misst die Uhr die Maschine, nicht den Lauf. PSI
+(`PSI_IO_MEM_MAX`); darüber misst die Uhr die Maschine, nicht den Lauf. Die
+Zeilen schweigen dann nicht: Der Satz endet mit „Zeitdiagnose ausgesetzt: PSI
+cpu 18,40 %" (oder PSI memory, oder „kein Druckwert lesbar"). PSI
 zählt auch die eigenen Stränge: Wer so viele Arbeitsstränge startet, wie er
 Kerne darf, lässt Leit- und Anzeigestrang warten und erzeugt den Druck selbst.
 Einen gedrosselten Takt zeigt PSI nicht; die Zähler je Kampf sehen ihn nicht,
@@ -196,15 +198,16 @@ mit `--features diagnostics`; sonst stehen sie als nicht erhoben da.
 
 Im Strom steht unter `metrics.bottleneck`:
 
-| Feld                    | Inhalt                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------- |
-| `state`                 | `diagnosis`, `none` (geprüft, nichts gefunden), `pending` (nichts prüfbar), `not_collected` |
-| `diagnosis`, `sentence` | die erste Diagnose und der ganze Satz                                                       |
-| `findings`              | je Befund `rule`, `diagnosis`, `observation`, `next_step`                                   |
-| `checked`, `unchecked`  | welche Zeilen geprüft wurden, und welche nicht, mit `reason`                                |
-| `key`, `baseline`       | Schlüssel des Laufs; Schlüssel der Grundlage und ob er passt                                |
-| `counters`              | ob es Zähler gibt, Kernklasse, Prozessor, Hinweis des Adapters oder Grund und Rückfall      |
-| `measured`              | alle Messwerte aus AC1 über das Fenster, je Strang Arbeit und Warten                        |
+| Feld                       | Inhalt                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `state`                    | `diagnosis`, `none` (geprüft, nichts gefunden), `pending` (nichts prüfbar), `not_collected` |
+| `diagnosis`, `sentence`    | die erste Diagnose und der ganze Satz                                                       |
+| `time_diagnosis_suspended` | warum die Zeitzeilen aussetzen, etwa `PSI cpu 18,40 %` — sonst `null`                       |
+| `findings`                 | je Befund `rule`, `diagnosis`, `observation`, `next_step`                                   |
+| `checked`, `unchecked`     | welche Zeilen geprüft wurden, und welche nicht, mit `reason`                                |
+| `key`, `baseline`          | Schlüssel des Laufs; Schlüssel der Grundlage und ob er passt                                |
+| `counters`                 | ob es Zähler gibt, Kernklasse, Prozessor, Hinweis des Adapters oder Grund und Rückfall      |
+| `measured`                 | alle Messwerte aus AC1 über das Fenster, je Strang Arbeit und Warten                        |
 
 Die künstlichen Lagen, an denen der Wächter geprüft ist, lassen sich
 nachfahren: `examples/engpass-last.rs` belastet die Geschwisterstränge der
