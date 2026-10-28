@@ -2891,7 +2891,11 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 > **Der Vorbehalt dieses Kapitels ist am 2026-10-28 aufgehoben.** Auf die Frage, was für die Punkte
 > unten gilt, hat der Auftraggeber geantwortet: „Nicht game design, du musst den plan den du
 > erstellt hast als refernz nehmen". Die Punkte brauchen damit keine eigene Planungsrunde mehr: Der
-> Orchestrator arbeitet sie nach seinem Plan aus und baut sie im Issue, das sie braucht. Namen und
+> Orchestrator arbeitet sie nach seinem Plan aus und baut sie im Issue, das sie braucht. **Dieser Plan
+> ist der Masterplan aus der Planungszeit**, `~/.claude/plans/greedy-skipping-russell.md` (lokal,
+> nicht im Repository): Teil A ist das entschiedene Design, C.0 dieselbe Liste wie unten mit dem
+> jeweiligen Rahmen, C.1c die Leitplanken des Auftraggebers, Teil F das Verworfene. Was dort
+> ausgearbeitet wird, kommt als Regel in dieses Dokument — bei Widerspruch gilt weiter dieses. Namen und
 > Themen stehen als Arbeitsnamen da und sind als solche gekennzeichnet, damit der Auftraggeber sie
 > ändern kann. Der Satz „Nicht selbst entscheiden — fragen" unten gilt nicht mehr; er bleibt als
 > Herkunft stehen.
