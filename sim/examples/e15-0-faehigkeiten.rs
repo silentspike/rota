@@ -35,11 +35,23 @@
 //! derselben Rotation, denselben Strängen und denselben getragenen Werten
 //! wie die Kalibrierung, nach einem Aufwärmlauf.
 //!
-//! Sie läuft **verschränkt** mit der Kalibrierung des Vollkampfs: ein Block
-//! aus [`PAKETE_JE_BLOCK`] Paketen der Kalibrierung, dann ein Referenzlauf am
-//! Stück, wieder ein Block, wieder ein Referenzlauf — gleich viel Arbeit je
-//! Abschnitt, auf denselben Kernen (`kalibrierung::kalibriere_verschraenkt`).
-//! Verglichen wird Mittel gegen Mittel (`Verschraenkt::ac1`).
+//! Sie läuft **verschränkt** mit der Kalibrierung des Vollkampfs: ein
+//! Fenster des durchgehenden Laufs, dann ein Referenzlauf am Stück, wieder
+//! ein Fenster, wieder ein Referenzlauf — jedes Fenster so lang wie der
+//! letzte Referenzabschnitt, auf denselben Kernen
+//! (`kalibrierung::kalibriere_verschraenkt`). Verglichen wird Mittel gegen
+//! Mittel (`Verschraenkt::ac1`).
+//!
+//! # Der Vollkampf wird als durchgehender Lauf kalibriert (Weg b)
+//!
+//! Entscheidung des Orchestrators vom 28.10.: Die echte Arbeit läuft in
+//! langen Abschnitten, nicht in 20k-Happen. Bis dahin kalibrierte dieses
+//! Programm mit Paketen zu 20 000 Kämpfen und maß so neben der Rechenrate die
+//! Sperre am Ende jedes Pakets mit — auf node3 unter 8 Fremdsträngen
+//! 10–13 ms je Paket, und die Kalibrierung lag 12,7 bis 16,6 % unter der
+//! Arbeit am Stück. Jetzt misst `balance::strom`: Helfer rechnen ohne Sperre,
+//! und die Kampfzahl eines Fensters kommt aus dem Zählwerk. Diese Fenster
+//! sind die Abschnitte der Abbruchregel.
 //!
 //! Bis zum 28.10. lief die Referenz einmal davor und einmal danach. Auf node3
 //! lagen die zwei 10,7 % auseinander: Unter dieser Drift trägt ein
@@ -75,8 +87,9 @@ use rota_sim::hostcaps::{drucksignale, erlaubte_kerne, kernvorraete, psi_some_av
 use rota_sim::kalibrierung::{
     bestaetigungslauf, erheben_mit, genauigkeitsprobe, gespeicherte_rate, kalibriere,
     kalibriere_verschraenkt, profildatei, profilverzeichnis, schluessel_erheben,
-    verschraenkt_feste_dauer, Ac1Urteil, Arbeitsart, Bestaetigung, Erhebung, HostPerfVector, Lauf,
-    Profil, RateModel, Verschraenkt, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
+    verschraenkt_feste_dauer, Abschnittswert, Ac1Urteil, Arbeitsart, Bestaetigung, Erhebung,
+    HostPerfVector, Lauf, Profil, RateModel, Verschraenkt, AC1_TOLERANZ, STREUUNG_MAX,
+    TAKT_DRIFT_MAX,
 };
 use rota_sim::rotation_search::{all_candidates, greedy};
 use rota_sim::verteilung::{verteilung_ueber, Treffer};
@@ -85,39 +98,31 @@ use rota_sim::verteilung::{verteilung_ueber, Treffer};
 /// Rechnern trägt — eine andere Zeitleiste ist eine andere Arbeit.
 const BOSS: &str = "boss-1-1";
 
-/// Wie viele Kämpfe ein Messabschnitt des Vollkampfs umfasst.
-///
-/// **Ein Paket, keine Gesamtmenge.** Die Zahl der Pakete entscheidet der
-/// adaptive Lauf; hier steht nur, wie groß eines ist. 20 000 Kämpfe brauchen
-/// auf dem Laptop rund 0,1 Sekunden und auf gonet rund 0,17 — klein genug, dass
-/// die Abbruchbedingung feinkörnig greift, groß genug, dass der Aufruf-Aufwand
-/// nicht mitgemessen wird.
-const KAEMPFE_JE_PAKET: u32 = 20_000;
-
 /// Wie viele Kämpfe der Referenzlauf aus AC1 am Stück rechnet.
 ///
 /// Dieselbe Menge wie das Programm, mit dem die Werte in #912 erhoben sind
-/// (`orch-verteilung`: 200 000 Kämpfe, feste Rotation, Aufwärmlauf davor) —
-/// zehnmal ein Paket der Kalibrierung, in einem einzigen Aufruf: die Arbeit
-/// am Stück und nicht die Kalibrierung selbst.
+/// (`orch-verteilung`: 200 000 Kämpfe, feste Rotation, Aufwärmlauf davor), in
+/// einem einzigen Aufruf: die Arbeit am Stück.
 const REFERENZ_KAEMPFE: u32 = 200_000;
 
-/// Wie viele Pakete der Kalibrierung einen Abschnitt des verschränkten Laufs
-/// bilden: so viele, dass er dieselbe Arbeit trägt wie ein Referenzlauf am
-/// Stück. Gleich viel Arbeit heißt auf derselben Maschine gleich lang — die
-/// Voraussetzung, unter der eine Drift beide Reihen gleich trifft.
-const PAKETE_JE_BLOCK: u32 = REFERENZ_KAEMPFE / KAEMPFE_JE_PAKET;
+/// Wie lang ein Fenster des durchgehenden Laufs im Bestätigungslauf ist —
+/// und im verschränkten Lauf, bis der erste Referenzabschnitt seine Dauer
+/// vorgibt.
+///
+/// Eine halbe Sekunde ist auf node3 die Größenordnung eines Referenzlaufs
+/// am Stück (200 000 Kämpfe bei rund 400 000 je Sekunde); zehn Fenster
+/// füllen die Mindestdauer.
+const STROM_FENSTER: Duration = Duration::from_millis(500);
 
-/// Ein Kalibrierabschnitt im verschränkten Lauf: [`PAKETE_JE_BLOCK`] Pakete,
-/// jedes ein eigener Aufruf, so wie die Kalibrierung misst.
-fn kalibrierblock(cfg_paket: &BalanceConfig, apl: &Apl) -> f64 {
-    let mut kaempfe = 0usize;
-    for _ in 0..PAKETE_JE_BLOCK {
-        kaempfe += balance::run(cfg_paket, apl).damage.count;
-    }
-    #[allow(clippy::cast_precision_loss)]
-    {
-        kaempfe as f64
+/// Ein Fenster des durchgehenden Laufs als Abschnitt der Kalibrierung: die
+/// Kämpfe, die das Zählwerk bis zum Fensterende zählte, und das Fenster
+/// selbst.
+fn stromfenster(cfg: &BalanceConfig, apl: &Apl, dauer: Duration) -> Abschnittswert {
+    let m = balance::strom(cfg, apl, dauer);
+    Abschnittswert {
+        #[allow(clippy::cast_precision_loss)]
+        einheiten: m.kaempfe as f64,
+        fenster: Some(m.fenster),
     }
 }
 
@@ -195,14 +200,6 @@ fn feste_rotation() -> Apl {
                 condition: k.condition.clone(),
             })
             .collect(),
-    }
-}
-
-/// Ein Paket der Kalibrierung: [`KAEMPFE_JE_PAKET`] Kämpfe in einem Aufruf.
-fn paket(cfg_paket: &BalanceConfig, apl: &Apl) -> f64 {
-    #[allow(clippy::cast_precision_loss)]
-    {
-        balance::run(cfg_paket, apl).damage.count as f64
     }
 }
 
@@ -401,10 +398,12 @@ fn main() {
         "  Rotation               {} Zeilen aus greedy",
         apl.rules.len()
     );
-    println!("  Kaempfe je Paket       {KAEMPFE_JE_PAKET}");
     println!(
-        "  Referenz (AC1)         {REFERENZ_KAEMPFE} Kaempfe am Stueck, verschraenkt mit \
-         Bloecken aus {PAKETE_JE_BLOCK} Paketen"
+        "  Vollkampf              durchgehender Lauf (balance::strom), Fenster aus dem Zaehlwerk"
+    );
+    println!(
+        "  Referenz (AC1)         {REFERENZ_KAEMPFE} Kaempfe am Stueck, verschraenkt, \
+         jedes Fenster so lang wie der letzte Referenzabschnitt"
     );
     println!();
 
@@ -431,23 +430,29 @@ fn main() {
     let beginn = Instant::now();
 
     let threads = caps.threads_usable.max(1);
-    let cfg_voll = config(threads, KAEMPFE_JE_PAKET);
+    let cfg_strom = config(threads, REFERENZ_KAEMPFE);
     let cfg_stueck = config(threads, REFERENZ_KAEMPFE);
     // **Die volle Erhebung des Vollkampfs IST der verschränkte Lauf** mit der
-    // Referenz aus AC1: Block aus Paketen, Lauf am Stück, Block, Lauf … —
-    // gleich viel Arbeit je Abschnitt. Der Bestätigungslauf misst dieselben
-    // Pakete einzeln, wie jede andere Arbeitsart.
+    // Referenz aus AC1: Fenster des durchgehenden Laufs, Lauf am Stück,
+    // Fenster, Lauf … Jedes Fenster ist so lang wie der Referenzabschnitt vor
+    // ihm, damit eine Drift beide Reihen gleich trifft. Der Bestätigungslauf
+    // misst dieselben Fenster, eine halbe Sekunde lang.
+    let fenster = std::cell::Cell::new(STROM_FENSTER);
+    let mut kalibrierabschnitt = || stromfenster(&cfg_strom, &apl, fenster.get());
+    let mut referenzabschnitt = || {
+        let t = Instant::now();
+        let n = referenzblock(&cfg_stueck, &apl);
+        fenster.set(t.elapsed());
+        n
+    };
     let mut ac1_lauf: Option<Verschraenkt> = None;
     let scalar = erhebe(
         Arbeitsart::ScalarFullFight,
         gespeichert(Arbeitsart::ScalarFullFight),
         |lauf| match lauf {
-            Lauf::Kurz => bestaetigungslauf(|| paket(&cfg_voll, &apl)),
+            Lauf::Kurz => bestaetigungslauf(|| stromfenster(&cfg_strom, &apl, STROM_FENSTER)),
             Lauf::Voll => {
-                let v = kalibriere_verschraenkt(
-                    || kalibrierblock(&cfg_voll, &apl),
-                    || referenzblock(&cfg_stueck, &apl),
-                );
+                let v = kalibriere_verschraenkt(&mut kalibrierabschnitt, &mut referenzabschnitt);
                 ac1_lauf = Some(v);
                 v.kalibrierung
             }
@@ -571,7 +576,7 @@ fn main() {
     // 28.10.): Eine auf zwei Sekunden verkürzte Messung sieht unter Drift
     // ruhiger aus, weil sie weniger sieht. Gefragt wird deshalb, welche der
     // zwei näher an ihrer verschränkten Referenz liegt — beide verschränkt,
-    // mit denselben Blöcken und Läufen am Stück.
+    // mit denselben Fenstern und Läufen am Stück.
     if kontrolle {
         println!("== Kontrollprobe AC2: verschraenkt fest 2 s gegen verschraenkt adaptiv ==");
         match ac1_lauf {
@@ -581,8 +586,8 @@ fn main() {
             ),
             Some(adaptiv) => {
                 let fest = verschraenkt_feste_dauer(
-                    || kalibrierblock(&cfg_voll, &apl),
-                    || referenzblock(&cfg_stueck, &apl),
+                    &mut kalibrierabschnitt,
+                    &mut referenzabschnitt,
                     Duration::from_secs(2),
                 );
                 for (name, v) in [("adaptiv", &adaptiv), ("fest 2 s", &fest)] {

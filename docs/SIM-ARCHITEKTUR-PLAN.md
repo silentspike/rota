@@ -3334,7 +3334,18 @@ nicht, ist der Kalibrierlauf nicht repräsentativ für die echte Arbeit — und 
 > Teil 2.1 sind Momentanwerte unter drei verschiedenen Lasten, und ein 10-Prozent-Kriterium gegen
 > einen Momentanwert ist nur durch Lastglück erfüllbar. Maßstab ist deshalb eine Referenz, die
 > zur selben Zeit auf derselben Maschine gemessen wird — für node3 im Container, für den Laptop
-> ebenso. Der Plan folgt damit dem Issue. „Zur selben Zeit" heißt **verschränkt** (siehe die
+> ebenso. Der Plan folgt damit dem Issue.
+
+> **Entschieden am 2026-10-28 (Orchestrator): Kalibrierung als durchgehender Lauf; dynamische
+> Entnahme.** Gemessen am 2026-10-28 auf node3: Eine Kalibrierung aus 20k-Paketen lag unter acht
+> Fremdsträngen 12,7–16,6 % unter der verschränkten Referenz am Stück, weil jedes Paket
+> 10–13 ms auf seine Sperre wartete. Weder Strangvorrat noch mitrechnender Aufrufer noch
+> dynamische Entnahme brachten das unter 10 % (−10,9 bis −15,2 %). Der Vollkampf wird deshalb mit
+> `balance::strom` kalibriert: Helfer rechnen ohne Sperre, und die Abschnitte der Abbruchregel
+> sind Fenster, deren Kampfzahl aus dem Zählwerk kommt. Dazu entnimmt `balance::run` dynamisch
+> statt in festen Bereichen (+10,8–17,2 % Durchsatz der Arbeit am Stück, bitgleich); Arbeit und
+> Warten in E15.3 gelten seither je Strang. Die Mindestdauer von 5 s und die 25-%-Schwelle aus
+> AC5 bleiben. „Zur selben Zeit" heißt **verschränkt** (siehe die
 > Präzisierung der Abbruchregel oben).
 >
 > **Die Kontrollprobe der adaptiven Dauer misst Genauigkeit, nicht Streuung** (präzisiert am
@@ -3812,6 +3823,16 @@ Belegung der Ereignisschlange · Trefferquote von expire_buffs
 >    am 2026-10-28: node3 ±3 %, Laptop zwischen gleichen Läufen ±40 % (24,7–45,8 µs je Kampf) bei
 >    PSI ≤ 4,08 %; auf dem Laptop rechnet die CPU nicht (Entscheidung des Auftraggebers
 >    2026-10-28).
+
+> **Entschieden am 2026-10-28 (Orchestrator): dynamische Entnahme; Warten je Strang.** Seit #912
+> bekommt in `balance::run` kein Strang mehr einen festen Bereich: Jeder zieht Happen zu acht
+> Durchgängen aus einem gemeinsamen Zähler, der Aufrufer rechnet mit, die Helfer leben über die
+> Läufe. Grund, gemessen am 2026-10-28 auf node3 (Versuchsbau, verschränkt, bitgleich): Die feste
+> Aufteilung kostete die Arbeit am Stück 10,8–17,2 % Durchsatz, weil jeder Lauf auf seinen
+> langsamsten Strang wartete. Die Zeile „Stränge warten > 15 %" misst Arbeit und Warten deshalb
+> **je Strang, nicht je festem Bereich**. Ein Strang ohne Happen wartet den ganzen Abschnitt — das
+> bleibt die Lage „zu wenige Pakete" (`engpass-pakete --iterations 2 --threads 4`). Bei genug
+> Happen gleicht die Entnahme selbst aus.
 
 **Die vorletzte Zeile ist der eigentliche Zweck dieses Issues.** Jede Optimierung von E11 beruht
 auf einer heute gemessenen Verteilung. Der Engpasswächter ist das Bauteil, das **meldet, wann
