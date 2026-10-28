@@ -39,6 +39,7 @@ use serde_json::Value;
 
 use listen_aufzeichnung::{druecke, laeufe, lauf};
 use rota_sim::data::{index_of, SPELLS};
+use rota_sim::fight::NULLZEIT_BUDGET;
 use rota_sim::time::GCD_MS;
 
 const JSON_TEXT: &str = include_str!("../../tests/parity/recordings/gcd-freier-wurf.json");
@@ -256,5 +257,17 @@ fn jeder_lauf_hat_einen_prueffall() {
     assert_eq!(
         in_der_datei, LAEUFE,
         "Läufe der Aufzeichnung und Prüffälle dieser Datei passen nicht zusammen"
+    );
+}
+
+/// (c) **Beide Seiten brechen beim selben Wurf ab.** Die Grenze ist auf beiden
+/// Seiten die Zahl der Zauber; fiele sie auseinander, rechnete eine Seite einen
+/// Nullzeit-Zyklus noch, den die andere schon ablehnt.
+#[test]
+fn das_nullzeit_budget_ist_auf_beiden_seiten_dasselbe() {
+    assert_eq!(
+        listen_aufzeichnung::u32_at(&data(), "nullzeitBudget"),
+        NULLZEIT_BUDGET,
+        "nullzeitBudget der Spielseite gegen NULLZEIT_BUDGET des Simulators"
     );
 }
