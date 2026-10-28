@@ -12,9 +12,11 @@ affects:
     sim/tests/apl_strikte_vergleiche.rs,
     sim/tests/parity_gcd_freier_wurf.rs,
     sim/tests/entscheidung_nach_gcd_freiem_wurf.rs,
+    sim/tests/parity_strikter_umschlag.rs,
     sim/examples/e1027-operator-measure.rs,
     src/devtools/reference-run.ts,
     tests/parity/recordings/gcd-freier-wurf.json,
+    tests/parity/recordings/strikter-umschlag.json,
   ]
 ---
 
@@ -26,7 +28,12 @@ Oktober nach zwei Behebungen in `sim/src/fight.rs` vollständig neu gefahren** (
 siehe unten). Auftrag ist die Antwort `f-apl-strikte-vergleiche-2` vom 22.08.: „Erst den
 Vorher-Nachher-Lauf, dann entscheiden".
 
-**Fassung B ist eine Messung, keine Semantikänderung.** Sie lag nur als Wegwerf-Patch im Arbeitsbaum
+> **Seit dem 28. Oktober entschieden und eingebaut** — Fassung B, das Entscheidungsmodell des
+> Orchestrators und eine Nachbesserung der Suche. Was das gegenüber den Messungen unten verschiebt,
+> steht im nächsten Abschnitt, [Entschieden und eingebaut](#entschieden-und-eingebaut-28-oktober).
+> Die Abschnitte danach beschreiben den Stand **vor** dieser Entscheidung.
+
+**Fassung B war eine Messung, keine Semantikänderung.** Sie lag nur als Wegwerf-Patch im Arbeitsbaum
 und ist nicht eingecheckt. `sim/src/apl/mod.rs` hat im Bestand den SHA-256 `377742d1…`; dieser Zweig
 ergänzt darin nur Kommentarzeilen (`77388248…`, siehe [Woher der Verzug kommt](#woher-der-verzug-kommt)).
 Vor und nach jedem Lauf mit B, M, M2 oder MT steht die Datei wieder auf dem Stand dieses Zweigs, per
@@ -66,6 +73,123 @@ noch eine von 84 Suchen — die AC5-Suche — statt 15, und keinen der 2394 Best
 14 übrigen Verschiebungen und alle 97 Bestandsläufe hingen an der Entscheidung nach dem freien Wurf,
 nicht am Weckruf. Wo Zahlen der ersten beiden Fassungen nicht mehr gelten, sind sie ersetzt; was sich
 änderte, steht in [Was die Behebung verschob](#was-die-behebung-verschob).
+
+## Entschieden und eingebaut (28. Oktober)
+
+**Fassung B**, Entscheidung des Auftraggebers vom 28.10. („B, wie das Spiel"): Eine Zahl in einer
+Bedingung auf einem Zeitwert greift im Simulator wie im Spiel auf dem 10-ms-Takt. `switch_point`
+bekommt den Operator und legt den Weckruf auf den ersten Takt, an dem der Vergleich kippt — der Patch
+aus [Was Fassung B hier heißt](#was-fassung-b-hier-heißt), eingebaut und kommentiert.
+
+**Das Entscheidungsmodell**, Festlegung des Orchestrators vom selben Tag an #1027, in der Schleife
+des Spiels (`driveRotation`) und im Simulator (`Fight::run_with`), bitgleich:
+
+|     |                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (a) | nach einem Wurf wählt die Liste beim selben Zeitstempel weiter, bis sie nichts mehr wählt                                                                                                                     |
+| (b) | während einer laufenden Wartezeit kommt ein Zauber ohne Wartezeit zum Zug (QUENCH), auch im Takt des Wurfs, der sie ausgelöst hat; der Simulator weckt dafür innerhalb der Wartezeit (`next_wakeup_ohne_gcd`) |
+| (c) | mehr Würfe beim selben Zeitstempel als Zauber im Datensatz (70) sind ein Nullzeit-Zyklus und brechen als Datenfehler ab                                                                                       |
+
+Das ist, was `Session.tick` einem Spieler schon immer erlaubt; `Session` selbst ist unverändert.
+
+**Die Nachbesserung der Suche** für #797-AC5: Die Dreiergruppe (Unterbrecher, Zeile im
+Schlagfenster, Erzeuger) darf Zeilen verdrängen, wenn ihr nur der Platz fehlt — auch an der
+Längengrenze. Unter B allein trugen die Einzelzüge der AC5-Suche bis Länge 8, mit (a) und (b) bis 10;
+beide Male wurde keine einzige Gruppe gefragt. Der Prüffall ist unverändert und grün: FIXATION
+`pin`, `bind`, eine Unterbrechung, ohne FIXATION tot. Die Gewichtsreihe trennt wieder bei 1, 2, 5,
+10, 20, 50 und 100 (unter B allein: 2, 5, 10, 50, 100).
+
+### Vorher-Nachher über alle 42 Bosse
+
+Dasselbe Messprogramm, viermal gebaut — auf der Basis `a81d35f1`, nach jedem der drei Schritte —
+und je einmal gefahren; der erste und der letzte Stand zweimal, bytegleich:
+
+| Stand                   | Bau-Job                    | Ausgabe SHA-256                                                               |
+| ----------------------- | -------------------------- | ----------------------------------------------------------------------------- |
+| A, Basis                | `c184e941a011937c1d52a403` | `c29fdf9d…` (×2) — **bytegleich mit der A-Ausgabe der dritten Nachbesserung** |
+| B                       | `fd87709adfe73ba0fa77665c` | `134a1b10…` — **bytegleich mit der dortigen B-Ausgabe**                       |
+| B + (a)(b)(c)           | `52a3b22dd3a8bc8db4f8535a` | `d816fff7…`                                                                   |
+| Endstand, mit der Suche | `8b8b08a40fe7e19781bcbeb7` | `76420049…` (×2)                                                              |
+
+Die beiden Gleichheiten oben belegen zweierlei: Was seit der dritten Nachbesserung in `main` kam,
+bewegt keine dieser Zahlen, und der eingebaute Weckruf ist der gemessene Patch, nicht ein ähnlicher.
+
+Geänderte Datensätze je Schritt, über dieselben 2833 (Feld `fp` je Paar `(kind, id)`; dieselben Mengen in jedem Stand):
+
+| Art                              |  von | durch B | durch (a)(b)(c) | durch die Suche |
+| -------------------------------- | ---: | ------: | --------------: | --------------: |
+| Suche (`search`), Liste anders   |   84 |       1 |              40 |               3 |
+| Suche, nur Wert oder Lauf anders |   84 |       0 |               4 |               0 |
+| Suche mit `<=` (`search_le`)     |   84 |       0 |              70 |               3 |
+| Bestandsläufe (`bestand`)        | 2394 |       0 |             204 |               0 |
+| GCD-Proben (`gcd`)               |   32 |       2 |              12 |               0 |
+| `gcdfrei`                        |    2 |       0 |               1 |               0 |
+| Wurfproben (`probe`)             |   84 |      24 |               0 |               0 |
+| Zustandsproben (`operator`)      |  144 |      48 |               0 |               0 |
+| Raster (`raster`)                |    8 |       4 |               0 |               0 |
+
+- **B** verschiebt genau die AC5-Suche (18.950 → 11.627) und sonst keine; alle 84 Wurfproben treffen
+  danach die Takt-Referenz (vorher 60).
+- **(a)(b)(c)** verschieben 44 Suchen — jede mit QUENCH oder SUBLIME in der alten oder der neuen
+  Liste; der Wert steigt in 21 und fällt in 23 — und 204 Bestandsläufe, alle in den sechs Dateien mit
+  einer `quench`-Zeile (`e607p-paar`, `instance1-boss4-unterbrechen`, `instance1-rein`,
+  `instance1-unterbrechen` an je 42 Bossen, `e558-paar-bedingt` und `e797-mit-quench` an je 18).
+  Die 51 Dateien ohne Zauber ohne Wartezeit ändern sich nicht.
+- **Die Suche** verschiebt drei Suchen, alle in der Einstellung `kontrolle` und alle nach oben:
+  `boss-1-3` (10.660 → 10.736), `boss-2-4` (11.220 → 11.283) und `test-lethal-strike` (11.807 →
+  20.834); jede hat danach die Gruppe `quench if boss.casting >= 1`, `pin if boss.next_strike_in <=
+3000`, `bind`.
+
+Gegen das Spiel (`e1027-operator-measure spiel` auf der neuen `gcd-freier-wurf.json`): Der Bau A
+entscheidet in 1 von 8 Läufen wie das Spiel, der Endstand in 8 von 8, ereignisgesteuert wie mit
+Takt-Referenz, Leerlauf eingeschlossen.
+
+Suchwerte je Boss; **fett** heißt, die gefundene Liste ist eine andere als im Stand davor:
+
+| Boss                     | `bericht` A → B → (a)(b)(c) → Suche | `kontrolle` A → B → (a)(b)(c) → Suche     |
+| ------------------------ | ----------------------------------- | ----------------------------------------- |
+| `boss-1-1`               | 9001 → 9001 → **9068** → 9068       | 13877 → 13877 → **13746** → 13746         |
+| `boss-1-2`               | 7544 → 7544 → 7544 → 7544           | 8459 → 8459 → 8459 → 8459                 |
+| `boss-1-3`               | 9364 → 9364 → 9364 → 9364           | 10520 → 10520 → **10660** → **10736**     |
+| `boss-1-4`               | 8233 → 8233 → **8130** → 8130       | 9557 → 9557 → **9824** → 9824             |
+| `boss-2-1`               | 8843 → 8843 → **9068** → 9068       | 13420 → 13420 → **15974** → 15974         |
+| `boss-2-2`               | 7750 → 7750 → **8451** → 8451       | 15134 → 15134 → **14282** → 14282         |
+| `boss-2-3`               | 11392 → 11392 → 11392 → 11392       | 12903 → 12903 → **13552** → 13552         |
+| `boss-2-4`               | 8312 → 8312 → **8169** → 8169       | 11813 → 11813 → **11220** → **11283**     |
+| `boss-3-1`               | 7744 → 7744 → 7744 → 7744           | 11882 → 11882 → 11882 → 11882             |
+| `boss-3-2`               | 9364 → 9364 → 9364 → 9364           | 9798 → 9798 → **9768** → 9768             |
+| `boss-3-3`               | 9364 → 9364 → 9364 → 9364           | 12448 → 12448 → 12448 → 12448             |
+| `boss-3-4`               | 8721 → 8721 → 8721 → 8721           | 9776 → 9776 → **9954** → 9954             |
+| `boss-4-1`               | 11224 → 11224 → 11224 → 11224       | 11632 → 11632 → **11836** → 11836         |
+| `boss-4-2`               | 9364 → 9364 → 9364 → 9364           | 9798 → 9798 → **9446** → 9446             |
+| `boss-4-3`               | 10553 → 10553 → 10553 → 10553       | 15108 → 15108 → **15165** → 15165         |
+| `boss-4-4`               | 9364 → 9364 → 9364 → 9364           | 11803 → 11803 → **11953** → 11953         |
+| `boss-5-1`               | 9364 → 9364 → 9364 → 9364           | 14446 → 14446 → **14461** → 14461         |
+| `boss-5-2`               | 8550 → 8550 → 8550 → 8550           | 8977 → 8977 → **9467** → 9467             |
+| `boss-5-3`               | 10922 → 10922 → 10922 → 10922       | 12993 → 12993 → **12873** → 12873         |
+| `boss-5-4`               | 8721 → 8721 → 8721 → 8721           | 9574 → 9574 → 9474 → 9474                 |
+| `first-crucible`         | 9364 → 9364 → 9364 → 9364           | 9798 → 9798 → **9446** → 9446             |
+| `orch-maxload`           | 3182 → 3182 → **1938** → 1938       | 139 → 139 → 139 → 139                     |
+| `test-caster`            | 48672 → 48672 → 48672 → 48672       | 50760 → 50760 → 49915 → 49915             |
+| `test-collision`         | 9364 → 9364 → 9364 → 9364           | 12948 → 12948 → 12948 → 12948             |
+| `test-crucible-trial`    | 18990 → 18990 → 18990 → 18990       | 23828 → 23828 → **23239** → 23239         |
+| `test-doomsayer`         | 5921 → 5921 → 5921 → 5921           | 6047 → 6047 → **6068** → 6068             |
+| `test-gatekeeper`        | 18990 → 18990 → 18990 → 18990       | 19660 → 19660 → **19215** → 19215         |
+| `test-lapse`             | 8793 → 8793 → **9068** → 9068       | 10172 → 10172 → **9878** → 9878           |
+| `test-lapse-interrupt`   | 9364 → 9364 → 9364 → 9364           | 10222 → 10222 → **9878** → 9878           |
+| `test-lethal-strike`     | 8440 → 8440 → 8440 → 8440           | 18950 → **11627** → **11807** → **20834** |
+| `test-metronome`         | 48672 → 48672 → 48672 → 48672       | 51730 → 51730 → **51091** → 51091         |
+| `test-onslaught`         | 9014 → 9014 → 9014 → 9014           | 14233 → 14233 → **14246** → 14246         |
+| `test-phase`             | 48672 → 48672 → 48672 → 48672       | 50760 → 50760 → 49915 → 49915             |
+| `test-phasenbindung`     | 48672 → 48672 → 48672 → 48672       | 50760 → 50760 → 49915 → 49915             |
+| `test-racer`             | 17798 → 17798 → **17976** → 17976   | 19536 → 19536 → **19237** → 19237         |
+| `test-resistant`         | 37902 → 37902 → 37902 → 37902       | 39651 → 39651 → **39004** → 39004         |
+| `test-runaway`           | 3361 → 3361 → 3361 → 3361           | 3361 → 3361 → 3361 → 3361                 |
+| `test-stacked`           | 7504 → 7504 → 7504 → 7504           | 8274 → 8274 → **8133** → 8133             |
+| `test-survivable-strike` | 10244 → 10244 → 10244 → 10244       | 11619 → 11619 → **11680** → 11680         |
+| `test-vessel`            | 14047 → 14047 → 14047 → 14047       | 15705 → 15705 → **17792** → 17792         |
+| `test-vulnerable`        | 59390 → 59390 → 59390 → 59390       | 61275 → 61275 → **61750** → 61750         |
+| `test-warden`            | 9364 → 9364 → 9364 → 9364           | 10278 → 10278 → **9926** → 9926           |
 
 ## Ergebnis
 
