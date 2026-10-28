@@ -12,7 +12,7 @@ use super::kernklasse::{Adapter, Kernklasse, Prozessor};
 use super::messwerte::{Druck, Messwerte, Rohstand, Zaehlerlage};
 use super::regeln::{diagnose, Diagnose};
 use super::zaehler::{prozess_cpu_ns, Leistungszaehler};
-use crate::fortschritt::Momentaufnahme;
+use crate::fortschritt::{Fenster, Momentaufnahme};
 use crate::kampagne::{json_number, json_string};
 
 /// Die Engpasserhebung eines Laufs.
@@ -98,11 +98,22 @@ impl Erhebung {
         roh.druck = Druck::erheben();
     }
 
-    /// Das Bild zwischen zwei Momentaufnahmen.
+    /// Das Bild zwischen zwei Momentaufnahmen, mit dem Druck der jüngeren.
     #[must_use]
     pub fn bild(&self, alt: &Momentaufnahme, neu: &Momentaufnahme) -> Engpassbild {
         let messwerte = Messwerte::aus_fenster(alt, neu, self.zaehlerlage());
         self.bild_aus(messwerte)
+    }
+
+    /// Das Bild über ein Fenster: älteste gegen jüngste Probe, der Druck als
+    /// Höchststand aller Proben dazwischen ([`Druck::hoechst`]). Der Weg der
+    /// Anzeige — `None` nur bei einem leeren Fenster.
+    #[must_use]
+    pub fn bild_im_fenster(&self, fenster: &Fenster) -> Option<Engpassbild> {
+        let mut messwerte =
+            Messwerte::aus_fenster(fenster.aelteste()?, fenster.letzte()?, self.zaehlerlage());
+        messwerte.druck = Druck::hoechst(fenster.proben().map(|p| p.engpass.druck));
+        Some(self.bild_aus(messwerte))
     }
 
     /// Das Bild zu fertigen Messwerten — die Regeltabelle, angewandt.

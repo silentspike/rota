@@ -98,8 +98,7 @@ impl Laufbeschreibung {
         let engpass = self
             .engpass
             .as_ref()
-            .zip(fenster.aelteste())
-            .map(|(e, alt)| e.bild(alt, &probe));
+            .and_then(|e| e.bild_im_fenster(fenster));
         let drosselung = self.drosselung.as_ref().map(|c| c.snapshot());
         // Die Stränge, die gerade rechnen DÜRFEN: Eine Steuerdatei mit
         // `cpu_threads: 2` lässt von acht Strängen zwei arbeiten.

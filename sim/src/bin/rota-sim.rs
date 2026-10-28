@@ -280,8 +280,11 @@ fn beende_anzeige(anzeige: Option<Anzeigestrang>, wahl: &Anzeigewahl) -> Result<
 /// - **Fremdlast.** Am 2026-10-28 entstand eine Grundlage auf dem Laptop bei
 ///   PSI cpu 6,71 %: Befehlsdurchsatz 2,53 statt 2,74 eine Viertelstunde
 ///   davor. Jeder spaetere Lauf haette sich mit einer gestoerten Maschine
-///   verglichen. Die Grenze ist dieselbe, unter der das Projekt ueberhaupt
-///   misst (`hostcaps::PSI_CPU_MAX`). Ohne lesbaren Druckwert wird
+///   verglichen. Die Grenzen sind dieselben, unter denen das Projekt
+///   ueberhaupt misst (`hostcaps::PSI_CPU_MAX`, `PSI_IO_MEM_MAX`), und
+///   gelesen wird der **Hoechststand** im Fenster: Eine zweite Grundlage
+///   bestand mit PSI cpu 2,36 % am Ende, waehrend `avg60` noch bei 10 stand —
+///   Befehlsdurchsatz 2,30 statt 2,91. Ohne lesbaren Druckwert wird
 ///   geschrieben — dann sagt es die Meldung danach.
 fn pruefe_grundlage(m: &rota_sim::engpass::Messwerte) -> Result<(), String> {
     let mindestens = rota_sim::kalibrierung::ABSCHNITTE_MIN as f64;
@@ -297,13 +300,13 @@ fn pruefe_grundlage(m: &rota_sim::engpass::Messwerte) -> Result<(), String> {
             "Mehr rechnen lassen (--iterations, --fights):  rota-sim run --help",
         ));
     }
-    let grenze = rota_sim::hostcaps::PSI_CPU_MAX;
-    if let Some(psi) = m.druck.cpu.filter(|psi| *psi > grenze) {
+    // Derselbe Prüfweg wie fuer die Zeitzeilen der Diagnose, ueber den
+    // Hoechststand im Fenster. Nur ohne jeden CPU-Druckwert wird trotzdem
+    // geschrieben: Die Zaehlerwerte haengen nicht an PSI, und ein Rechner ohne
+    // PSI bekaeme sonst nie eine Grundlage.
+    if let Some(grund) = m.druck.cpu.and(m.druck.stoert_zeitmessung()) {
         return Err(fehler_mit_ausweg(
-            &format!(
-                "Die Grundlage wurde nicht geschrieben: Fremdlast, PSI cpu some avg10 {psi:.2} % \
-                 ueber {grenze:.0} %."
-            ),
+            &format!("Die Grundlage wurde nicht geschrieben: {grund}."),
             Some(
                 "Eine Grundlage unter Fremdlast vergliche jeden spaeteren Lauf mit einer \
                  gestoerten Maschine."
@@ -3461,9 +3464,13 @@ mod tests {
         );
         let fremdlast = pruefe_grundlage(&mit(24.6, Some(6.71))).expect_err("Fremdlast");
         assert!(
-            fremdlast.contains("Fremdlast") && fremdlast.contains("6.71"),
+            fremdlast.contains("Fremdlast") && fremdlast.contains("6,71"),
             "{fremdlast}"
         );
+        let mut speicher = mit(24.6, Some(0.3));
+        speicher.druck.speicher = Some(12.5);
+        let speicher = pruefe_grundlage(&speicher).expect_err("Speicherdruck");
+        assert!(speicher.contains("Speicherdruck"), "{speicher}");
         let kurz = pruefe_grundlage(&mit(2.0, Some(0.3))).expect_err("zu kurz");
         assert!(kurz.contains("2.0 s"), "{kurz}");
     }

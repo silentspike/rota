@@ -559,25 +559,11 @@ fn zaehlerzeilen(d: &mut Diagnose, z: &Zaehlerwerte, g: &Grundlage) {
 /// Gemessen am 2026-10-28 auf dem Laptop: vier Stränge mit je 100 Kämpfen
 /// „warteten" nach CPU-Zeit 16,4 und 18,1 % bei PSI cpu 7,5 und 8,1 % — ein
 /// langer Abschnitt bei PSI 3,7 hatte 1,1 %. Darüber entscheidet derselbe
-/// Wert, unter dem das Projekt überhaupt misst (`hostcaps::PSI_CPU_MAX`).
-/// Ohne lesbaren Druckwert ist eine Verlangsamung von Fremdlast nicht zu
-/// trennen.
+/// Wert, unter dem das Projekt überhaupt misst — gelesen als Höchststand im
+/// Fenster, nicht als letzter Wert ([`super::Druck::stoert_zeitmessung`], derselbe
+/// Weg, den `rota-sim --write-baseline` geht).
 fn zeit_gestoert(m: &Messwerte) -> Option<String> {
-    let grenze = crate::hostcaps::PSI_CPU_MAX;
-    match m.druck.cpu {
-        Some(psi) if psi > grenze => Some(format!(
-            "Fremdlast: PSI cpu some avg10 {} % über {} % — die Zeitmessung ist nicht \
-             aussagekräftig",
-            zahl(psi),
-            zahl(grenze)
-        )),
-        None => Some(
-            "kein Druckwert lesbar — ohne ihn ist eine Zeitmessung unter Fremdlast nicht von \
-             einer Verlangsamung zu trennen"
-                .to_owned(),
-        ),
-        Some(_) => None,
-    }
+    m.druck.stoert_zeitmessung()
 }
 
 /// Die Zeile des Rückfalls: CPU-Zeit je Kampf gegen die Grundlage, sofern
