@@ -36,20 +36,24 @@ geteilt. Es rechnet jetzt über `balance::run_vollstaendig` jeden Durchgang.
 
 ## Der Block
 
-Auszug aus einer Suche über vier Stränge mit Würfel, 0,25 s nach dem Start:
+Auszug aus einer Suche über vier Stränge mit Würfel, 0,25 s nach dem Start
+(`rota-sim run --boss boss-1-1 --iterations 200 --max-len 6 --threads 4
+--purity 500 --progress`, node3, Bau mit `--features diagnostics`,
+2026-10-28):
 
 ```text
-greedy · boss-1-1 · Runde 2   ███░░░░░░░░░░░░░   20 % der Runde
-  Kandidaten   169 / höchstens 2 895 (mindestens 357) seit 00:00:00
-  Durchsatz    676 /s   ⌀ 676 /s über 0,3 s   aufgelöste Kandidaten
+greedy · boss-1-1 · Runde 3   █████░░░░░░░░░░░   31 % der Runde
+  Kandidaten   468 / höchstens 2 649 (mindestens 708) seit 00:00:00
+  Durchsatz    1 871 /s   ⌀ 1 871 /s über 0,3 s   aufgelöste Kandidaten
      davon     ein Kampf 0 % · Stichprobe 100 % · gestaffelt 0 %   (ohne Lauf: cache, analytic, ledger, suffix, avx2)
-     Kernel    135 943 /s roh   ⌀ 135 943 /s   33 996 Kämpfe für 33 800 Durchgänge
+     Kernel    374 551 /s roh   ⌀ 374 551 /s   93 689 Kämpfe für 93 600 Durchgänge
   Restzeit     noch keine: erst ab vier Messsekunden — darunter ist eine Streuung Zufall
-  Systeme      localhost.localdomain 4/4 Stränge aktiv (4 Kerne erlaubt)
+  Systeme      rota-sim 4/4 Stränge aktiv (6 Kerne erlaubt)
   Drosselung   keine (ohne --control-file)
-  Engpass      keine Diagnose — die Engpasserkennung folgt mit E15.3 (#934)
-  Bestes       3 753,2 seit 00:00:00 unverändert · 49 Auswertungen ohne Verbesserung · Runde 2
-  Meldung      #2 · 2026-10-28T13:28:05.454384Z · progress
+  Engpass      noch keine Diagnose — erst ab 4 Messsekunden, das Fenster hat 0,25
+     Messung   Zähler zen5 (83 % / 84 % der Zeit gezählt) · ohne Grundlage
+  Bestes       5 185,2 seit 00:00:00 unverändert · 112 Auswertungen ohne Verbesserung · Runde 3
+  Meldung      #2 · 2026-10-28T18:12:04.485481Z · progress
 ```
 
 **Zwei Durchsatzzahlen:** „Durchsatz" sind aufgelöste Kandidaten je Sekunde —
@@ -120,10 +124,95 @@ lückenlos — eine Lücke ist eine verlorene Meldung. Unter `metrics` stehen
 `plateau`, `hosts`, `throttle` und `bottleneck`. Eine nicht endliche Zahl steht
 als `null`, nie als Text.
 
+## Der Engpass (#934 / E15.3)
+
+Die Zeile „Engpass" beantwortet die Frage neben dem Durchsatz: **wo lohnt der
+nächste Umbau?** Sie gibt einen Satz aus — Diagnose, Beobachtung mit Zahlen,
+nächster Schritt —, keine Zahlenliste. Die Regeltabelle ist eine reine
+Funktion (`sim/src/engpass/regeln.rs`) und rechnet über dasselbe
+30-Sekunden-Fenster wie die gleitende Rate, unter vier Messsekunden gar nicht.
+
+Die letzte Meldung eines `bench` gegen seine Grundlage, während auf den
+Geschwistersträngen je 4 MiB Puffer kreisten (`examples/engpass-last.rs`,
+node3, 2026-10-28):
+
+```text
+  Engpass      Zustand zu groß für die zweite Ebene: Fehlgriffe der zweiten Ebene je Kampf 29,33 statt 1,24 (+2274 %), davon 8,0 % auch an der dritten vorbei (3,29 statt 1,05), Speicher-Wartezeit +506 %, Zyklen je Kampf +97 % — nächster Schritt: Suchzustand weiter verdichten (E11.4)
+     Messung   Zähler zen5 (50 % / 50 % der Zeit gezählt) · Grundlage passt
+```
+
+Die Zeile darunter sagt, woher der Satz kommt: welche Zähler mit welchem
+Anteil der Zeit gezählt haben — die beiden Gruppen teilen sich die Hardware —,
+oder warum es keine gibt; und ob eine Grundlage passt.
+
+| Beobachtung                                                            | Diagnose                             | nächster Schritt                            |
+| ---------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------- |
+| Zyklen je Kampf ≥ +30 %, Befehlsdurchsatz ≤ −25 %, Fehlsprünge ≥ +40 % | verzweigungsgebunden                 | Kernel-Spezialisierung, profilgeführter Bau |
+| Zyklen ≥ +30 %, Speicher-Wartezeit ≥ +50 %, L2 ≥ +50 %, dritte niedrig | Zustand zu groß für die zweite Ebene | Suchzustand weiter verdichten               |
+| Stränge warten über 15 % ihrer Zeit                                    | Pakete zu groß oder zu wenige        | Paketlänge senken                           |
+| Netzwartezeit über 10 % der Paketzeit                                  | Pakete zu klein                      | Paketgröße erhöhen                          |
+| Trefferquote eines Wegs unter seiner eigenen Schwelle                  | dieser Weg lohnt nicht               | Weg abschalten                              |
+| `expire_buffs` trifft über 20 % der Aufrufe                            | die Kernel-Annahme gilt nicht mehr   | neu messen, Endausbau erreicht              |
+| Ereignisschlange über 80 % voll                                        | Kapazität wird knapp                 | vor dem Überlauf handeln                    |
+| nur ohne Zähler: CPU-Zeit je Kampf ≥ +30 %                             | langsamer als die Grundlage          | auf einem Rechner mit Zählern nachmessen    |
+
+**Relativ** sind nur die Zählerwerte aus AC2, und zwar gegen eine Grundlage
+**desselben Rechners, derselben Kernklasse und desselben Lastprofils**. Ohne
+passende Grundlage bleiben die beiden Zählerzeilen ungeprüft — eine feste Zahl
+gibt es für sie nicht. Die übrigen Zeilen sind Anteile der eigenen Zeit oder
+Kapazität. „Dritte niedrig" heißt: Von den zusätzlichen Fehlgriffen der
+zweiten Ebene geht weniger als die Hälfte auch an der dritten vorbei. Die
+beiden Zeilen, die Zeit messen — Stränge warten, CPU-Zeit je Kampf —, prüfen
+nur, solange der Höchststand von PSI cpu `some avg10` im Fenster bei höchstens
+5 % (`hostcaps::PSI_CPU_MAX`) und der von PSI memory bei höchstens 10 % liegt
+(`PSI_IO_MEM_MAX`); darüber misst die Uhr die Maschine, nicht den Lauf. PSI
+zählt auch die eigenen Stränge: Wer so viele Arbeitsstränge startet, wie er
+Kerne darf, lässt Leit- und Anzeigestrang warten und erzeugt den Druck selbst.
+Einen gedrosselten Takt zeigt PSI nicht; die Zähler je Kampf sehen ihn nicht,
+die CPU-Zeit je Kampf schon.
+
+**Eine Grundlage** schreibt ein Lauf, der genauso aufgerufen wird wie der
+spätere; ein Lauf unter Fremdlast oder mit weniger als vier Messsekunden
+schreibt keine:
+
+```text
+rota-sim bench --boss boss-1-1 --fights 3000000 --threads 4 --write-baseline g.txt
+rota-sim bench --boss boss-1-1 --fights 3000000 --threads 4 --baseline g.txt --progress
+```
+
+Das Lastprofil im Schlüssel sind Befehl, Boss, Rotation samt Fingerabdruck
+ihres Textes, die Mengenangaben, Stränge und der Bau (`release`/`debug`, mit
+oder ohne `diagnostics`). Erhebung über die acht Lastprofile, Speicherung je
+Kombination und Erneuerung bei geändertem Kernel sind E15.3b (#972).
+
+**Die Leistungszähler** öffnet `rota-sim` über `perf_event_open`, ohne Kiste,
+mit `inherit`: Jeder später gestartete Strang zählt mit. Welche Kodierung was
+bedeutet, sagt ein Adapter je Kernklasse — Zen 3 (Laptop) und Zen 5 (node3);
+Sandy Bridge, Alder Lake P und Gracemont E ruhen. Gibt es keine Zähler —
+gesperrt, ruhende oder unbekannte Klasse —, fällt die Diagnose auf
+Zeitmessung und Druckwerte zurück und nennt den Grund, statt auszufallen.
+Schlangenbelegung und Trefferquote der Ablaufprüfung gibt es nur in einem Bau
+mit `--features diagnostics`; sonst stehen sie als nicht erhoben da.
+
+Im Strom steht unter `metrics.bottleneck`:
+
+| Feld                    | Inhalt                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------- |
+| `state`                 | `diagnosis`, `none` (geprüft, nichts gefunden), `pending` (nichts prüfbar), `not_collected` |
+| `diagnosis`, `sentence` | die erste Diagnose und der ganze Satz                                                       |
+| `findings`              | je Befund `rule`, `diagnosis`, `observation`, `next_step`                                   |
+| `checked`, `unchecked`  | welche Zeilen geprüft wurden, und welche nicht, mit `reason`                                |
+| `key`, `baseline`       | Schlüssel des Laufs; Schlüssel der Grundlage und ob er passt                                |
+| `counters`              | ob es Zähler gibt, Kernklasse, Prozessor, Hinweis des Adapters oder Grund und Rückfall      |
+| `measured`              | alle Messwerte aus AC1 über das Fenster, je Strang Arbeit und Warten                        |
+
+Die künstlichen Lagen, an denen der Wächter geprüft ist, lassen sich
+nachfahren: `examples/engpass-last.rs` belastet die Geschwisterstränge der
+Kerne, auf denen `rota-sim` rechnet; `examples/engpass-pakete.rs` fährt viele
+kleine Auswertungen mit weniger Paketen als Strängen.
+
 ## Was hier nicht steht
 
-- **Keine Engpassdiagnose.** `bottleneck.diagnosis` ist `null`, bis E15.3
-  (#934) sie stellt.
 - **Keine offene Suche in `rota-sim`.** Heute gibt es dort keinen Lauf mit
   offener Menge; der Weg ist in der Bibliothek gebaut und geprüft
   (`Arbeitsmenge::Offen`, `tests/fortschritt.rs`).
