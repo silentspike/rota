@@ -60,7 +60,11 @@ fn laptop_compute_cpus_0_bis_11_und_reserviert_kerne_6_und_7() {
     assert_eq!(belegung.compute_cpus(), bereich(0, 11).as_slice());
     assert_eq!(belegung.reserved_cpus(), bereich(12, 15));
     let kerne: Vec<u32> = belegung.reserved_cores().iter().map(|k| k.core).collect();
-    assert_eq!(kerne, vec![6, 7], "reserviert werden die beiden letzten Kerne");
+    assert_eq!(
+        kerne,
+        vec![6, 7],
+        "reserviert werden die beiden letzten Kerne"
+    );
 
     let text = belegung.describe();
     assert!(text.contains("Compute:     CPUs 0–11"), "{text}");
@@ -213,7 +217,10 @@ fn zu_grosse_leere_und_doppelte_angaben_werden_abgelehnt() {
     }
     // GEGENPROBE: eine Reservierung von null ist gültig und lässt alles frei.
     assert_eq!(
-        topologie.assign(0).expect("nichts reserviert").compute_cpus(),
+        topologie
+            .assign(0)
+            .expect("nichts reserviert")
+            .compute_cpus(),
         bereich(0, 15).as_slice()
     );
 
@@ -251,8 +258,7 @@ fn der_bericht_nennt_die_cpu_nummern() {
         .expect("gültige Topologie")
         .assign(2)
         .expect("zwei von acht");
-    let v: serde_json::Value =
-        serde_json::from_str(&belegung.to_json()).expect("gültiges JSON");
+    let v: serde_json::Value = serde_json::from_str(&belegung.to_json()).expect("gültiges JSON");
     let mut erwartet = bereich(0, 5);
     erwartet.extend(bereich(8, 13));
     assert_eq!(v["computeCpus"], serde_json::json!(erwartet));
@@ -277,8 +283,11 @@ fn sysfs_baum(name: &str, eintraege: &[(u32, u32, u32, &str)], online: &str) -> 
         std::fs::create_dir_all(&topo).expect("topology");
         std::fs::write(topo.join("physical_package_id"), format!("{paket}\n")).expect("paket");
         std::fs::write(topo.join("core_id"), format!("{kern}\n")).expect("kern");
-        std::fs::write(topo.join("thread_siblings_list"), format!("{geschwister}\n"))
-            .expect("geschwister");
+        std::fs::write(
+            topo.join("thread_siblings_list"),
+            format!("{geschwister}\n"),
+        )
+        .expect("geschwister");
     }
     wurzel
 }
@@ -354,7 +363,10 @@ fn fehlende_und_kaputte_dateien_werden_benannt() {
     let wurzel = sysfs_baum("sysfs-fehlt", &[(0, 0, 0, "0")], "0-1");
     match CpuTopology::from_sysfs_at(&wurzel) {
         Err(TopologyError::Unreadable { path }) => {
-            assert!(path.ends_with("cpu1/topology/physical_package_id"), "{path}");
+            assert!(
+                path.ends_with("cpu1/topology/physical_package_id"),
+                "{path}"
+            );
         }
         anders => panic!("erwartet Unreadable, bekam {anders:?}"),
     }

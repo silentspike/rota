@@ -156,8 +156,9 @@ fn weitere_rechner_aendern_eta_aber_nicht_pflichtmenge_oder_vertrag() {
 #[test]
 fn explizite_frist_ist_nur_eine_zulassung_fuer_ein_teilergebnis() {
     let profile = profile("fixture", 100.0);
-    let contract =
-        contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining: Duration::from_millis(999) });
+    let contract = contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+        remaining: Duration::from_millis(999),
+    });
     let estimate = preflight(&contract, &[work()], &[host(&profile)]).expect("explicit partial");
     assert!(estimate.partial_requested);
     assert_eq!(estimate.mandatory_ms, 1000.0);
@@ -313,10 +314,9 @@ fn leere_auftraege_und_nicht_endliche_eta_sind_fehler() {
 fn restfrist_gilt_auch_wenn_die_zielzeit_viel_groesser_ist() {
     let profile = profile("fixture", 100.0);
     for (remaining_ms, partial) in [(1, true), (999, true), (1000, false), (1001, false)] {
-        let contract =
-            contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
-                remaining: Duration::from_millis(remaining_ms),
-            });
+        let contract = contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+            remaining: Duration::from_millis(remaining_ms),
+        });
         let estimate =
             preflight(&contract, &[work()], &[host(&profile)]).expect("explicit deadline");
         assert_eq!(estimate.mandatory_ms, 1000.0);
@@ -330,8 +330,9 @@ fn restfrist_gilt_auch_wenn_die_zielzeit_viel_groesser_ist() {
 #[test]
 fn ausdrueckliche_lange_frist_ist_trotz_knapper_zielzeit_kein_teilergebnis() {
     let profile = profile("fixture", 100.0);
-    let contract =
-        contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining: Duration::from_millis(1000) });
+    let contract = contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+        remaining: Duration::from_millis(1000),
+    });
     let estimate =
         preflight(&contract, &[work()], &[host(&profile)]).expect("actual deadline fits");
     assert!(!estimate.partial_requested);
@@ -345,7 +346,9 @@ fn ausdrueckliche_lange_frist_ist_trotz_knapper_zielzeit_kein_teilergebnis() {
 fn abgelaufene_und_ohne_aktuelles_utc_nicht_pruefbare_fristen_sind_fehler() {
     let profile = profile("fixture", 100.0);
     for policy in [
-        DeadlinePolicy::ActiveRuntime { remaining: Duration::from_millis(0) },
+        DeadlinePolicy::ActiveRuntime {
+            remaining: Duration::from_millis(0),
+        },
         DeadlinePolicy::WallClockUtc {
             deadline: DateTimeUtc { unix_seconds: 1 },
         },
@@ -504,9 +507,10 @@ fn zeiten_ohne_ganze_millisekunden_werden_nicht_still_gerundet() {
         "{error:?}"
     );
 
-    let mit_frist = contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining: krumm });
-    let error = preflight(&mit_frist, &[work()], &[host(&profile)])
-        .expect_err("Restfrist mit Bruchteil");
+    let mit_frist =
+        contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining: krumm });
+    let error =
+        preflight(&mit_frist, &[work()], &[host(&profile)]).expect_err("Restfrist mit Bruchteil");
     assert!(
         matches!(&error, FeasibilityError::InvalidInput(text) if text.contains("Restfrist")),
         "{error:?}"

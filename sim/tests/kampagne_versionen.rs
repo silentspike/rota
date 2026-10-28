@@ -70,7 +70,10 @@ fn eine_neue_zielzeit_erzeugt_ein_neues_profil() {
     assert_eq!(alt.target_wall_time, ZWEI_STUNDEN);
     assert_eq!(alt.canonical_work_budget, WorkUnits(1_000_000));
     assert_eq!(alt.fingerprint(), vorher);
-    assert_eq!(k.get(2).map(CampaignDefinition::fingerprint), Some(neu.fingerprint()));
+    assert_eq!(
+        k.get(2).map(CampaignDefinition::fingerprint),
+        Some(neu.fingerprint())
+    );
 }
 
 /// **AC7** — ein versioniertes Profil wird nicht umgerechnet.
@@ -106,7 +109,10 @@ fn ein_versioniertes_profil_wird_nicht_umgerechnet() {
         );
     }
     // Der Katalog hat die abgelehnten Fassungen nicht übernommen.
-    assert_eq!(k.get(1).map(CampaignDefinition::fingerprint), Some(eingefroren));
+    assert_eq!(
+        k.get(1).map(CampaignDefinition::fingerprint),
+        Some(eingefroren)
+    );
 
     // GEGENPROBE: Dieselbe Fassung noch einmal ist kein Fehler. Ohne sie wäre
     // der Fall oben auch dann grün, wenn `freeze` jede zweite Fassung ablehnte.
@@ -205,7 +211,7 @@ fn die_herkunft_eines_vertrags_ist_pruefbar() {
     for (feld, v) in &abweichungen {
         assert_eq!(
             k.origin(v),
-            Err(ProfileError::ContractDiverges { field: *feld }),
+            Err(ProfileError::ContractDiverges { field: feld }),
             "Das Feld {feld} weicht ab, ohne dass die Herkunftsprüfung es meldet."
         );
     }

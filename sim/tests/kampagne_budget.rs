@@ -45,7 +45,7 @@ const REFERENZ_HOST: HostRequirement = HostRequirement {
 
 const NETZ: NetworkRequirement = NetworkRequirement {
     max_rtt_ms: 5,
-    min_bandwidth_mibit_s: 100,
+    min_bandwidth_mibit_s: Some(100),
 };
 
 const ZWEI_STUNDEN: Duration = Duration::from_secs(7200);
@@ -127,7 +127,9 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 
     let abdruecke: Vec<Hash> = d
         .iter()
-        .map(|_| CampaignRunContract::from_campaign(&k, Mission::FullBalance).campaign_definition_hash)
+        .map(|_| {
+            CampaignRunContract::from_campaign(&k, Mission::FullBalance).campaign_definition_hash
+        })
         .collect();
     assert_eq!(
         abdruecke[0], abdruecke[1],
@@ -675,10 +677,16 @@ fn ac2_name_und_netz_des_referenzprofils_aendern_den_fingerabdruck() {
     varianten.push(("rtt", k));
     let mut k = basis;
     k.reference_profile.network = Some(NetworkRequirement {
-        min_bandwidth_mibit_s: 101,
+        min_bandwidth_mibit_s: Some(101),
         ..NETZ
     });
     varianten.push(("bandwidth", k));
+    let mut k = basis;
+    k.reference_profile.network = Some(NetworkRequirement {
+        min_bandwidth_mibit_s: None,
+        ..NETZ
+    });
+    varianten.push(("bandwidth unbekannt", k));
     let mut k = basis;
     k.reference_profile.network = None;
     varianten.push(("kein Netz", k));
@@ -699,9 +707,23 @@ fn ac2_name_und_netz_des_referenzprofils_aendern_den_fingerabdruck() {
     let mut nullen = basis;
     nullen.reference_profile.network = Some(NetworkRequirement {
         max_rtt_ms: 0,
-        min_bandwidth_mibit_s: 0,
+        min_bandwidth_mibit_s: Some(0),
     });
     assert_ne!(ohne.fingerprint(), nullen.fingerprint());
+
+    // Dasselbe für die Bandbreite allein: „nicht gemessen" gegen „null
+    // verlangt" — die zweite wäre eine Vorgabe, die erste ist keine.
+    let mut unbekannt = basis;
+    unbekannt.reference_profile.network = Some(NetworkRequirement {
+        min_bandwidth_mibit_s: None,
+        ..NETZ
+    });
+    let mut null_bandbreite = basis;
+    null_bandbreite.reference_profile.network = Some(NetworkRequirement {
+        min_bandwidth_mibit_s: Some(0),
+        ..NETZ
+    });
+    assert_ne!(unbekannt.fingerprint(), null_bandbreite.fingerprint());
 }
 
 /// **AC3** — das Referenzprofil „standard" ist Laptop + node3.
@@ -758,15 +780,49 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
                 h.name
             );
         }
-        assert!(!h.thermal_throttling, "{}: aktives Drosseln erlaubt", h.name);
+        assert!(
+            !h.thermal_throttling,
+            "{}: aktives Drosseln erlaubt",
+            h.name
+        );
     }
+
+    // Die entschiedenen Werte, wörtlich (Orchestrator, 2026-10-28). Die
+    // allgemeinen Eigenschaften oben bestünde auch ein Profil mit erfundenen
+    // Zahlen; erst diese Zeilen machen eine stille Änderung sichtbar.
+    assert_eq!(laptop.guaranteed_cpu_quota, Some(12.0));
+    assert_eq!(laptop.guaranteed_memory_mib, 4096, "Vorgabe „unter 5 GB“");
+    assert_eq!(
+        laptop.gpu_duty_cycle, 0.0,
+        "kein GPU-Pfad, also keine Grafik"
+    );
+
+    let node3 = &p.hosts[1];
+    assert_eq!(
+        node3.guaranteed_cpu_quota, None,
+        "node3 ist ausdrücklich best effort — keine garantierte Quote"
+    );
+    assert_eq!(
+        node3.cpu,
+        CpuReservation {
+            physical_cores: 8,
+            threads_per_core: 2,
+            reserved_physical_cores: 0,
+        },
+        "16 Stränge, nichts reserviert: die Laptop-Grenze gilt auf den Nodes nicht"
+    );
+    assert_eq!(node3.guaranteed_memory_mib, 4096, "Speicher hart 4096 MiB");
+    assert_eq!(node3.gpu_duty_cycle, 0.0);
 
     let netz = p
         .network
         .expect("Laptop + node3 hat eine Verbindung, also eine Netzvorgabe");
-    assert!(netz.max_rtt_ms > 0, "keine Obergrenze für die Umlaufzeit");
-    assert!(
-        netz.min_bandwidth_mibit_s > 0,
-        "keine Untergrenze für die Bandbreite"
+    assert_eq!(netz.max_rtt_ms, 250, "gemessen 48/92/183 ms zur Bau-VM");
+    // NICHT gemessen — und deshalb keine Zahl. Eine Untergrenze von 1 Mibit/s
+    // sähe wie eine Vorgabe aus und wäre eine Erfindung. Erhoben wird sie mit
+    // #912; dann bekommt das Profil eine neue Version.
+    assert_eq!(
+        netz.min_bandwidth_mibit_s, None,
+        "Die Bandbreiten-Untergrenze von node3 ist nicht gemessen"
     );
 }
