@@ -51,8 +51,8 @@ Referenzprofil "standard"
 ```
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Bis dahin stand hier
-> „Laptop + proxmox + gonet". Zusatzrechner ist nur noch **node3**; dort entsteht mit #912 ein
-> eigener Simulations-Container (am 2026-10-28 existiert er noch nicht). gonet und 10.0.0.69
+> „Laptop + proxmox + gonet". Zusatzrechner ist nur noch **node3**; dort steht seit demselben Tag
+> ein eigener Simulations-Container (CT 105 `rota-sim`, Teil 2.1). gonet und 10.0.0.69
 > gehören nicht mehr zum Profil. Die Ressourcenvorgaben je Rechner stehen am Code-Eintrag oben,
 > nicht ein zweites Mal hier; der Speicher ist dort auf beiden Rechnern eine **Obergrenze**, keine
 > Reservierung — der Lauf belegt nur, was er gerade braucht.
@@ -407,7 +407,14 @@ System gelaufen._
 > | RAM          | 62 GB gesamt, 11 GB verfügbar                                                                                                                                                         |
 > | GPU          | nur `ASPEED Graphics Family` (BMC-Grafik) — keine Rechen-GPU                                                                                                                          |
 > | Netz         | ICMP unbeantwortet; TCP-Verbindungsaufbau zu Port 22 (≈ 1 RTT), n = 15: min 45,1 · Median 67,2 · max 242,4 ms — gegen 1,33 und 1,69 ms zu den alten LAN-Rechnern                      |
-> | Kampfrate    | **ungemessen** — der Simulations-Container fehlt; Aufnahme mit #912                                                                                                                   |
+> | Kampfrate    | **ungemessen** — der Container steht, die Messung folgt mit #912                                                                                                                      |
+>
+> **Der Simulations-Container**, am 2026-10-28 angelegt: **CT 105 `rota-sim`**, unprivilegiert,
+> Debian 13, `cores 16`, `cpuunits 20`, `memory 4096` nur als **Obergrenze** (`memory.max`), keine
+> Reservierung — im Leerlauf belegt er rund 20 MB. Er hängt im LAN wie die übrigen
+> Arbeitsmaschinen auf node3 (`10.0.0.238`), ohne Internetzugang; erreichbar nur per SSH mit
+> Schlüssel, ein Paketfilter im Container lässt nur SSH und ICMP aus dem LAN herein. Umlaufzeit
+> Laptop → Container, TCP-Verbindungsaufbau, n = 15: min 47,8 · Median 54,7 · max 195,3 ms.
 >
 > Der Laptop, am selben Tag aus `/proc/cpuinfo`: aes avx avx2 bmi1 bmi2 clflushopt clwb f16c fma
 > pclmulqdq popcnt rdrand rdseed sha_ni vaes — **kein** AVX-512, **kein** AVX-VNNI, **kein** GFNI.
@@ -515,8 +522,8 @@ Kilobyte JSON und rechnet danach vollständig im Speicher — gemessen **97 page
 **83 %** liegen und ZFS jenseits von 80 % fragmentiert: Ein neuer LXC braucht Platz, und auf
 gonet sind nur 230 GB frei.
 
-> **Nachgetragen am 2026-10-28.** Der Container entsteht auf node3 (#912). Dessen freier
-> Plattenplatz ist in der Aufnahme vom 2026-10-28 **nicht erhoben**.
+> **Nachgetragen am 2026-10-28.** Der Container liegt auf node3 im Pool `local-zfs`: 291 GiB frei
+> bei 66 % Belegung (`pvesm status`, 2026-10-28); die Wurzel des Containers hat 8 GB.
 
 #### Zusammengefasst: Belastung und Eignung
 
@@ -578,8 +585,9 @@ Rundungsabweichung auf, egal wie man sie vergleicht.
 Paritätsrisiko. Das ist gemessen, nicht angenommen.
 
 > **Nachgetragen am 2026-10-28.** Gemessen ist das auf Zen 3, Sandy Bridge und Alder Lake.
-> **Auf node3 (Zen 5) ist der Hash ungemessen** — dort läuft der Simulator noch nicht. Für node3
-> gilt der Satz oben erst, wenn derselbe Hash dort abgelesen ist.
+> **Auf node3 (Zen 5) ist der Hash ungemessen** — im Container ist der Simulator noch nicht
+> gelaufen. Für node3 gilt der Satz oben erst, wenn derselbe Hash dort abgelesen ist; der Nachweis
+> gehört zur Prüfung vor dem ersten Paket in E15.5 (#936).
 
 #### Was die Verteilung bringt
 
@@ -622,8 +630,10 @@ jede Runde hängt an der vorigen.
 **Die Verteilung gehört also eine Ebene höher:** ganze Projektionen, Sweeps, Orakel-Tabellen,
 Fortschritts-Läufe. Dort sind die Pakete unabhängig und der Netzanteil klein.
 
-> **Nachgetragen am 2026-10-28 — dieselbe Rechnung für node3.** node3 steht nicht im LAN; statt
-> 1,5 ms gilt der gemessene TCP-Verbindungsaufbau (≈ 1 RTT, n = 15, Teil 2.1 oben):
+> **Nachgetragen am 2026-10-28 — dieselbe Rechnung für node3.** node3 steht nicht im Haus: Der
+> Container hängt zwar im LAN, aber über einen Tunnel, und dessen Umlaufzeit bleibt. Statt 1,5 ms
+> gilt der gemessene TCP-Verbindungsaufbau zum Knoten (≈ 1 RTT, n = 15, Teil 2.1 oben; zum
+> Container selbst Median 54,7 ms):
 >
 > ```
 > RTT zu node3   Median   67,2 ms     bei 2,74 µs je Kampf  ≈ 24 500 Kämpfe
@@ -687,7 +697,8 @@ Eigenschaften, die keine andere Maßnahme hat:
 
 **node3 ist der einzige Zusatzrechner — als eigener LXC.** `cores` großzügig, `cpuunits`
 niedrig, Speicher **nur als Obergrenze**, keine Reservierung: Der Container belegt, was er gerade
-braucht. Kein offener Port. Er entsteht mit #912.
+braucht. Er steht seit 2026-10-28 als CT 105 `rota-sim` im LAN, ohne Internetzugang, nur per SSH
+mit Schlüssel erreichbar (Teil 2.1, Nachtrag).
 
 **Der Vorbehalt, der früher gonet galt, gilt jetzt für node3:** Dort läuft der Bau-Dienst
 (`rustbuild-ovh`, VM 156) neben elf weiteren VMs und zwei LXC, bei Load 3,7–4,8 auf 16
@@ -696,7 +707,7 @@ läuft. Diesen Fall trägt die Overprovisioning-Begründung aus E15.1: **`cores`
 `cpuunits` niedrig**, der Container nimmt, was frei ist, und gibt nach, wenn andere Last kommt.
 Gemessen ist das auf node3 nicht (E15.1, Nachtrag).
 
-**Was node3 bringt, ist ungemessen** — die Kampfrate fehlt, bis der Container steht (#912). Eine
+**Was node3 bringt, ist ungemessen** — die Kampfrate fehlt, bis #912 sie im Container misst. Eine
 Prozentzahl gibt es deshalb nicht.
 
 **E11.7 verschiebt hier nichts:** Beide Zielrechner haben AVX2 und FMA (Nachtrag am Anfang von
@@ -1857,9 +1868,11 @@ nicht „Bereichsaufteilung" steht.
 > **Die Pool-Trennung je Kernklasse ruht — kein Zielrechner (seit 2026-10-28).** Beide
 > Zielrechner haben gleichartige Kerne: der Laptop acht Zen-3-Kerne, node3 acht Zen-5-Kerne mit
 > je 1 MiB L2 (Teil 2.1, Nachtrag). Die beiden Absätze darüber bleiben als Begründung stehen,
-> falls wieder ein Rechner mit P- und E-Kernen dazukommt. **Die dynamische Entnahme über den
-> Zähler bleibt** — sie gleicht ungleiche Strang-Geschwindigkeit aus, gleich woher sie kommt,
-> also auch aus Fremdlast; node3 trägt zwölf VMs.
+> falls wieder ein Rechner mit P- und E-Kernen dazukommt. Die Erhebung der Kernklassen selbst ist
+> gebaut (E15.0, PR #1111): auf proxmox gemessen zwei, auf dem Laptop eine, auf node3 noch nicht
+> abgelesen. **Die dynamische Entnahme über den Zähler bleibt** — sie gleicht ungleiche
+> Strang-Geschwindigkeit aus, gleich woher sie kommt, also auch aus Fremdlast; node3 trägt zwölf
+> VMs.
 
 **8 gegen 16 Stränge wird nach jedem Zustandsumbau neu gemessen.** Heute gewinnen 16 noch
 14 % gegenüber 8 (350 794 gegen 308 152) — nach der Verdichtung auf 12–16 aktive Zauber kann
@@ -3283,18 +3296,24 @@ E-Kern-Vorrat    8 Kerne / 8 Stränge, 3,3 GHz, 512 KiB je Kern
 je mit eigener Kernbindung, eigener Kalibrierung, eigener Chunkgröße und eigenem
 Durchsatzmittel.
 
-> **Ruht — kein Zielrechner (seit 2026-10-28).** Getrennte P-/E-Kern-Vorräte gab es nur für den
-> i5-1235U. Beide Zielrechner haben gleichartige Kerne (Laptop Zen 3, node3 Zen 5 mit 8 × 1 MiB
-> L2). Der Absatz bleibt stehen, falls wieder ein Rechner mit P- und E-Kernen dazukommt.
+> **Gebaut, und seit 2026-10-28 ohne Zielrechner.** Die getrennten Vorräte stehen in
+> `hostcaps::kernvorraete` (PR #1111) und sind auf proxmox belegt: zwei Vorräte, 4 Kerne mit
+> 4,4 GHz und 8 Kerne mit 3,3 GHz — genau die Zahlen oben; der Laptop meldet einen. Beide
+> Zielrechner haben gleichartige Kerne (Laptop Zen 3, node3 Zen 5). Geprüft wird die Eigenschaft
+> weiter auf proxmox, als **Prüfrechner** für diese eine Eigenschaft, nicht als Teil des Profils;
+> auf Laptop und node3 muss die Erhebung genau einen Vorrat melden (#912, AC6).
 
-**Fertig, wenn:** die Kalibrierung auf beiden Rechnern des Referenzprofils läuft und ihr Wert die
-gemessenen Durchsätze innerhalb von 10 % trifft. Trifft sie nicht, ist der Kalibrierlauf nicht
-repräsentativ für die echte Arbeit — und dann ist er wertlos.
+**Fertig, wenn:** die Kalibrierung auf beiden Rechnern des Referenzprofils läuft und eine
+**gleichzeitig auf derselben Maschine erhobene** Referenz innerhalb von 10 % trifft. Trifft sie
+nicht, ist der Kalibrierlauf nicht repräsentativ für die echte Arbeit — und dann ist er wertlos.
 
-> **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier stand „auf allen drei
-> Systemen" und „die gemessenen Durchsätze aus Teil 2.1". Für den Laptop stehen sie dort weiter;
-> **für node3 gibt es keinen gemessenen Durchsatz**, gegen den die Kalibrierung zu prüfen wäre —
-> der Container fehlt bis #912.
+> **Geändert am 2026-10-28.** Hier stand „auf allen drei Systemen" (Entscheidung des
+> Auftraggebers, nur noch Laptop + node3) und „die gemessenen Durchsätze aus Teil 2.1". Das
+> zweite ist der Stand **vor** der Umformulierung von #912 AC1 am 2026-08-22: Die Zahlen aus
+> Teil 2.1 sind Momentanwerte unter drei verschiedenen Lasten, und ein 10-Prozent-Kriterium gegen
+> einen Momentanwert ist nur durch Lastglück erfüllbar. Maßstab ist deshalb eine Referenz, die
+> zur selben Zeit auf derselben Maschine gemessen wird — für node3 im Container, für den Laptop
+> ebenso. Der Plan folgt damit dem Issue.
 
 ### E15.1 — Der Ressourcen-Balancer: drosseln ohne abzubrechen
 
@@ -3559,7 +3578,7 @@ solange er der nachgiebigste ist.
 > `cpuunits` dem Bau-Dienst wegnimmt, noch die Summe der dort zugeteilten Kerne. Und der Absatz
 > über `cpuunits` oben spricht von **Containern**; die Nachbarn auf node3 sind überwiegend VMs —
 > ob ein niedriges `cpuunits` gegen sie genauso nachgibt, ist ungemessen. Kampfrate und Wirkung
-> auf den Bau-Dienst werden erst messbar, wenn der Container steht (#912).
+> auf den Bau-Dienst werden mit #912 im Container messbar, der seit 2026-10-28 steht.
 
 ### E15.2 — Fortschritt, Durchsatz und eine ehrliche ETA
 
@@ -3730,8 +3749,12 @@ Belegung der Ereignisschlange · Trefferquote von expire_buffs
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier standen vier Kernklassen
 > (Zen 3, Sandy Bridge, Alder Lake P, Gracemont E); die Adapter für Sandy Bridge, Alder Lake P
 > und Gracemont E **ruhen — kein Zielrechner (seit 2026-10-28)**. Zen 5 kam mit node3 dazu. Auf
-> node3 rechnet der Simulator in einem LXC — der Fall des letzten Satzes; ob `perf_event_open`
-> dort zugänglich ist, ist nicht geprüft.
+> node3 rechnet der Simulator in einem LXC — genau der Fall des letzten Satzes, und er ist
+> eingetreten: **`perf_event_open` ist im Container gesperrt**, für einen Hardware-Zähler
+> (`cpu-cycles`) wie für einen Software-Zähler (`task-clock`) mit `EACCES`, bei
+> `perf_event_paranoid = 4` (gemessen am 2026-10-28 im Container). Auf node3 läuft die Diagnose
+> also über Zeitmessung und PSI. Der Wert ist eine Einstellung des Host-Kernels; ihn zu ändern
+> wäre ein Eingriff in die Infrastruktur und ist nicht vorgesehen.
 
 | Beobachtung (relativ zur Host-Baseline)                          | Diagnose                              | nächster Schritt                        |
 | ---------------------------------------------------------------- | ------------------------------------- | --------------------------------------- |
@@ -3985,8 +4008,9 @@ im letzten Bit unterscheiden, drucken dieselbe Zeile. Ohne diesen Nachweis wäre
 Verteilung unzulässig; mit ihm ist sie eine Betriebsfrage.
 
 > **Nachgetragen am 2026-10-28.** Gemessen ist das auf den Rechnern vom 2026-08-14. **Auf node3
-> (Zen 5) ist der Bit-Hash ungemessen** — dort läuft der Simulator noch nicht (Container mit
-> #912). Nach dem Satz oben ist Verteilung auf node3 erst mit diesem Nachweis zulässig.
+> (Zen 5) ist der Bit-Hash ungemessen** — im Container ist der Simulator noch nicht gelaufen. Nach
+> dem Satz oben ist Verteilung auf node3 erst mit diesem Nachweis zulässig; er gehört zur Prüfung
+> vor dem ersten Paket (#936).
 
 > **Für dauerhafte Korrektheitsentscheidungen reicht FNV-64 nicht.** Er ist gut genug, um eine
 > Abweichung zwischen Rechnern zu zeigen; für einen persistenten Ergebnisspeicher (E21.7),
@@ -5505,19 +5529,19 @@ je Baum mit anschließender Faltung über das Punktebudget sollte reichen; sie i
 
 #### Weiterhin offen, mit Grund
 
-| offen                                           | betrifft      | warum es (noch) nicht geht                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Queue-Verteilung am Lastprofil**              | E11.0b, E11.2 | Die Instrumentierung in `fight.rs` fehlt — sie ist Teil von E11.0                                                                                                                                                                                                                                                                                                               |
-| **`expire_buffs`-Trefferquote im Endausbau**    | E11.2         | dieselbe Instrumentierung                                                                                                                                                                                                                                                                                                                                                       |
-| **Talent-Phänotypen, exakt**                    | E11.1         | braucht die faktorisierte DP, nicht die naive Aufzählung                                                                                                                                                                                                                                                                                                                        |
-| **Cache-Trefferquote in einem realen LNS-Lauf** | E11.4b        | setzt E11.4b voraus — Code existiert nicht                                                                                                                                                                                                                                                                                                                                      |
-| **Bitgleichheit über AVX2/FMA**                 | E11.7, E14    | setzt E11.7 voraus — der Nachweis in Teil 2.1 gilt für den **skalaren** Pfad                                                                                                                                                                                                                                                                                                    |
-| **Ob ein LXC unter Dauerlast node3 stört**      | E15.5         | **es gibt noch keinen LXC.** Die Messungen vom 2026-08-14 liefen direkt als root auf gonet und proxmox, per `scp`+`ssh`. Der Container auf node3 ist seit 2026-10-28 entschieden und entsteht mit #912; bis dahin sind dort Kampfrate, Bit-Hash und die Wirkung auf den Bau-Dienst `rustbuild-ovh` ungemessen. Der Plan beschreibt `cpuunits` und cgroup v2 — beides ungetestet |
+| offen                                           | betrifft      | warum es (noch) nicht geht                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Queue-Verteilung am Lastprofil**              | E11.0b, E11.2 | Die Instrumentierung in `fight.rs` fehlt — sie ist Teil von E11.0                                                                                                                                                                                                                                                                                                                              |
+| **`expire_buffs`-Trefferquote im Endausbau**    | E11.2         | dieselbe Instrumentierung                                                                                                                                                                                                                                                                                                                                                                      |
+| **Talent-Phänotypen, exakt**                    | E11.1         | braucht die faktorisierte DP, nicht die naive Aufzählung                                                                                                                                                                                                                                                                                                                                       |
+| **Cache-Trefferquote in einem realen LNS-Lauf** | E11.4b        | setzt E11.4b voraus — Code existiert nicht                                                                                                                                                                                                                                                                                                                                                     |
+| **Bitgleichheit über AVX2/FMA**                 | E11.7, E14    | setzt E11.7 voraus — der Nachweis in Teil 2.1 gilt für den **skalaren** Pfad                                                                                                                                                                                                                                                                                                                   |
+| **Ob ein LXC unter Dauerlast node3 stört**      | E15.5         | **Der LXC steht, unter Last gelaufen ist er nicht.** Die Messungen vom 2026-08-14 liefen direkt als root auf gonet und proxmox, per `scp`+`ssh`. Der Container auf node3 steht seit 2026-10-28 (CT 105, Teil 2.1); Kampfrate (#912), Bit-Hash (#936) und die Wirkung auf den Bau-Dienst `rustbuild-ovh` sind dort ungemessen. Der Plan beschreibt `cpuunits` und cgroup v2 — beides ungetestet |
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Die letzte Zeile lautete „Ob ein
 > LXC unter Dauerlast die Nodes stört" und endete mit „Einen Container anzulegen ist ein Eingriff
-> in die Infrastruktur und braucht eine Freigabe". Entschieden ist seitdem der Ort: ein LXC auf
-> node3.
+> in die Infrastruktur und braucht eine Freigabe". Die Freigabe liegt vor („Nur node3", „oder de
+> container"), und der Container steht.
 
 ### 6.3 Was dieser Plan bewusst nicht löst
 
