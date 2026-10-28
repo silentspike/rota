@@ -35,11 +35,17 @@
 //! derselben Rotation, denselben Strängen und denselben getragenen Werten
 //! wie die Kalibrierung, nach einem Aufwärmlauf.
 //!
-//! Sie läuft **unmittelbar vor und unmittelbar nach** der Kalibrierung des
-//! Vollkampfs. Verglichen wird gegen das Mittel beider; liegen die zwei selbst
-//! weiter als die Toleranz auseinander, hat sich die Last im Fenster geändert,
-//! und das Programm sagt das, statt zu urteilen
-//! (`kalibrierung::ac1_vergleich`).
+//! Sie läuft **verschränkt** mit der Kalibrierung des Vollkampfs: ein Block
+//! aus [`PAKETE_JE_BLOCK`] Paketen der Kalibrierung, dann ein Referenzlauf am
+//! Stück, wieder ein Block, wieder ein Referenzlauf — gleich viel Arbeit je
+//! Abschnitt, auf denselben Kernen (`kalibrierung::kalibriere_verschraenkt`).
+//! Verglichen wird Mittel gegen Mittel (`Verschraenkt::ac1`).
+//!
+//! Bis zum 28.10. lief die Referenz einmal davor und einmal danach. Auf node3
+//! lagen die zwei 10,7 % auseinander: Unter dieser Drift trägt ein
+//! Vorher/Nachher-Vergleich kein 10-Prozent-Kriterium. Und der Lauf davor
+//! schob auf dem belasteten Laptop den Druck so hoch, dass die Kalibrierung
+//! danach mit `Druck` abbrach.
 //!
 //! # `--kontrolle`
 //!
@@ -54,7 +60,7 @@
 //! nebenbei Dateien anlegt, tut zwei Dinge, und beim nächsten Fehler weiß
 //! niemand, welches davon schiefging.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use rota_sim::akkumulator::TrialIdSet;
 use rota_sim::apl::{Apl, Rule};
@@ -66,7 +72,7 @@ use rota_sim::gear::WornValues;
 use rota_sim::gear_balance;
 use rota_sim::hostcaps::{drucksignale, erlaubte_kerne, kernvorraete, psi_some_avg10, HostCaps};
 use rota_sim::kalibrierung::{
-    ac1_vergleich, bestaetigen, gespeicherte_rate, kalibriere, kontrolllauf_feste_dauer,
+    bestaetigen, gespeicherte_rate, kalibriere, kalibriere_verschraenkt, kontrolllauf_feste_dauer,
     profildatei, profilverzeichnis, schluessel_erheben, Ac1Urteil, Arbeitsart, Bestaetigung,
     HostPerfVector, Profil, RateModel, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
 };
@@ -94,19 +100,31 @@ const KAEMPFE_JE_PAKET: u32 = 20_000;
 /// am Stück und nicht die Kalibrierung selbst.
 const REFERENZ_KAEMPFE: u32 = 200_000;
 
-/// Die Referenz aus AC1: [`REFERENZ_KAEMPFE`] Kämpfe am Stück, in Kämpfen je
-/// Sekunde.
+/// Wie viele Pakete der Kalibrierung einen Abschnitt des verschränkten Laufs
+/// bilden: so viele, dass er dieselbe Arbeit trägt wie ein Referenzlauf am
+/// Stück. Gleich viel Arbeit heißt auf derselben Maschine gleich lang — die
+/// Voraussetzung, unter der eine Drift beide Reihen gleich trifft.
+const PAKETE_JE_BLOCK: u32 = REFERENZ_KAEMPFE / KAEMPFE_JE_PAKET;
+
+/// Ein Kalibrierabschnitt im verschränkten Lauf: [`PAKETE_JE_BLOCK`] Pakete,
+/// jedes ein eigener Aufruf, so wie die Kalibrierung misst.
+fn kalibrierblock(cfg_paket: &BalanceConfig, apl: &Apl) -> f64 {
+    let mut kaempfe = 0usize;
+    for _ in 0..PAKETE_JE_BLOCK {
+        kaempfe += balance::run(cfg_paket, apl).damage.count;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    {
+        kaempfe as f64
+    }
+}
+
+/// Ein Referenzabschnitt: [`REFERENZ_KAEMPFE`] Kämpfe in EINEM Aufruf.
 ///
-/// Der Aufwärmlauf mit einem Zehntel davor ist der aus `orch-verteilung`;
-/// er zählt nicht. Konfiguration und Rotation sind dieselben wie bei der
-/// Kalibrierung — eine andere Zeitleiste oder ein anderer Krit wäre eine
-/// andere Arbeit.
-fn referenzlauf(threads: usize, apl: &Apl) -> f64 {
-    let _ = balance::run(&config(threads, REFERENZ_KAEMPFE / 10), apl);
-    let cfg = config(threads, REFERENZ_KAEMPFE);
-    let t0 = Instant::now();
-    let r = balance::run(&cfg, apl);
-    let dauer = t0.elapsed().as_secs_f64();
+/// Konfiguration und Rotation sind dieselben wie bei der Kalibrierung — eine
+/// andere Zeitleiste oder ein anderer Krit wäre eine andere Arbeit.
+fn referenzblock(cfg_stueck: &BalanceConfig, apl: &Apl) -> f64 {
+    let r = balance::run(cfg_stueck, apl);
     // `count` ist bei der Reduktion aus #908 immer `iterations` und belegt
     // deshalb nicht, dass gerechnet wurde — das belegt
     // `ein_durchgang_genuegt` weiter unten. Hier sichert er nur, dass die
@@ -115,7 +133,7 @@ fn referenzlauf(threads: usize, apl: &Apl) -> f64 {
         r.damage.count, REFERENZ_KAEMPFE as usize,
         "der Referenzlauf hat nicht die angeforderte Menge"
     );
-    f64::from(REFERENZ_KAEMPFE) / dauer
+    f64::from(REFERENZ_KAEMPFE)
 }
 
 /// Getragene Sonderwerte mit **echtem** Krit-Zufall.
@@ -181,12 +199,23 @@ fn feste_rotation() -> Apl {
 /// Misst eine Arbeitsart und druckt die Zeile dazu.
 fn miss(art: Arbeitsart, arbeit: impl FnMut() -> f64) -> RateModel {
     let r = kalibriere(arbeit);
+    zeile(art.schluessel(), art.einheit(), &r);
+    r
+}
+
+/// Eine Zeile je gemessener Rate.
+///
+/// **Streuung und Unsicherheit stehen beide da**: Die Streuung beschreibt die
+/// Abschnitte, die Unsicherheit das Mittel — an ihr hängt `Stabil`
+/// (`STREUUNG_MAX`).
+fn zeile(name: &str, einheit: &str, r: &RateModel) {
     println!(
-        "  {:<20} {:>14.1} {:<22} Streuung {:>6.2} %  {:>3} Abschnitte  {:>6} ms  PSI {:>5}  Drift {:>7}  {:?}",
-        art.schluessel(),
+        "  {:<20} {:>14.1} {:<22} Streuung {:>6.2} %  Unsicherheit {:>5.2} %  {:>3} Abschnitte  {:>6} ms  PSI {:>5}  Drift {:>7}  {:?}",
+        name,
         r.rate_per_s,
-        art.einheit(),
+        einheit,
         r.spread * 100.0,
+        r.unsicherheit() * 100.0,
         r.samples,
         r.duration_ms,
         r.psi_cpu
@@ -207,7 +236,6 @@ fn miss(art: Arbeitsart, arbeit: impl FnMut() -> f64) -> RateModel {
         ),
         r.reason
     );
-    r
 }
 
 /// Belegt Stränge mit Rechenarbeit, bis das Signal fällt.
@@ -343,25 +371,21 @@ fn main() {
 
     let threads = caps.threads_usable.max(1);
     let cfg_voll = config(threads, KAEMPFE_JE_PAKET);
-    // **Die Referenz aus AC1 umschließt die Kalibrierung**: ein Lauf
-    // unmittelbar davor, einer unmittelbar danach, dieselbe Arbeit am Stück.
-    let referenz_vorher = referenzlauf(threads, &apl);
-    let scalar_full_fight = miss(Arbeitsart::ScalarFullFight, || {
-        let r = balance::run(&cfg_voll, &apl);
-        #[allow(clippy::cast_precision_loss)]
-        {
-            r.damage.count as f64
-        }
-    });
-    let referenz_nachher = referenzlauf(threads, &apl);
-    println!(
-        "  {:<20} {:>14.1} Kaempfe/s              vorher, {} Kaempfe am Stueck (AC1)",
-        "referenz", referenz_vorher, REFERENZ_KAEMPFE
+    let cfg_stueck = config(threads, REFERENZ_KAEMPFE);
+    // **Die Referenz aus AC1 läuft verschränkt mit der Kalibrierung**: Block
+    // aus Paketen, Lauf am Stück, Block, Lauf … — gleich viel Arbeit je
+    // Abschnitt. Die Kalibrierung des Vollkampfs IST die Reihe der Blöcke.
+    let ac1_lauf = kalibriere_verschraenkt(
+        || kalibrierblock(&cfg_voll, &apl),
+        || referenzblock(&cfg_stueck, &apl),
     );
-    println!(
-        "  {:<20} {:>14.1} Kaempfe/s              nachher",
-        "referenz", referenz_nachher
+    let scalar_full_fight = ac1_lauf.kalibrierung;
+    zeile(
+        Arbeitsart::ScalarFullFight.schluessel(),
+        Arbeitsart::ScalarFullFight.einheit(),
+        &scalar_full_fight,
     );
+    zeile("referenz (AC1)", "Kaempfe/s am Stueck", &ac1_lauf.referenz);
 
     // **Kein vektorisierter Pfad im Simulator.** `caps.isa.vektorisierbar()`
     // sagt nur, dass die MASCHINE ihn könnte. Eine Rate hier wäre eine über
@@ -691,18 +715,23 @@ fn main() {
     );
     println!();
 
-    println!("== AC1: gegen die Referenz, im selben Lauf auf dieser Maschine ==");
-    let ac1 = ac1_vergleich(&vektor.scalar_full_fight, referenz_vorher, referenz_nachher);
+    println!("== AC1: gegen die Referenz, verschraenkt im selben Lauf ==");
+    let ac1 = ac1_lauf.ac1();
     println!(
-        "  Referenz vorher {referenz_vorher:>12.1}   nachher {referenz_nachher:>12.1}   \
-         Mittel {:>12.1}   Spanne {:>6.2} %",
-        ac1.referenz,
-        ac1.spanne * 100.0
+        "  Referenz am Stueck {:>12.1}   Unsicherheit {:>5.2} %   {} Abschnitte",
+        ac1_lauf.referenz.rate_per_s,
+        ac1_lauf.referenz.unsicherheit() * 100.0,
+        ac1_lauf.referenz.samples
     );
     println!(
-        "  Kalibrierung    {:>12.1}   {:?}   Abweichung {:>+7.2} %   Toleranz +-{:.0} %",
-        vektor.scalar_full_fight.rate_per_s,
-        vektor.scalar_full_fight.reason,
+        "  Kalibrierung       {:>12.1}   Unsicherheit {:>5.2} %   {} Abschnitte   {:?}",
+        ac1_lauf.kalibrierung.rate_per_s,
+        ac1_lauf.kalibrierung.unsicherheit() * 100.0,
+        ac1_lauf.kalibrierung.samples,
+        ac1_lauf.kalibrierung.reason
+    );
+    println!(
+        "  Abweichung         {:>+12.2} %   Toleranz +-{:.0} %",
         ac1.abweichung * 100.0,
         AC1_TOLERANZ * 100.0
     );
@@ -712,14 +741,10 @@ fn main() {
             "  AC1 NICHT ERFUELLT — die Kalibrierung verfehlt die Arbeit am Stueck\n\
              \x20 unter derselben Last. Das Kriterium wird nicht gesenkt (#912)."
         ),
-        Ac1Urteil::LastGewechselt => println!(
-            "  AC1 NICHT BEURTEILBAR — die zwei Referenzlaeufe liegen weiter als die\n\
-             \x20 Toleranz auseinander: Die Last hat sich im Messfenster geaendert."
-        ),
         Ac1Urteil::KeineKalibrierung => println!(
-            "  AC1 NICHT BEURTEILBAR — die Rate ist keine Kalibrierung ({:?}) und wird\n\
-             \x20 nicht abgelegt. Die Abweichung oben steht zur Auskunft da.",
-            vektor.scalar_full_fight.reason
+            "  AC1 NICHT BEURTEILBAR — mindestens eine Reihe ist nicht stabil ({:?}),\n\
+             \x20 ihr Mittel nicht genau genug. Die Abweichung oben steht zur Auskunft da.",
+            ac1_lauf.kalibrierung.reason
         ),
         Ac1Urteil::Ungueltig => {
             println!("  AC1 NICHT BEURTEILBAR — eine der Zahlen ist keine Rate.")
