@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
-    CoverageSpec, CpuReservation, DeadlinePolicy, HostRequirement, HostRole, Mission,
+    CoverageSpec, CpuReservation, CpuRole, DeadlinePolicy, HostRequirement, Mission,
     NetworkRequirement, ProfileCatalog, ProfileError, ProjectionSet, QualityTargets,
     ReferenceProfile, ResultGuarantee, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
@@ -250,15 +250,15 @@ fn ein_teilergebnis_setzt_eine_verlangte_frist_voraus() {
 
 const NODE3: HostRequirement = HostRequirement {
     name: "node3",
-    role: HostRole::Compute(ComputeRequirement {
+    cpu_role: CpuRole::Compute(ComputeRequirement {
         guaranteed_cpu_quota: None,
         cpu: CpuReservation {
             physical_cores: 8,
             threads_per_core: 2,
             reserved_physical_cores: 0,
         },
-        gpu_duty_cycle: 0.0,
     }),
+    gpu_duty_cycle: 0.0,
     memory_limit_mib: 4096,
     thermal_throttling: false,
 };
@@ -273,15 +273,15 @@ const NETZ_LAPTOP_NODE3: NetworkRequirement = NetworkRequirement {
 static STANDARD_FASSUNG_1: &[HostRequirement] = &[
     HostRequirement {
         name: "laptop",
-        role: HostRole::Compute(ComputeRequirement {
+        cpu_role: CpuRole::Compute(ComputeRequirement {
             guaranteed_cpu_quota: Some(12.0),
             cpu: CpuReservation {
                 physical_cores: 8,
                 threads_per_core: 2,
                 reserved_physical_cores: 2,
             },
-            gpu_duty_cycle: 0.0,
         }),
+        gpu_duty_cycle: 0.0,
         memory_limit_mib: 4096,
         thermal_throttling: false,
     },
@@ -289,11 +289,19 @@ static STANDARD_FASSUNG_1: &[HostRequirement] = &[
 ];
 
 /// Fassung 2 (2026-10-28, Entscheidung des Auftraggebers „Nur koordinieren"):
-/// Der Laptop koordiniert, node3 rechnet allein.
+/// Die CPU des Laptops koordiniert, node3 rechnet allein. Seine GPU darf auf
+/// ausdrücklichen Aufruf rechnen („NUR GPU", selber Abend); im Referenzlauf ist
+/// ihre Einschaltdauer 0 %.
+///
+/// Die Fassung ist auf `main` nie anders erschienen: Vor dem Merge stand die
+/// Grafik in der CPU-Rolle, und ein Koordinator konnte keine führen. Der Inhalt
+/// des Referenzlaufs — CPU des Laptops rechnet nicht, Grafik 0 % — ist
+/// derselbe; geändert hat sich nur, dass die GPU ausdrückbar ist.
 static STANDARD_FASSUNG_2: &[HostRequirement] = &[
     HostRequirement {
         name: "laptop",
-        role: HostRole::Coordinator,
+        cpu_role: CpuRole::Coordinator,
+        gpu_duty_cycle: 0.0,
         memory_limit_mib: 4096,
         thermal_throttling: false,
     },
@@ -326,7 +334,7 @@ static STANDARD_FASSUNGEN: &[ReferenceProfile] = &[
 /// [`ProfileCatalog`] schützt die Versionsnummer der **Kampagne**; die des
 /// Referenzprofils stand bis zum 2026-10-28 nur in einem Kommentar („dann
 /// bekommt das Profil eine neue Version"). Am selben Tag hat sich der Inhalt
-/// zum ersten Mal geändert: Der Laptop rechnet nicht mehr mit. Dieser Fall wird
+/// zum ersten Mal geändert: Die CPU des Laptops rechnet nicht mehr mit. Dieser Fall wird
 /// rot, wenn `REFERENCE_PROFILE_STANDARD` keiner eingefrorenen Fassung gleicht
 /// — geänderter Inhalt unter alter Nummer, oder eine neue Nummer ohne Zeile.
 #[test]
