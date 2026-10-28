@@ -646,9 +646,12 @@ where
 {
     let t0 = Instant::now();
     let wert = arbeit().into();
+    // Ein Fenster, das der Abschnitt selbst gemessen hat, gilt vor der
+    // Wanduhr: Sie umfasst auch, was nach dem Fensterende ausläuft.
+    let dauer = wert.fenster.unwrap_or_else(|| t0.elapsed());
     Abschnitt {
         einheiten: wert.einheiten,
-        dauer: t0.elapsed(),
+        dauer,
         takt_mhz: takt_mhz(kerne),
     }
 }
