@@ -37,13 +37,15 @@
 //!
 //! # Das Referenzprofil „standard"
 //!
-//! [`REFERENCE_PROFILE_STANDARD`] ist **Laptop + node3: node3 rechnet, der
-//! Laptop koordiniert nur.** Der Plan nannte „Laptop + proxmox + gonet"; der
+//! [`REFERENCE_PROFILE_STANDARD`] ist **Laptop + node3: node3 rechnet, die CPU
+//! des Laptops koordiniert nur.** Der Plan nannte „Laptop + proxmox + gonet"; der
 //! Auftraggeber hat die Zusatzrechner am 2026-10-28 neu festgelegt: nur node3
 //! (Proxmox-Knoten `ovh-pve1`, AMD Ryzen 7 9700X). gonet und 10.0.0.69 gehören
-//! nicht mehr dazu. Am selben Tag hat er den Laptop auf das Koordinieren
-//! beschränkt ([`HostRole::Coordinator`], Fassung 2 des Profils); in Fassung 1
-//! rechnete er mit zwölf Strängen mit.
+//! nicht mehr dazu. Am selben Tag hat er die CPU des Laptops auf das
+//! Koordinieren beschränkt ([`CpuRole::Coordinator`], Fassung 2 des Profils);
+//! in Fassung 1 rechnete sie mit zwölf Strängen mit. Seine GPU darf rechnen
+//! (Entscheidung „NUR GPU" vom selben Abend), deshalb ist die Rolle eine
+//! CPU-Rolle und die Grafik-Einschaltdauer steht bei jedem Rechner.
 //!
 //! # Was hier NICHT steht
 //!
@@ -739,16 +741,31 @@ fn sysfs_list(path: &Path) -> Result<Vec<u32>, TopologyError> {
 /// AC3 führt „Netz" als eigene Zeile, und der Rechner, auf dem der Koordinator
 /// läuft, hat keine Verbindung zu sich selbst, für die eine Umlaufzeit gälte.
 ///
-/// **Ob ein Rechner rechnet, sagt seine [`HostRole`] — und nur sie.** Stränge,
-/// CPU-Quote und Grafik-Einschaltdauer stehen deshalb in der Rolle und nicht
-/// daneben: Ein Koordinator hat keine, und ein Feld, das er trotzdem trüge,
-/// läse irgendwann jemand als Rechenkapazität.
+/// **Ob die CPU eines Rechners rechnet, sagt seine [`CpuRole`] — und nur sie.**
+/// Stränge und CPU-Quote stehen deshalb in der Rolle und nicht daneben: Ein
+/// Koordinator hat keine, und ein Feld, das er trotzdem trüge, läse irgendwann
+/// jemand als Rechenkapazität.
+///
+/// **Die Grafik ist davon getrennt** und steht bei jedem Rechner
+/// ([`HostRequirement::gpu_duty_cycle`]): Auch ein Koordinator darf seine GPU
+/// rechnen lassen. Entscheidung des Auftraggebers vom 2026-10-28 auf die Frage,
+/// ob der Laptop außer Koordinieren rechnen darf: „NUR GPU" — GPU-Arbeit ja,
+/// die CPU nur als Rückfall. Bis dahin stand die Grafik in der Rolle, und ein
+/// Koordinator konnte gar keine führen.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HostRequirement {
     /// Name des Rechners im Referenzprofil.
     pub name: &'static str,
-    /// Rechnet dieser Rechner mit — und mit welchen Vorgaben?
-    pub role: HostRole,
+    /// Rechnet die CPU dieses Rechners mit — und mit welchen Vorgaben?
+    pub cpu_role: CpuRole,
+    /// Grafik-Einschaltdauer: welcher Anteil der Zeit die Grafik rechnet,
+    /// 0.0 bis 1.0 (AC3) — unabhängig von der [`CpuRole`].
+    ///
+    /// Steht im Profil, weil sich auf dem Laptop CPU, iGPU und dGPU ein
+    /// thermisches Budget teilen: Grafikarbeit **senkt den CPU-Takt** (Plan
+    /// E15.0b). Ein Budget, das mit laufender Grafik abgeleitet wurde, gilt nicht
+    /// für einen Lauf ohne — und umgekehrt.
+    pub gpu_duty_cycle: f64,
     /// Obergrenze für den Speicher des Laufs auf diesem Rechner, in Mebibyte.
     ///
     /// **Eine Obergrenze, keine Reservierung:** Der Lauf belegt nur, was er
@@ -767,32 +784,36 @@ pub struct HostRequirement {
 }
 
 impl HostRequirement {
-    /// Wie viele Stränge dieser Rechner zum Rechnen beiträgt — null für einen
-    /// Koordinator, gleich wie viele Kerne er hat.
+    /// Wie viele CPU-Stränge dieser Rechner zum Rechnen beiträgt — null für
+    /// einen Koordinator, gleich wie viele Kerne er hat.
     #[must_use]
     pub const fn compute_threads(&self) -> u32 {
-        match self.role {
-            HostRole::Compute(rechnen) => rechnen.cpu.compute_threads(),
-            HostRole::Coordinator => 0,
+        match self.cpu_role {
+            CpuRole::Compute(rechnen) => rechnen.cpu.compute_threads(),
+            CpuRole::Coordinator => 0,
         }
     }
 }
 
-/// Was ein Rechner im Referenzprofil tut (AC3).
+/// Was die CPU eines Rechners im Referenzprofil tut (AC3).
 ///
 /// Seit dem 2026-10-28 kein Gedankenspiel: Im Profil „standard" rechnet nur
-/// node3, der Laptop koordiniert (Entscheidung des Auftraggebers).
+/// node3 auf der CPU, die CPU des Laptops koordiniert (Entscheidung des
+/// Auftraggebers). Die Grafik hat keine Rolle, sondern eine Einschaltdauer
+/// ([`HostRequirement::gpu_duty_cycle`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HostRole {
-    /// Rechnet Kampagnenarbeit, mit diesen Vorgaben.
+pub enum CpuRole {
+    /// Die CPU rechnet Kampagnenarbeit, mit diesen Vorgaben.
     ///
     /// Steht der Rechner im Profil an erster Stelle, läuft der Koordinator
     /// zusätzlich auf ihm.
     Compute(ComputeRequirement),
-    /// Koordiniert nur: vergibt Arbeit, sammelt Ergebnisse, führt Journal und
-    /// Anzeige — und rechnet **keine** Kampagnenarbeit, weder auf der CPU noch
-    /// auf der Grafik. Im Plan das Betriebsprofil `remote-only` („lokal nur
-    /// Koordinator und Anzeige", E15.1, „Regelung: von außen und von selbst").
+    /// Die CPU koordiniert nur: vergibt Arbeit, sammelt Ergebnisse, führt
+    /// Journal und Anzeige — und rechnet **keine** Kampagnenarbeit. Im Plan das
+    /// Betriebsprofil `remote-only` („lokal nur Koordinator und Anzeige", E15.1,
+    /// „Regelung: von außen und von selbst"). Rechnet die GPU des Rechners auf
+    /// ausdrücklichen Aufruf mit, ist das kein `remote-only` mehr; die Rolle der
+    /// CPU bleibt dieselbe.
     ///
     /// **Bewusst ohne Rechenangaben statt mit Nullen.** Null nutzbare Stränge,
     /// eine Quote von 0.0 und eine fehlende Quote hießen in [`ComputeRequirement`]
@@ -801,7 +822,7 @@ pub enum HostRole {
     Coordinator,
 }
 
-/// Was ein rechnender Rechner mindestens mitbringt (AC3).
+/// Was die CPU eines rechnenden Rechners mindestens mitbringt (AC3).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ComputeRequirement {
     /// Zugesicherter Anteil an Rechenzeit, 1.0 = ein voller Strang.
@@ -812,14 +833,6 @@ pub struct ComputeRequirement {
     pub guaranteed_cpu_quota: Option<f64>,
     /// Die CPU-Aufteilung dieses Rechners.
     pub cpu: CpuReservation,
-    /// Grafik-Einschaltdauer: welcher Anteil der Zeit die Grafik rechnet,
-    /// 0.0 bis 1.0 (AC3).
-    ///
-    /// Steht hier, weil sich auf dem Laptop CPU, iGPU und dGPU ein thermisches
-    /// Budget teilen: Grafikarbeit **senkt den CPU-Takt** (Plan E15.0b). Ein
-    /// Budget, das mit laufender Grafik abgeleitet wurde, gilt nicht für einen
-    /// Lauf ohne — und umgekehrt.
-    pub gpu_duty_cycle: f64,
 }
 
 /// Was das Netz zwischen Koordinator und Zusatzrechnern mindestens leisten
@@ -851,8 +864,8 @@ pub struct ReferenceProfile {
     /// Version dieses Profils.
     pub version: u32,
     /// Die Rechner des Profils. Der erste ist der, auf dem der Koordinator
-    /// läuft; ob er dabei mitrechnet, sagt seine [`HostRole`]. Abgeleitet wird
-    /// aus den rechnenden.
+    /// läuft; ob seine CPU dabei mitrechnet, sagt seine [`CpuRole`]. Abgeleitet
+    /// wird aus den rechnenden.
     pub hosts: &'static [HostRequirement],
     /// Was das Netz zu den übrigen Rechnern leisten muss.
     ///
@@ -861,25 +874,30 @@ pub struct ReferenceProfile {
     pub network: Option<NetworkRequirement>,
 }
 
-/// Die Rechner des Referenzprofils „standard": node3 rechnet, der Laptop
-/// koordiniert.
+/// Die Rechner des Referenzprofils „standard": node3 rechnet, die CPU des
+/// Laptops koordiniert.
 ///
 /// Rechner und Rollen: Entscheidungen des Auftraggebers vom 2026-10-28. Werte:
 /// entschieden vom Orchestrator am selben Tag. Herkunft je Wert am Eintrag.
 static STANDARD_HOSTS: &[HostRequirement] = &[
-    // Der Laptop: nur Koordinator — keine Rechenstränge, keine CPU-Quote für
-    // Rechenarbeit, keine Grafik. Entscheidung des Auftraggebers vom
+    // Der Laptop: die CPU nur Koordinator — keine Rechenstränge, keine
+    // CPU-Quote für Rechenarbeit. Entscheidung des Auftraggebers vom
     // 2026-10-28 auf die Frage, ob er mitrechnet oder nur koordiniert: „Nur
     // koordinieren". Im Plan das Betriebsprofil `remote-only` (E15.1,
     // „Regelung: von außen und von selbst"). In Fassung 1 rechnete er mit:
     // AMD Ryzen 9 5900HS, 8 physische Kerne × 2 Stränge, Profil `balanced` mit
     // zwei freien Kernen samt Geschwistern, also zwölf Stränge und eine
-    // CPU-Quote von 12. Speicher höchstens 4096 MiB nach der Vorgabe
+    // CPU-Quote von 12. Die GPU darf rechnen — Entscheidung „NUR GPU" vom
+    // selben Abend: GPU-Arbeit auf ausdrücklichen Aufruf und im zugeteilten
+    // Messfenster, die CPU nur als Rückfall. Im Referenzlauf ist ihre
+    // Einschaltdauer 0 %, weil es keinen GPU-Pfad gibt und GPU-Arbeit nicht von
+    // selbst läuft. Speicher höchstens 4096 MiB nach der Vorgabe
     // „Speichergrenzen unter 5 GB" für diese Maschine — eine Obergrenze, keine
     // Reservierung.
     HostRequirement {
         name: "laptop",
-        role: HostRole::Coordinator,
+        cpu_role: CpuRole::Coordinator,
+        gpu_duty_cycle: 0.0,
         memory_limit_mib: 4096,
         thermal_throttling: false,
     },
@@ -896,25 +914,26 @@ static STANDARD_HOSTS: &[HostRequirement] = &[
     // Teil 2.1, Nachtrag).
     HostRequirement {
         name: "node3",
-        role: HostRole::Compute(ComputeRequirement {
+        cpu_role: CpuRole::Compute(ComputeRequirement {
             guaranteed_cpu_quota: None,
             cpu: CpuReservation {
                 physical_cores: 8,
                 threads_per_core: 2,
                 reserved_physical_cores: 0,
             },
-            gpu_duty_cycle: 0.0,
         }),
+        gpu_duty_cycle: 0.0,
         memory_limit_mib: 4096,
         thermal_throttling: false,
     },
 ];
 
-/// Das Referenzprofil „standard" (AC3): node3 rechnet, der Laptop koordiniert.
+/// Das Referenzprofil „standard" (AC3): node3 rechnet, die CPU des Laptops
+/// koordiniert, seine GPU darf auf Aufruf rechnen.
 ///
 /// **Fassung 2**, seit dem 2026-10-28. In Fassung 1 vom selben Tag (#1145)
 /// rechnete der Laptop mit zwölf Strängen mit; danach hat der Auftraggeber
-/// ihn auf das Koordinieren beschränkt. Neue Rechner, Rollen oder Werte sind
+/// seine CPU auf das Koordinieren beschränkt. Neue Rechner, Rollen oder Werte sind
 /// eine neue Fassung mit neuer Version, nie ein geänderter Inhalt unter alter
 /// Nummer: Die vergebenen Fassungen stehen eingefroren in
 /// `sim/tests/kampagne_versionen.rs`, und der Fall dort wird rot, wenn dieser
@@ -1015,10 +1034,11 @@ impl CampaignDefinition {
     /// Format 3 (#914) bindet zusätzlich die Zielzeit ein, Name und Netz des
     /// Referenzprofils und die Grafik-Einschaltdauer jedes Rechners; die
     /// Netzvorgabe je Rechner aus Format 2 ist ans Profil gewandert. Format 4
-    /// (#914, 2026-10-28) bindet die [`HostRole`] jedes Rechners ein; Quote,
-    /// Kerne und Grafik gehen nur für einen rechnenden Rechner ein, weil ein
-    /// Koordinator keine hat. Die aktuelle Hardware im Deployment bleibt
-    /// ausgeschlossen.
+    /// (#914, 2026-10-28) bindet die [`CpuRole`] jedes Rechners ein; Quote und
+    /// Kerne gehen nur für einen Rechner ein, dessen CPU rechnet, weil ein
+    /// Koordinator keine hat. Die Grafik-Einschaltdauer geht für jeden ein —
+    /// auch ein Koordinator darf seine GPU rechnen lassen. Die aktuelle Hardware
+    /// im Deployment bleibt ausgeschlossen.
     #[must_use]
     pub fn fingerprint(&self) -> Hash {
         let profil = &self.reference_profile;
@@ -1040,8 +1060,8 @@ impl CampaignDefinition {
         h = mix_u64(h, profil.hosts.len() as u64);
         for host in profil.hosts {
             h = mix_text(h, host.name);
-            h = mix_int(h, role_code(host.role));
-            if let HostRole::Compute(rechnen) = host.role {
+            h = mix_int(h, role_code(host.cpu_role));
+            if let CpuRole::Compute(rechnen) = host.cpu_role {
                 h = match rechnen.guaranteed_cpu_quota {
                     Some(quota) => mix_f64(mix_int(h, 1), quota),
                     None => mix_int(h, 0),
@@ -1049,8 +1069,8 @@ impl CampaignDefinition {
                 h = mix_int(h, i32::from(rechnen.cpu.physical_cores));
                 h = mix_int(h, i32::from(rechnen.cpu.threads_per_core));
                 h = mix_int(h, i32::from(rechnen.cpu.reserved_physical_cores));
-                h = mix_f64(h, rechnen.gpu_duty_cycle);
             }
+            h = mix_f64(h, host.gpu_duty_cycle);
             h = mix_int(h, host.memory_limit_mib as i32);
             h = mix_int(h, i32::from(host.thermal_throttling));
         }
@@ -1145,20 +1165,22 @@ impl CampaignDefinition {
 impl HostRequirement {
     /// Einen Rechner des Referenzprofils als JSON.
     ///
-    /// `role` steht in jedem Eintrag, `computeThreads` auch — beim Koordinator
-    /// als 0, damit eine Summe über die Rechner ohne Sonderfall stimmt. Die
-    /// übrigen Rechenangaben schreibt nur ein rechnender Rechner. Ein
-    /// Koordinator schreibt sie auch nicht leer: `null` hieße bei der Quote
-    /// „best effort", also gerade „rechnet, ohne Zusicherung".
+    /// `cpuRole` steht in jedem Eintrag, `computeThreads` auch — beim
+    /// Koordinator als 0, damit eine Summe über die Rechner ohne Sonderfall
+    /// stimmt. Die übrigen CPU-Angaben schreibt nur ein Rechner, dessen CPU
+    /// rechnet. Ein Koordinator schreibt sie auch nicht leer: `null` hieße bei
+    /// der Quote „best effort", also gerade „rechnet, ohne Zusicherung".
+    /// `gpuDutyCycle` steht bei jedem Rechner, weil auch ein Koordinator seine
+    /// GPU rechnen lassen darf.
     ///
     /// # Errors
-    /// Bei einem rechnenden Rechner müssen eine vorhandene CPU-Quote und die
-    /// Grafik-Einschaltdauer endlich sein.
+    /// Die Grafik-Einschaltdauer und eine vorhandene CPU-Quote müssen endlich
+    /// sein.
     pub fn to_json(&self) -> Result<String, JsonError> {
-        let rechnen = match self.role {
-            HostRole::Compute(rechnen) => format!(
+        let rechnen = match self.cpu_role {
+            CpuRole::Compute(rechnen) => format!(
                 ",\"guaranteedCpuQuota\":{},\"totalThreads\":{},\"physicalCores\":{},\
-                 \"threadsPerCore\":{},\"reservedPhysicalCores\":{},\"gpuDutyCycle\":{}",
+                 \"threadsPerCore\":{},\"reservedPhysicalCores\":{}",
                 // `null` heißt hier ausdrücklich "best effort", nicht "unbekannt".
                 // Eine 0.0 wäre die dritte, ganz andere Aussage: garantiert nichts.
                 json_optional_number(rechnen.guaranteed_cpu_quota, "guaranteedCpuQuota")?,
@@ -1166,17 +1188,17 @@ impl HostRequirement {
                 rechnen.cpu.physical_cores,
                 rechnen.cpu.threads_per_core,
                 rechnen.cpu.reserved_physical_cores,
-                json_number(rechnen.gpu_duty_cycle, "gpuDutyCycle")?,
             ),
-            HostRole::Coordinator => String::new(),
+            CpuRole::Coordinator => String::new(),
         };
         Ok(format!(
-            "{{\"name\":{},\"role\":{:?},\"memoryLimitMib\":{},\"computeThreads\":{}{rechnen},\
-             \"thermalThrottling\":{}}}",
+            "{{\"name\":{},\"cpuRole\":{:?},\"memoryLimitMib\":{},\"computeThreads\":{}{rechnen},\
+             \"gpuDutyCycle\":{},\"thermalThrottling\":{}}}",
             json_string(self.name),
-            role_name(self.role),
+            role_name(self.cpu_role),
             self.memory_limit_mib,
             self.compute_threads(),
+            json_number(self.gpu_duty_cycle, "gpuDutyCycle")?,
             self.thermal_throttling,
         ))
     }
@@ -1574,23 +1596,23 @@ const fn audit_name(policy: AuditPolicy) -> &'static str {
     }
 }
 
-/// Der Name der Rolle im JSON — stabil, unabhängig von der Reihenfolge im
+/// Der Name der CPU-Rolle im JSON — stabil, unabhängig von der Reihenfolge im
 /// `enum`.
-const fn role_name(role: HostRole) -> &'static str {
+const fn role_name(role: CpuRole) -> &'static str {
     match role {
-        HostRole::Compute(_) => "compute",
-        HostRole::Coordinator => "coordinator",
+        CpuRole::Compute(_) => "compute",
+        CpuRole::Coordinator => "coordinator",
     }
 }
 
-/// Die Rolle als feste Zahl im Fingerabdruck — aus demselben Grund wie bei
-/// [`audit_code`]. Sie steht auch vor den Rechenangaben, damit ein Koordinator
+/// Die CPU-Rolle als feste Zahl im Fingerabdruck — aus demselben Grund wie bei
+/// [`audit_code`]. Sie steht auch vor den CPU-Angaben, damit ein Koordinator
 /// nicht mit einem rechnenden Rechner zusammenfällt, dessen Angaben zufällig
 /// die Werte der folgenden Felder ergeben.
-const fn role_code(role: HostRole) -> i32 {
+const fn role_code(role: CpuRole) -> i32 {
     match role {
-        HostRole::Compute(_) => 1,
-        HostRole::Coordinator => 2,
+        CpuRole::Compute(_) => 1,
+        CpuRole::Coordinator => 2,
     }
 }
 

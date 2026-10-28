@@ -17,9 +17,9 @@ use std::time::Duration;
 
 use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
-    CoverageSpec, CpuReservation, DateTimeUtc, DeadlinePolicy, HostRequirement, HostRole,
-    JsonError, Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile,
-    ResultGuarantee, WorkUnits, REFERENCE_PROFILE_STANDARD,
+    CoverageSpec, CpuReservation, CpuRole, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError,
+    Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
+    WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
 const LAPTOP_RECHNET: ComputeRequirement = ComputeRequirement {
@@ -29,20 +29,20 @@ const LAPTOP_RECHNET: ComputeRequirement = ComputeRequirement {
         threads_per_core: 2,
         reserved_physical_cores: 2,
     },
-    gpu_duty_cycle: 0.0,
 };
 
 const LAPTOP: HostRequirement = HostRequirement {
     name: "laptop",
-    role: HostRole::Compute(LAPTOP_RECHNET),
+    cpu_role: CpuRole::Compute(LAPTOP_RECHNET),
+    gpu_duty_cycle: 0.0,
     memory_limit_mib: 4096,
     thermal_throttling: false,
 };
 
-/// Der erste Testrechner mit anderen Rechenangaben, sonst unverändert.
+/// Der erste Testrechner mit anderen CPU-Angaben, sonst unverändert.
 const fn rechnet(rechnen: ComputeRequirement) -> HostRequirement {
     HostRequirement {
-        role: HostRole::Compute(rechnen),
+        cpu_role: CpuRole::Compute(rechnen),
         ..LAPTOP
     }
 }
@@ -53,15 +53,15 @@ static HOSTS: &[HostRequirement] = &[
     // Profil mit nur einem Eintrag nie prüfen würde.
     HostRequirement {
         name: "best-effort",
-        role: HostRole::Compute(ComputeRequirement {
+        cpu_role: CpuRole::Compute(ComputeRequirement {
             guaranteed_cpu_quota: None,
             cpu: CpuReservation {
                 physical_cores: 16,
                 threads_per_core: 2,
                 reserved_physical_cores: 2,
             },
-            gpu_duty_cycle: 0.5,
         }),
+        gpu_duty_cycle: 0.5,
         memory_limit_mib: 8192,
         thermal_throttling: false,
     },
@@ -531,20 +531,44 @@ fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
     }
 }
 
+/// Gilt für jede CPU-Rolle: Auch ein Koordinator schreibt seine
+/// Grafik-Einschaltdauer, also darf auch seine kein `NaN` sein.
 #[test]
 fn nichtendliche_grafik_einschaltdauer_wird_abgelehnt() {
-    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let host = rechnet(ComputeRequirement {
-            gpu_duty_cycle: wert,
-            ..LAPTOP_RECHNET
-        });
-        assert_eq!(
-            host.to_json(),
-            Err(JsonError::NonFinite {
-                field: "gpuDutyCycle"
-            })
-        );
+    for cpu_role in [CpuRole::Compute(LAPTOP_RECHNET), CpuRole::Coordinator] {
+        for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let host = HostRequirement {
+                cpu_role,
+                gpu_duty_cycle: wert,
+                ..LAPTOP
+            };
+            assert_eq!(
+                host.to_json(),
+                Err(JsonError::NonFinite {
+                    field: "gpuDutyCycle"
+                }),
+                "{cpu_role:?}"
+            );
+        }
     }
+}
+
+/// Die GPU eines Koordinators darf rechnen (Entscheidung des Auftraggebers
+/// „NUR GPU", 2026-10-28) — ihr Anteil steht dann im Text, die CPU-Angaben
+/// nicht.
+#[test]
+fn ein_koordinator_mit_gpu_schreibt_ihre_einschaltdauer() {
+    let host = HostRequirement {
+        cpu_role: CpuRole::Coordinator,
+        gpu_duty_cycle: 0.25,
+        ..LAPTOP
+    };
+    let gelesen: serde_json::Value =
+        serde_json::from_str(&host.to_json().expect("endlich")).expect("JSON");
+    assert_eq!(gelesen["cpuRole"], "coordinator");
+    assert_eq!(gelesen["computeThreads"], 0);
+    assert_eq!(gelesen["gpuDutyCycle"], 0.25, "{gelesen}");
+    assert!(gelesen.get("guaranteedCpuQuota").is_none(), "{gelesen}");
 }
 
 /// **AC5** — jede der fünf Garantiearten steht unterscheidbar im Text, und das
