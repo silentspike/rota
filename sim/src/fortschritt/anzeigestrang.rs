@@ -109,7 +109,7 @@ impl Laufbeschreibung {
         } else {
             match fenster.strangrate() {
                 None => Restzeit::Unbestimmt(
-                    "noch keine vier Messsekunden — darunter ist eine Streuung Zufall",
+                    "erst ab vier Messsekunden — darunter ist eine Streuung Zufall",
                 ),
                 Some(rate) => restzeit_aus(
                     &probe,

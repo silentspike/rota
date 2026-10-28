@@ -871,10 +871,6 @@ fn run_with_control(
     // welcher Strang zuerst fertig wurde.
     samples.sort_unstable_by_key(|sample| sample.seed);
 
-    // Eine Auswertung ist fertig (#933) — gezählt im Strang, der sie
-    // angestoßen hat, einmal je Lauf und nicht je Kampf.
-    crate::fortschritt::kandidat(weg, u64::from(iterations));
-
     let damage_values: Vec<f64> = samples.iter().map(|s| f64::from(s.damage)).collect();
     let mut taken_values: Vec<f64> = samples.iter().map(|s| f64::from(s.damage_taken)).collect();
     let mut incoming_values: Vec<f64> = samples
@@ -903,7 +899,7 @@ fn run_with_control(
     // enthalten. `samples` kommt bereits in dieser Reihenfolge.
     let death_values = todeszeiten(&samples);
 
-    BalanceResult {
+    let ergebnis = BalanceResult {
         apl_name: apl.name.clone(),
         iterations,
         base_seed: config.base_seed,
@@ -927,7 +923,15 @@ fn run_with_control(
         deaths: samples.iter().filter(|s| s.died).count(),
         casts: casts_total.to_vec(),
         samples,
-    }
+    };
+
+    // Eine Auswertung ist fertig (#933), wenn ihr Ergebnis vorliegt — also
+    // NACH Sortieren und Statistik, nicht nach dem letzten Kampf. Gemessen am
+    // 2026-10-28: Bei `bench --fights 3000000` stand die erste Meldung mit allen
+    // Kämpfen 0,61 s vor dem Ende des Laufs. Gezählt im Strang, der die
+    // Auswertung angestoßen hat, einmal je Lauf und nicht je Kampf.
+    crate::fortschritt::kandidat(weg, u64::from(iterations));
+    ergebnis
 }
 
 /// Rechnet `len` Durchgänge ab `offset`, alle in einem Strang.
