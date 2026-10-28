@@ -968,13 +968,116 @@ pub struct Strommessung {
 }
 
 /// Rechnet ohne Sperre je Paket, bis `dauer` um ist (#912, Weg b).
+///
+/// # Wozu
+///
+/// Die echte Arbeit läuft in langen Abschnitten, nicht in 20k-Happen
+/// (Entscheidung des Orchestrators vom 28.10.). Ein Kalibrierlauf aus
+/// Paketen misst neben der Rechenrate die Sperre am Ende jedes Pakets mit —
+/// gemessen auf node3 unter 8 Fremdsträngen 10–13 ms je 20k-Paket, und kein
+/// Paket-Verfahren kam unter 10 % an die Arbeit am Stück heran. Dieser Lauf
+/// hat keine Sperre, solange er misst.
+///
+/// # Wie
+///
+/// `config.threads` Helfer aus dem Vorrat ziehen Happen aus einem offenen
+/// Zähler und rechnen Kampf um Kampf, jeder auf seinem Platz in einem
+/// eigenen Zählwerk. Der Aufrufer rechnet **nicht** mit: Er schläft bis zum
+/// Fensterende, liest dort die Kampfzahl am Zählwerk ab und hält den Lauf
+/// an. Was danach noch fertig wird, steht als `nachlauf` daneben und gehört
+/// nicht zum Fenster. Ein schlafender Aufrufer belegt keinen Kern; lauffähig
+/// sind genau `threads` Stränge.
+///
+/// Gerechnet werden dieselben Kämpfe wie in [`run`] (Startwerte ab
+/// `base_seed`), aber ohne Statistik: Der Strom misst Durchsatz, kein
+/// Ergebnis. Die Kampfzähler aus [`crate::diagnostics`] und ein Zählwerk des
+/// Aufrufers sehen ihn nicht.
 #[must_use]
 pub fn strom(config: &BalanceConfig, apl: &Apl, dauer: Duration) -> Strommessung {
-    let _ = (config, apl, dauer);
+    let helfer = config.threads.max(1);
+    let werk = crate::fortschritt::Zaehlwerk::neu(helfer);
+    // Nur, um an die Plätze des eigenen Zählwerks zu kommen; die Anmeldung
+    // gibt sofort die vorige zurück.
+    let leit = {
+        let _anmeldung = werk.anmelden();
+        crate::fortschritt::strang().expect("gerade angemeldet")
+    };
+    let halt = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let zaehler = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let sammlung = std::sync::Arc::new(vorrat::Sammlung::<()>::neu(helfer));
+    let geteilt = std::sync::Arc::new((*config, apl.clone()));
+    let auftraege: Vec<vorrat::Auftrag> = (0..helfer)
+        .map(|nummer| {
+            let (halt, zaehler, sammlung, geteilt) = (
+                std::sync::Arc::clone(&halt),
+                std::sync::Arc::clone(&zaehler),
+                std::sync::Arc::clone(&sammlung),
+                std::sync::Arc::clone(&geteilt),
+            );
+            let platz = leit.arbeiter(nummer);
+            Box::new(move || {
+                let (config, apl) = &*geteilt;
+                let ende = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _anmeldung = platz.anmelden();
+                    strom_rechnen(config, apl, &zaehler, &halt);
+                }));
+                sammlung.ablegen(nummer, ende);
+            }) as vorrat::Auftrag
+        })
+        .collect();
+    vorrat::verteilen(auftraege);
+    let beginn = Instant::now();
+    thread::sleep(dauer);
+    let kaempfe = werk.momentaufnahme().kaempfe;
+    let fenster = beginn.elapsed();
+    halt.store(true, Ordering::Relaxed);
+    for ende in sammlung.abwarten() {
+        ende.expect("ein Strang ist abgestuerzt");
+    }
+    let nachlauf = werk.momentaufnahme().kaempfe.saturating_sub(kaempfe);
     Strommessung {
-        kaempfe: 0,
-        fenster: Duration::ZERO,
-        nachlauf: 0,
+        kaempfe,
+        fenster,
+        nachlauf,
+    }
+}
+
+/// Rechnet Kampf um Kampf aus dem offenen Zähler, bis `halt` gesetzt ist.
+///
+/// Geprüft wird vor jedem Kampf, damit nach dem Halt höchstens der laufende
+/// zu Ende geht. Die Probe wird gebildet wie in [`run_range`] und verworfen
+/// — gesammelt brauchten dreißig Sekunden auf sechzehn Strängen Hunderte
+/// Megabyte.
+fn strom_rechnen(
+    config: &BalanceConfig,
+    apl: &Apl,
+    zaehler: &std::sync::atomic::AtomicU64,
+    halt: &std::sync::atomic::AtomicBool,
+) {
+    let strang = crate::fortschritt::strang();
+    let mut fight: Option<Fight> = None;
+    'happen: loop {
+        if halt.load(Ordering::Relaxed) {
+            break;
+        }
+        let start = zaehler.fetch_add(u64::from(HAPPEN), Ordering::Relaxed);
+        for index in start..start + u64::from(HAPPEN) {
+            if halt.load(Ordering::Relaxed) {
+                break 'happen;
+            }
+            // Startwerte wie in `run`: ab `base_seed`, fortlaufend; nach
+            // 2^32 Kämpfen beginnen sie von vorn, was für einen Durchsatz
+            // gleichgültig ist.
+            #[allow(clippy::cast_possible_truncation)]
+            let seed = config.base_seed.wrapping_add(index as u32);
+            let fight = fight.get_or_insert_with(|| Fight::new(kampf_konfiguration(config, seed)));
+            fight.reset(seed);
+            let result = fight.run_apl(apl);
+            std::hint::black_box(probe_aus(fight, seed, &result));
+            if let Some(s) = &strang {
+                s.kampf();
+            }
+        }
     }
 }
 
@@ -1380,13 +1483,13 @@ mod vorrat {
         }
     }
 
-    /// Die Ergebnisse der Helfer eines Laufs, je Bereich ein Platz.
-    pub(super) struct Sammlung {
-        plaetze: Mutex<(Vec<Option<std::thread::Result<super::Teil>>>, usize)>,
+    /// Die Ergebnisse der Helfer eines Laufs, je Helfer ein Platz.
+    pub(super) struct Sammlung<T> {
+        plaetze: Mutex<(Vec<Option<std::thread::Result<T>>>, usize)>,
         fertig: Condvar,
     }
 
-    impl Sammlung {
+    impl<T> Sammlung<T> {
         pub(super) fn neu(anzahl: usize) -> Self {
             Self {
                 plaetze: Mutex::new(((0..anzahl).map(|_| None).collect(), anzahl)),
@@ -1395,7 +1498,7 @@ mod vorrat {
         }
 
         /// Legt das Ergebnis eines Helfers ab und meldet ihn frei.
-        pub(super) fn ablegen(&self, platz: usize, teil: std::thread::Result<super::Teil>) {
+        pub(super) fn ablegen(&self, platz: usize, teil: std::thread::Result<T>) {
             {
                 let mut s = sperren(vorrat());
                 s.belegt -= 1;
@@ -1410,7 +1513,7 @@ mod vorrat {
 
         /// Wartet, bis jeder Helfer abgelegt hat, und gibt die Ergebnisse in
         /// der Reihenfolge der Bereiche.
-        pub(super) fn abwarten(&self) -> Vec<std::thread::Result<super::Teil>> {
+        pub(super) fn abwarten(&self) -> Vec<std::thread::Result<T>> {
             let mut p = self.plaetze.lock().unwrap_or_else(PoisonError::into_inner);
             while p.1 > 0 {
                 p = self.fertig.wait(p).unwrap_or_else(PoisonError::into_inner);
