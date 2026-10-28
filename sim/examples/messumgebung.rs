@@ -76,15 +76,33 @@
 //! Er optimiert nichts und sagt nichts ueber erreichbare Beschleunigung. Er
 //! stellt fest, wo der Bestand heute steht — und ob die Maschine ueberhaupt
 //! eine Aussage hergibt.
+//!
+//! # Kostet die Fortschrittsanzeige etwas? (#933, AC9)
+//!
+//! ```text
+//! taskset -c 0-7 ./target/release/examples/messumgebung --aa 8 --fortschritt
+//! taskset -c 0-7 ./target/release/examples/messumgebung --ab 8 --fortschritt
+//! ```
+//!
+//! Zuerst die A,A-Reihe: Sie misst die Streuung ohne Anzeige. Dann die
+//! A/B-Reihe: A ohne Zählwerk, B mit Zählwerk und Anzeigestrang. Liegt der
+//! Abstand innerhalb der Streuung, steht im Bericht „nicht unterscheidbar" —
+//! und das heißt nur, dass diese Messung keinen Preis zeigen kann.
+//!
+//! Die Durchsatzzahlen der acht Lasten liest der Läufer seit #933 aus dem
+//! Zählwerk, das auch `rota-sim --progress` liest.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rota_sim::balance::BalanceConfig;
+use rota_sim::balance::{auswertungsweg, BalanceConfig};
 use rota_sim::data::{boss_by_id, Boss, SPELLS};
 use rota_sim::diagnostics;
+use rota_sim::fortschritt::{
+    Anzeigestrang, Ausgabe, Kampfzahl, Kostenbild, Laufbeschreibung, Momentaufnahme, Weg, Zaehlwerk,
+};
 use rota_sim::rotation_search::{all_candidates, greedy, Candidate, SearchResult};
 
 // ---------------------------------------------------------------------------
@@ -701,6 +719,35 @@ struct Metriken {
     verified_elites: Wert,
 }
 
+/// Die beiden Durchsatzzahlen aus einem Zählstand (#933, AC2).
+///
+/// **Nur aus dem Zählstand, nichts sonst** — die Funktion sieht keinen
+/// Kalibrierlauf und keine Durchgangszahl, und eine zweite Quelle kann sich hier
+/// deshalb nicht einschleichen.
+///
+/// `resolved_candidates` zählt seit #933 **jede** abgeschlossene Auswertung,
+/// auch die Start- und die Fundliste einer Suche. Bis dahin stand hier
+/// `SearchResult::measured`, das beide auslässt; bei einer vollständigen Suche
+/// mit rund zweitausend Messungen macht das ein Promille.
+fn durchsatz_aus(stand: &Momentaufnahme, sekunden: f64, sucht: bool) -> (Wert, Wert) {
+    // NaN ausdrücklich: Ein Vergleich `<= 0.0` allein ließe es durch.
+    if sekunden.is_nan() || sekunden <= 0.0 {
+        return (Wert::Fehlt("keine Messzeit"), Wert::Fehlt("keine Messzeit"));
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let kaempfe = Wert::Zahl(stand.kaempfe as f64 / sekunden);
+    let kandidaten = if sucht {
+        #[allow(clippy::cast_precision_loss)]
+        Wert::Zahl(stand.kandidaten_gesamt() as f64 / sekunden)
+    } else {
+        // Eine Lastart SUCHT nicht. Hier eine Rate zu drucken hiesse,
+        // „eine bewertete Rotation je Kampfblock" als Suchleistung
+        // auszugeben — eine Zahl, die stimmt und nichts bedeutet.
+        Wert::Fehlt("keine Suche")
+    };
+    (kaempfe, kandidaten)
+}
+
 // ---------------------------------------------------------------------------
 // Der Messlauf
 // ---------------------------------------------------------------------------
@@ -971,6 +1018,16 @@ fn miss(fall: &Lastfall, threads: usize) -> Result<Ergebnis, String> {
     }
 
     // 3 — Durchsatz in Abschnitten.
+    //
+    // **Gezählt vom Zählwerk (#933), nicht hochgerechnet.** Bis dahin stand
+    // hier `Durchgänge × Kämpfe des Kalibrierlaufs` — richtig, solange der
+    // Simulator deterministisch ist, aber eine zweite Quelle neben der
+    // Fortschrittsanzeige. Jetzt liest dieser Läufer dieselben Zähler wie
+    // `rota-sim --progress`, und der Kalibrierlauf prüft sie nur noch nach
+    // (siehe unten). Das Zählwerk kostet dabei, was AC9 von #933 misst: eine
+    // Erhöhung je Kampf auf der eigenen Cache-Zeile.
+    let werk = Zaehlwerk::neu(threads);
+    let anmeldung = werk.anmelden();
     let je_abschnitt = messdauer() / u32::try_from(ABSCHNITTE).unwrap_or(1);
     let mut raten = Vec::with_capacity(ABSCHNITTE);
     let mut durchgaenge_gesamt = 0u64;
@@ -1008,23 +1065,33 @@ fn miss(fall: &Lastfall, threads: usize) -> Result<Ergebnis, String> {
         f64::INFINITY
     };
 
+    drop(anmeldung);
+    let zaehlstand = werk.momentaufnahme();
     #[allow(clippy::cast_precision_loss)]
     let sekunden = zeit_gesamt.as_secs_f64();
-    #[allow(clippy::cast_precision_loss)]
-    let kaempfe = durchgaenge_gesamt as f64 * zaehler.fights() as f64;
-    #[allow(clippy::cast_precision_loss)]
-    let kandidaten = durchgaenge_gesamt as f64 * kalibriert.measured as f64;
+
+    // **Die Nachprüfung des Zählwerks.** Zwei unabhängige Zähler müssen
+    // übereinstimmen: der des Kerns aus dem Kalibrierlauf (`note_fight` in
+    // `fight.rs`, ein Strang) und das Zählwerk aus dem Durchsatzlauf
+    // ({threads} Stränge). Die Querprobe oben hat gezeigt, dass beide Läufe
+    // dieselbe Arbeit tun; weichen die Kampfzahlen trotzdem ab, zählt das
+    // Zählwerk etwas anderes als der Kern — dann wäre jede Rate darunter falsch.
+    let erwartet = durchgaenge_gesamt * zaehler.fights();
+    if zaehlstand.kaempfe != erwartet {
+        return Err(format!(
+            "{}: das Zählwerk meldet {} Kämpfe, der Kern zählte {} je Durchgang, \
+             also {erwartet} bei {durchgaenge_gesamt} Durchgängen.",
+            fall.name,
+            zaehlstand.kaempfe,
+            zaehler.fights()
+        ));
+    }
+    let (full_fights, resolved_candidates) =
+        durchsatz_aus(&zaehlstand, sekunden, fall.verfahren != Verfahren::Kampf);
 
     let metriken = Metriken {
-        full_fights: Wert::Zahl(kaempfe / sekunden),
-        resolved_candidates: if fall.verfahren == Verfahren::Kampf {
-            // Eine Lastart SUCHT nicht. Hier eine Rate zu drucken hiesse,
-            // „eine bewertete Rotation je Kampfblock" als Suchleistung
-            // auszugeben — eine Zahl, die stimmt und nichts bedeutet.
-            Wert::Fehlt("keine Suche")
-        } else {
-            Wert::Zahl(kandidaten / sekunden)
-        },
+        full_fights,
+        resolved_candidates,
         // Es gibt im Bestand keinen Cache und keine Kanonisierung — gemessen
         // ueber sim/src, sim/examples und sim/tests: kein Treffer auf "cache",
         // "canonical", "kanonis", "memo". Eine 0,00 hier waere die Aussage
@@ -1171,26 +1238,115 @@ fn laufbeginn() -> &'static (Instant, u64) {
     })
 }
 
+/// Was eine A/B-Reihe vergleicht.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Gegenstand {
+    /// Die Diagnose-Erfassung aus #896, AN gegen AUS.
+    Erfassung,
+    /// Zählwerk und Anzeigestrang aus #933, AN gegen AUS (AC9).
+    Fortschritt,
+}
+
+/// Wie ein einzelner Block gefahren wird.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Variante {
+    /// Ohne Erfassung, ohne Zählwerk — die Variante A.
+    Ohne,
+    /// Mit der Diagnose-Erfassung aus #896.
+    Erfassung,
+    /// Mit Zählwerk und Anzeigestrang aus #933.
+    Fortschritt,
+}
+
+/// Die Last eines A/B-Blocks.
+///
+/// **Für den Fortschritt mit Würfel (PURITY 500).** Ohne Würfel rechnet jede
+/// Messung EINEN Kampf auf dem Leitstrang (#908); die Arbeitsstränge rechneten
+/// dann nie, und ihre Zähler — deren Cache-Zeilen AC9 betrifft — würden nie
+/// berührt. Mit Würfel verteilt jede Messung ihre zweihundert Kämpfe auf alle
+/// Stränge, und jeder erhöht seinen eigenen Zähler. A und B rechnen dieselbe
+/// Last; nur so misst der Abstand die Anzeige und nicht die Last.
+fn last_fuer(boss: &'static Boss, threads: usize, gegenstand: Gegenstand) -> BalanceConfig {
+    let mut config = config_fuer(boss, threads);
+    if gegenstand == Gegenstand::Fortschritt {
+        config.worn.purity = 500;
+    }
+    config
+}
+
+/// In welchen Topf ein Block gehört: `true` heißt B.
+///
+/// **Im A/B-Modus nach der Variante, im A,A-Modus nach der Stellung.** Bis
+/// #933 entschied für beide Modi die Stellung im Paar. Im A/B-Modus wechselt
+/// die Reihenfolge aber je Paar — in jedem zweiten stand B vorn und landete in
+/// Spalte A. Beide Mediane mischten dann A- und B-Blöcke, und jeder Unterschied
+/// zwischen den Varianten verdünnte sich bis unter die Streuung: AC6 von #896
+/// konnte so kaum scheitern. Aufgefallen beim Aufbau der AC9-Messung von #933.
+fn in_topf_b(gleiche_variante: bool, zweite_stelle: bool, variante_b: bool) -> bool {
+    if gleiche_variante {
+        zweite_stelle
+    } else {
+        variante_b
+    }
+}
+
 fn eine_rate(
     fall: &Lastfall,
     threads: usize,
     durchgaenge: u32,
-    erfassung: bool,
+    gegenstand: Gegenstand,
+    variante: Variante,
 ) -> Option<Blockwert> {
     // **Vor dem Aufwaermen abgelesen, nicht danach.** Die Zeit soll sagen,
     // wann dieser Block die Maschine zu belasten anfing — eine fremde
     // Stoerung trifft das Aufwaermen genauso wie die Messung.
     let angefangen_s = seit_beginn_s();
     let boss = boss_by_id(fall.boss)?;
-    let config = config_fuer(boss, threads);
+    let config = last_fuer(boss, threads, gegenstand);
     let pool = pool_fuer(fall.pool, &all_candidates());
 
     diagnostics::reset();
-    if erfassung {
+    if variante == Variante::Erfassung {
         diagnostics::enable();
     } else {
         diagnostics::disable();
     }
+
+    // Variante B des Fortschritts: Zählwerk angemeldet, Anzeigestrang mit
+    // vier Takten je Sekunde, Zeile UND Strom. Die Zeile geht in einen Abfluss,
+    // aber als „Terminal" — dann wird sie in jedem Takt gebaut und geschrieben,
+    // nicht nur alle zehn Sekunden. Gemessen wird so die teuerste Anzeige, die
+    // `rota-sim --progress --jsonl` erzeugen kann.
+    let strom = std::env::temp_dir().join(format!("messumgebung-933-{}.jsonl", std::process::id()));
+    let mit_anzeige = if variante == Variante::Fortschritt {
+        let Ok(datei) = std::fs::File::create(&strom) else {
+            eprintln!("  [A/B] B verworfen: {} nicht anlegbar", strom.display());
+            return None;
+        };
+        let werk = Zaehlwerk::neu(threads);
+        let anmeldung = werk.anmelden();
+        let weg = auswertungsweg(&config);
+        let kosten = Kostenbild {
+            weg,
+            kaempfe_je_kandidat: Kampfzahl::Fest(if weg == Weg::EinKampf {
+                1
+            } else {
+                u64::from(config.iterations)
+            }),
+        };
+        let anzeige = Anzeigestrang::starten(
+            std::sync::Arc::clone(&werk),
+            Laufbeschreibung::neu(fall.name, Some(fall.boss), threads, kosten),
+            Ausgabe {
+                zeile: Some(Box::new(std::io::sink())),
+                terminal: true,
+                jsonl: Some(Box::new(std::io::BufWriter::new(datei))),
+            },
+        );
+        Some((werk, anmeldung, anzeige))
+    } else {
+        None
+    };
 
     // **Ueber die volle Messdauer, in Teilbloecken, und der MEDIAN daraus.**
     //
@@ -1270,6 +1426,35 @@ fn eine_rate(
         (Some(a), Some(b)) if gesamt > 0.0 => (b.saturating_sub(a)) as f64 / gesamt,
         _ => f64::NAN,
     };
+
+    // **Die Zusicherung zu B:** Das Zählwerk hat gezählt, und zwar auf den
+    // Arbeitssträngen. Ohne diese Probe könnte ein B, dessen Zähler nie
+    // berührt wurden, als „kostet nichts" durchgehen.
+    if let Some((_werk, anmeldung, anzeige)) = mit_anzeige {
+        let ende = anzeige.beenden();
+        drop(anmeldung);
+        let _ = std::fs::remove_file(&strom);
+        let Ok(ende) = ende else {
+            eprintln!("  [A/B] B verworfen: der Anzeigestrang meldete einen Fehler");
+            return None;
+        };
+        let arbeitende = ende
+            .probe
+            .kaempfe_je_strang
+            .iter()
+            .skip(1)
+            .filter(|k| **k > 0)
+            .count();
+        eprintln!(
+            "  [A/B] B: Zählwerk {} Kämpfe, {} von {threads} Arbeitssträngen zählten, \
+             {} Meldungen im Strom",
+            ende.probe.kaempfe, arbeitende, ende.sequenz
+        );
+        if ende.probe.kaempfe == 0 || (threads > 1 && arbeitende < threads) {
+            eprintln!("  [A/B] B verworfen: die Arbeitsstränge haben nicht gezählt");
+            return None;
+        }
+    }
 
     diagnostics::disable();
     diagnostics::reset();
@@ -1436,7 +1621,12 @@ fn ab_reihe(
     paare: usize,
     durchgaenge: u32,
     gleiche_variante: bool,
+    gegenstand: Gegenstand,
 ) -> bool {
+    let variante_b = match gegenstand {
+        Gegenstand::Erfassung => Variante::Erfassung,
+        Gegenstand::Fortschritt => Variante::Fortschritt,
+    };
     // Der billigste Lastfall genuegt: Gemessen wird die MESSUMGEBUNG, nicht
     // der Kampf. Ein teurer Fall verlaengert die Reihe, ohne die Streuung
     // aussagekraeftiger zu machen.
@@ -1455,11 +1645,24 @@ fn ab_reihe(
     let _ = writeln!(
         bericht,
         "{}",
-        if gleiche_variante {
-            "  BEIDE Durchgaenge mit Erfassung AUS — die Spalten heissen A1 und A2.\n\
-             \x20 Streut auch das, liegt die Ursache nicht zwischen zwei Aufrufen.\n"
-        } else {
-            "  A = Erfassung AUS   B = Erfassung AN (beide mit gebautem Merkmal)\n"
+        match (gleiche_variante, gegenstand) {
+            (true, Gegenstand::Erfassung) => {
+                "  BEIDE Durchgaenge mit Erfassung AUS — die Spalten heissen A1 und A2.\n\
+                 \x20 Streut auch das, liegt die Ursache nicht zwischen zwei Aufrufen.\n"
+            }
+            (true, Gegenstand::Fortschritt) => {
+                "  BEIDE Durchgaenge OHNE Zaehlwerk und Anzeige, Last mit PURITY 500 —\n\
+                 \x20 die Spalten heissen A1 und A2. Das ist die Streuung, gegen die\n\
+                 \x20 der Abstand der A/B-Reihe zu halten ist (#933, AC9).\n"
+            }
+            (false, Gegenstand::Erfassung) => {
+                "  A = Erfassung AUS   B = Erfassung AN (beide mit gebautem Merkmal)\n"
+            }
+            (false, Gegenstand::Fortschritt) => {
+                "  A = ohne Zaehlwerk und Anzeige\n\
+                 \x20 B = Zaehlwerk angemeldet, Anzeigestrang 4 Hz, Zeile UND JSON-Strom\n\
+                 \x20 Last fuer beide: PURITY 500, damit jeder Arbeitsstrang zaehlt (#933, AC9)\n"
+            }
         }
     );
 
@@ -1516,11 +1719,11 @@ fn ab_reihe(
             // die Ursache NICHT zwischen zwei Aufrufen — also nicht an fremder
             // Last, die zwischendurch kommt und geht, sondern im Verfahren
             // selbst oder in einer Restlast, die dauerhaft anliegt.
-            (false, false)
+            (Variante::Ohne, Variante::Ohne)
         } else if i % 2 == 0 {
-            (false, true)
+            (Variante::Ohne, variante_b)
         } else {
-            (true, false)
+            (variante_b, Variante::Ohne)
         };
         let (vor_a, vor_b) = (a.len(), b.len());
         // **Fortschritt nach stderr, wie in [`miss`] — und hier nötiger als
@@ -1543,19 +1746,20 @@ fn ab_reihe(
             if gleiche_variante { "A,A" } else { "A/B" },
             i + 1
         );
-        let r1 = eine_rate(fall, threads, durchgaenge, erst);
-        let r2 = eine_rate(fall, threads, durchgaenge, dann);
+        let r1 = eine_rate(fall, threads, durchgaenge, gegenstand, erst);
+        let r2 = eine_rate(fall, threads, durchgaenge, gegenstand, dann);
 
         // **Ein Block, der unter Druck lief, ist keine Messung.** Er wird
         // verworfen und die Zahl der Verwuerfe unten ausgewiesen — nicht still
         // weggelassen. Wer nur die uebrigen sieht, haelt eine unruhige
         // Maschine fuer eine ruhige, und das ist der teurere Irrtum.
         // Im A,A-Modus unterscheiden sich die beiden Durchgaenge NICHT in der
-        // Erfassung, sondern nur in ihrer Stellung. `nach_b` traegt deshalb die
-        // Zuordnung, nicht `erfassung` — sonst landeten beide im selben Topf
-        // und der Bericht koennte sie nicht einzeln ausweisen, was der Auftrag
-        // ausdruecklich verlangt.
-        for (nach_b, erfassung, wert) in [(false, erst, r1), (true, dann, r2)] {
+        // Variante, sondern nur in ihrer Stellung — dort traegt die Stellung
+        // die Zuordnung. Im A/B-Modus traegt sie die Variante; siehe
+        // [`in_topf_b`], warum das bis #933 vertauscht war.
+        for (zweite, variante, wert) in [(false, erst, r1), (true, dann, r2)] {
+            let ist_b = variante != Variante::Ohne;
+            let nach_b = in_topf_b(gleiche_variante, zweite, ist_b);
             let Some(w) = wert else { continue };
             // **In Messreihenfolge gesammelt, samt der verworfenen.** Wer sie
             // ausliesse, saehe eine Luecke im Zeitverlauf genau dort, wo die
@@ -1574,7 +1778,7 @@ fn ab_reihe(
                     "  Paar {:>2}   {} VERWORFEN — PSI cpu stieg auf {:.2} \
                      (Grenze {PSI_CPU_MAX:.2}), {:.0} Kontextwechsel/s, ab {:.1} s",
                     i + 1,
-                    match (gleiche_variante, nach_b, erfassung) {
+                    match (gleiche_variante, nach_b, ist_b) {
                         (true, false, _) => "A1",
                         (true, true, _) => "A2",
                         (false, _, true) => "B",
@@ -1957,11 +2161,37 @@ fn ab_reihe(
     );
     let _ = writeln!(
         bericht,
-        "  Unterschied A gegen B   {:>6.2} %",
-        unterschied * 100.0
+        "  Unterschied A gegen B   {:>6.2} %   (B {} als A)",
+        unterschied * 100.0,
+        if med_b < med_a {
+            "langsamer"
+        } else {
+            "nicht langsamer"
+        }
     );
 
     let bewertung = bewerte(streu_a, streu_b, unterschied, zeiten_ok);
+    // **Das Urteil in Worten, wie der Orchestrator es verlangt:** Ist die
+    // Streuung größer als der Abstand, sind A und B nicht unterscheidbar —
+    // das ist keine Aussage „B kostet nichts", sondern „diese Messung kann es
+    // nicht zeigen".
+    let _ = writeln!(
+        bericht,
+        "  Urteil                  {}",
+        if bewertung.ac6 {
+            format!(
+                "nicht unterscheidbar — Abstand {:.2} % liegt innerhalb der Streuung {:.2} %",
+                unterschied * 100.0,
+                streu_a.max(streu_b) * 100.0
+            )
+        } else {
+            format!(
+                "UNTERSCHEIDBAR — Abstand {:.2} % liegt über der Streuung {:.2} %",
+                unterschied * 100.0,
+                streu_a.max(streu_b) * 100.0
+            )
+        }
+    );
     let _ = writeln!(
         bericht,
         "\n  AC1  Streuung unter 3 %                       {}",
@@ -1969,7 +2199,11 @@ fn ab_reihe(
     );
     let _ = writeln!(
         bericht,
-        "  AC6  Unterschied innerhalb der Streuung       {}",
+        "  {}  Unterschied innerhalb der Streuung  {}",
+        match gegenstand {
+            Gegenstand::Erfassung => "AC6 (#896)",
+            Gegenstand::Fortschritt => "AC9 (#933)",
+        },
         if bewertung.ac6 { "PASS" } else { "FAIL" }
     );
     let _ = writeln!(
@@ -1997,6 +2231,13 @@ fn main() {
     let _ = laufbeginn();
 
     let args: Vec<String> = std::env::args().collect();
+    // `--fortschritt`: Die A/B- und A,A-Reihe vergleicht Zählwerk und
+    // Anzeigestrang (#933, AC9) statt der Diagnose-Erfassung (#896).
+    let gegenstand = if args.iter().any(|a| a == "--fortschritt") {
+        Gegenstand::Fortschritt
+    } else {
+        Gegenstand::Erfassung
+    };
     let aa_modus = args.iter().any(|a| a == "--aa");
     let ab_modus = aa_modus || args.iter().any(|a| a == "--ab");
     let paare: usize = args
@@ -2202,7 +2443,14 @@ fn main() {
 
     // --- A/B-Wechselreihe, wenn danach gefragt ---
     if ab_modus {
-        let bestanden = ab_reihe(&mut bericht, threads, paare, durchgaenge, aa_modus);
+        let bestanden = ab_reihe(
+            &mut bericht,
+            threads,
+            paare,
+            durchgaenge,
+            aa_modus,
+            gegenstand,
+        );
         print!("{bericht}");
         std::process::exit(i32::from(!bestanden));
     }
@@ -2885,5 +3133,59 @@ mod bewertung_verknuepft_die_kriterien {
         assert!(!b.ac1, "4 % liegen ueber der Schwelle");
         assert!(b.zeiten_ok);
         assert!(!b.bestanden());
+    }
+
+    /// **Der Durchsatz kommt aus dem Zählstand, aus nichts sonst** (#933).
+    #[test]
+    fn der_durchsatz_kommt_aus_dem_zaehlstand() {
+        let stand = Momentaufnahme {
+            elapsed_ns: 0,
+            kaempfe: 1234,
+            durchgaenge: 1234,
+            kandidaten: [7, 3, 0],
+            kaempfe_je_strang: vec![1234],
+            stand: rota_sim::fortschritt::Laufstand::default(),
+        };
+        let (kaempfe, kandidaten) = durchsatz_aus(&stand, 2.0, true);
+        assert!(matches!(kaempfe, Wert::Zahl(x) if (x - 617.0).abs() < 1e-9));
+        assert!(matches!(kandidaten, Wert::Zahl(x) if (x - 5.0).abs() < 1e-9));
+        // Eine Lastart sucht nicht: keine Kandidatenrate, aber eine Kampfrate.
+        let (kaempfe, kandidaten) = durchsatz_aus(&stand, 2.0, false);
+        assert!(matches!(kaempfe, Wert::Zahl(_)));
+        assert!(matches!(kandidaten, Wert::Fehlt("keine Suche")));
+        // Ohne Messzeit gibt es keine Rate, auch keine unendliche.
+        assert!(matches!(durchsatz_aus(&stand, 0.0, true).0, Wert::Fehlt(_)));
+    }
+
+    /// **Im A/B-Modus zählt die Variante, im A,A-Modus die Stellung** (#933).
+    ///
+    /// Der Fall, an dem die alte Zuordnung scheiterte: ein ungerades Paar mit B
+    /// vorn. Nach der Stellung landete es in Spalte A.
+    #[test]
+    fn ab_ordnet_nach_variante_und_aa_nach_stellung() {
+        // A/B, ungerades Paar: B steht vorn, A hinten.
+        assert!(in_topf_b(false, false, true), "B vorn gehört nach B");
+        assert!(!in_topf_b(false, true, false), "A hinten gehört nach A");
+        // A/B, gerades Paar: wie gehabt.
+        assert!(!in_topf_b(false, false, false));
+        assert!(in_topf_b(false, true, true));
+        // A,A: Beide Blöcke sind A, die Stellung trennt A1 von A2.
+        assert!(!in_topf_b(true, false, false), "A1");
+        assert!(in_topf_b(true, true, false), "A2");
+    }
+
+    /// Die Last des Fortschritts würfelt, die der Erfassung nicht — sonst
+    /// zählten im AC9-Vergleich nie die Arbeitsstränge.
+    #[test]
+    fn die_fortschrittslast_rechnet_auf_den_arbeitsstraengen() {
+        let boss = boss_by_id("boss-1-1").expect("den Boss gibt es");
+        assert_eq!(
+            auswertungsweg(&last_fuer(boss, 4, Gegenstand::Fortschritt)),
+            Weg::Stichprobe
+        );
+        assert_eq!(
+            auswertungsweg(&last_fuer(boss, 4, Gegenstand::Erfassung)),
+            Weg::EinKampf
+        );
     }
 }
