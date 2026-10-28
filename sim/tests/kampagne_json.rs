@@ -19,7 +19,7 @@ use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
     CpuReservation, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError, Mission,
     NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
-    WorkUnits,
+    WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
 static HOSTS: &[HostRequirement] = &[
@@ -60,7 +60,7 @@ fn kampagne() -> CampaignDefinition {
             hosts: HOSTS,
             network: Some(NetworkRequirement {
                 max_rtt_ms: 250,
-                min_bandwidth_mibit_s: 50,
+                min_bandwidth_mibit_s: Some(50),
             }),
         },
         target_wall_time: Duration::new(7200, 5),
@@ -92,6 +92,25 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     assert_eq!(v["referenceProfile"]["version"], 2);
     assert_eq!(v["referenceProfile"]["network"]["maxRttMs"], 250);
     assert_eq!(v["referenceProfile"]["network"]["minBandwidthMibitS"], 50);
+
+    // Eine nicht gemessene Bandbreite steht als `null` im Text, nicht als 0 —
+    // „unbekannt" gegen „null verlangt". Gegenprobe ist die 50 darüber.
+    let profil = REFERENCE_PROFILE_STANDARD;
+    let standard = CampaignDefinition {
+        reference_profile: profil,
+        ..k
+    };
+    let s: serde_json::Value =
+        serde_json::from_str(&standard.to_json().expect("gültig")).expect("JSON");
+    assert_eq!(s["referenceProfile"]["name"], "standard");
+    assert_eq!(s["referenceProfile"]["network"]["maxRttMs"], 250);
+    assert!(
+        s["referenceProfile"]["network"]["minBandwidthMibitS"].is_null(),
+        "{}",
+        s["referenceProfile"]["network"]
+    );
+    assert!(s["referenceProfile"]["hosts"][1]["guaranteedCpuQuota"].is_null());
+
     // Sekunden UND Nanosekunden: Eine Zielzeit in Millisekunden verlöre die 5 ns
     // hier, und zwei Profile mit verschiedenem Fingerabdruck schrieben
     // denselben Text.
@@ -275,7 +294,8 @@ fn namen_mit_steuerzeichen_und_unicode_sind_gueltige_json_strings() {
     let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Hostname");
     assert_eq!(gelesen["name"].as_str(), Some(NAME));
 
-    let vertrag = CampaignRunContract::from_campaign(&kampagne(), Mission::SingleBoss { boss: NAME });
+    let vertrag =
+        CampaignRunContract::from_campaign(&kampagne(), Mission::SingleBoss { boss: NAME });
     let text = vertrag.to_json().expect("endlicher Vertrag");
     let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Bossname");
     assert_eq!(gelesen["mission"]["boss"].as_str(), Some(NAME));
