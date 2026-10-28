@@ -1,8 +1,9 @@
 """The one-command start of the full mutation pass (#1055) refuses without the window.
 
-`rota-fenster` is replaced by a script on PATH that prints what the real tool
-prints; git, the disk check and the command assembly are real. Only --trocken
-runs here: a real start creates a worktree and runs for hours.
+`rota-fenster` is replaced by a script that prints what the real tool prints;
+the node_modules source is a stand-in directory built here. git, the disk check
+and the command assembly are real. Only --trocken runs here: a real start
+creates a worktree and runs for hours.
 """
 import os
 import subprocess
@@ -26,6 +27,17 @@ class StreichVolllauf(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.temp = Path(temporary.name)
         (self.temp / 'bin').mkdir()
+        # A stand-in for the node_modules source, built here instead of read
+        # from the checkout under test: the first version named the repo
+        # itself, and in a fresh checkout without node_modules four cases
+        # failed with "oder dort fehlt node_modules" (acceptance of PR #1160).
+        self.head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True,
+                                   text=True, check=True).stdout.strip()
+        self.source = self.temp / 'quelle'
+        (self.source / 'node_modules').mkdir(parents=True)
+        (self.source / 'package-lock.json').write_bytes(subprocess.run(
+            ['git', 'show', f'{self.head}:package-lock.json'], cwd=ROOT,
+            capture_output=True, check=True).stdout)
 
     def window(self, text, code):
         # Written line by line: a dedent over the inserted status text left
@@ -41,11 +53,11 @@ class StreichVolllauf(unittest.TestCase):
         self.fake.chmod(0o755)
 
     def run_tool(self, *args):
-        # The node_modules source is named explicitly: its default /work/rota
+        # The node_modules source is always named: its default /work/rota
         # exists on this machine and not on CI — as /work itself does not,
         # which a disk check on a fixed '/work' met there (lint, PR #1160).
         env = dict(os.environ, ROTA_FENSTER=str(self.fake))
-        args = (*args, '--node-modules-von', str(ROOT))
+        args = (*args, '--node-modules-von', str(self.source))
         result = subprocess.run([sys.executable, '-B', str(TOOL), *args], cwd=ROOT, env=env,
                                 capture_output=True, text=True, timeout=60, check=False)
         self.assertTrue(self.marker.exists(), 'the fake rota-fenster was not the one asked')
@@ -133,6 +145,23 @@ class StreichVolllauf(unittest.TestCase):
                                '--aus', str(self.temp / 'lauf'), '--baum', str(self.temp / 'baum'))
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn('Checkout', result.stdout)
+
+    def test_a_source_without_node_modules_or_with_another_lockfile_refuses(self):
+        self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
+        refusal = (f'NICHT GESTARTET: package-lock.json von {self.head[:12]} gleicht nicht dem von '
+                   f'{self.source}, oder dort fehlt node_modules — dann wäre `npm ci` nötig')
+        (self.source / 'node_modules').rmdir()
+        missing = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
+                                '--aus', str(self.temp / 'lauf'))
+        self.assertEqual(missing.returncode, 2, missing.stdout + missing.stderr)
+        self.assertIn(refusal, missing.stdout)
+        (self.source / 'node_modules').mkdir()
+        lock = self.source / 'package-lock.json'
+        lock.write_bytes(lock.read_bytes() + b'\n')
+        other = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
+                              '--aus', str(self.temp / 'lauf'))
+        self.assertEqual(other.returncode, 2, other.stdout + other.stderr)
+        self.assertIn(refusal, other.stdout)
 
     def test_an_existing_output_directory_refuses(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
