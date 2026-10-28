@@ -72,8 +72,9 @@
 
 use core::cmp::Ordering;
 
-use crate::balance::{BalanceResult, Sample};
+use crate::balance::{BalanceResult, Sample, Statistics};
 use crate::data::Boss;
+use crate::speicher::RoherErgebnisvektor;
 
 // ------------------------------------------------------- Wahrscheinlichkeit
 
@@ -1034,6 +1035,24 @@ impl BalanceObjective {
 
 // -------------------------------------------------------------- Die Speisung
 
+/// Was die Rechnung aus einem Lauf liest — gleich, woher er kommt.
+///
+/// Fuenf Groessen und nicht der ganze Ergebnissatz: Genau diese fuenf haelt
+/// auch der Ergebnisspeicher. Was hier steht, laesst sich deshalb ohne einen
+/// einzigen neuen Kampf neu bewerten.
+struct Kennzahlen<'a> {
+    /// Gewonnene Durchgaenge, mit der Umkehrung des Ziels.
+    wins: usize,
+    /// Gerechnete Durchgaenge.
+    trials: u32,
+    /// Mittlerer ausgeteilter Schaden (Stufe 4).
+    damage_mean: f64,
+    /// Mittlerer durchgekommener Schaden (Stufe 2).
+    damage_taken_mean: f64,
+    /// Zeit bis zum Sieg ueber die gewonnenen Durchgaenge (Stufe 5).
+    kill_time: &'a Statistics,
+}
+
 impl CandidateMeasurement {
     /// Aus einem echten Balance-Ergebnis (AC2, AC4).
     ///
@@ -1064,7 +1083,71 @@ impl CandidateMeasurement {
             .iter()
             .filter(|sample| Outcome::of(sample, condition).is_win())
             .count();
-        let win_probability = Self::win_probability(wins, trials, contract.determinism);
+        Self::aus_kennzahlen(
+            &Kennzahlen {
+                wins,
+                trials,
+                damage_mean: result.damage.mean,
+                damage_taken_mean: result.damage_taken.mean,
+                kill_time: &result.kill_time_ms,
+            },
+            condition,
+            contract,
+            change_cost,
+        )
+    }
+
+    /// Aus einem **rohen Ergebnis des Ergebnisspeichers** (Epic #903).
+    ///
+    /// # Wofuer es das gibt
+    ///
+    /// Ein Zielwechsel soll KEINEN Kampf kosten. Dann muss das Urteil aus dem
+    /// entstehen, was der Speicher haelt — und der haelt keine
+    /// Einzelergebnisse, nur ihre Kennzahlen. Ohne diese Funktion liesse sich ein gespeichertes
+    /// Ergebnis nicht neu bewerten, und jeder Zielwechsel liefe doch wieder
+    /// ueber [`crate::balance::run`].
+    ///
+    /// # Die Siegzahl kommt hier aus dem Speicher, nicht aus den Ausgaengen
+    ///
+    /// [`Self::from_balance_result`] bestimmt jeden Ausgang mit
+    /// [`Outcome::of`]; hier liegen die Einzelergebnisse nicht mehr vor. Die
+    /// Siegzahl im Vektor ist [`crate::balance::siege`] — dieselbe Lesart mit
+    /// derselben Umkehrung bei `runaway`. Dass beide Wege dasselbe Urteil
+    /// liefern, haelt `sim/tests/speicher_zielwechsel.rs` an echten Laeufen
+    /// gegen einen gewoehnlichen UND einen umgekehrten Boss fest — als
+    /// Gleichheit der ganzen Messung, nicht einer einzelnen Zahl.
+    ///
+    /// Gerechnet wird in **derselben** Funktion wie dort
+    /// (`aus_kennzahlen`), nicht in einer zweiten Fassung daneben.
+    #[must_use]
+    pub fn from_raw_outcome(
+        vektor: &RoherErgebnisvektor,
+        boss: &Boss,
+        contract: &RunContract,
+        change_cost: Option<f64>,
+    ) -> Self {
+        Self::aus_kennzahlen(
+            &Kennzahlen {
+                wins: vektor.siege.0 as usize,
+                trials: vektor.durchgaenge,
+                damage_mean: vektor.schaden.mean,
+                damage_taken_mean: vektor.erlittener_schaden.mean,
+                kill_time: &vektor.siegzeit_ms,
+            },
+            WinCondition::of(boss),
+            contract,
+            change_cost,
+        )
+    }
+
+    /// Die eine Rechnung hinter beiden Speisungen.
+    fn aus_kennzahlen(
+        werte: &Kennzahlen<'_>,
+        condition: WinCondition,
+        contract: &RunContract,
+        change_cost: Option<f64>,
+    ) -> Self {
+        let win_probability = Self::win_probability(werte.wins, werte.trials, contract.determinism);
 
         let mut stages = LexicographicScore::unmeasured();
 
@@ -1080,7 +1163,7 @@ impl CandidateMeasurement {
         // Stufe 2 — Ueberlebensreserve, nur mit bekannter Lebensgrenze.
         if let Some(vessel_max) = contract.vessel_max {
             if vessel_max > 0 {
-                let reserve = 1.0 - result.damage_taken.mean / f64::from(vessel_max);
+                let reserve = 1.0 - werte.damage_taken_mean / f64::from(vessel_max);
                 stages.set(RankingStage::SurvivalReserve, StageValue::Measured(reserve));
             }
         }
@@ -1089,16 +1172,16 @@ impl CandidateMeasurement {
         if let Some(band) = contract.target_band {
             stages.set(
                 RankingStage::TargetBandDistance,
-                StageValue::Measured(-band.distance(result.damage.mean)),
+                StageValue::Measured(-band.distance(werte.damage_mean)),
             );
         }
 
         // Stufe 5 — nur bei gewoehnlicher Siegbedingung; sonst waere es die
         // Frist, die fuer jeden Sieger gleich ist.
-        if !condition.is_inverted() && result.kill_time_ms.count > 0 {
+        if !condition.is_inverted() && werte.kill_time.count > 0 {
             stages.set(
                 RankingStage::TimeToWin,
-                StageValue::Measured(-result.kill_time_ms.mean),
+                StageValue::Measured(-werte.kill_time.mean),
             );
         }
 

@@ -1,22 +1,33 @@
 //! Rechenproben mit ausdrücklich synthetischen Raten; keine Host-Benchmarks.
 //! Der echte Messauftrag steht im Beispiel `e21-0b-machbarkeit`.
 
+use std::time::Duration;
+
 use rota_sim::hostcaps::{HostCaps, IsaSet};
 use rota_sim::kalibrierung::{Abbruchgrund, Arbeitsart, Profil, Profilschluessel, RateModel};
 use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    DeadlinePolicy, Mission, ProjectionSet, QualityTargets, ReferenceProfile, WorkUnits,
+    DateTimeUtc, DeadlinePolicy, Mission, ProjectionSet, QualityTargets, ReferenceProfile,
+    WorkUnits,
 };
 use rota_sim::machbarkeit::{preflight, CalibratedHost, FeasibilityError, WorkEstimate};
 
 fn contract(target_ms: u64) -> CampaignRunContract {
+    contract_for(Duration::from_millis(target_ms))
+}
+
+/// Die Zielzeit gehört seit #914 zur Kampagne; der Vertrag übernimmt sie.
+fn contract_for(target_wall_time: Duration) -> CampaignRunContract {
     CampaignRunContract::from_campaign(
         &CampaignDefinition {
             profile_version: 1,
             reference_profile: ReferenceProfile {
+                name: "fixture-only",
                 version: 1,
                 hosts: &[],
+                network: None,
             },
+            target_wall_time,
             canonical_work_budget: WorkUnits(1_000_000),
             exact_obligations: ProjectionSet { required: 1 },
             coverage_spec: CoverageSpec { strength: 0 },
@@ -32,7 +43,6 @@ fn contract(target_ms: u64) -> CampaignRunContract {
         Mission::SingleBoss {
             boss: "fixture-only",
         },
-        target_ms,
     )
 }
 
@@ -146,8 +156,9 @@ fn weitere_rechner_aendern_eta_aber_nicht_pflichtmenge_oder_vertrag() {
 #[test]
 fn explizite_frist_ist_nur_eine_zulassung_fuer_ein_teilergebnis() {
     let profile = profile("fixture", 100.0);
-    let contract =
-        contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining_ms: 999 });
+    let contract = contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+        remaining: Duration::from_millis(999),
+    });
     let estimate = preflight(&contract, &[work()], &[host(&profile)]).expect("explicit partial");
     assert!(estimate.partial_requested);
     assert_eq!(estimate.mandatory_ms, 1000.0);
@@ -303,8 +314,9 @@ fn leere_auftraege_und_nicht_endliche_eta_sind_fehler() {
 fn restfrist_gilt_auch_wenn_die_zielzeit_viel_groesser_ist() {
     let profile = profile("fixture", 100.0);
     for (remaining_ms, partial) in [(1, true), (999, true), (1000, false), (1001, false)] {
-        let contract =
-            contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining_ms });
+        let contract = contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+            remaining: Duration::from_millis(remaining_ms),
+        });
         let estimate =
             preflight(&contract, &[work()], &[host(&profile)]).expect("explicit deadline");
         assert_eq!(estimate.mandatory_ms, 1000.0);
@@ -318,8 +330,9 @@ fn restfrist_gilt_auch_wenn_die_zielzeit_viel_groesser_ist() {
 #[test]
 fn ausdrueckliche_lange_frist_ist_trotz_knapper_zielzeit_kein_teilergebnis() {
     let profile = profile("fixture", 100.0);
-    let contract =
-        contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining_ms: 1000 });
+    let contract = contract(999).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+        remaining: Duration::from_millis(1000),
+    });
     let estimate =
         preflight(&contract, &[work()], &[host(&profile)]).expect("actual deadline fits");
     assert!(!estimate.partial_requested);
@@ -333,10 +346,16 @@ fn ausdrueckliche_lange_frist_ist_trotz_knapper_zielzeit_kein_teilergebnis() {
 fn abgelaufene_und_ohne_aktuelles_utc_nicht_pruefbare_fristen_sind_fehler() {
     let profile = profile("fixture", 100.0);
     for policy in [
-        DeadlinePolicy::ActiveRuntime { remaining_ms: 0 },
-        DeadlinePolicy::WallClockUtc { deadline_unix_s: 1 },
+        DeadlinePolicy::ActiveRuntime {
+            remaining: Duration::from_millis(0),
+        },
         DeadlinePolicy::WallClockUtc {
-            deadline_unix_s: i64::MAX,
+            deadline: DateTimeUtc { unix_seconds: 1 },
+        },
+        DeadlinePolicy::WallClockUtc {
+            deadline: DateTimeUtc {
+                unix_seconds: i64::MAX,
+            },
         },
     ] {
         let contract = contract(10_000).with_hard_deadline(policy);
@@ -468,4 +487,47 @@ fn grosse_frist_wird_durch_f64_rundung_nicht_groesser() {
         preflight(&contract, &[work], &[host(&profile)]),
         Err(FeasibilityError::TimeBudgetExceeded { .. })
     ));
+}
+
+/// Seit #914 sind Zielzeit und Restfrist `Duration`s. Die Vorabprüfung rechnet
+/// in ganzen Millisekunden; eine Angabe mit Bruchteil wird abgelehnt statt
+/// still abgerundet.
+///
+/// Abrunden wäre nicht harmlos: Bei 1000 ms + 1 ns gälte eine Pflichtzeit von
+/// 1000,0000005 ms als Überschreitung, obwohl sie passt — und die Meldung nennte
+/// eine Zielzeit, die niemand angegeben hat.
+#[test]
+fn zeiten_ohne_ganze_millisekunden_werden_nicht_still_gerundet() {
+    let profile = profile("fixture", 100.0);
+    let krumm = Duration::from_millis(1000) + Duration::from_nanos(1);
+    let error = preflight(&contract_for(krumm), &[work()], &[host(&profile)])
+        .expect_err("Zielzeit mit Bruchteil");
+    assert!(
+        matches!(&error, FeasibilityError::InvalidInput(text) if text.contains("Zielzeit")),
+        "{error:?}"
+    );
+
+    let mit_frist =
+        contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime { remaining: krumm });
+    let error =
+        preflight(&mit_frist, &[work()], &[host(&profile)]).expect_err("Restfrist mit Bruchteil");
+    assert!(
+        matches!(&error, FeasibilityError::InvalidInput(text) if text.contains("Restfrist")),
+        "{error:?}"
+    );
+
+    // Jenseits von u64 Millisekunden gibt es keine Zahl, mit der gerechnet
+    // werden könnte.
+    let zu_gross = Duration::from_secs(u64::MAX);
+    assert!(matches!(
+        preflight(&contract_for(zu_gross), &[work()], &[host(&profile)]),
+        Err(FeasibilityError::InvalidInput(_))
+    ));
+
+    // GEGENPROBE: dieselben Werte in ganzen Millisekunden sind zulässig.
+    assert!(preflight(&contract(1000), &[work()], &[host(&profile)]).is_ok());
+    let ganz = contract(10_000).with_hard_deadline(DeadlinePolicy::ActiveRuntime {
+        remaining: Duration::from_millis(1000),
+    });
+    assert!(preflight(&ganz, &[work()], &[host(&profile)]).is_ok());
 }

@@ -108,15 +108,35 @@ const MESSZEIT_MS = 8000;
 function gelaufen(): Combat {
   const boss = bossById('test-crucible-trial');
   if (boss === undefined) throw new Error('data/bosses/test-crucible-trial.json fehlt');
-  const combat = new Combat({ school: CALCINATION.value, boss });
+  // **Mit den beiden Schlüsseltalenten, die Zustand anlegen** (#419). Ihre
+  // Felder gehen nur bei verteiltem Talent ein — ohne es läse `combatChecksum`
+  // sie gar nicht, und dieser Wächter meldete sie zu Recht als ungespürt.
+  // Nur die Schlüsseltalente, ohne Stamm: Ein Schadensfaktor verschöbe den
+  // Zustand, an dem alle anderen Felder gemessen werden.
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss,
+    talents: { 'putrefaction-keystone': 1, 'coagulation-keystone': 1 },
+  });
   const kindle = combat.indexOf('kindle');
   const smoulder = combat.indexOf('smoulder');
   const crust = combat.indexOf('crust');
   const wirkzeit = combat.indexOf('test-cast');
+  const alembic = combat.indexOf('alembic');
   combat.beginFight(0);
   for (let t = 0; t <= MESSZEIT_MS; t += TICK_MS) {
     combat.stepPassive(t);
     if (!combat.gcd.isReady(t)) continue;
+    // **Ab 5000 ms ALEMBIC**, damit der Auswahlmodus zur Messzeit scharf
+    // steht (#419): Seine zwei Felder gehen nur dann ein. Gewählt wird nicht
+    // — `cast` wählt nie, das tut die Sitzung —, also steht er bei 8000 ms
+    // noch. Scharf gestellt wird nach der Wirkung, wie in `Session.apply`.
+    if (t >= 5000 && combat.castCount(alembic) === 0 && combat.isReady(alembic, t)) {
+      if (combat.cast(alembic, t)) {
+        combat.armResetIfNeeded(alembic, t);
+        continue;
+      }
+    }
     // **Ab 7000 ms der Zauber mit Wirkzeit** (Issue #304). Er dauert 2000 ms,
     // läuft bei 8000 ms also noch — und nur dann tragen `playerCasting` und
     // `playerCastEndsAt` einen Wert, an dem sich etwas messen lässt.
@@ -240,7 +260,15 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     // 37 seit #304: `playerCasting` und `playerCastEndsAt` tragen die laufende
     // Wirkzeit des Spielers. Bis dahin kannte die Prüfsumme nur die des
     // Bosses.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(37);
+    //
+    // 49 seit #419: Gezählt standen vorher 45 Größen hier, die Untergrenze
+    // war bei 37 stehengeblieben. Dazu kommen `hasKeystone` und die drei
+    // Felder der Schlüsseltalente. Die Grenze zieht auf den gemessenen Stand
+    // nach — acht Felder Spielraum hießen, dass acht verschwinden dürften.
+    //
+    // 52 seit der Abnahme von #1146: `resetArmed` und die zwei Felder des
+    // Auswahlmodus.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(52);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {
@@ -262,6 +290,8 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     // Fälle unten wären grün, ohne etwas zu belegen.
     expect(combat.playerCasting, 'ein Spieler-Zauber laeuft').toBeGreaterThanOrEqual(0);
     expect(combat.playerCastEndsAtMs).toBeGreaterThan(MESSZEIT_MS);
+    // Und der Auswahlmodus (#419): Nur scharf gehen seine Felder ein.
+    expect(combat.resetArmed, 'der Auswahlmodus steht nicht scharf').toBe(true);
   });
 
   // **Jedes Feld einzeln.** „Die Prüfsumme ändert sich" wäre schon erfüllt,
