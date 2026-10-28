@@ -346,6 +346,31 @@ impl HostPerfVector {
     }
 }
 
+/// Was ein Abschnitt meldet: gefahrene Einheiten und, falls er sie selbst
+/// gemessen hat, die Dauer seines Fensters (#912).
+///
+/// Eine Arbeit, die nur `f64` liefert, wird an der Wanduhr gemessen — von
+/// ihrem Aufruf bis zu ihrer Rückkehr. Ein durchgehender Lauf misst sein
+/// Fenster selbst: Die Einheiten zählt das Zählwerk bis zum Fensterende, und
+/// was danach noch ausläuft, gehört nicht dazu.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Abschnittswert {
+    /// Gefahrene Einheiten.
+    pub einheiten: f64,
+    /// Die Dauer des Fensters, in dem sie gefahren wurden — oder `None`, dann
+    /// gilt die Wanduhr um den Aufruf.
+    pub fenster: Option<Duration>,
+}
+
+impl From<f64> for Abschnittswert {
+    fn from(einheiten: f64) -> Self {
+        Self {
+            einheiten,
+            fenster: None,
+        }
+    }
+}
+
 /// Ein Messabschnitt: gefahrene Einheiten, gebrauchte Zeit und der Takt dabei.
 #[derive(Debug, Clone, Copy)]
 struct Abschnitt {
@@ -466,9 +491,10 @@ pub fn urteil_nach(gelaufen: Duration, reihen: &[&[f64]]) -> Option<Abbruchgrund
 /// entweder zu kurz (bei schneller Arbeit) oder blockiert zu lange (bei
 /// langsamer). Die Arbeit wählt ein Paket, das auf jeder Maschine in etwa
 /// dieselbe Größenordnung braucht, und sagt hinterher, wie viel es war.
-pub fn kalibriere<F>(mut arbeit: F) -> RateModel
+pub fn kalibriere<F, R>(mut arbeit: F) -> RateModel
 where
-    F: FnMut() -> f64,
+    F: FnMut() -> R,
+    R: Into<Abschnittswert>,
 {
     let kerne = erlaubte_kerne().unwrap_or_default();
     let drossel_vorher = taktdrosselung();
@@ -613,11 +639,15 @@ fn vorpruefung() -> Option<RateModel> {
 }
 
 /// Misst einen Abschnitt: einen Aufruf der Arbeit, mit Dauer und Takt.
-fn abschnitt_messen<F: FnMut() -> f64>(arbeit: &mut F, kerne: &[usize]) -> Abschnitt {
+fn abschnitt_messen<F, R>(arbeit: &mut F, kerne: &[usize]) -> Abschnitt
+where
+    F: FnMut() -> R,
+    R: Into<Abschnittswert>,
+{
     let t0 = Instant::now();
-    let einheiten = arbeit();
+    let wert = arbeit().into();
     Abschnitt {
-        einheiten,
+        einheiten: wert.einheiten,
         dauer: t0.elapsed(),
         takt_mhz: takt_mhz(kerne),
     }
@@ -966,10 +996,12 @@ impl Verschraenkt {
 /// BEIDE Reihen `Stabil` sagt oder die Höchstdauer erreicht ist. Drosselung und
 /// zu kleine Pakete brechen ab wie dort. Beide Raten tragen denselben
 /// Abbruchgrund und dieselbe Dauer — sie sind ein Lauf.
-pub fn kalibriere_verschraenkt<A, B>(kalibrierung: A, referenz: B) -> Verschraenkt
+pub fn kalibriere_verschraenkt<A, RA, B, RB>(kalibrierung: A, referenz: B) -> Verschraenkt
 where
-    A: FnMut() -> f64,
-    B: FnMut() -> f64,
+    A: FnMut() -> RA,
+    RA: Into<Abschnittswert>,
+    B: FnMut() -> RB,
+    RB: Into<Abschnittswert>,
 {
     verschraenkt_lauf(kalibrierung, referenz, None)
 }
@@ -978,14 +1010,16 @@ where
 ///
 /// **Ein Lauf für beide**, damit die Kontrollprobe und die Kalibrierung sich
 /// in genau einer Sache unterscheiden — wann aufgehört wird.
-fn verschraenkt_lauf<A, B>(
+fn verschraenkt_lauf<A, RA, B, RB>(
     mut kalibrierung: A,
     mut referenz: B,
     feste_dauer: Option<Duration>,
 ) -> Verschraenkt
 where
-    A: FnMut() -> f64,
-    B: FnMut() -> f64,
+    A: FnMut() -> RA,
+    RA: Into<Abschnittswert>,
+    B: FnMut() -> RB,
+    RB: Into<Abschnittswert>,
 {
     let kerne = erlaubte_kerne().unwrap_or_default();
     let drossel_vorher = taktdrosselung();
@@ -1061,10 +1095,16 @@ where
 /// [`kalibriere_verschraenkt`]; aufgehört wird nach `dauer` (am Ende des
 /// laufenden Paars). Beide Raten tragen [`Abbruchgrund::FesteDauer`] und gelten
 /// nie als Kalibrierung.
-pub fn verschraenkt_feste_dauer<A, B>(kalibrierung: A, referenz: B, dauer: Duration) -> Verschraenkt
+pub fn verschraenkt_feste_dauer<A, RA, B, RB>(
+    kalibrierung: A,
+    referenz: B,
+    dauer: Duration,
+) -> Verschraenkt
 where
-    A: FnMut() -> f64,
-    B: FnMut() -> f64,
+    A: FnMut() -> RA,
+    RA: Into<Abschnittswert>,
+    B: FnMut() -> RB,
+    RB: Into<Abschnittswert>,
 {
     verschraenkt_lauf(kalibrierung, referenz, Some(dauer))
 }
@@ -1214,9 +1254,10 @@ pub fn gespeicherte_rate(text: &str, art: Arbeitsart) -> Option<f64> {
 ///
 /// Vorprüfung und Aufwärmen sind dieselben wie bei [`kalibriere`]: Unter
 /// Fremdlast vor der Messung gibt es keinen Abschnitt.
-pub fn bestaetigungslauf<F>(mut arbeit: F) -> RateModel
+pub fn bestaetigungslauf<F, R>(mut arbeit: F) -> RateModel
 where
-    F: FnMut() -> f64,
+    F: FnMut() -> R,
+    R: Into<Abschnittswert>,
 {
     let kerne = erlaubte_kerne().unwrap_or_default();
     if let Some(abbruch) = vorpruefung() {
@@ -2198,6 +2239,44 @@ mod tests {
             folge.windows(2).all(|w| w[0] != w[1]),
             "nicht abwechselnd: {}",
             folge.iter().collect::<String>()
+        );
+    }
+
+    // ------------------------------------ Weg (b): ein Abschnitt misst selbst
+
+    #[test]
+    fn ein_abschnitt_mit_eigenem_fenster_zaehlt_nach_seinem_fenster() {
+        // Die Kalibrierung braucht 10 ms Wanduhr, meldet aber ein Fenster von
+        // einer Sekunde mit zehn Einheiten: Ihre Rate ist 10 je Sekunde, nicht
+        // 1000. Die Referenz daneben meldet kein Fenster und wird an der
+        // Wanduhr gemessen — die Gegenprobe, dass die Wanduhr weiter gilt, wo
+        // kein Fenster kommt.
+        let v = verschraenkt_feste_dauer(
+            || {
+                std::thread::sleep(Duration::from_millis(10));
+                Abschnittswert {
+                    einheiten: 10.0,
+                    fenster: Some(Duration::from_secs(1)),
+                }
+            },
+            || {
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            Duration::from_millis(100),
+        );
+        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
+            return;
+        }
+        assert!(
+            (v.kalibrierung.rate_per_s - 10.0).abs() < 1e-9,
+            "Rate mit eigenem Fenster {} statt 10",
+            v.kalibrierung.rate_per_s
+        );
+        assert!(
+            v.referenz.rate_per_s > 500.0 && v.referenz.rate_per_s < 1100.0,
+            "Rate an der Wanduhr {} statt knapp 1000",
+            v.referenz.rate_per_s
         );
     }
 
