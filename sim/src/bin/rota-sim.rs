@@ -336,7 +336,8 @@ FORTSCHRITT
   Diese beiden stehen nicht unter BEISPIELE, weil die Pruefstrecke jedes
   Beispiel ausfuehrt und von ihm einen leeren Fehlerkanal und keine Datei
   verlangt. Die Anzeige schreibt auf den Fehlerkanal, der Bericht bleibt auf
-  der Standardausgabe und aendert sich nicht.
+  der Standardausgabe und aendert sich nicht. Die Felder des Stroms und was
+  die Restzeit bedeutet:  docs/FORTSCHRITT.md
 
 OPTIONEN
   --boss <id>        gegen welchen Boss gerechnet wird.
