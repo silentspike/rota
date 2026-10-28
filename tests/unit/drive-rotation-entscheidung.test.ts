@@ -160,6 +160,10 @@ describe('(c) Das Nullzeit-Budget', () => {
         false,
         () => {
           wuerfe++;
+          // **Die Probe begrenzt sich selbst**, damit eine Schleife ohne Budget
+          // hier rot wird statt den Prüflauf für immer anzuhalten — ein
+          // synchroner Endloslauf ist von keinem Zeitlimit zu unterbrechen.
+          if (wuerfe > 10_000) throw new Error('Probe abgebrochen: kein Budget gegriffen');
         },
       ),
     ).toThrow(/Nullzeit-Zyklus/);
