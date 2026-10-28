@@ -20,6 +20,25 @@ VIER AUSGÄNGE, die auseinandergehalten werden müssen:
 
 BAU ist kein Nachweis der Wertdeckung. Auch GRUEN beantwortet die Deckungsfrage
 erst mit einer wirksamen Gegenrichtung; siehe die beiden Modi weiter unten.
+Mit `--delta` kommt GRUEN? dazu: grün, aber keine Entscheidung genau auf dem
+Wert belegt — ohne Aussage (AC7 #1087, `--entscheidung`).
+
+EXIT-CODES, damit „nicht gemessen" nie wie ein Befund aussieht:
+  0   Durchgang beendet, kein Feld FEHLER oder ABBRUCH
+  1   mindestens ein Feld FEHLER (Suite unvollständig, Daten im Lauf verändert),
+      oder ein Abbruch mit Ausnahme (Zeitüberschreitung, Rückbau abweichend)
+  2   NICHT GESTARTET oder NICHT GELAUFEN: unzulässiger Schritt, unbekanntes
+      Feld, verunreinigter Datensatz, unlesbare Zeitregel; oder der Bau-Dienst
+      lehnte ab bzw. die Übertragung brach (75, 70, 74, 130, 2, 12, 23, 255)
+  3   die Nullprobe oder eine Vorprobe lieferte nicht ihren Ausgang
+  143 SIGTERM; die Kindgruppen sind beendet, der Datensatz zurückgestellt
+
+DREI VORPROBEN (#1055, `--vorproben`; der Volllauf fährt sie): die Nullprobe
+ohne Mutation (GRÜN), die BAU-Vorprobe (Pflichtfeld `id` gestrichen, muss mit
+build.rs-Panic als BAU erkannt werden — genau dort, wo die alte Textregel
+nichts fand) und die ROT-Vorprobe (`baseDamage` +1, muss Rust- UND TS-Namen
+färben). Ohne sie ist eine leere BAU-Spalte nicht deutbar: „kein Feld bricht
+den Bau" und „die Erkennung greift nicht" sähen gleich aus.
 
 Die Grundwerte `baseDamage`, `castTimeMs`, `cooldownMs`, `triggersGcd` stehen in
 den Zaubern und sind Stammdaten, keine Wirkfelder — sie bleiben draußen.
@@ -42,7 +61,11 @@ beim ersten Lesen niemand gesehen hat:
                         bricht der Bau?    AUFRUFE   Feldnamen
     uint() unbewacht    ja                      62          40
     uint() BEWACHT      nein                     1           1
-    opt_uint()          nein                    12          11
+    opt_uint()          nein                    11          11
+
+Gezählt am 2026-10-28 an cf720d73, nur Code, ohne Definitionen und
+Kommentare. Die erste Fassung nannte für `opt_uint()` 12 Aufrufe; an ihrem
+eigenen Stand (20336f30) waren es nach derselben Zählung 11.
 
 Die Einheit steht in der Überschrift, nicht in der Zelle — der erste Entwurf
 zählte in den ersten zwei Zeilen Aufrufe und in der dritten Feldnamen. Wer ihn
@@ -52,13 +75,19 @@ Klasse, die dieser Dateikopf beschreibt, in ihm selbst.**
 **Jede dieser Zahlen braucht ihre Definition daneben**, sonst widersprechen
 sie einander morgen. Für `uint()` gibt es vier richtige Antworten:
 
-    65   Regex-Treffer auf `uint(`                      einschl. der Definition
+    66   Treffer auf `uint(` an einer Wortgrenze        einschl. der Definition
+                                                        und einer Kommentarzeile
     64   echte Aufrufe                                  ohne `fn uint(…)`
     63   Aufrufe mit LITERALEM Feldnamen                <- die brauchbare Zahl
     41   verschiedene Feldnamen                         Aufrufe mehrfach gezählt
 
+Die 66 war am 2026-08-22 noch 65: #1104 schrieb in `emit_putrefaction` einen
+Kommentar mit „`uint()` waere falsch". Die Aufrufe blieben, die Regex-Zahl
+wanderte — der Grund, warum die brauchbare Zahl die der Aufrufe ist.
+
 Die 63 ist die brauchbare, weil nur ein literaler Feldname sich einem
-Tabellenfeld zuordnen lässt. Der eine Ausreißer steht in `build.rs:2168`:
+Tabellenfeld zuordnen lässt. Der eine Ausreißer steht in `emit_fixation`
+(sim/build.rs):
 
     let amount = uint(node, feld, &whose);
 
@@ -83,7 +112,7 @@ sondern „unzulässiger Wert".
 Wer `--delta` mit einem negativen Wert über die Tabelle laufen lässt, muss
 damit rechnen. Bei einem Feld mit Wert 1 genügt `--delta -1`.
 
-Das eine bewachte steht in `build.rs:820`:
+Das eine bewachte steht in `emit_dot` (sim/build.rs):
 
     let decay_per_tick = if dot.get("decayPerTick").is_some() {
         uint(dot, "decayPerTick", &whose)
@@ -124,42 +153,41 @@ gedeckt", sondern schaltet auf einen anderen Fall um, und bei `1 + 1 = 2` womög
 auf gar keinen. Wer die Tabelle über alle Zahlenfelder laufen lässt, muss diese
 Unterklasse getrennt lesen.
 
-**Und die EINHEIT entscheidet, ob `+1` überhaupt etwas bewirken kann:**
+**Und die EINHEIT entschied, ob `+1` überhaupt etwas bewirken kann** — so
+stand es hier bis #1104, und die Tabelle bleibt als Herkunft:
 
     Aufzählung      `+1` wechselt den FALL             buff.kind [0,1]
-    feine Größe     `+1` kann im Raster verschwinden   extendShieldMs (ms)
+    feine Größe     `+1` konnte im Raster verschwinden extendShieldMs (ms)
     grobe Größe     `+1` wirkt immer                   dotExtendTicks (Ticks)
 
-Gemessen an `extendShieldMs` (Wert 12000): `combat.ts` addiert dort ohne
-`snapUp` und vergleicht gegen `seitBeginn`, das nur Vielfache von `TICK_MS`
-(10) annimmt. 12000 und 12001 laufen **beide erst bei 12010** ab — die
-Änderung verschwindet. Bei `dotExtendTicks` dagegen verschiebt ein Tick um
-1000 oder 2000 ms, also um 100 bis 200 Takte.
+Am 2026-08-22 an `extendShieldMs` (Wert 12000): Die Mutation 12000 → 12001
+blieb grün, kein Fall färbte (gemessen). Warum, steht in `combat.ts` (gelesen,
+kein Lauf — so auch #1104): Es addiert dort ohne `snapUp` und vergleicht gegen
+`seitBeginn`, das nur Vielfache von `TICK_MS` (10) annimmt; 12000 und 12001
+laufen damit **beide erst bei 12010** ab. `extendShieldMs` und `extendDecayMs`
+waren damals die einzigen `Ms`-Felder ohne Rasterprüfung, in beiden Sprachen.
 
-**Dass `extendShieldMs` diese Klasse überhaupt vorführen kann, ist ein
-Sonderfall — und der Grund dafür ist ein Befund über den Bestand.** Fast alle
-`Ms`-Felder brechen bei einem Schritt neben dem Raster den Bau, bevor
-irgendetwas läuft: `build.rs` erzwingt `is_multiple_of(RASTER_MS)` an **20**
-Stellen (`atMs`, `perStepMs`, `castTimeMs`, `windowMs`, `overMs`,
-`tickIntervalMs`, `amountMs`, fünf `durationMs` und weitere).
+**SEIT #1104 GIBT ES DIESE MITTLERE ZEILE NICHT MEHR.** a821ceed zog die zwei
+Felder aufs Raster (sim/build.rs, src/core/data.ts), d19d7d7e machte daraus
+eine Regel für ALLE: `time_fields::validate` (sim/time_fields.rs, in build.rs
+für jede Zauberdatei vor dem Übersetzen aufgerufen) und `validateSpellTimes`
+(src/core/data.ts) verlangen jedes `…Ms`-Feld auf dem Takt, außer den
+ausdrücklich benannten Vergleichsschwellen — heute genau
+`cooldownReductionBelowMs`. Von den 16 `Ms`-Feldern der Zauberdaten bricht
+damit laut dieser Regel an 15 ein Schritt neben dem Takt den Bau (aus der
+Regel gelesen, nicht an 15 Bauten gemessen). Ein solcher Schritt startet hier
+gar nicht erst (`schritt_unzulaessig`, Exit 2): Er misst den Bau, nicht die
+Deckung. Der kleinste zulässige Schritt an einem Rasterfeld ist ±10.
 
-`extendShieldMs` und `extendDecayMs` gehören zu keiner davon — in **keiner**
-der beiden Sprachen:
+Die Schwelle bleibt der eine Ort, an dem `+1` zulässig ist und trotzdem
+verschwinden kann: `shortenCooldowns` (combat.ts) vergleicht
+`readyAt - timeMs >= grenze`. Ein Schritt von `g` auf `g+1` ändert dort nur
+etwas, wenn eine Restzeit genau `g` beträgt — die Frage nach der Entscheidung
+auf dem Wert.
 
-    sim/build.rs:1862   spell.get("extendShieldMs")
-                            .and_then(Value::as_u64).unwrap_or(0)
-                        kein uint(), kein assert!, keine Rasterprüfung —
-                        und bei fehlender Angabe still 0
-
-    src/core/data.ts:1741   wert <= 0            -> Meldung
-                            !Number.isInteger    -> Meldung
-                            sonst nichts
-
-Ein `extendShieldMs` von 12001 kommt heute durch Bau und Prüfung und **wirkt
-als 12010**. Ob das Absicht ist, steht in keinem Kommentar an den beiden
-Lesestellen; an den 20 anderen hat jemand entschieden, dass es ein Fehler ist.
-Das ist eine Design-Frage und wurde als solche gemeldet, nicht hier
-entschieden.
+Die Regel liest dieses Werkzeug nicht selbst, sondern über `policy()` in
+tools/spell-time-audit.py (`zeitregel()`); weichen TS- und Rust-Seite
+voneinander ab, startet nichts.
 
 **WAS SICH DARAUS NICHT ABLEITEN LÄSST: eine automatische Einteilung.** Ein
 Versuch, die 45 Zahlenfelder nach ihren Werten zu sortieren („höchstens zwei
@@ -170,6 +198,11 @@ Aufzählung. Der Unterschied steht in der Verwendung, nicht in der
 Werteverteilung, und wer nach Werten sortiert, misst das Leichte statt des
 Nötigen.
 
+`feldart()` ist deshalb KEINE solche Einteilung. Sie nennt, was der Bau an
+einem Feld erzwingt (raster, schwelle) und welche Zahlen es trägt (ganzzahl,
+bruchzahl, keine-zahl) — und entscheidet damit nur, welcher Schritt zulässig
+ist. Ob eine ganze Zahl eine Menge oder eine Aufzählung ist, sagt sie nicht.
+
 **Der Prüfschritt statt der Einteilung**, und er gilt je Feld:
 
 > Liegt eine Entscheidung GENAU auf dem Wert? Bei `decayWard.durationMs`
@@ -177,16 +210,19 @@ Nötigen.
 > entscheidet dort. Bei `extendShieldMs` nein. Wenn nein, ist `+1`
 > wahrscheinlich wirkungslos, und ein `GRÜN` heißt nichts.
 
-Sechzehn der 45 Zahlenfelder tragen die Endung `Ms`. Für sie ist diese Frage
-Pflicht, bevor ein `GRÜN` als „ungedeckt" in die Tabelle geht.
+Sechzehn der 45 Zahlenfelder tragen die Endung `Ms`. Gestellt wird die Frage
+seit #1087 AC7 bei JEDEM `--delta`-Lauf, vor dem Lauf, im Protokoll:
+`--entscheidung FELD=ja:FUNDSTELLE` (oder `nein`) beantwortet sie, und nur mit
+„ja" geht ein `GRÜN` als „ungedeckt" in die Tabelle. Ohne Antwort heißt es
+`GRUEN?`.
 
 **Nicht die GRÖSSE der Änderung entscheidet, sondern ob sie eine Grenze
 überschreitet.** Der Beleg steht in `decayWard.durationMs` (Wert 6000) und
-seinem Prüffall `tests/unit/putrefaction-fenster.test.ts:182` — „der Schlag bei
-12000 ms liegt gerade noch darin". Die Logik dazu:
+seinem Prüffall in `tests/unit/putrefaction-fenster.test.ts`, „der Schlag bei
+12000 ms liegt gerade noch darin". Die Logik dazu, in `combat.ts`:
 
-    combat.ts:2485   decayWardUntilMs = seitBeginn + durationMs
-    combat.ts:3412   seitBeginnFuerDecay <= decayWardUntilMs
+    gesetzt      decayWardUntilMs = seitBeginn + decayWard.durationMs
+    verglichen   seitBeginnFuerDecay <= this.decayWardUntilMs
 
 Daraus folgt, ohne einen Lauf:
 
@@ -207,9 +243,12 @@ erst hinterher zur Erklärung wird, ist keine Prüfung.
 
     decay: 6000->6001     BAU     Build bricht ab     0,6 min
 
-    sim/build.rs:1994, im Wortlaut aus der Bauausgabe:
+    damals sim/build.rs, im Wortlaut aus der Bauausgabe:
     calcination.json/spells[decay]/decayWard: durationMs 6001 liegt nicht
     auf dem 10-ms-Raster
+    (der Dateiname darin war falsch, `decay` steht in putrefaction.json —
+    siehe #1104; heute lehnt `time_fields::validate` den Wert vor jeder
+    Übersetzung ab, und ein solcher Lauf startet hier gar nicht mehr)
 
 Die Rechnung oben ist richtig und **kommt nie zur Anwendung** — der Wert
 erreicht den Simulator gar nicht. `build.rs` erzwingt das Raster mit
@@ -225,8 +264,9 @@ Feld, zwei gleich große Änderungen, entgegengesetzte Ausgänge:
 
 Damit hat `--delta` bei gerasterten `Ms`-Feldern eine eigene Vorbedingung, die
 in keiner der drei Einheiten-Klassen steht: **Ist der Schritt selbst
-zulässig?** Ein Schritt neben dem Raster erzeugt `BAU` — und `BAU` sagt nichts
-über die Deckung des Wertes, nur über die Zulässigkeit der Mutation.
+zulässig?** Ein Schritt neben dem Raster erzeugte `BAU` — und `BAU` sagt nichts
+über die Deckung des Wertes, nur über die Zulässigkeit der Mutation. Seit
+#1087 prüft das `schritt_unzulaessig` vor dem Lauf.
 
 **`+10` gefahren, und das Ergebnis ist der Fall, vor dem dieser Modus warnt:**
 
@@ -237,17 +277,20 @@ Das Feld ist **nicht** ungedeckt. Der Prüffall steht direkt darauf — er sieht
 nur diese Richtung nicht: 12000 <= 12010 lässt den Schlag weiter hinein.
 `--delta -10` färbt dieselbe Zeile.
 
-**Daraus folgen VIER Ausgänge, von denen zwei gleich aussehen:**
+**Daraus folgten VIER Ausgänge, von denen zwei gleich aussahen:**
 
     BAU     die Änderung ist unzulässig     gerastertes Feld, ±1
     GRÜN    die Änderung ist wirkungslos    decayWard.durationMs, +10
     GRÜN    das Feld ist ungedeckt          der gesuchte Fall
     ROT     das Feld ist gedeckt
 
-Die beiden `GRÜN` trennt kein Lauf, sondern nur die **Gegenrichtung**: Wird
-dasselbe Feld in die andere Richtung rot, war das `GRÜN` Wirkungslosigkeit.
-Bleibt es auch dort grün, ist der Wert wirklich ungedeckt. Ein einzelner
-`--delta`-Lauf kann „ungedeckt" nicht belegen — er kann es nur behaupten.
+Heute startet die erste Zeile nicht mehr (Exit 2), und die beiden `GRÜN` sind
+im Bericht getrennt: `GRUEN` nur mit belegter Entscheidung auf dem Wert,
+sonst `GRUEN?` unter OHNE AUSSAGE. Endgültig trennt sie trotzdem erst die
+**Gegenrichtung**: Wird dasselbe Feld in die andere Richtung rot, war das
+`GRÜN` Wirkungslosigkeit. Bleibt es auch dort grün, ist der Wert wirklich
+ungedeckt. Ein einzelner `--delta`-Lauf kann „ungedeckt" nicht belegen — er
+kann es nur behaupten.
 
 **`build.rs` wird NICHT angefasst.** Man könnte `uint()` durch `opt_uint(…, 0)`
 ersetzen, dann bräche der Bau nicht mehr. Das tauschte eine härtere Zusicherung
@@ -262,7 +305,10 @@ einen anderen Typ verwandelt hat. Das Ergebnis wäre ein `BAU` in der Tabelle,
 das genau die Verwechslung wiederholt, gegen die dieser Modus gebaut ist.
 
 Gezeigt hat es `build.rs`, nicht die Gegenprobe. Der Typ-Erhalt ist damit eine
-**Bedingung dafür, dass die Messung überhaupt misst** — keine Politur.
+**Bedingung dafür, dass die Messung überhaupt misst** — keine Politur. Er
+greift bei JEDEM Lauf, denn `--delta` liest der Aufruf als Gleitkommazahl.
+Ein Schritt mit Nachkommastellen an einem Ganzzahlfeld startet seit #1087
+gar nicht erst (Exit 2).
 
 ═══════════════════════════════════════════════════════════════════════════════
  WAS EIN ALTES "gedeckt" BEI EINEM PFLICHTFELD HEISST
@@ -302,6 +348,7 @@ Seite überhaupt prüfen lässt.
 import argparse
 import collections
 import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -328,38 +375,208 @@ STAMM = {"id", "name", "school", "unlockLevel", "icon", "description", "_comment
 GRUNDWERTE = {"baseDamage", "castTimeMs", "cooldownMs", "triggersGcd"}
 
 
-def raster_ms():
-    """Das Takt-Raster des Spiels, aus BEIDEN Quellen gelesen statt geschrieben.
+def zeitregel():
+    """Takt und Schwellen der Zeitfelder — aus `policy()`, nicht nachgebaut (#1104).
 
-    Ein hier hineingeschriebenes `10` wäre eine dritte Quelle, die still von
-    den anderen abdriftet — und dieses Werkzeug benutzt die Zahl, um über
-    Messungen zu urteilen. Deshalb wird sie gelesen, und weil es zwei Quellen
-    gibt, werden beide gelesen und gegeneinander gehalten:
+    Seit #1104 gibt es dafür EINE Produktionsregel in zwei Sprachen:
+    `sim/time_fields.rs` und `src/core/data.ts` verlangen jedes `…Ms`-Feld auf
+    dem Takt, außer den ausdrücklich benannten Vergleichsschwellen.
+    `policy()` in tools/spell-time-audit.py liest beide Seiten samt `TICK_MS`
+    (src/core/loop.ts) und `RASTER_MS` (sim/build.rs) und bricht ab, wenn sie
+    auseinandergehen. Bis zu diesem Umbau las dieses Werkzeug nur die zwei
+    Konstanten selbst (`raster_ms()`) — eine zweite Lesart derselben Regel,
+    die die Schwellen nicht kannte.
 
-        src/core/loop.ts   TICK_MS      die Spielseite
-        sim/build.rs       RASTER_MS    die Simulatorseite
-
-    Gehen sie auseinander, ist das kein Fall für eine Vorgabe, sondern ein
-    Befund über den Bestand — dann bricht der Aufruf ab, statt eine der beiden
-    Zahlen zu bevorzugen.
+    Ein Abweichen ist ein Befund über den Bestand, keine Vorgabe: Der Aufruf
+    bricht ab, statt eine Seite zu bevorzugen.
     """
-    ts = re.search(
-        r"\bTICK_MS\s*(?::\s*number\s*)?=\s*(\d+)",
-        (WURZEL / "src/core/loop.ts").read_text(),
-    )
-    rs = re.search(
-        r"\bconst\s+RASTER_MS\s*:\s*u64\s*=\s*(\d+)",
-        (WURZEL / "sim/build.rs").read_text(),
-    )
-    if ts is None or rs is None:
-        fehlt = "src/core/loop.ts:TICK_MS" if ts is None else "sim/build.rs:RASTER_MS"
-        raise SystemExit(f"Raster nicht lesbar: {fehlt} nicht gefunden. Umbenannt?")
-    if int(ts.group(1)) != int(rs.group(1)):
-        raise SystemExit(
-            f"Raster geht auseinander: loop.ts TICK_MS={ts.group(1)}, "
-            f"build.rs RASTER_MS={rs.group(1)}. Das ist ein Befund, keine Vorgabe."
-        )
-    return int(ts.group(1))
+    spec = importlib.util.spec_from_file_location(
+        "spell_time_audit", pathlib.Path(__file__).with_name("spell-time-audit.py"))
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    try:
+        takt, schwellen = audit.policy(WURZEL)
+    except (OSError, ValueError) as grund:
+        raise NichtGestartet(f"Zeitregel nicht verwendbar (#1104): {grund}. "
+                             "Das ist ein Befund über den Bestand, keine Vorgabe.")
+    return takt, frozenset(schwellen)
+
+
+FELDARTEN = ("raster", "schwelle", "ganzzahl", "bruchzahl", "keine-zahl")
+
+
+def feldart(feld, werte, regel):
+    """Die Eigenschaft eines Feldes — aus der Produktionsregel und den Daten (#1087 AC6).
+
+    Keine Deutung, was ein Feld BEDEUTET: Eine Einteilung nach der
+    Werteverteilung hat sechs von 45 Feldern falsch sortiert (Dateikopf). Hier
+    steht nur, was der Bau an einem Feld erzwingt und welche Zahlen es trägt:
+
+        raster      `…Ms`, auf dem Takt erzwungen     time_fields.rs, data.ts
+        schwelle    `…Ms`, ausdrücklich ungerastert   die Ausnahmen in policy()
+        ganzzahl    jeder Wert im Bestand ganzzahlig
+        bruchzahl   mindestens ein Wert mit Nachkommastellen
+        keine-zahl  Text, Wahrheitswert, Liste
+
+    Ob eine ganze Zahl eine MENGE ist oder eine AUFZÄHLUNG (`buff.kind`), steht
+    hier nicht und lässt sich so nicht ablesen — dafür ist die Frage nach der
+    Entscheidung auf dem Wert da (`--entscheidung`).
+    """
+    _takt, schwellen = regel
+    name = feld.split(".")[-1]
+    if name.endswith("Ms"):
+        return "schwelle" if name in schwellen else "raster"
+    if werte and all(type(w) is int for w in werte):
+        return "ganzzahl"
+    if werte and all(type(w) in (int, float) for w in werte):
+        return "bruchzahl"
+    return "keine-zahl"
+
+
+def schritt_unzulaessig(art, delta, takt):
+    """Warum `delta` an einem Feld dieser Art die Deckung nicht messen KANN — oder None.
+
+    Jeder dieser Läufe endete bekannt, bevor eine Prüfung den Wert sähe: Der
+    Bau bricht, und `BAU` hieße dann weder „Pflichtfeld" noch „ungedeckt",
+    sondern „unzulässige Mutation". Deshalb startet er gar nicht erst.
+    """
+    if art == "keine-zahl":
+        return "kein Zahlenfeld — eine Wertänderung ist hier nicht definiert"
+    if delta == 0:
+        return "Schritt 0 ändert nichts"
+    if art != "bruchzahl" and not float(delta).is_integer():
+        return (f"Schritt {delta:g} ist nicht ganzzahlig — build.rs liest Zahlenfelder mit "
+                "uint()/opt_uint() und lehnt Fließkomma ab; gemessen würde der Typ, nicht die Deckung")
+    if art == "raster" and int(delta) % takt:
+        return (f"Schritt {delta:g} liegt neben dem {takt}-ms-Takt — seit #1104 lehnen "
+                "sim/time_fields.rs und src/core/data.ts jeden solchen Wert ab; gemessen "
+                f"würde der Bau, nicht die Deckung. Kleinster zulässiger Schritt: ±{takt}")
+    return None
+
+
+def aufloesung(art, takt):
+    """Die Größe, gegen die ein Schritt an dieser Feldart wirkt, soweit bekannt (AC6)."""
+    if art == "raster":
+        return f"Takt {takt} ms"
+    if art == "schwelle":
+        # src/core/combat.ts, shortenCooldowns: `readyAt - timeMs >= grenze` —
+        # ein Schritt unter dem Takt wirkt nur, wenn eine Restzeit genau darauf fällt.
+        return f"Vergleichsschwelle readyAt - timeMs >= Wert, Takt {takt} ms"
+    return None
+
+
+FRAGE = "Liegt eine Entscheidung genau auf dem Wert?"
+
+
+def entscheidungen_lesen(angaben, felder):
+    """`--entscheidung FELD=ja:FUNDSTELLE` oder `=nein:…` → {feld: (antwort, fundstelle)}.
+
+    Die zweite Rückgabe sind die Einwände; ist sie nicht leer, startet nichts.
+    """
+    ergebnis, einwaende = {}, []
+    for angabe in angaben or []:
+        feld, gleich, rest = angabe.partition("=")
+        antwort, doppelpunkt, fundstelle = rest.partition(":")
+        if not gleich or not doppelpunkt or antwort not in ("ja", "nein") or not fundstelle.strip():
+            einwaende.append(f"'{angabe}': erwartet FELD=ja:FUNDSTELLE oder FELD=nein:FUNDSTELLE")
+        elif feld not in felder:
+            einwaende.append(f"'{angabe}': {feld} wird in diesem Lauf nicht gefahren")
+        elif feld in ergebnis:
+            einwaende.append(f"'{angabe}': {feld} ist doppelt beantwortet")
+        else:
+            ergebnis[feld] = (antwort, fundstelle.strip())
+    return ergebnis, einwaende
+
+
+def fingerabdruecke(pfade):
+    """SHA-256 je Zauberdatei, relativ zur Wurzel benannt."""
+    return {str(p.relative_to(WURZEL)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in pfade.values()}
+
+
+def gesamtabdruck(abdruecke):
+    """Ein Abdruck über alle Dateien — für die Protokollzeile; der Nachweis hält jede einzeln."""
+    zeilen = "".join(f"{name} {wert}\n" for name, wert in sorted(abdruecke.items()))
+    return hashlib.sha256(zeilen.encode()).hexdigest()[:12]
+
+
+@contextmanager
+def gesicherter_datensatz(eintrag):
+    """Sicherung, Fingerabdrücke und byteweiser Rückbau der sechs Zauberdateien.
+
+    Sicherungskopien ALLER Schulen, nicht nur der betroffenen: Ein Feld kann in
+    mehreren stehen (control.cost in fixation, heal.amount in coagulation), und
+    ein halb zurückgesetzter Datensatz verfälscht jeden folgenden Lauf. Feld
+    und Vorprobe nehmen denselben Weg — zwei Kopien dieser Zeilen gingen
+    auseinander, und am Rückbau wird das teuer.
+
+    FINGERABDRÜCKE an vier Stellen (AC4 #1087), je Datei in `eintrag["sha256"]`:
+        before          der Stand, gegen den die Nullprobe gemessen hat
+        mutated         was die Suiten sehen sollen (setzt der Aufrufer)
+        before_restore  was sie gesehen HABEN (setzt der Aufrufer nach dem
+                        Lauf, sonst hier) — weicht es von `mutated` ab, hat
+                        während des Laufs jemand geschrieben
+        after_restore   muss `before` gleichen; `restored` sagt, ob es das tut
+    """
+    pfade = pfade_aller_schulen()
+    sicherung = {s: p.read_bytes() for s, p in pfade.items()}
+    abdruecke = eintrag["sha256"] = {"before": fingerabdruecke(pfade)}
+    try:
+        yield pfade, abdruecke
+    finally:
+        if "mutated" in abdruecke and "before_restore" not in abdruecke:
+            abdruecke["before_restore"] = fingerabdruecke(pfade)
+        for schule, p in pfade.items():
+            p.write_bytes(sicherung[schule])
+        abdruecke["after_restore"] = fingerabdruecke(pfade)
+        eintrag["restored"] = (all(p.read_bytes() == sicherung[s] for s, p in pfade.items())
+                               and abdruecke["after_restore"] == abdruecke["before"])
+        if "mutated" in abdruecke:
+            print(f"      sha256 vorher {gesamtabdruck(abdruecke['before'])}"
+                  f"  mutiert {gesamtabdruck(abdruecke['mutated'])}"
+                  f"  vor Rückbau {gesamtabdruck(abdruecke['before_restore'])}"
+                  f"  nachher {gesamtabdruck(abdruecke['after_restore'])}"
+                  f" — {'Rückbau byteweise identisch' if eintrag['restored'] else 'RÜCKBAU ABWEICHEND'}",
+                  flush=True)
+
+
+def _liste(daten):
+    return daten if isinstance(daten, list) else daten["spells"]
+
+
+def vorprobe_bau(pfade):
+    """Streicht das Pflichtfeld `id` im ersten Zauber von common.json.
+
+    `id` ist Stammdatum, kein Wirkfeld, und build.rs liest es mit `text()`,
+    das bei fehlendem Feld panickt — der Bau MUSS brechen, mit Exit 101 und
+    ohne Compilermeldung. Genau diesen Fall hat Worker-1 bei #1045 hergestellt
+    und die alte Textregel übersehen (#1055).
+    """
+    p = pfade["common"]
+    daten = json.loads(p.read_text())
+    zauber = _liste(daten)[0]
+    sid = zauber.pop("id")
+    p.write_text(json.dumps(daten, indent=2, ensure_ascii=False) + "\n")
+    return f"common.json: Pflichtfeld id ('{sid}') im ersten Zauber gestrichen"
+
+
+def vorprobe_rot(pfade):
+    """+1 auf `baseDamage` des ersten Zaubers, der einen positiven trägt (Schulreihenfolge).
+
+    Ein Grundwert, den jede Schadensrechnung liest, auf beiden Seiten: Färbt
+    hier nicht mindestens ein Rust- UND ein TS-Fall, sammelt der Durchgang die
+    Namen einer Seite nicht ein — und ein ROT stünde auf Namen der anderen.
+    """
+    for schule in SCHULEN:
+        p = pfade[schule]
+        daten = json.loads(p.read_text())
+        for zauber in _liste(daten):
+            alt = zauber.get("baseDamage")
+            if type(alt) is int and alt > 0:
+                zauber["baseDamage"] = alt + 1
+                p.write_text(json.dumps(daten, indent=2, ensure_ascii=False) + "\n")
+                return f"{schule}.json: {zauber.get('id', '?')} baseDamage {alt}->{alt + 1}"
+    raise NichtGestartet("ROT-Vorprobe nicht möglich: kein Zauber trägt einen positiven baseDamage")
 
 
 def spells(schule):
@@ -385,6 +602,25 @@ def blattfelder():
         for s in spells(schule):
             geh("", s, s["id"])
     return wo
+
+
+def blattwerte():
+    """Alle Wirkfelder als Pfad -> Liste ihrer Werte, über dieselbe Auswahl wie blattfelder()."""
+    werte = collections.defaultdict(list)
+
+    def geh(praefix, obj):
+        for k, v in obj.items():
+            if k in STAMM or (not praefix and k in GRUNDWERTE):
+                continue
+            if isinstance(v, dict):
+                geh(f"{praefix}{k}.", v)
+            else:
+                werte[f"{praefix}{k}"].append(v)
+
+    for schule in SCHULEN:
+        for s in spells(schule):
+            geh("", s)
+    return werte
 
 
 def streichen(obj, teile):
@@ -526,17 +762,34 @@ def bau_gebrochen(code, ausgabe):
 # hätte das Feld damit BAU geheißen, ohne dass ein einziger Compiler lief. Und
 # seit v2 parallele Worktrees zulässt, ist Exit 75 ein Alltagsfall: Der Server
 # reiht nichts ein, er lehnt ab, wenn sein Budget voll ist.
+#
+# 12, 23 und 255 kommen gar nicht vom Client selbst, sondern von rsync, über
+# das er die Quellen hochlädt: `subprocess.run(rsync, check=True)` und am Ende
+# `sys.exit(exc.returncode)` (client.py der installierten v2-Fassung). Der
+# Code wird also unverändert durchgereicht. Ohne diese Einträge hieß ein
+# abgebrochener Upload im Feld-Bau BAU — ein Feld als Pflichtfeld verbucht,
+# für das kein einziger Compiler lief (#1055).
 DIENST_AUSGAENGE = {
     75: "kein Platz auf dem Bau-Dienst oder Arbeitsbereich belegt — nichts eingereiht",
     70: "Verbindung oder Ausführer des Bau-Dienstes verloren",
     74: "Artefakte nicht übertragbar",
     130: "abgebrochen",
     2: "Aufruf oder Projektkonfiguration vom Client abgelehnt",
+    12: "rsync: Fehler im Protokoll-Datenstrom — Übertragung abgebrochen",
+    23: "rsync: Teilübertragung — nicht alle Dateien übertragen",
+    255: "ssh unter rsync gescheitert — keine Verbindung zum Bau-Dienst",
 }
 
 
 class NichtGelaufen(RuntimeError):
     """Der Bau-Dienst hat den Schritt nicht ausgeführt; es gibt nichts zu verbuchen."""
+
+
+class NichtGestartet(RuntimeError):
+    """Eine Vorbedingung fehlt; gemessen wurde nichts. Exit 2, nicht 1.
+
+    `raise SystemExit(text)` endete mit Exit 1 — dem Code für „ein Befund".
+    """
 
 
 def suite_nachweis(code, ausgabe, sprache):
@@ -550,7 +803,10 @@ def suite_nachweis(code, ausgabe, sprache):
             passed = sum(int(p) for p, _ in summen)
             failed = sum(int(f) for _, f in summen)
             starts = re.findall(r"^running \d+ tests?\s*$", text, re.M)
-            targets = re.findall(r"^\s*Running .+ \([^\n]+\)\s*$", text, re.M)
+            # cargo-remote führt stdout/stderr zusammen. Eine Running-Zeile
+            # kann dadurch direkt hinter einer fertigen Suite-Summe stehen.
+            # Den Marker trotzdem zählen; fehlende Targets bleiben ein Fehler.
+            targets = re.findall(r"\bRunning [^\n]+? \([^\n)]+\)", text)
             # Cargo kann nach normalen roten Fällen einen weiteren Testprozess
             # durch ein Signal verlieren. Vorige Summen belegen dann NICHT den
             # gesamten Lauf. Nulltests sind bei bin/example-Zielen regulär;
@@ -577,7 +833,12 @@ def suite_nachweis(code, ausgabe, sprache):
         if len(zeilen) == 1:
             werte = dict((k, int(n)) for n, k in re.findall(r"(\d+) (passed|failed)", zeilen[0]))
             passed, failed = werte.get("passed", 0), werte.get("failed", 0)
-            vollstaendig = bool(werte)
+            unbehandelt = re.search(
+                r"^\s*(?:Errors\s+[1-9]\d* errors?\b|"
+                r"Vitest caught [1-9]\d* unhandled errors?\b|"
+                r"Vitest found [1-9]\d* errors? not related to your test files)",
+                text, re.M)
+            vollstaendig = bool(werte) and not unbehandelt and code in (0, 1)
     else:
         raise ValueError(f"Unbekannte Suite: {sprache}")
     stand = "ERROR"
@@ -612,10 +873,13 @@ def bau_vergleich(alt, nachweis):
     ungemessen = sorted(set(alt) - {
                 f for f, eintrag in gemessen.items()
                 if eintrag.get("status") in ("BAU", "ROT", "GRUEN")})
+    # Ohne bestandene Vorproben ist auch ein vollständiger Durchgang keine
+    # Abnahme: Eine leere BAU-Spalte wäre dann nicht deutbar (#1055).
     return {"historical_fields": len(alt), "new_bau": neu_bau,
             "unmeasured_old_fields": ungemessen,
             "new_fields": sorted(set(nachweis["all_fields"]) - set(alt)),
-            "full_pass": nachweis.get("full_pass", False) and not ungemessen}
+            "full_pass": (nachweis.get("full_pass", False) and not ungemessen
+                          and nachweis.get("probes_passed", False))}
 
 
 def schreibe(ziel, ergebnisse):
@@ -639,9 +903,11 @@ def schreibe(ziel, ergebnisse):
         "**FEHLER** heißt: Eine Suite brach ab oder führte keine Tests aus; das ist kein ROT.",
         "**baut** stammt ausschließlich aus --nur-bau und enthält keinen Testnachweis.",
         "",
-        "**GRUEN?** heißt: Der Schritt lag neben dem 10-ms-Raster, die Änderung kann",
-        "eine gerasterte Größe also gar nicht erreicht haben. Weder gedeckt noch",
-        "ungedeckt — *nicht gemessen*.",
+        "**GRUEN?** heißt (nur mit `--delta`): Beide Suiten blieben grün, aber keine",
+        "Entscheidung genau auf dem Wert ist belegt (`--entscheidung FELD=ja:…`",
+        "fehlt oder lautet `nein`). Die Änderung kann wirkungslos gewesen sein —",
+        "weder gedeckt noch ungedeckt. Ein Schritt neben dem Takt an einem",
+        "Rasterfeld startet seit #1104 gar nicht erst (Exit 2).",
         "",
         "**Und ein sauberes GRUEN belegt „ungedeckt“ nur mit der Gegenrichtung.**",
         "Gemessen an `decayWard.durationMs`: `+10` bleibt grün (das Fenster wandert",
@@ -714,8 +980,67 @@ def lauf(befehl, timeout):
     return p.returncode, (aus or "")
 
 
+# Wie lange `_gruppe_beenden` nach SIGKILL auf die übrigen Mitglieder wartet.
+# Ein Python-Enkel brauchte bis zum Zombie 1 bis 2 ms (gemessen 28.10.); die
+# Frist gilt dem Prozess, der in einem nicht unterbrechbaren Aufruf hängt.
+GRUPPEN_FRIST_S = 5
+
+
+def _lebende_mitglieder(gruppe):
+    """PIDs der Prozessgruppe, von denen noch ein Thread läuft; None ohne /proc.
+
+    **`p.wait()` sammelt nur das eigene Kind ein, und das ist die Hülle.** Die
+    Arbeit tun ihre Kinder: dash 0.5.12, das `/bin/sh` der CI, forkt für
+    `sh -c 'cmd'` und ersetzt sich nicht per exec (gemessen: das Kommando bekam
+    eine eigene PID); npx und cargo remote starten ohnehin weitere Prozesse.
+    Sie bekommen SIGKILL, sterben aber danach, nicht davor: Ein Enkel stand in
+    50 von 50 Läufen noch auf `R`, als `_alle_beenden()` zurückkehrte — und
+    gleich danach stellte das Werkzeug die Daten zurück. Daher wackelte
+    `test_sigterm_stops_both_real_children_and_joins_before_restoring`
+    (`'R' != 'Z'`) nur unter Last: Dort reichte das Abwickeln nicht mehr, um
+    den Enkel vorher sterben zu lassen.
+
+    Ein Zombie (`Z`) zählt als beendet: Er führt nichts mehr aus, und
+    einsammeln kann ihn nur sein neuer Elternprozess, nicht dieses Werkzeug.
+    Geprüft wird jeder Thread, nicht nur der erste — der erste Thread eines
+    Prozesses kann schon Zombie sein, während andere noch sterben.
+    """
+    try:
+        eintraege = os.listdir("/proc")
+    except OSError:
+        return None
+    lebend = []
+    for name in eintraege:
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat") as f:
+                # Der Prozessname kann Leerzeichen und Klammern tragen; erst
+                # hinter der LETZTEN ") " stehen Zustand, Eltern, Gruppe.
+                felder = f.read().rpartition(") ")[2].split()
+            if len(felder) < 3 or int(felder[2]) != gruppe:
+                continue
+            threads = os.listdir(f"/proc/{name}/task")
+        except OSError:  # beendet und eingesammelt, während wir lasen
+            continue
+        for tid in threads:
+            try:
+                with open(f"/proc/{name}/task/{tid}/stat") as f:
+                    zustand = f.read().rpartition(") ")[2][:1]
+            except OSError:  # dieser Thread ist schon fort
+                continue
+            if zustand not in ("Z", "X"):
+                lebend.append(int(name))
+                break
+    return lebend
+
+
 def _gruppe_beenden(p):
-    """Beendet die Prozessgruppe eines Kindes, erst freundlich, dann hart."""
+    """Beendet die Prozessgruppe eines Kindes, erst freundlich, dann hart.
+
+    Kehrt erst zurück, wenn kein Mitglied der Gruppe mehr läuft — nicht schon,
+    wenn das eigene Kind eingesammelt ist. Der Rückbau folgt unmittelbar.
+    """
     if p is None:
         return
     for signal_nr, gnade in ((signal.SIGTERM, 5), (signal.SIGKILL, 0)):
@@ -731,6 +1056,20 @@ def _gruppe_beenden(p):
             except subprocess.TimeoutExpired:
                 pass
     p.wait()
+    frist = time.monotonic() + GRUPPEN_FRIST_S
+    while True:
+        lebend = _lebende_mitglieder(p.pid)
+        if not lebend or time.monotonic() >= frist:
+            break
+        time.sleep(0.005)
+    if lebend:
+        # Nicht abbrechen: Ohne Rückbau bliebe die Mutation im Baum liegen.
+        print(f"WARNUNG: Prozessgruppe {p.pid} läuft {GRUPPEN_FRIST_S} s nach SIGKILL noch "
+              f"(PID {', '.join(map(str, lebend))}). Der Rückbau folgt trotzdem.",
+              file=sys.stderr)
+    elif lebend is None:
+        print(f"HINWEIS: /proc nicht lesbar — ob Prozessgruppe {p.pid} vor dem Rückbau "
+              "geendet hat, ist nicht geprüft.", file=sys.stderr)
 
 
 def _alle_beenden():
@@ -797,8 +1136,18 @@ def main():
     signal.signal(signal.SIGTERM, _abbruch)
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--feld", help="nur dieses Feld (Trägerprobe)")
+    ap.add_argument("--feld", action="append",
+                    help="nur dieses Feld (Trägerprobe); mehrfach für mehrere")
+    ap.add_argument("--art", choices=FELDARTEN,
+                    help="nur Felder dieser Art (siehe feldart(); Zeitregel aus policy())")
     ap.add_argument("--ab", help="erst ab diesem Feld beginnen")
+    ap.add_argument("--entscheidung", action="append", metavar="FELD=ja|nein:FUNDSTELLE",
+                    help="nur mit --delta: die Antwort auf 'Liegt eine Entscheidung genau "
+                         "auf dem Wert?' samt Fundstelle (AC7 #1087). Ohne 'ja' heißt "
+                         "ein GRÜN 'GRUEN?' — es sagt dann nichts über die Deckung.")
+    ap.add_argument("--vorproben", action="store_true",
+                    help="vor den Feldern die BAU- und die ROT-Vorprobe fahren "
+                         "(positive Kontrollen der Erkennung, #1055); der Volllauf braucht sie")
     ap.add_argument("--aus", default="docs/streich-mutation-ergebnis.md")
     ap.add_argument("--roh", default="/work/tmp/e1-mutation-namen.json",
                     help="alle roten Testnamen je Feld, Grundlage der Auswertung")
@@ -817,10 +1166,11 @@ def main():
                          "Streichung den Bau?' in rund 45 s statt 4 min je Feld")
     args = ap.parse_args()
 
-    # NUR bei `--delta` gelesen: Ohne Wertänderung gibt es keine Schrittweite,
-    # gegen die etwas zu prüfen wäre — und ein Abbruch wegen umbenannter
-    # Konstante träfe dann einen Lauf, der die Zahl gar nicht braucht.
-    RASTER = raster_ms() if args.delta is not None else None
+    # NUR bei `--delta` oder `--art` gelesen: Ohne Wertänderung gibt es keine
+    # Schrittweite, gegen die etwas zu prüfen wäre — und ein Abbruch wegen
+    # einer umbenannten Konstante träfe dann einen Lauf, der sie nicht braucht.
+    regel = zeitregel() if args.delta is not None or args.art else None
+    TAKT = regel[0] if regel else None
 
     # `--no-fail-fast` UND kein `--bail`, obwohl beides den Lauf vervielfacht.
     #
@@ -843,7 +1193,9 @@ def main():
     rust_bau = "cargo remote --no-copy-lock -- test --no-run --all-targets"
     bau_log = WURZEL / args.bau_log
     rust_lauf = "cargo remote --no-copy-lock -- test --all-targets --no-fail-fast"
-    ts = "npx --no-install vitest run"
+    # Dateisystem-/AST-Prüfungen überschritten unter Hostlast die Vitest-
+    # Vorgabe von 5 s. Nur die Laufzeitgrenze erhöhen, keine Fälle auslassen.
+    ts = "npx --no-install vitest run --testTimeout 30000"
 
     wo = blattfelder()
     # SELTENE FELDER ZUERST. Ein Feld, das 57 Zauber tragen, ist mit Sicherheit
@@ -851,15 +1203,36 @@ def main():
     # `refundsInterruptedGcd`, `doublesNextCast`). Bricht der Lauf nach Stunden
     # ab, liegen dann die Antworten vor, auf die es ankommt.
     felder = sorted(wo, key=lambda f: (len(wo[f]), f))
+    werte = blattwerte()
+    arten = {f: feldart(f, werte[f], regel) for f in wo} if regel else {}
     if args.feld:
-        if args.feld not in wo:
-            print(f"FEHLER: '{args.feld}' ist kein Wirkfeld. Bekannt sind {len(felder)}.")
+        fremd = [f for f in args.feld if f not in wo]
+        if fremd:
+            print(f"FEHLER: {', '.join(fremd)} ist kein Wirkfeld. Bekannt sind {len(felder)}.")
             return 2
-        felder = [args.feld]
+        felder = list(dict.fromkeys(args.feld))
     elif args.ab:
         felder = felder[felder.index(args.ab):]
+    if args.art:
+        felder = [f for f in felder if arten[f] == args.art]
     if not felder:
         print("FEHLER: keine Wirkfelder gefunden — ein leerer Durchgang ist keine Messung.")
+        return 2
+
+    # ALLE EINWÄNDE VOR DEM ERSTEN LAUF, Exit 2 wie jedes „nicht gemessen".
+    # Ein Durchgang, der gemessene und unmessbare Felder mischt, hätte Löcher,
+    # die in der Tabelle wie Ergebnisse aussehen; deshalb verweigert ein
+    # einziges unzulässiges Feld den ganzen Durchgang. `--art` wählt aus.
+    entscheidungen, einwaende = entscheidungen_lesen(args.entscheidung, felder)
+    if args.entscheidung and args.delta is None:
+        einwaende.append("--entscheidung gilt nur mit --delta: die Frage betrifft eine Wertänderung")
+    if args.delta is not None:
+        einwaende += [f"{f} ({arten[f]}): {grund}" for f in felder
+                      if (grund := schritt_unzulaessig(arten[f], args.delta, TAKT))]
+    if einwaende:
+        print("NICHT GESTARTET — kein Lauf, keine Mutation:")
+        for einwand in einwaende:
+            print(f"  {einwand}")
         return 2
 
     ziel = WURZEL / args.aus
@@ -1012,6 +1385,72 @@ def main():
             return 3
         print("Nullprobe gruen — gemessen wird gegen einen sauberen Baum.\n", flush=True)
 
+    # DREI VORPROBEN (#1055): die Nullprobe oben, dazu BAU und ROT. Eine leere
+    # BAU-Spalte hieß bisher entweder „kein Feld bricht den Bau" oder „das
+    # Muster hat nie gegriffen", und aus der Datei war das nicht zu trennen.
+    # Erst eine positive Kontrolle IM SELBEN LAUF trennt es: Bricht ein
+    # bekannter Pflichtfeld-Abbruch hier als BAU, kann ein Feld ohne BAU nicht
+    # an der Erkennung gelegen haben. Dasselbe für ROT und die Rust-Namen.
+    # Eine Vorprobe mit falschem Ausgang beendet den Durchgang vor dem ersten
+    # Feld, Exit 3 wie die Nullprobe.
+    if args.vorproben:
+        nachweis["probes"], nachweis["probes_passed"] = {}, False
+        for name, aendern, erwartet in (("bau", vorprobe_bau, "BAU"), ("rot", vorprobe_rot, "ROT")):
+            eintrag = nachweis["probes"][name] = {"status": "UNGEPRUEFT", "expected": erwartet}
+            if args.nur_bau and name == "rot":
+                eintrag.update(status="SKIPPED", reason="build-only")
+                continue
+            aus_r = aus_t = ""
+            try:
+                with gesicherter_datensatz(eintrag) as (pfade, abdruecke):
+                    eintrag["mutation"] = aendern(pfade)
+                    abdruecke["mutated"] = fingerabdruecke(pfade)
+                    print(f"Vorprobe {erwartet}: {eintrag['mutation']}", flush=True)
+                    if args.nur_bau:
+                        rc_bau, aus_bau, eintrag["build"] = bauen(f"vorprobe-{name}")
+                    else:
+                        rc_bau, aus_bau, _, aus_r, _, aus_t = messen(f"vorprobe-{name}", eintrag)
+                    abdruecke["before_restore"] = fingerabdruecke(pfade)
+            except BaseException as error:
+                eintrag.update(status="ABBRUCH", detail=f"{type(error).__name__}: {error}")
+                raise
+            finally:
+                speichern()
+            if not eintrag["restored"]:
+                raise RuntimeError(f"Rückbau nach der {erwartet}-Vorprobe nicht byteweise identisch")
+            gebrochen = bau_gebrochen(rc_bau, aus_bau)
+            if name == "bau":
+                # Die Stelle, die #1055 meint: Exit 101 aus einem build.rs-Panic,
+                # ohne eine der beiden Compilermeldungen.
+                eintrag["old_rule_detects"] = "error: could not compile" in aus_bau or "error[E" in aus_bau
+                stand = ("baut" if not gebrochen else
+                         "BAU" if "panicked at" in aus_bau else "BAU ohne build.rs-Panic")
+            else:
+                f_r, f_t = rote_namen(aus_r)[0], rote_namen(aus_t)[0]
+                eintrag["failure_names"] = {"rust": f_r, "ts": f_t}
+                stand = ("BAU" if gebrochen else
+                         "FEHLER" if any(eintrag[s]["status"] == "ERROR" for s in ("rust", "ts")) else
+                         "ROT" if f_r and f_t else
+                         "ROT nur TS" if f_t else "ROT nur Rust" if f_r else "GRUEN")
+            if abdruecke["before_restore"] != abdruecke["mutated"]:
+                stand = "FEHLER: Datensatz während der Vorprobe verändert"
+            eintrag["status"] = stand
+            speichern()
+            if stand != erwartet:
+                print(f"ABBRUCH: Die {erwartet}-Vorprobe ergab „{stand}“. Die Erkennung ist in "
+                      "diesem Lauf nicht belegt — jedes Feldergebnis wäre unbelegt, eine "
+                      "leere Spalte nicht deutbar.")
+                return 3
+            print(f"Vorprobe {erwartet}: wie erwartet"
+                  + (f" (Exit {rc_bau}, build.rs-Panic; die alte Textregel "
+                     f"{'fand ihn' if eintrag['old_rule_detects'] else 'hätte nichts gefunden'})"
+                     if name == "bau" else
+                     f" ({len(eintrag['failure_names']['rust'])} Rust-, "
+                     f"{len(eintrag['failure_names']['ts'])} TS-Namen)"), flush=True)
+        nachweis["probes_passed"] = True
+        speichern()
+        print("Vorproben bestanden.\n", flush=True)
+
     # Die Kopfzeile nennt, WAS gefahren wird — im Nur-Bau-Modus ist das etwas
     # anderes, und ein Protokoll, das "je ein Lauf beider Suiten" behauptet,
     # während keine Suite läuft, ist später nicht mehr auseinanderzuhalten.
@@ -1020,18 +1459,28 @@ def main():
           flush=True)
     ergebnisse = []
     roh = {}
+    rueckbau_kaputt = None
     for i, feld in enumerate(felder, 1):
         _unterbrechung_pruefen()
         teile = feld.split(".")
+        if rueckbau_kaputt:
+            raise RuntimeError(f"Rückbau nach {rueckbau_kaputt} nicht byteweise identisch — "
+                               "jedes weitere Feld würde gegen fremde Daten gemessen")
         eintrag = {"status": "UNGEPRUEFT", "mutated_spells": 0}
+        if arten:
+            eintrag["kind"] = arten[feld]
+        if args.delta is not None:
+            antwort, fundstelle = entscheidungen.get(feld, (None, None))
+            eintrag["decision_on_value"] = {"question": FRAGE, "answer": antwort,
+                                            "evidence": fundstelle}
         nachweis["fields"][feld] = eintrag
         probe = f"{i:03d}-" + re.sub(r"[^A-Za-z0-9_.-]", "_", feld)
-        # Sicherungskopien ALLER Schulen, nicht nur der betroffenen: Ein Feld
-        # kann in mehreren stehen (control.cost in fixation, heal.amount in
-        # coagulation), und ein halb zurückgesetzter Datensatz verfälscht jeden
-        # folgenden Lauf.
-        pfade = {s: WURZEL / f"data/spells/{s}.json" for s in SCHULEN}
-        sicherung = {s: p.read_bytes() for s, p in pfade.items()}
+        # Sicherung, Fingerabdrücke und Rückbau über `gesicherter_datensatz`,
+        # denselben Weg wie die Vorproben. Ausdrücklich betreten und verlassen,
+        # weil der Rückbau VOR `speichern()` im `finally` liegen muss und der
+        # Rumpf dieser Schleife sonst eine Stufe tiefer stünde.
+        rahmen = gesicherter_datensatz(eintrag)
+        pfade, abdruecke = rahmen.__enter__()
         getroffen = 0
         # Was die Wertänderung TATSÄCHLICH getan hat, je Zauber. Ohne diese
         # Aufzeichnung sähe „GRÜN" bei einem Aufzählungsfeld genauso aus wie
@@ -1057,6 +1506,7 @@ def main():
                             aenderungen.append((s.get("id", "?"), alt, neu))
                 if geaendert:
                     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+            abdruecke["mutated"] = fingerabdruecke(pfade)
 
             # ZUSICHERUNG IN DEN DATENSATZ: Wurde überhaupt etwas gestrichen?
             # Ohne diese Zahl sieht ein Tippfehler im Pfad wie ein ungedecktes
@@ -1088,14 +1538,20 @@ def main():
                 proben = ", ".join(f"{sid}: {alt}->{neu}" for sid, alt, neu in aenderungen[:3])
                 if len(aenderungen) > 3:
                     proben += f", … ({len(aenderungen)} gesamt)"
-                # **Die Schrittweite gehört daneben, nicht nur der neue Wert**
-                # (AC6): `6000->6010` allein sagt nicht, ob 10 überhaupt
-                # ankommen kann. Erst „Schritt 10, Raster 10 ms" macht die
-                # Frage sichtbar, ohne sie zu beantworten.
-                schritt = f"Schritt {args.delta:g}"
-                if feld.split(".")[-1].endswith("Ms"):
-                    schritt += f", Raster {RASTER} ms"
+                # **Feldart und Schrittweite gehören daneben, nicht nur der
+                # neue Wert** (AC6): `6000->6010` allein sagt nicht, ob 10
+                # überhaupt ankommen kann. Erst „raster, Schritt 10, Takt 10 ms"
+                # macht die Frage sichtbar, ohne sie zu beantworten.
+                schritt = ", ".join(filter(None, (arten[feld], f"Schritt {args.delta:g}",
+                                                  aufloesung(arten[feld], TAKT))))
                 print(f"      {proben}   [{schritt}]", flush=True)
+                # AC7: die Frage VOR dem Lauf, mit Antwort und Fundstelle. Was
+                # hinterher als Erklärung dazukommt, ist keine Prüfung.
+                antwort, fundstelle = entscheidungen.get(feld, (None, None))
+                print(f"      {FRAGE} "
+                      + (f"{antwort} — {fundstelle}" if antwort else
+                         "UNBEANTWORTET — ein GRÜN sagt dann nichts über die Deckung"),
+                      flush=True)
 
             t0 = time.monotonic()
             # `rc_bau != 0` STEHT VORNE, und zwar aus einem gemessenen Grund:
@@ -1121,6 +1577,9 @@ def main():
             else:
                 rc_bau, aus_bau, rc_r, aus_r, rc_t, aus_t = messen(probe, eintrag)
             gebrochen = bau_gebrochen(rc_bau, aus_bau)
+            abdruecke["before_restore"] = fingerabdruecke(pfade)
+            veraendert = sorted(f for f, wert in abdruecke["before_restore"].items()
+                                if wert != abdruecke["mutated"][f])
 
             # BRICHT DER BAU, WIRD NICHT GEFAHREN. Der Rust-Nachweis bleibt
             # ausdrücklich SKIPPED; TS kann unabhängig davon echte Tests fahren.
@@ -1140,10 +1599,14 @@ def main():
             #   OOM               Ein an Speichermangel gestorbener Lauf liefert
             #                     rc != 0 und sähe im vollen Weg wie ROT aus.
             #                     Hier fällt er gar nicht erst an.
+            # Wer während des Laufs in den Datensatz schreibt, macht jedes Urteil
+            # wertlos: Bau und Suiten haben nicht gesehen, was `mutated` sagt.
+            verunreinigt = f"Datensatz während des Laufs verändert: {', '.join(veraendert)}"
             if args.nur_bau:
                 dauer = time.monotonic() - t0
-                stand = "BAU" if gebrochen else "baut"
-                detail = "Build bricht ab" if gebrochen else "Bau geht durch"
+                stand = "FEHLER" if veraendert else "BAU" if gebrochen else "baut"
+                detail = (verunreinigt if veraendert else
+                          "Build bricht ab" if gebrochen else "Bau geht durch")
                 eintrag.update(status=stand, detail=detail,
                                rust={"status": "SKIPPED", "reason": "build-only"},
                                ts={"status": "SKIPPED", "reason": "build-only"})
@@ -1156,8 +1619,15 @@ def main():
 
             dauer = time.monotonic() - t0
 
-            if gebrochen:
-                stand, detail = "BAU", "Build bricht ab"
+            if veraendert:
+                stand, detail = "FEHLER", verunreinigt
+            elif gebrochen:
+                # Im Delta-Modus ist ein unzulässiger SCHRITT schon vor dem Lauf
+                # abgewiesen. Bricht der Bau trotzdem, ist der WERT unzulässig
+                # (`assert!(amount > 0)` in emit_fixation): weder Pflicht noch
+                # ungedeckt.
+                stand, detail = "BAU", ("Build bricht ab — der neue Wert ist unzulässig"
+                                        if args.delta is not None else "Build bricht ab")
             elif any(eintrag[sprache]["status"] == "ERROR" for sprache in ("rust", "ts")):
                 stand, detail = "FEHLER", "Suite unvollständig oder ohne ausgeführte Fälle"
             elif rc_r != 0 or rc_t != 0:
@@ -1213,21 +1683,22 @@ def main():
                     detail = f"rot in {len(dateien)} Datei(en), kein Fall benannt"
                 else:
                     detail = "rot ohne benannten Fall"
-            elif args.delta is not None and feld.split(".")[-1].endswith("Ms") \
-                    and abs(args.delta) % RASTER != 0:
-                # AC6 von #1087: Ein Schritt, der NEBEN dem Raster liegt, kann
-                # eine gerasterte Größe gar nicht erreichen — 12000 und 12001
-                # laufen beide erst bei 12010 ab. Das Ergebnis sieht aus wie
-                # "keine Prüfung sieht den Wert" und heißt "die Änderung ist
-                # nie angekommen".
+            elif args.delta is not None and entscheidungen.get(feld, (None,))[0] != "ja":
+                # AC7 von #1087: Ein GRÜN ist nur dann „ungedeckt", wenn eine
+                # Entscheidung genau auf dem Wert liegt. Sonst kann die Änderung
+                # wirkungslos sein — gemessen an `decayWard.durationMs` +10:
+                # Das Fenster wanderte von 12000 auf 12010, der Prüffall bei
+                # 12000 blieb drinnen, und das Werkzeug schrieb „UNGEDECKT".
                 #
-                # DIE PRÜFUNG IST MECHANISCH, nicht bedeutungsraten: Endung
-                # `Ms` und Schrittweite gegen `RASTER`. Der Versuch, Felder
-                # nach ihren WERTEN einzuteilen, hat sechs von 45 falsch
-                # sortiert (siehe Dateikopf) — diese hier fragt nur, ob der
-                # SCHRITT auf dem Raster liegt, und das steht fest.
+                # Bis #1104 stand hier eine mechanische Prüfung „Schritt neben
+                # dem Raster". Seit #1104 lehnt der Bau jeden solchen Schritt
+                # an einem Rasterfeld ab; er startet gar nicht mehr
+                # (`schritt_unzulaessig`). Übrig bleibt die Frage, die keine
+                # Mechanik beantwortet.
+                antwort = entscheidungen.get(feld, (None,))[0]
                 stand = "GRUEN?"
-                detail = f"Schritt {args.delta:g} liegt neben dem Raster {RASTER} ms"
+                detail = ("keine Entscheidung auf dem Wert — GRÜN ohne Aussage" if antwort == "nein"
+                          else "Entscheidung auf dem Wert unbeantwortet — GRÜN ohne Aussage")
             else:
                 stand, detail = "GRUEN", "beide Suiten gruen"
             eintrag.update(status=stand, detail=detail, seconds=dauer,
@@ -1245,10 +1716,12 @@ def main():
             eintrag.update(status="ABBRUCH", detail=f"{type(error).__name__}: {error}")
             raise
         finally:
-            for schule, p in pfade.items():
-                p.write_bytes(sicherung[schule])
-            eintrag["restored"] = all(p.read_bytes() == sicherung[s] for s, p in pfade.items())
+            rahmen.__exit__(None, None, None)
+            if not eintrag["restored"]:
+                rueckbau_kaputt = feld
             speichern()
+    if rueckbau_kaputt:
+        raise RuntimeError(f"Rückbau nach {rueckbau_kaputt} nicht byteweise identisch")
 
     _unterbrechung_pruefen()
     ziel = WURZEL / args.aus
@@ -1259,7 +1732,8 @@ def main():
                  or any(e.get(sprache, {}).get("status") == "ERROR" for sprache in ("rust", "ts"))
                  for e in nachweis["fields"].values())
     nachweis["full_pass"] = (nachweis["completed"] and not fehler and not args.nur_bau
-                              and args.delta is None and not args.feld and not args.ab)
+                              and args.delta is None and not args.feld and not args.ab
+                              and not args.art)
     speichern()
     print(f"\n{ziel}")
     gruen = [f for f, s, _, _ in ergebnisse if s == "GRUEN"]
@@ -1267,18 +1741,18 @@ def main():
     print(f"UNGEDECKT: {len(gruen)} von {len(ergebnisse)}")
     for f in gruen:
         print(f"  {f}")
-    # **Getrennt gezählt, nicht mitgezählt** (AC6 von #1087). Ein Feld, dessen
-    # Änderung die Auflösung nie erreicht hat, ist NICHT ungedeckt — über seine
-    # Deckung ist gar nichts gemessen worden. Stünde es in derselben Zeile,
-    # wiederholte die Wertänderung genau den Fehler, den sie an der Streichung
-    # behebt: zwei verschiedene Sachverhalte unter einer Zahl.
+    # **Getrennt gezählt, nicht mitgezählt** (AC6 von #1087). Ein GRÜN ohne
+    # „ja" auf die Frage nach der Entscheidung auf dem Wert ist NICHT
+    # ungedeckt — es kann eine wirkungslose Änderung sein. Stünde es in
+    # derselben Zeile, wiederholte die Wertänderung genau den Fehler, den sie an
+    # der Streichung behebt: zwei verschiedene Sachverhalte unter einer Zahl.
     if fraglich:
-        print(f"\nNICHT GEMESSEN (Schritt neben dem Raster): {len(fraglich)}")
+        print(f"\nOHNE AUSSAGE (GRÜN, aber keine Entscheidung genau auf dem Wert belegt): "
+              f"{len(fraglich)}")
         for f in fraglich:
             print(f"  {f}")
-        print("  Diese Felder sind WEDER gedeckt NOCH ungedeckt — die Änderung"
-              f"\n  ist nie angekommen. Erneut fahren mit --delta {RASTER} oder"
-              f" -{RASTER}.")
+        print("  Diese Felder sind WEDER gedeckt NOCH ungedeckt. Erst eine Fundstelle mit"
+              "\n  --entscheidung FELD=ja:FUNDSTELLE oder die Gegenrichtung entscheidet.")
     # **Und die Warnung, die auch für ein sauberes GRÜN gilt.** Der Schritt
     # kann auf dem Raster liegen und die Änderung trotzdem wirkungslos sein —
     # gemessen an `decayWard.durationMs` mit `+10`: Das Fenster wandert von
@@ -1294,14 +1768,18 @@ def main():
         print(f"\nHistorischer Vergleich: {len(vergleich['new_bau'])} alte Felder jetzt BAU")
         for zeile in vergleich["new_bau"]:
             print(f"  {zeile['field']}: {zeile['old_verdict']} -> BAU (Exit {zeile['build_exit']})")
-        if not nachweis["full_pass"]:
-            print("KEINE VOLLSTÄNDIGE ABNAHME: Teilmenge, Nur-Bau, Wertänderung oder unvollständige Suite.")
+        if not vergleich["full_pass"]:
+            print("KEINE VOLLSTÄNDIGE ABNAHME: Teilmenge, Nur-Bau, Wertänderung, "
+                  "unvollständige Suite oder ohne bestandene Vorproben.")
     return 1 if fehler else 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
+    except NichtGestartet as grund:
+        print(f"NICHT GESTARTET: {grund}", file=sys.stderr)
+        sys.exit(2)
     except NichtGelaufen as grund:
         # Exit 2 wie die übrigen „nicht gemessen"-Ausgänge dieses Werkzeugs.
         # Das betroffene Feld steht im Nachweis als ABBRUCH, sein Datensatz ist
