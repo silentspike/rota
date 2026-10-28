@@ -701,6 +701,18 @@ pub fn erster_todesfeld_widerspruch(samples: &[Sample]) -> Option<u32> {
         .map(|s| s.seed)
 }
 
+/// Welchen Weg ein Lauf mit dieser Konfiguration nimmt (#933).
+#[must_use]
+pub fn auswertungsweg(config: &BalanceConfig) -> crate::fortschritt::Weg {
+    todo!("#933 {config:?}")
+}
+
+/// Rechnet jeden Durchgang als eigenen Kampf, ohne die Reduktion aus #908.
+#[must_use]
+pub fn run_vollstaendig(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
+    todo!("#933 {config:?} {apl:?}")
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
