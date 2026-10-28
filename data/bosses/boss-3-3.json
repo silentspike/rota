@@ -1,5 +1,5 @@
 {
-  "_comment": "Instanz 3, Boss 3 — der STAPEL-Boss (Issue #421c).\n\nSein Merkmal: Der eingehende Schaden WAECHST, solange der Kampf dauert. Bis #421c trug `stacks` nur `test-doomsayer`.\n\nDas ist die einzige der vier Mechaniken, die eine ECHTE Frist setzt: Wer zu lange braucht, stirbt an der Steigerung, nicht am Ueberdruck. Damit unterscheidet er sich von boss-3-2, dessen Leiste zwar oefter zuschlaegt, aber nicht haerter.\n\nperStepMs 4000 / baseDamage 15 / factor 2 / maxStacks 4: alle 4 s ein Stapel, jeder legt zwei Punkte drauf, gedeckelt bei vier. Der Deckel ist wichtig — ohne ihn waere jeder Kampf ab einer bestimmten Laenge unabhaengig vom Koennen verloren, und 12.8 verlangt ausdruecklich, dass viele Versuche nicht frustrierend sind.\n\nDIE ZAHLEN SIND GEMESSEN, NICHT GESETZT. Der erste Entwurf stand bei perStepMs 2500 / baseDamage 25 / factor 3 / maxStacks 5 und war UNBEZWINGBAR: Der Spieler starb an den Stapeln, bevor er 1580 von 5200 Lebenspunkten abgetragen hatte. Genau der Zustand aus #672. Mit den Zahlen oben faellt der Boss bei 42010 ms mit 4380 Schaden — gemessen an der Rotation `good`, nachzulesen in tests/unit/instanz-3.test.ts.",
+  "_comment": "Instanz 3, Boss 3 — der STAPEL-Boss (Issue #421c).\n\nSein Merkmal: Der eingehende Schaden WAECHST, solange der Kampf dauert. Bis #421c trug `stacks` nur `test-doomsayer`.\n\nDas ist die einzige der vier Mechaniken, die eine ECHTE Frist setzt: Wer zu lange braucht, stirbt an der Steigerung, nicht am Ueberdruck. Damit unterscheidet er sich von boss-3-2, dessen Leiste zwar oefter zuschlaegt, aber nicht haerter.\n\nperStepMs 4000 / baseDamage 15 / factor 2 / maxStacks 4: alle 4 s ein Stapel, jeder legt zwei Punkte drauf, gedeckelt bei vier. Der Deckel ist wichtig — ohne ihn waere jeder Kampf ab einer bestimmten Laenge unabhaengig vom Koennen verloren, und 12.8 verlangt ausdruecklich, dass viele Versuche nicht frustrierend sind.\n\nDIE ZAHLEN SIND GEMESSEN, NICHT GESETZT. Der erste Entwurf stand bei perStepMs 2500 / baseDamage 25 / factor 3 / maxStacks 5 und war UNBEZWINGBAR: Der Spieler starb an den Stapeln, bevor er 1580 von 5200 Lebenspunkten abgetragen hatte. Genau der Zustand aus #672. Mit den Zahlen oben faellt der Boss bei 42010 ms mit 4380 Schaden — gemessen an der Rotation `good`, nachzulesen in tests/unit/instanz-3.test.ts.\n\nARBEITSNAMEN (Issue #797): \"Swelling Chant\" (stacks). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist eine Zeile. Die Ankuendigung im Kampf nennt jede Faehigkeit beim Namen (GAME-DESIGN 11.5), deshalb braucht auch der Stapel einen.",
   "schema": 1,
   "id": "boss-3-3",
   "name": "Ashen Choir",
@@ -9,6 +9,7 @@
   "phases": [],
   "energy": null,
   "stacks": {
+    "name": "Swelling Chant",
     "perStepMs": 4000,
     "baseDamage": 15,
     "factor": 2,

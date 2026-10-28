@@ -101,6 +101,7 @@
     "hp": 999999,
     "overpressureMs": 60000,
     "doom": {
+      "name": "Prophecy",
       "perStepMs": 1000,
       "amount": 5,
       "threshold": 100,
