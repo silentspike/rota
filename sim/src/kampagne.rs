@@ -524,7 +524,8 @@ impl CpuTopology {
     /// Reihenfolge (Paket, Kern), jeder **samt allen seinen Strängen** — auf
     /// dem Laptop die Kerne 6–7, wie die Anzeige in AC4 sie nennt. Die
     /// rechnenden Kerne behalten ihre SMT-Geschwister
-    /// (`use_smt_siblings_of_compute_cores: true`, Plan Z. 3328).
+    /// (`use_smt_siblings_of_compute_cores: true`, Plan E15.1, „Regelung: von
+    /// außen und von selbst").
     ///
     /// # Errors
     /// Eine Reservierung, die keinen Kern zum Rechnen übrig ließe.
@@ -815,7 +816,8 @@ pub struct ReferenceProfile {
 static STANDARD_HOSTS: &[HostRequirement] = &[
     // Der Laptop: AMD Ryzen 9 5900HS, 8 physische Kerne × 2 Stränge (sysfs am
     // 2026-10-28: thread_siblings_list 0-1 … 14-15). Profil `balanced`: zwei
-    // physische Kerne samt Geschwistern bleiben frei (Plan Z. 46), also zwölf
+    // physische Kerne samt Geschwistern bleiben frei (Plan, Referenzprofil
+    // „standard" unter „Was dieser Plan zusichert"), also zwölf
     // Stränge — die CPU-Quote ist genau diese zwölf. Speicher höchstens 4096 MiB
     // nach der Vorgabe „Speichergrenzen unter 5 GB" für diese Maschine — eine
     // Obergrenze, keine Reservierung. Grafik 0 %, weil es keinen GPU-Pfad gibt;
@@ -833,8 +835,8 @@ static STANDARD_HOSTS: &[HostRequirement] = &[
         thermal_throttling: false,
     },
     // node3: Proxmox-Knoten `ovh-pve1`, AMD Ryzen 7 9700X, 8 Kerne/16 Stränge,
-    // nichts reserviert (die Laptop-Grenze gilt auf den Nodes nicht, Plan
-    // Z. 3337). CPU ausdrücklich best effort: keine garantierte Quote, wie der
+    // nichts reserviert (die Laptop-Grenze gilt auf node3 nicht, Plan E15.1,
+    // „Regelung: von außen und von selbst"). CPU ausdrücklich best effort: keine garantierte Quote, wie der
     // Plan es für Zusatzrechner vorsieht („cores großzügig, cpuunits niedrig").
     // Speicher höchstens 4096 MiB als OBERGRENZE, nicht reserviert: Der
     // Container belegt nur, was er gerade braucht (Vorgabe des Auftraggebers
@@ -1436,7 +1438,10 @@ fn mission_json(m: Mission) -> String {
 
 /// Rusts Debug-Escapes (`\\0`, `\\u{...}`) sind kein JSON. Nur die
 /// vorgeschriebenen Steuerzeichen werden maskiert; Unicode bleibt UTF-8.
-fn json_string(value: &str) -> String {
+///
+/// Crate-weit sichtbar, weil der Fortschrittsstrom aus #933 dieselben Zeichen
+/// schreibt — ein zweiter Maskierer liefe irgendwann auseinander.
+pub(crate) fn json_string(value: &str) -> String {
     let mut out = String::from("\"");
     for ch in value.chars() {
         match ch {
@@ -1452,7 +1457,7 @@ fn json_string(value: &str) -> String {
     out
 }
 
-fn json_number(value: f64, field: &'static str) -> Result<String, JsonError> {
+pub(crate) fn json_number(value: f64, field: &'static str) -> Result<String, JsonError> {
     if !value.is_finite() {
         return Err(JsonError::NonFinite { field });
     }

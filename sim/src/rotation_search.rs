@@ -796,8 +796,6 @@ pub fn boss_kandidaten(config: &BalanceConfig, pool: &[Candidate]) -> Vec<Candid
 struct TripelZug {
     /// Unterbrecher, Zeile darum, Erzeuger — Stellen in `offen`.
     glieder: [usize; 3],
-    /// Welche Stellen der bisherigen Liste ihm weichen; leer, wenn Platz war.
-    weg: Vec<usize>,
     /// Die Liste mit der Gruppe.
     liste: Vec<Candidate>,
     gemessen: Measured,
@@ -897,6 +895,10 @@ pub fn greedy_zuege(
     // vorgegebene Liste stehen, und ein Name, der das Gegenteil behauptet,
     // schickt den naechsten Leser auf die falsche Faehrte.
     let mut best = measure(config, "start", &chosen);
+    crate::fortschritt::bestes(best.mean);
+    let mut runde = 0u64;
+    // Ob die eine Runde an der Längengrenze schon stattgefunden hat (#1027).
+    let mut grenze_gefragt = false;
     let stop = loop {
         // **An der Längengrenze bekommt die Dreiergruppe noch einen Zug**
         // (#1027): Sie darf Zeilen verdrängen (siehe unten). Unter Fassung B
@@ -915,11 +917,23 @@ pub fn greedy_zuege(
                 Stop::PoolExhausted
             };
         }
+        // **Genau eine Runde an der Grenze**: Danach steht kein Zug mehr zur
+        // Wahl, der die Länge hielte, und die Obergrenze aus
+        // [`restmessungen_hoechstens`] bliebe ohne diese Beschränkung ohne
+        // Schranke — jeder Tausch an der Grenze hält die Länge.
+        if voll {
+            if grenze_gefragt {
+                break Stop::LengthLimit;
+            }
+            grenze_gefragt = true;
+        }
         let aufgehoert = if voll {
             Stop::LengthLimit
         } else {
             Stop::NoImprovement
         };
+        runde += 1;
+        melde_runde(runde, pool, &offen, chosen.len(), max_len, zuege);
         // (Stelle im Pool, Einfuegeposition, Messung)
         let mut bester_zug: Option<(usize, usize, Measured)> = None;
         for (pos, &kandidat) in offen.iter().enumerate().filter(|_| !voll) {
@@ -1004,18 +1018,23 @@ pub fn greedy_zuege(
             let gruppen = tripel_zuege(pool, &offen);
             tripel_geprueft += gruppen.len();
             let fehlt = (chosen.len() + 3).saturating_sub(max_len);
-            let grundlagen: Vec<(Vec<usize>, Vec<Candidate>)> = weglassungen(chosen.len(), fehlt)
+            let grundlagen: Vec<Vec<Candidate>> = weglassungen(chosen.len(), fehlt)
                 .into_iter()
                 .map(|weg| {
-                    let basis = chosen
+                    chosen
                         .iter()
                         .enumerate()
                         .filter(|(i, _)| !weg.contains(i))
                         .map(|(_, k)| k.clone())
-                        .collect();
-                    (weg, basis)
+                        .collect()
                 })
                 .collect();
+            // Die Dreiergruppen stehen erst jetzt fest — sie gehören zu dieser
+            // Runde und heben deren Untergrenze (#933). Je Gruppe so viele
+            // Messungen, wie es Arten gibt, Platz zu schaffen, mal deren Stellen
+            // (#1027) — ohne Verdrängen genau `chosen.len() + 1`.
+            let je_gruppe: usize = grundlagen.iter().map(|basis| basis.len() + 1).sum();
+            crate::fortschritt::runde_ergaenzt((gruppen.len() * je_gruppe) as u64);
             // **Die Namen folgen der Ordnung aus [`tripel_zuege`]**, nicht der
             // Reihenfolge, in der die Glieder gedacht wurden: erst der
             // Unterbrecher, dann die Zeile darum, dann der Erzeuger. Sie hiessen
@@ -1023,7 +1042,7 @@ pub fn greedy_zuege(
             // trug `p_pos` den Unterbrecher, und der naechste Leser haette das
             // Gegenteil dessen gelesen, was der Code tut.
             for (unterbrecher, zeile, erzeuger) in gruppen {
-                for (weg, basis) in &grundlagen {
+                for basis in &grundlagen {
                     for stelle in 0..=basis.len() {
                         let mut versuch = basis.clone();
                         versuch.insert(stelle, pool[offen[unterbrecher]].clone());
@@ -1038,7 +1057,6 @@ pub fn greedy_zuege(
                         if besser {
                             bester_tripel_zug = Some(TripelZug {
                                 glieder: [unterbrecher, zeile, erzeuger],
-                                weg: weg.clone(),
                                 liste: versuch,
                                 gemessen,
                             });
@@ -1071,7 +1089,6 @@ pub fn greedy_zuege(
             if tripel_gewinnt {
                 let Some(TripelZug {
                     glieder: [unterbrecher, zeile, erzeuger],
-                    weg,
                     liste,
                     gemessen,
                 }) = bester_tripel_zug
@@ -1081,13 +1098,12 @@ pub fn greedy_zuege(
                 if !gemessen.clearly_better_than(&best) {
                     break aufgehoert;
                 }
-                // **Verdrängte Zeilen stehen wieder zur Wahl**, sofern sie aus
-                // dem Vorrat stammen — eine Zeile der Startliste ist dort nicht
-                // verzeichnet und bleibt draußen.
-                let zurueck: Vec<usize> = weg
-                    .iter()
-                    .filter_map(|&i| pool.iter().position(|k| *k == chosen[i]))
-                    .collect();
+                // **Verdrängte Zeilen kehren nicht in den Vorrat zurück.** Nach
+                // einem Tausch ist die Liste voll, und es bleibt nur die eine
+                // Runde an der Grenze. Kehrten sie zurück, könnten dort Gruppen
+                // entstehen, die es zu Rundenbeginn nicht gab — und die
+                // Obergrenze aus [`restmessungen_hoechstens`] hielte nicht mehr
+                // („Tripel ≤ die Zahl von jetzt").
                 chosen = liste;
                 // **Absteigend entfernen**, sonst verschiebt die erste
                 // Entnahme die uebrigen Indizes. Bei zwei Gliedern reichte ein
@@ -1108,8 +1124,8 @@ pub fn greedy_zuege(
                 for pos in raus.iter().rev() {
                     offen.remove(*pos);
                 }
-                offen.extend(zurueck);
                 best = gemessen;
+                crate::fortschritt::bestes(best.mean);
                 continue;
             }
 
@@ -1131,6 +1147,7 @@ pub fn greedy_zuege(
             offen.remove(hoch);
             offen.remove(tief);
             best = gemessen;
+            crate::fortschritt::bestes(best.mean);
             continue;
         }
 
@@ -1146,8 +1163,11 @@ pub fn greedy_zuege(
         chosen.insert(stelle, pool[offen[pos]].clone());
         offen.remove(pos);
         best = gemessen;
+        crate::fortschritt::bestes(best.mean);
     };
 
+    // Die Messung der gefundenen Liste zählt zur letzten Runde (#933).
+    crate::fortschritt::schlussmessung();
     SearchResult {
         best: measure(config, "gefunden", &chosen),
         chosen,
@@ -1166,6 +1186,139 @@ pub fn greedy_zuege(
         paare_geprueft,
         tripel_geprueft,
     }
+}
+
+/// Meldet den Beginn einer Suchrunde an den Fortschritt (#933).
+///
+/// **Nur mit angemeldetem Zählwerk.** Ohne Anmeldung rechnet die Suche hier
+/// keine Paar- und Tripelzahlen zusätzlich aus — ein Lauf ohne Anzeige zahlt
+/// einen Vergleich, sonst nichts.
+///
+/// Sicher kostet die Runde ihre Einzel- und Paarzüge; die Dreiergruppen
+/// kommen nur, wenn kein Einzelzug trägt, und melden sich dann selbst
+/// ([`crate::fortschritt::runde_ergaenzt`]). Beide Grenzen tragen eins mehr:
+/// die Messung der gefundenen Liste nach der letzten Runde. In den Plan der
+/// Runde kommt sie erst, wenn feststeht, dass es die letzte war
+/// ([`crate::fortschritt::schlussmessung`]).
+fn melde_runde(
+    runde: u64,
+    pool: &[Candidate],
+    offen: &[usize],
+    gewaehlt: usize,
+    max_len: usize,
+    zuege: Zuege,
+) {
+    if crate::fortschritt::strang().is_none() {
+        return;
+    }
+    let paare = if zuege.paare {
+        paar_zuege(pool, offen).len()
+    } else {
+        0
+    };
+    let tripel = if zuege.tripel {
+        tripel_zuege(pool, offen).len()
+    } else {
+        0
+    };
+    let paare_jetzt = if gewaehlt + 2 <= max_len { paare } else { 0 };
+    // An der Längengrenze misst die Runde keine Einzelzüge (#1027): Sie ist
+    // die eine Runde der Dreiergruppen, und deren Messungen meldet die Suche
+    // selbst nach (`runde_ergaenzt`).
+    let einzeln = if gewaehlt < max_len { offen.len() } else { 0 };
+    let geplant = ((einzeln + paare_jetzt) * (gewaehlt + 1)) as u64;
+    let hoechstens = restmessungen_hoechstens(gewaehlt, offen.len(), max_len, paare, tripel);
+    crate::fortschritt::suchrunde(runde, geplant, geplant + 1, hoechstens + 1);
+}
+
+/// Wie viele Messungen die gierige Suche ab einem Rundenbeginn höchstens noch
+/// kostet (#933) — diese Runde eingeschlossen, ohne die abschließende Messung
+/// der gefundenen Liste.
+///
+/// # Warum eine Schranke und keine Zahl
+///
+/// Die Suche endet, sobald keine Zeile mehr messbar trägt; wann das ist, steht
+/// erst nach der Messung fest. Fest steht nur, was sie **höchstens** tun kann,
+/// und das folgt aus [`greedy_zuege`] selbst, Runde `j` ab jetzt:
+///
+/// ```text
+///   Länge           gewaehlt + j  ≤  c_j  ≤  min(gewaehlt + 3j, max_len − 1)
+///                   (jede Runde fügt eine bis drei Zeilen an; eine Runde
+///                    beginnt nur unter der Längengrenze)
+///   offen           m_j ≤ offen − j
+///   Paare, Tripel   ≤ die Zahl von jetzt — sie entstehen nur aus offenen Zeilen
+///   Messungen       (m_j + Paare + Tripel) · (c_j + 1)
+///   Runden          höchstens min(max_len − gewaehlt, offen)
+/// ```
+///
+/// Paare zählen nur, solange `c_j + 2 ≤ max_len` noch möglich ist. Die
+/// Schranke ist grob — sie nimmt in jeder Runde die längste mögliche Liste
+/// an —, aber sie hält: `tests/fortschritt.rs` prüft sie an jeder beobachteten
+/// Runde einer echten Suche.
+///
+/// # Dreiergruppen seit #1027
+///
+/// Eine Dreiergruppe darf Zeilen verdrängen, wenn ihr der Platz fehlt, und an
+/// der Längengrenze bekommt sie **genau eine** Runde für sich. Sie zählt
+/// deshalb in jeder Runde, mit [`tripel_messungen`] je Gruppe statt
+/// `c_j + 1`, und dazu kommt die Runde an der Grenze. Beide Schritte halten die
+/// zwei Annahmen oben: Jede Runde unter der Grenze verlängert die Liste um
+/// mindestens eine Zeile und nimmt mindestens eine aus `offen` (drei hinein,
+/// höchstens zwei verdrängt), und verdrängte Zeilen kehren nicht nach `offen`
+/// zurück — die Zahl der Gruppen kann also nur sinken.
+#[must_use]
+pub fn restmessungen_hoechstens(
+    gewaehlt: usize,
+    offen: usize,
+    max_len: usize,
+    paare: usize,
+    tripel: usize,
+) -> u64 {
+    let an_der_grenze = tripel as u64 * tripel_messungen(max_len, max_len);
+    if gewaehlt >= max_len {
+        return an_der_grenze;
+    }
+    let runden = (max_len - gewaehlt).min(offen);
+    let mut summe = 0u64;
+    for j in 0..runden {
+        let laenge_hoechstens = (gewaehlt + 3 * j).min(max_len - 1);
+        let laenge_mindestens = gewaehlt + j;
+        let mut zuege = (offen - j) as u64;
+        if laenge_mindestens + 2 <= max_len {
+            zuege += paare as u64;
+        }
+        summe += zuege * (laenge_hoechstens as u64 + 1);
+        let je_gruppe = (laenge_mindestens..=laenge_hoechstens)
+            .map(|laenge| tripel_messungen(laenge, max_len))
+            .max()
+            .unwrap_or(0);
+        summe += tripel as u64 * je_gruppe;
+    }
+    summe + an_der_grenze
+}
+
+/// Wie viele Messungen eine Dreiergruppe an einer Liste der Länge `laenge`
+/// kostet (#1027): je Art, die fehlenden Plätze freizumachen, jede Stelle der
+/// verbliebenen Liste.
+///
+/// ```text
+///   fehlt = max(0, laenge + 3 − max_len)
+///   (laenge über fehlt) · (laenge − fehlt + 1)
+/// ```
+///
+/// Ohne fehlenden Platz ist das `laenge + 1` — die Zahl von vor #1027. Dieselbe
+/// Rechnung wie in [`greedy_zuege`], wo sie als `runde_ergaenzt` gemeldet wird.
+#[must_use]
+pub fn tripel_messungen(laenge: usize, max_len: usize) -> u64 {
+    let fehlt = (laenge + 3).saturating_sub(max_len);
+    if fehlt > laenge {
+        return 0;
+    }
+    let mut auswahl = 1u64;
+    for i in 0..fehlt {
+        auswahl = auswahl * (laenge - i) as u64 / (i + 1) as u64;
+    }
+    auswahl * (laenge - fehlt + 1) as u64
 }
 
 /// Die Paare, die einzeln verlieren und zusammen tragen (Issue #558, AC2).

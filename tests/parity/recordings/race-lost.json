@@ -109,6 +109,7 @@
     "hp": 4900,
     "overpressureMs": 60000,
     "race": {
+      "name": "Glass Seal",
       "atMs": 14000,
       "windowMs": 6000,
       "threshold": 900

@@ -21,6 +21,14 @@ angelehnt an World-of-Warcraft-Rotationen (Global Cooldown, Cooldown-Management,
 
 Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMMER das Design-Dokument.
 
+**Über beiden steht der Masterplan** `~/.claude/plans/greedy-skipping-russell.md` — der Plan, den
+der Orchestrator zum Spiel erstellt hat. Vorgabe des Auftraggebers vom 2026-10-28: „verlasse dich
+nicht zu sehr auf game-design, wichtig ist der plan den du zu dem game erstellt hast". Vor einer
+Design-Entscheidung zuerst dort nachsehen; widerspricht `docs/GAME-DESIGN.md` dem Masterplan,
+gilt der Masterplan, und die Abweichung wird dem Orchestrator gemeldet. Die verbindlichen
+Einzelentscheidungen des Auftraggebers (Abschnitt „Entscheidungen des Auftraggebers nachlesen")
+gehen beiden vor.
+
 ## Nicht verhandelbare Design-Gesetze (vom Auftraggeber festgelegt)
 
 1. **Keypress = Trigger.** Ein Tastendruck löst genau eine Aktion aus. NIEMALS Tasten halten,
@@ -86,6 +94,15 @@ Stunden später. Dein eigentliches Ergebnis kommt später als **neue** Nachricht
 
 **Melde dich auch, bevor du still wirst.** Wenn du fertig bist oder wartest, sag das — sonst
 meldet der Watcher dich als stillstehend, und der Orchestrator weiß nicht, ob du hängst.
+
+### Entscheidungen des Auftraggebers nachlesen
+
+Seine verbindlichen Entscheidungen liegen als Antwortdateien unter
+`/work/rota/fragen/antworten/<frage-id>.json`, die Fragen dazu in `/work/rota/fragen/fragen.json`.
+Lesen mit `rota-fragen zeigen` — ohne den Orchestrator zu fragen. **Maßgeblich ist die
+Antwortdatei**, nicht das Feld `status` in `fragen.json`: `beantwortet` steht dort erst nach
+der Quittung des Orchestrators. Nur lesen, nichts dort schreiben. Einzelheiten in
+[`docs/IPC.md`](docs/IPC.md), Abschnitt „Entscheidungen des Auftraggebers".
 
 ### Vier Regeln
 

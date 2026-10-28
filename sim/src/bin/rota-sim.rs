@@ -31,19 +31,22 @@
 //! **vollstaendige, lauffaehige Beispiele** statt einer Optionsliste. Genau die
 //! erzeugt `clap` nicht — sie sind von Hand geschrieben, mit oder ohne Kiste.
 
+use std::io::{IsTerminal, Write};
 use std::process::ExitCode;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{
-    run, run_gestaffelt, BalanceConfig, BalanceResult, Durchgangswahl, GestaffelterLauf,
-    Staffelung, Staffelungsfehler,
+    auswertungsweg, run, run_gestaffelt, run_vollstaendig, BalanceConfig, BalanceResult,
+    Durchgangswahl, GestaffelterLauf, Staffelung,
 };
 use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
 use rota_sim::drosselung::{ControlFileWatcher, ControlSettings, RuntimeControl};
+use rota_sim::fortschritt::{
+    Anzeigestrang, Arbeitsmenge, Ausgabe, Kampfzahl, Kostenbild, Laufbeschreibung, Weg, Zaehlwerk,
+};
 use rota_sim::gear::WornValues;
 use rota_sim::replay::EmbeddedRecording;
 use rota_sim::rotation_search::{all_candidates, greedy, paar_zuege, Candidate, SearchResult};
@@ -58,78 +61,127 @@ use rota_sim::{Fight, FightConfig};
 // Der Kampfzaehler
 // ---------------------------------------------------------------------------
 
-/// Wie viele Kaempfe dieser Aufruf gerechnet hat.
+/// Wie viele Kaempfe dieser Aufruf gerechnet hat — aus dem Zaehlwerk (#933).
 ///
 /// # Wofuer er da ist
 ///
 /// `rota-sim explain` verspricht, KEINEN Kampf zu starten (#969, AC2). Das ist
 /// eine Aussage, die man nicht an der Laufzeit ablesen kann — ein schneller
 /// Lauf ist kein Beweis, und ein langsamer Rechner macht aus einem sauberen
-/// Trockenlauf einen verdaechtigen.
+/// Trockenlauf einen verdaechtigen. Deshalb gibt jeder Befehl seinen Stand
+/// aus: nach `explain` null, nach `run` mehr als null.
 ///
-/// Deshalb zaehlt dieser Zaehler mit, und jeder Befehl gibt seinen Stand aus.
-/// Nach `explain` steht dort null, nach `run` mehr als null.
+/// # Warum es keinen eigenen Zaehler mehr gibt
 ///
-/// # Warum er im Programm sitzt und nicht im Kern
+/// Bis #933 fuehrte dieses Programm einen. Er zaehlte, was es **anforderte**:
+/// `iterations` je Lauf. Ohne Wuerfel rechnet ein Lauf aber genau einen Kampf
+/// (#908) — der Zaehler meldete dann das Zwanzig- bis Tausendfache, und
+/// `bench` teilte diese Zahl durch die Zeit des einen Kampfes. Neben der
+/// Fortschrittsanzeige waere er die zweite Wahrheit, die #933 verbietet.
 ///
-/// Der Kern wird nicht angefasst — er traegt die Bitgleichheit mit dem Spiel.
-/// Gezaehlt wird stattdessen an den Stellen, an denen DIESES Programm
-/// Kaempfe anstoesst: [`rechne_lauf`], [`suche`] und [`rechne_gestaffelt`]
-/// (#915), dazu der gesteuerte Lauf mit `--control-file`. Wer eine weitere
-/// Stelle hinzufuegt und den Zaehler vergisst, faellt beim Test
-/// `nach_run_steht_der_zaehler_ueber_null` nicht auf — das ist die Grenze
-/// dieser Bauart, und sie steht hier, statt verschwiegen zu werden.
-static KAEMPFE: AtomicU64 = AtomicU64::new(0);
-
-/// Zaehlt Kaempfe dazu.
-fn zaehle(kaempfe: u64) {
-    KAEMPFE.fetch_add(kaempfe, Ordering::Relaxed);
-}
-
-/// Der Stand des Zaehlers.
-fn kaempfe_gerechnet() -> u64 {
-    KAEMPFE.load(Ordering::Relaxed)
-}
-
-/// Ein Balance-Lauf — die einzige Stelle, an der dieses Programm
-/// [`rota_sim::balance::run`] ruft.
-fn rechne_lauf(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
-    zaehle(u64::from(config.iterations));
-    run(config, apl)
-}
-
-/// Eine Suche — die einzige Stelle, an der dieses Programm [`greedy`] ruft.
-///
-/// **Die zwei Messungen obendrauf sind kein Rundungsfehler.** `greedy_opts`
-/// misst einmal die Startliste und einmal die gefundene, und beide zaehlt
-/// `SearchResult::measured` NICHT mit (nachgelesen in `rotation_search.rs`).
-/// Wer die Kampfzahl aus `measured` allein rechnet, liegt bei einer kurzen
-/// Suche mehrere Prozent daneben.
-fn suche(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchResult {
-    let ergebnis = greedy(config, pool, max_len);
-    let messungen = ergebnis.measured as u64 + MESSUNGEN_AUSSERHALB;
-    zaehle(messungen * u64::from(config.iterations));
-    ergebnis
-}
-
-/// Ein Lauf mit Durchgangssteuerung (#915) — die einzige Stelle, an der dieses
-/// Programm [`run_gestaffelt`] ruft.
-///
-/// Gezaehlt wird, was der Lauf **gerechnet** hat, nicht das Budget: Eine
-/// Stichprobe, die nach 128 Kaempfen entscheidet, hat 128 gekostet.
-fn rechne_gestaffelt(
-    config: &BalanceConfig,
-    apl: &Apl,
-    staffelung: Staffelung,
-) -> Result<GestaffelterLauf, Staffelungsfehler> {
-    let lauf = run_gestaffelt(config, apl, staffelung)?;
-    zaehle(lauf.kaempfe);
-    Ok(lauf)
+/// Gezaehlt wird jetzt im heissen Pfad von [`rota_sim::balance`], also an
+/// JEDER Stelle, die dort rechnet — auch an einer, die hier jemand neu
+/// hinzufuegt. Der Befehl muss dafuer nur ein [`Zaehlwerk`] anmelden, und
+/// diese Funktion nimmt es als Argument: Ohne Zaehlwerk gibt es keine Zahl,
+/// und eine vergessene Anmeldung baut nicht.
+fn kaempfe_gerechnet(werk: &Zaehlwerk) -> u64 {
+    werk.momentaufnahme().kaempfe
 }
 
 /// Die Messungen, die `greedy_opts` fährt, ohne sie in `measured` zu zaehlen:
 /// die Startliste und die gefundene Liste.
 const MESSUNGEN_AUSSERHALB: u64 = 2;
+
+// ---------------------------------------------------------------------------
+// Die Fortschrittsanzeige (#933)
+// ---------------------------------------------------------------------------
+
+/// Was `--progress` und `--jsonl` bestellt haben.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Anzeigewahl {
+    /// Die Anzeige fuer Menschen, auf dem Fehlerkanal.
+    progress: bool,
+    /// Der JSON-Strom in diese Datei.
+    jsonl: Option<String>,
+}
+
+/// Startet die Anzeige, wenn eine bestellt ist.
+///
+/// Der Bericht geht weiter nach stdout, die Anzeige nach stderr: Ein Skript,
+/// das stdout liest, bekommt mit `--progress` denselben Text wie ohne.
+fn starte_anzeige(
+    werk: &Arc<Zaehlwerk>,
+    wahl: &Anzeigewahl,
+    beschreibung: Laufbeschreibung,
+) -> Result<Option<Anzeigestrang>, String> {
+    if !wahl.progress && wahl.jsonl.is_none() {
+        return Ok(None);
+    }
+    let jsonl: Option<Box<dyn Write + Send>> = match &wahl.jsonl {
+        Some(pfad) => {
+            let datei = std::fs::File::create(pfad).map_err(|fehler| {
+                fehler_mit_ausweg(
+                    &format!("Die Datei '{pfad}' laesst sich nicht anlegen: {fehler}"),
+                    None,
+                    "Form und Beispiele:  rota-sim run --help",
+                )
+            })?;
+            Some(Box::new(std::io::BufWriter::new(datei)))
+        }
+        None => None,
+    };
+    let zeile: Option<Box<dyn Write + Send>> = wahl
+        .progress
+        .then(|| Box::new(std::io::stderr()) as Box<dyn Write + Send>);
+    Ok(Some(Anzeigestrang::starten(
+        Arc::clone(werk),
+        beschreibung,
+        Ausgabe {
+            zeile,
+            terminal: wahl.progress && std::io::stderr().is_terminal(),
+            jsonl,
+        },
+    )))
+}
+
+/// Haelt die Anzeige an. Ein Schreibfehler dort beendet nicht den Lauf — er
+/// steht auf dem Fehlerkanal, und der Bericht folgt trotzdem.
+fn beende_anzeige(anzeige: Option<Anzeigestrang>) {
+    if let Some(anzeige) = anzeige {
+        if let Err(fehler) = anzeige.beenden() {
+            eprintln!("Fortschrittsausgabe abgebrochen: {fehler}");
+        }
+    }
+}
+
+/// Was eine Auswertung dieses Laufs kostet: der Weg aus der Bibliothek, nicht
+/// nachgebaut.
+fn kostenbild(config: &BalanceConfig) -> Kostenbild {
+    let weg = auswertungsweg(config);
+    Kostenbild {
+        weg,
+        kaempfe_je_kandidat: Kampfzahl::Fest(if weg == Weg::EinKampf {
+            1
+        } else {
+            u64::from(config.iterations)
+        }),
+    }
+}
+
+/// Erkennt `--progress` und `--jsonl`, gemeinsam fuer `run` und `bench`.
+fn zerlege_anzeige(
+    argumente: &[String],
+    i: &mut usize,
+    name: &str,
+    wahl: &mut Anzeigewahl,
+) -> Result<bool, String> {
+    match name {
+        "--progress" => wahl.progress = true,
+        "--jsonl" => wahl.jsonl = Some(hole_wert(argumente, i, name)?),
+        _ => return Ok(false),
+    }
+    Ok(true)
+}
 
 /// Die gute Rotation aus Schritt 1 — die Voreinstellung fuer einen Lauf ohne
 /// eigene Datei.
@@ -270,6 +322,23 @@ BEISPIELE
   man sie natuerlich — dann gelten die Voreinstellungen, und der Lauf dauert
   laenger und misst genauer.
 
+FORTSCHRITT
+  Waehrend des Laufs zeigen, was er tut — Phase, Runde, Kandidaten, beide
+  Durchsatzzahlen, Restzeit oder Plateau, Straenge, Drosselung:
+
+    rota-sim run --boss boss-1-1 --iterations 100 --max-len 6 --progress
+
+  Dieselben Zahlen viermal je Sekunde als JSON Lines, fuer Skripte und
+  ein zweites Fenster mit tail -f:
+
+    rota-sim run --boss boss-1-1 --iterations 100 --max-len 6 --jsonl lauf.jsonl
+
+  Diese beiden stehen nicht unter BEISPIELE, weil die Pruefstrecke jedes
+  Beispiel ausfuehrt und von ihm einen leeren Fehlerkanal und keine Datei
+  verlangt. Die Anzeige schreibt auf den Fehlerkanal, der Bericht bleibt auf
+  der Standardausgabe und aendert sich nicht. Die Felder des Stroms und was
+  die Restzeit bedeutet:  docs/FORTSCHRITT.md
+
 OPTIONEN
   --boss <id>        gegen welchen Boss gerechnet wird.
                      Ohne ihn gegen den Standard, der KEINEN Schaden austeilt —
@@ -309,12 +378,20 @@ OPTIONEN
                      lautet der Befund UNGEKLAERT, nicht eine Zahl.
                      Alle drei sind Pflicht; keiner hat eine Voreinstellung.
   --json             Ausgabe als JSON statt als Text. Dieselben Zahlen.
+  --progress         zeigt den Fortschritt auf dem Fehlerkanal, im Terminal
+                     viermal je Sekunde ueberschrieben, sonst alle zehn
+                     Sekunden ein Block. Eine Restzeit steht nur dort, wo die
+                     Menge feststeht; die Suche nennt Ober- und Untergrenze.
+  --jsonl <datei>    schreibt den Fortschritt als JSON Lines in eine Datei.
+                     Dieselben Zahlen wie --progress, aus derselben Quelle
+                     wie 'Kaempfe gerechnet'.
   --help             dieser Text.
 
 WAS AUSGEGEBEN WIRD
   Schaden je Kampf mit Streuung, Siege, Zeit bis zum Sieg, eingesteckter
   Schaden, Tode und die Wirkungen je Zauber. Bei einer Suche zusaetzlich die
-  gefundene Rotation und wie viele Messungen sie gekostet hat.
+  gefundene Rotation und was sie gekostet hat: die Messungen der Suche und die
+  Auswertungen insgesamt, die zusaetzlich Start- und Fundliste enthalten.
 
   Mit --mode gestaffelt stattdessen: der gewaehlte Weg, der Befund (ERFUELLT,
   VERFEHLT oder UNGEKLAERT), wie viele Kaempfe er gekostet hat, die Siege und
@@ -339,17 +416,23 @@ BEISPIELE
   rota-sim bench --json
 
 OPTIONEN
-  --fights <n>    wie viele Kaempfe gerechnet werden.
-  --threads <n>   ueber wie viele Straenge.
-  --boss <id>     gegen welchen Boss. Ohne ihn gegen den Standard.
-  --json          Ausgabe als JSON statt als Text.
-  --help          dieser Text.
+  --fights <n>       wie viele Kaempfe gerechnet werden.
+  --threads <n>      ueber wie viele Straenge.
+  --boss <id>        gegen welchen Boss. Ohne ihn gegen den Standard.
+  --json             Ausgabe als JSON statt als Text.
+  --progress         den Fortschritt auf dem Fehlerkanal zeigen.
+  --jsonl <datei>    den Fortschritt als JSON Lines in eine Datei schreiben.
+  --help             dieser Text.
 
 WAS DIE ZAHL BEDEUTET
-  Kaempfe je Sekunde, gemessen an der Wanduhr. Sie haengt am Bau: Im
-  Debug-Bau ist der Kern rund achtzehnmal langsamer als im Release. Wer sie
-  vergleicht, vergleicht deshalb nur Laeufe desselben Baus auf demselben
-  Rechner — und sagt dazu, ob die Maschine ruhig war.";
+  Kaempfe je Sekunde, gemessen an der Wanduhr — und JEDER davon gerechnet.
+  Ohne Wuerfel rechnet ein Balance-Lauf sonst einen Kampf und vervielfacht
+  ihn; bis #933 tat genau das auch dieser Befehl, und seine Zahl teilte die
+  angeforderten Kaempfe durch die Zeit eines einzigen.
+
+  Sie haengt am Bau: Im Debug-Bau ist der Kern rund achtzehnmal langsamer als
+  im Release. Wer sie vergleicht, vergleicht deshalb nur Laeufe desselben Baus
+  auf demselben Rechner — und sagt dazu, ob die Maschine ruhig war.";
 
 /// Die Hilfe von `data` — Zweck zuerst, dann Beispiele.
 const HILFE_DATA: &str = "\
@@ -488,6 +571,10 @@ rota-sim status
   stattfinden — heute laeuft jede Messung im Vordergrund und endet mit ihrer
   eigenen Ausgabe.
 
+  Den Fortschritt eines Laufs im Vordergrund zeigt heute schon
+  'rota-sim run --progress', und 'rota-sim run --jsonl DATEI' schreibt ihn
+  als Strom, den ein zweites Fenster mit tail -f liest.
+
   NOCH NICHT GEBAUT.
 
 BEISPIELE
@@ -504,7 +591,8 @@ Messung im Vordergrund und endet mit ihrer Ausgabe; es gibt nichts, was
 zwischendurch nach seinem Zustand gefragt werden koennte.
 
 Der Unterbefehl bekommt erst einen Sinn, wenn Laeufe im Hintergrund oder auf
-fremden Rechnern laufen — siehe hosts.
+fremden Rechnern laufen — siehe hosts. Den Fortschritt eines Laufs im
+Vordergrund zeigen schon jetzt:  rota-sim run --progress  und  --jsonl DATEI
 
 Was er ausserdem kann, steht in:  rota-sim status --help";
 
@@ -633,6 +721,8 @@ struct RunOptionen {
     alpha: Option<f64>,
     budget: Option<u64>,
     json: bool,
+    /// `--progress` und `--jsonl` (#933).
+    anzeige: Anzeigewahl,
     hilfe: bool,
 }
 
@@ -697,6 +787,7 @@ impl Default for RunOptionen {
             alpha: None,
             budget: None,
             json: false,
+            anzeige: Anzeigewahl::default(),
             hilfe: false,
         }
     }
@@ -724,8 +815,13 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         ..BalanceConfig::default()
     };
 
+    // Das Zaehlwerk dieses Aufrufs: angemeldet, bevor der erste Kampf laeuft,
+    // mit einem Platz je Strang.
+    let werk = Zaehlwerk::neu(config.threads);
+    let _anmeldung = werk.anmelden();
+
     if optionen.modus == Modus::Gestaffelt {
-        return lauf_gestaffelt(&optionen, &config, boss);
+        return lauf_gestaffelt(&optionen, &config, boss, &werk);
     }
 
     // Eine eigene Datei heisst immer "messen", nie "suchen" — sonst wuerde der
@@ -742,12 +838,26 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
     let start = Instant::now();
     if sucht {
         let pool = all_candidates();
-        let ergebnis = suche(&config, &pool, optionen.max_len);
+        // Die Menge setzt die Suche selbst, Runde fuer Runde — vorher steht
+        // sie nicht fest.
+        let anzeige = starte_anzeige(
+            &werk,
+            &optionen.anzeige,
+            Laufbeschreibung::neu("greedy", Some(boss.id), config.threads, kostenbild(&config)),
+        )?;
+        let ergebnis = greedy(&config, &pool, optionen.max_len);
+        beende_anzeige(anzeige);
         let dauer = start.elapsed().as_secs_f64();
+        // Beide Zahlen aus EINER Momentaufnahme des Zaehlwerks.
+        let stand = werk.momentaufnahme();
+        let zaehlung = Zaehlung {
+            auswertungen: stand.kandidaten_gesamt(),
+            kaempfe: stand.kaempfe,
+        };
         if optionen.json {
-            println!("{}", such_json(&ergebnis, boss, dauer));
+            println!("{}", such_json(&ergebnis, boss, dauer, zaehlung));
         } else {
-            berichte_suche(&ergebnis, boss, &config, dauer);
+            berichte_suche(&ergebnis, boss, &config, dauer, zaehlung);
         }
     } else {
         let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
@@ -782,12 +892,17 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         } else {
             None
         };
+        werk.setze_menge(Arbeitsmenge::Bekannt { kandidaten: 1 });
+        let mut beschreibung =
+            Laufbeschreibung::neu("fest", Some(boss.id), config.threads, kostenbild(&config));
+        beschreibung.drosselung = runtime.as_ref().map(|(control, _)| Arc::clone(control));
+        let anzeige = starte_anzeige(&werk, &optionen.anzeige, beschreibung)?;
         let ergebnis = if let Some((control, _)) = &runtime {
-            zaehle(u64::from(config.iterations));
             rota_sim::balance::run_controlled(&config, &apl, control)
         } else {
-            rechne_lauf(&config, &apl)
+            run(&config, &apl)
         };
+        beende_anzeige(anzeige);
         if let Some((control, watcher)) = &mut runtime {
             watcher.stop().map_err(|e| e.to_string())?;
             let state = control.snapshot();
@@ -811,7 +926,7 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
                 ergebnis.to_json()
             );
         } else {
-            berichte_lauf(&name, &ergebnis, boss, dauer);
+            berichte_lauf(&name, &ergebnis, boss, dauer, kaempfe_gerechnet(&werk));
         }
     }
     Ok(ExitCode::SUCCESS)
@@ -867,6 +982,9 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
             "--threshold" => optionen.schwelle = Some(hole_anteil(argumente, &mut i, name)?),
             "--alpha" => optionen.alpha = Some(hole_anteil(argumente, &mut i, name)?),
             "--budget" => optionen.budget = Some(hole_zahl(argumente, &mut i, name)?),
+            "--progress" | "--jsonl" => {
+                zerlege_anzeige(argumente, &mut i, name, &mut optionen.anzeige)?;
+            }
             anderes => return Err(unbekannte_angabe("run", anderes, &ANGABEN_RUN)),
         }
         i += 1;
@@ -989,10 +1107,32 @@ fn lauf_gestaffelt(
     optionen: &RunOptionen,
     config: &BalanceConfig,
     boss: &Boss,
+    werk: &Arc<Zaehlwerk>,
 ) -> Result<ExitCode, String> {
     let (name, apl) = lade_apl(optionen.apl_pfad.as_deref())?;
+    let staffelung = staffelung_aus(optionen);
+    // Der Weg kommt aus derselben Wahl, die der Lauf gleich trifft: Ohne Wuerfel
+    // ist es EIN Kampf, sonst hoechstens das Budget.
+    let kosten = match Durchgangswahl::fuer(config) {
+        Durchgangswahl::EinDurchgang => Kostenbild {
+            weg: Weg::EinKampf,
+            kaempfe_je_kandidat: Kampfzahl::Fest(1),
+        },
+        Durchgangswahl::Gestaffelt => Kostenbild {
+            weg: Weg::Gestaffelt,
+            kaempfe_je_kandidat: Kampfzahl::Hoechstens(staffelung.budget),
+        },
+    };
+    werk.setze_menge(Arbeitsmenge::Bekannt { kandidaten: 1 });
+    let anzeige = starte_anzeige(
+        werk,
+        &optionen.anzeige,
+        Laufbeschreibung::neu("gestaffelt", Some(boss.id), 1, kosten),
+    )?;
     let start = Instant::now();
-    let lauf = rechne_gestaffelt(config, &apl, staffelung_aus(optionen)).map_err(|fehler| {
+    let lauf = run_gestaffelt(config, &apl, staffelung);
+    beende_anzeige(anzeige);
+    let lauf = lauf.map_err(|fehler| {
         fehler_mit_ausweg(
             &fehler.to_string(),
             None,
@@ -1003,7 +1143,7 @@ fn lauf_gestaffelt(
     if optionen.json {
         println!("{}", gestaffelt_json(&lauf, boss, &name, config, dauer));
     } else {
-        berichte_gestaffelt(&lauf, boss, &name, config, dauer);
+        berichte_gestaffelt(&lauf, boss, &name, config, dauer, kaempfe_gerechnet(werk));
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -1053,6 +1193,7 @@ fn berichte_gestaffelt(
     name: &str,
     config: &BalanceConfig,
     dauer: f64,
+    kaempfe: u64,
 ) {
     let vorgabe = lauf.staffelung;
     println!("{}", "=".repeat(72));
@@ -1093,7 +1234,7 @@ fn berichte_gestaffelt(
     println!("Speicher             konstant: ein Kampf und vier Zaehler, kein Einzelergebnis");
     println!();
     println!("Gerechnet in {dauer:.2} Sekunden, in einem Strang.");
-    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+    println!("Kaempfe gerechnet: {kaempfe}");
 }
 
 fn gestaffelt_json(
@@ -1130,7 +1271,9 @@ fn gestaffelt_json(
 }
 
 /// Die Angaben, die `run` kennt — Grundlage fuer den Vorschlag bei Tippfehlern.
-const ANGABEN_RUN: [&str; 16] = [
+const ANGABEN_RUN: [&str; 18] = [
+    "--progress",
+    "--jsonl",
     "--boss",
     "--apl",
     "--control-file",
@@ -1150,7 +1293,16 @@ const ANGABEN_RUN: [&str; 16] = [
 ];
 
 /// Die Angaben, die `bench` kennt.
-const ANGABEN_BENCH: [&str; 6] = ["--boss", "--fights", "--threads", "--json", "--help", "-h"];
+const ANGABEN_BENCH: [&str; 8] = [
+    "--boss",
+    "--fights",
+    "--threads",
+    "--json",
+    "--progress",
+    "--jsonl",
+    "--help",
+    "-h",
+];
 
 /// Die Angaben, die `data` kennt.
 const ANGABEN_DATA: [&str; 3] = ["--json", "--help", "-h"];
@@ -1190,7 +1342,7 @@ fn lade_apl(pfad: Option<&str>) -> Result<(String, Apl), String> {
     }
 }
 
-fn berichte_lauf(name: &str, ergebnis: &BalanceResult, boss: &Boss, dauer: f64) {
+fn berichte_lauf(name: &str, ergebnis: &BalanceResult, boss: &Boss, dauer: f64, kaempfe: u64) {
     println!("{}", "=".repeat(72));
     println!("ROTA — Balance-Lauf gegen {} ({})", boss.name, boss.id);
     println!(
@@ -1229,10 +1381,37 @@ fn berichte_lauf(name: &str, ergebnis: &BalanceResult, boss: &Boss, dauer: f64) 
     }
     println!();
     println!("Gerechnet in {dauer:.2} Sekunden.");
-    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+    println!("Kaempfe gerechnet: {kaempfe}");
 }
 
-fn berichte_suche(ergebnis: &SearchResult, boss: &Boss, config: &BalanceConfig, dauer: f64) {
+/// Was das Zaehlwerk nach einer Suche meldet — zwei Zahlen aus einer
+/// Momentaufnahme.
+#[derive(Debug, Clone, Copy)]
+struct Zaehlung {
+    /// Jede abgeschlossene Auswertung, auch Start- und Fundliste.
+    auswertungen: u64,
+    /// Gerechnete Kaempfe.
+    kaempfe: u64,
+}
+
+/// Der Bericht einer Suche.
+///
+/// # Warum zwei Zahlen fuer Messungen dastehen (#933)
+///
+/// „Messungen" ist [`SearchResult::measured`]: die Zuege, die die Suche
+/// gegeneinander gehalten hat. „Auswertungen" zaehlt das Zaehlwerk: jede
+/// abgeschlossene Auswertung, dazu die Startliste vor der ersten Runde und die
+/// gefundene Liste nach der letzten (`MESSUNGEN_AUSSERHALB`). Das sind zwei
+/// Groessen, keine zweite Zaehlung derselben Sache; die Anzeige und der Strom
+/// zeigen die zweite. Stuende nur die erste da, laese ein Bericht „1615" und die
+/// Anzeige daneben „1617", und niemand wuesste, welche stimmt.
+fn berichte_suche(
+    ergebnis: &SearchResult,
+    boss: &Boss,
+    config: &BalanceConfig,
+    dauer: f64,
+    zaehlung: Zaehlung,
+) {
     println!("{}", "=".repeat(72));
     println!("ROTA — Suche gegen {} ({})", boss.name, boss.id);
     println!(
@@ -1246,7 +1425,14 @@ fn berichte_suche(ergebnis: &SearchResult, boss: &Boss, config: &BalanceConfig, 
         ergebnis.best.mean, ergebnis.best.stderr
     );
     println!("Kandidatenzeilen     {}", ergebnis.pool_size);
-    println!("Messungen            {}", ergebnis.measured);
+    println!(
+        "Messungen            {}  (Zuege der Suche, ohne Start- und Fundliste)",
+        ergebnis.measured
+    );
+    println!(
+        "Auswertungen         {}  (alle, mit Start- und Fundliste — so zaehlen --progress und --jsonl)",
+        zaehlung.auswertungen
+    );
     println!("Abbruchgrund         {:?}", ergebnis.stop);
     println!();
     println!("Gefundene Rotation");
@@ -1264,10 +1450,10 @@ fn berichte_suche(ergebnis: &SearchResult, boss: &Boss, config: &BalanceConfig, 
     }
     println!();
     println!("Gerechnet in {dauer:.2} Sekunden.");
-    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+    println!("Kaempfe gerechnet: {}", zaehlung.kaempfe);
 }
 
-fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64) -> String {
+fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64, zaehlung: Zaehlung) -> String {
     let zeilen: Vec<String> = ergebnis
         .chosen
         .iter()
@@ -1282,13 +1468,16 @@ fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64) -> String {
     let stop = format!("{:?}", ergebnis.stop);
     format!(
         "{{\"boss\":{:?},\"elapsedMs\":{:?},\"mean\":{:?},\"stderr\":{:?},\
-         \"poolSize\":{},\"measured\":{},\"stop\":{:?},\"rotation\":[{}]}}",
+         \"poolSize\":{},\"measured\":{},\"evaluations\":{},\"fightsRun\":{},\
+         \"stop\":{:?},\"rotation\":[{}]}}",
         boss.id,
         dauer * 1000.0,
         ergebnis.best.mean,
         ergebnis.best.stderr,
         ergebnis.pool_size,
         ergebnis.measured,
+        zaehlung.auswertungen,
+        zaehlung.kaempfe,
         stop,
         zeilen.join(",")
     )
@@ -1305,6 +1494,8 @@ struct BenchOptionen {
     threads: usize,
     boss_id: Option<String>,
     json: bool,
+    /// `--progress` und `--jsonl` (#933).
+    anzeige: Anzeigewahl,
     hilfe: bool,
 }
 
@@ -1315,6 +1506,7 @@ impl Default for BenchOptionen {
             threads: 1,
             boss_id: None,
             json: false,
+            anzeige: Anzeigewahl::default(),
             hilfe: false,
         }
     }
@@ -1336,14 +1528,38 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
         ..BalanceConfig::default()
     };
 
+    let werk = Zaehlwerk::neu(config.threads);
+    let _anmeldung = werk.anmelden();
+    werk.setze_menge(Arbeitsmenge::Bekannt { kandidaten: 1 });
+    let anzeige = starte_anzeige(
+        &werk,
+        &optionen.anzeige,
+        Laufbeschreibung::neu(
+            "bench",
+            Some(boss.id),
+            config.threads,
+            Kostenbild {
+                weg: Weg::Stichprobe,
+                kaempfe_je_kandidat: Kampfzahl::Fest(u64::from(optionen.fights)),
+            },
+        ),
+    )?;
+
+    // **Jeder Durchgang ein gerechneter Kampf.** Ohne Wuerfel rechnete `run`
+    // EINEN Kampf und vervielfachte ihn (#908); bis #933 stand hier genau das,
+    // und die Rate darunter teilte die angeforderte Zahl durch die Zeit dieses
+    // einen. Eine Durchsatzmessung muss rechnen, was sie meldet.
     let start = Instant::now();
-    let ergebnis = rechne_lauf(&config, &apl);
+    let ergebnis = run_vollstaendig(&config, &apl);
     let sekunden = start.elapsed().as_secs_f64();
+    beende_anzeige(anzeige);
+    // Zaehler und Nenner aus derselben Quelle wie die Kampfzeile darunter.
+    let kaempfe = kaempfe_gerechnet(&werk);
     // Nie durch null teilen: Ein Lauf, der unter der Aufloesung der Uhr bleibt,
     // hat keinen messbaren Durchsatz — und eine unendliche Zahl waere die
     // schlechteste aller Antworten.
     let je_sekunde = if sekunden > 0.0 {
-        f64::from(optionen.fights) / sekunden
+        kaempfe as f64 / sekunden
     } else {
         f64::NAN
     };
@@ -1353,7 +1569,7 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
             "{{\"boss\":{:?},\"fights\":{},\"threads\":{},\"elapsedMs\":{:?},\
              \"fightsPerSecond\":{:?},\"damageMean\":{:?}}}",
             boss.id,
-            optionen.fights,
+            kaempfe,
             optionen.threads,
             sekunden * 1000.0,
             je_sekunde,
@@ -1364,7 +1580,7 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
         println!("ROTA — Durchsatz gegen {} ({})", boss.name, boss.id);
         println!("{}", "=".repeat(72));
         println!();
-        println!("Kaempfe              {}", optionen.fights);
+        println!("Kaempfe              {kaempfe}");
         println!("Straenge             {}", optionen.threads);
         println!("Gerechnet in         {sekunden:.3} Sekunden");
         println!("Kaempfe je Sekunde   {je_sekunde:.0}");
@@ -1375,7 +1591,7 @@ fn befehl_bench(argumente: &[String]) -> Result<ExitCode, String> {
         );
         println!("Laeufen ab, hat der Lauf nicht dasselbe gerechnet.");
         println!();
-        println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+        println!("Kaempfe gerechnet: {kaempfe}");
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -1391,6 +1607,9 @@ fn zerlege_bench(argumente: &[String]) -> Result<BenchOptionen, String> {
             "--boss" => optionen.boss_id = Some(hole_wert(argumente, &mut i, name)?),
             "--fights" => optionen.fights = hole_zahl(argumente, &mut i, name)?,
             "--threads" => optionen.threads = hole_zahl(argumente, &mut i, name)?,
+            "--progress" | "--jsonl" => {
+                zerlege_anzeige(argumente, &mut i, name, &mut optionen.anzeige)?;
+            }
             anderes => return Err(unbekannte_angabe("bench", anderes, &ANGABEN_BENCH)),
         }
         i += 1;
@@ -1678,7 +1897,7 @@ fn pruefe_determinismus() -> Pruefergebnis {
             threads,
             ..BalanceConfig::default()
         };
-        let ergebnis = rechne_lauf(&config, &apl);
+        let ergebnis = run(&config, &apl);
         werte.push((threads, ergebnis.damage.mean, ergebnis.kills));
     }
     let (_, erste_mean, erste_kills) = werte[0];
@@ -1814,6 +2033,10 @@ fn befehl_verify(argumente: &[String]) -> Result<ExitCode, String> {
         i += 1;
     }
 
+    // Vier Plaetze: Die Determinismuspruefung rechnet ueber bis zu vier Straenge.
+    let werk = Zaehlwerk::neu(4);
+    let _anmeldung = werk.anmelden();
+
     // **Einmal abspielen, dreimal auswerten.** Die Reihenfolge ist wichtig:
     // Ohne die gesammelten Werte rechnete jede Pruefung dieselben Runden neu.
     let gespielt = spiele_alle_ab();
@@ -1873,7 +2096,7 @@ fn befehl_verify(argumente: &[String]) -> Result<ExitCode, String> {
     println!();
     println!("  Ein bestandener Selbsttest ist keine Abnahme eines Issues.");
     println!();
-    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet(&werk));
 
     Ok(if gescheitert.is_empty() {
         ExitCode::SUCCESS
@@ -2101,6 +2324,10 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
 
     let boss = waehle_boss(optionen.boss_id.as_deref())?;
     let pool = all_candidates();
+    // Angemeldet, damit die Zusicherung „kein Kampf" dieselbe Quelle liest wie
+    // jeder andere Befehl — eine Null ohne Zaehlwerk belegte nichts.
+    let werk = Zaehlwerk::neu(1);
+    let _anmeldung = werk.anmelden();
 
     // AC5, erster Fall: strukturell unerfuellbar. Eine Rotation kann nicht
     // mehr Zeilen haben, als es Kandidaten gibt — das faellt hier auf und
@@ -2196,7 +2423,7 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
                 RATE_VORGABE_STRAENGE
             },
             speicher,
-            kaempfe_gerechnet(),
+            kaempfe_gerechnet(&werk),
         );
         return Ok(ExitCode::SUCCESS);
     }
@@ -2287,7 +2514,7 @@ fn befehl_explain(argumente: &[String]) -> Result<ExitCode, String> {
     println!("  Der Speicher nennt nur die Stichprobe — den groessten Posten. Was");
     println!("  der Kampf selbst belegt, ist klein und konstant und fehlt hier.");
     println!();
-    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet());
+    println!("Kaempfe gerechnet: {}", kaempfe_gerechnet(&werk));
     Ok(ExitCode::SUCCESS)
 }
 
@@ -2929,6 +3156,21 @@ mod tests {
         assert_eq!(optionen.threads, 2);
         assert_eq!(optionen.boss_id.as_deref(), Some("boss-1-1"));
         assert!(optionen.json);
+    }
+
+    #[test]
+    fn run_und_bench_lesen_die_fortschrittsangaben() {
+        let erwartet = Anzeigewahl {
+            progress: true,
+            jsonl: Some("strom.jsonl".to_owned()),
+        };
+        let run = zerlege_run(&worte("--progress --jsonl strom.jsonl")).expect("gueltig");
+        assert_eq!(run.anzeige, erwartet);
+        let bench = zerlege_bench(&worte("--jsonl strom.jsonl --progress")).expect("gueltig");
+        assert_eq!(bench.anzeige, erwartet);
+        // Ohne Angabe: keine Anzeige, und das ist die Voreinstellung.
+        assert_eq!(RunOptionen::default().anzeige, Anzeigewahl::default());
+        assert!(zerlege_run(&worte("--jsonl")).is_err(), "der Pfad fehlt");
     }
 
     #[test]
