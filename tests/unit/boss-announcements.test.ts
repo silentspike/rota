@@ -187,13 +187,19 @@ describe('Jedes Zeitleisten-Ereignis jedes Bosses wird angekündigt (AC: alle Bo
 
         // 1. Der laufende Zauber zählt auf seinen Treffer.
         const laufendName = combat.casting >= 0 ? b.timeline[platzOf(combat.casting)]!.name : null;
+        // **`expect` erst bei einer Abweichung.** Je Takt und Name sieben Aufrufe
+        // waren bei 13000 Takten der teuerste Teil: allein 2,8 s für boss-3-4,
+        // unter Last 36 auf 16 Kernen über der 5-s-Grenze (gemessen 28.10.).
+        // Die Meldungen bleiben dieselben — sie entstehen, wenn etwas abweicht.
         if (laufendName !== null) {
           const a = find(ann, laufendName);
-          expect(a, `${id} t=${t}: laufender Zauber ${laufendName} fehlt`).toBeDefined();
-          expect(a!.casting, `${id} t=${t}: ${laufendName} als laufend`).toBe(true);
-          expect(a!.dueAtMs, `${id} t=${t}: ${laufendName} zählt auf den Treffer`).toBe(
-            combat.castLandsAtMs,
-          );
+          if (a === undefined || !a.casting || a.dueAtMs !== combat.castLandsAtMs) {
+            expect(a, `${id} t=${t}: laufender Zauber ${laufendName} fehlt`).toBeDefined();
+            expect(a!.casting, `${id} t=${t}: ${laufendName} als laufend`).toBe(true);
+            expect(a!.dueAtMs, `${id} t=${t}: ${laufendName} zählt auf den Treffer`).toBe(
+              combat.castLandsAtMs,
+            );
+          }
         }
 
         // 2. Je Name die nächste Wiederholung — genau die, die das Protokoll feuern sieht.
@@ -208,17 +214,26 @@ describe('Jedes Zeitleisten-Ereignis jedes Bosses wird angekündigt (AC: alle Bo
           const platz = platzOf(f.progress);
           const eintrag = b.timeline[platz]!;
           const a = find(ann, name);
-          const wo = `${id} t=${t}: ${name} (Eintrag ${platz}, feuert ${f.atMs})`;
-          expect(a, `${wo} wird nicht angekündigt`).toBeDefined();
-          expect(a!.casting, wo).toBe(false);
-          expect(a!.dueAtMs, `${wo}: Zeitpunkt`).toBe(f.atMs);
-          expect(a!.remainingMs, `${wo}: Restzeit`).toBe(f.atMs - t);
           const soll = classifyEntry(eintrag, playerOf(combat));
-          expect(a!.tier, `${wo}: Stufe`).toBe(soll.tier);
-          expect(KIND_IDS[a!.kind], `${wo}: Art`).toBe(KIND_IDS[soll.kind]);
-          expect(a!.sinceMs, `${wo}: Balken über die volle Abklingzeit`).toBe(
-            endeVorher.get(name) ?? 0,
-          );
+          const seit = endeVorher.get(name) ?? 0;
+          if (
+            a === undefined ||
+            a.casting ||
+            a.dueAtMs !== f.atMs ||
+            a.remainingMs !== f.atMs - t ||
+            a.tier !== soll.tier ||
+            a.kind !== soll.kind ||
+            a.sinceMs !== seit
+          ) {
+            const wo = `${id} t=${t}: ${name} (Eintrag ${platz}, feuert ${f.atMs})`;
+            expect(a, `${wo} wird nicht angekündigt`).toBeDefined();
+            expect(a!.casting, wo).toBe(false);
+            expect(a!.dueAtMs, `${wo}: Zeitpunkt`).toBe(f.atMs);
+            expect(a!.remainingMs, `${wo}: Restzeit`).toBe(f.atMs - t);
+            expect(a!.tier, `${wo}: Stufe`).toBe(soll.tier);
+            expect(KIND_IDS[a!.kind], `${wo}: Art`).toBe(KIND_IDS[soll.kind]);
+            expect(a!.sinceMs, `${wo}: Balken über die volle Abklingzeit`).toBe(seit);
+          }
           if (f.atMs - t === TICK_MS) geprueft.add(platz);
         }
 
@@ -227,7 +242,7 @@ describe('Jedes Zeitleisten-Ereignis jedes Bosses wird angekündigt (AC: alle Bo
           const a = ann.at(r);
           if (a.casting) continue;
           const f = naechste.get(a.name);
-          if (f === undefined) {
+          if (f === undefined && a.dueAtMs <= horizon) {
             expect(
               a.dueAtMs,
               `${id} t=${t}: ${a.name} angekündigt für ${a.dueAtMs}, feuert aber nicht mehr`,
@@ -421,31 +436,44 @@ describe('Die übrigen Bausteine werden angekündigt (L4, Entscheidung vom 28.10
           const a = find(ann, name!);
           const wo = `${id}/${k} t=${t}: ${name}`;
           if (naechste === undefined) {
-            expect(a, `${wo} angekündigt, obwohl nichts mehr kommt`).toBeUndefined();
+            if (a !== undefined) {
+              expect(a, `${wo} angekündigt, obwohl nichts mehr kommt`).toBeUndefined();
+            }
             continue;
           }
-          expect(a, `${wo} fehlt (nächstes Ereignis ${naechste})`).toBeDefined();
-          expect(a!.dueAtMs, `${wo}: Zeitpunkt`).toBe(naechste);
-          expect(a!.casting, `${wo}: läuft`).toBe(t >= laeuftAb);
-          // Stufe und Art nach Folge und Schwere (L1–L3), von Hand gesetzt:
+          // Stufe und Art nach Folge und Schwere (L1–L3), von Hand gesetzt.
+          let soll: [number, string];
+          let schaden = 0;
           if (k === 'doom') {
-            expect([a!.tier, KIND_IDS[a!.kind]], wo).toEqual([TIER_LETHAL, 'lethal']);
+            soll = [TIER_LETHAL, 'lethal'];
           } else if (k === 'race') {
-            expect([a!.tier, KIND_IDS[a!.kind]], wo).toEqual([TIER_BAR, 'opportunity']);
+            soll = [TIER_BAR, 'opportunity'];
           } else {
-            const schaden =
+            schaden =
               k === 'energy'
                 ? b.energy!.onTrigger.damage
                 : k === 'affliction'
                   ? b.affliction!.damage
                   : // Die Formel des Kampfes aufrufen, nicht nachbauen.
                     stackDamage(b.stacks!, Math.min(combat.bossStacks + 1, b.stacks!.maxStacks));
-            const soll = classifyEntry(schlag(0, 'x', schaden), playerOf(combat));
-            const art = soll.tier === TIER_LETHAL ? 'lethal' : k === 'energy' ? 'damage' : 'debuff';
-            expect([a!.tier, KIND_IDS[a!.kind]], `${wo} (Schaden ${schaden})`).toEqual([
-              soll.tier,
-              art,
-            ]);
+            const c = classifyEntry(schlag(0, 'x', schaden), playerOf(combat));
+            soll = [
+              c.tier,
+              c.tier === TIER_LETHAL ? 'lethal' : k === 'energy' ? 'damage' : 'debuff',
+            ];
+          }
+          // `expect` erst bei einer Abweichung — dieselbe Abwägung wie oben.
+          if (
+            a === undefined ||
+            a.dueAtMs !== naechste ||
+            a.casting !== t >= laeuftAb ||
+            a.tier !== soll[0] ||
+            KIND_IDS[a.kind] !== soll[1]
+          ) {
+            expect(a, `${wo} fehlt (nächstes Ereignis ${naechste})`).toBeDefined();
+            expect(a!.dueAtMs, `${wo}: Zeitpunkt`).toBe(naechste);
+            expect(a!.casting, `${wo}: läuft`).toBe(t >= laeuftAb);
+            expect([a!.tier, KIND_IDS[a!.kind]], `${wo} (Schaden ${schaden})`).toEqual(soll);
           }
           geprueft++;
         }
