@@ -19,10 +19,13 @@
 //! Der Unterschied ist keine Formalie. Wer ihn wegließe, hätte einen grünen
 //! Haken an einem Kriterium, dessen eigentliche Frage offen bleibt.
 
+use std::time::Duration;
+
 use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    CpuReservation, DeadlinePolicy, DeployedHost, HostRequirement, Mission, ProjectionSet,
-    QualityTargets, ReferenceProfile, ResultGuarantee, RunDeployment, RuntimeAccounting, WorkUnits,
+    CpuReservation, DateTimeUtc, DeadlinePolicy, DeployedHost, Hash, HostRequirement, Mission,
+    NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
+    RunDeployment, RuntimeAccounting, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
 const LAPTOP: CpuReservation = CpuReservation {
@@ -36,10 +39,16 @@ const REFERENZ_HOST: HostRequirement = HostRequirement {
     guaranteed_cpu_quota: Some(1.0),
     guaranteed_memory_mib: 4096,
     cpu: LAPTOP,
-    max_rtt_ms: 5,
-    min_bandwidth_mibit_s: 100,
+    gpu_duty_cycle: 0.0,
     thermal_throttling: false,
 };
+
+const NETZ: NetworkRequirement = NetworkRequirement {
+    max_rtt_ms: 5,
+    min_bandwidth_mibit_s: 100,
+};
+
+const ZWEI_STUNDEN: Duration = Duration::from_secs(7200);
 
 static PROFIL_HOSTS: &[HostRequirement] = &[REFERENZ_HOST];
 
@@ -47,9 +56,12 @@ fn kampagne() -> CampaignDefinition {
     CampaignDefinition {
         profile_version: 1,
         reference_profile: ReferenceProfile {
+            name: "pruefprofil",
             version: 1,
             hosts: PROFIL_HOSTS,
+            network: Some(NETZ),
         },
+        target_wall_time: ZWEI_STUNDEN,
         canonical_work_budget: WorkUnits(1_000_000),
         exact_obligations: ProjectionSet { required: 12 },
         coverage_spec: CoverageSpec { strength: 2 },
@@ -83,15 +95,15 @@ fn deployments() -> [RunDeployment; 3] {
     [
         RunDeployment {
             available_hosts: vec![host("laptop", 8)],
-            estimated_eta_ms: 7_200_000,
+            estimated_eta: Duration::from_secs(7200),
         },
         RunDeployment {
-            available_hosts: vec![host("laptop", 8), host("proxmox", 12)],
-            estimated_eta_ms: 3_600_000,
+            available_hosts: vec![host("laptop", 8), host("node3", 12)],
+            estimated_eta: Duration::from_secs(3600),
         },
         RunDeployment {
-            available_hosts: vec![host("laptop", 8), host("proxmox", 12), host("gonet", 16)],
-            estimated_eta_ms: 2_400_000,
+            available_hosts: vec![host("laptop", 8), host("node3", 12), host("dritter", 16)],
+            estimated_eta: Duration::from_secs(2400),
         },
     ]
 }
@@ -113,12 +125,9 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
          prüft dieser Fall nichts."
     );
 
-    let abdruecke: Vec<u32> = d
+    let abdruecke: Vec<Hash> = d
         .iter()
-        .map(|_| {
-            CampaignRunContract::from_campaign(&k, Mission::FullBalance, 7_200_000)
-                .campaign_definition_hash
-        })
+        .map(|_| CampaignRunContract::from_campaign(&k, Mission::FullBalance).campaign_definition_hash)
         .collect();
     assert_eq!(
         abdruecke[0], abdruecke[1],
@@ -131,7 +140,7 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 
     // Und die Arbeitsmenge selbst ist dieselbe, nicht nur ihr Abdruck.
     for d_i in &d {
-        let vertrag = CampaignRunContract::from_campaign(&k, Mission::FullBalance, 7_200_000);
+        let vertrag = CampaignRunContract::from_campaign(&k, Mission::FullBalance);
         assert_eq!(
             vertrag.deterministic_work_budget,
             k.canonical_work_budget,
@@ -155,7 +164,7 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 fn ac2_kontrolle_jedes_feld_aendert_den_fingerabdruck() {
     let basis = kampagne().fingerprint();
 
-    let mut abweichungen: Vec<(&str, u32)> = Vec::new();
+    let mut abweichungen: Vec<(&str, Hash)> = Vec::new();
 
     let mut k = kampagne();
     k.profile_version = 2;
@@ -164,6 +173,16 @@ fn ac2_kontrolle_jedes_feld_aendert_den_fingerabdruck() {
     let mut k = kampagne();
     k.reference_profile.version = 2;
     abweichungen.push(("reference_profile.version", k.fingerprint()));
+
+    let mut k = kampagne();
+    k.target_wall_time = Duration::from_secs(7201);
+    abweichungen.push(("target_wall_time", k.fingerprint()));
+
+    // Die Nanosekunden gehen getrennt ein: Eine Zielzeit, die nur Sekunden
+    // einrührte, hielte 2 h und 2 h + 1 ns für dasselbe Profil.
+    let mut k = kampagne();
+    k.target_wall_time = ZWEI_STUNDEN + Duration::from_nanos(1);
+    abweichungen.push(("target_wall_time nanos", k.fingerprint()));
 
     let mut k = kampagne();
     k.canonical_work_budget = WorkUnits(1_000_001);
@@ -213,7 +232,7 @@ fn ac2_kontrolle_jedes_feld_aendert_den_fingerabdruck() {
     // hier bräche bei jedem neuen Feld, statt es zu prüfen.
     assert_eq!(
         abweichungen.len(),
-        11,
+        13,
         "Es wurden {} Felder geprüft. Kommt ein Feld zur Kampagne dazu, gehört \
          es hier dazu — sonst wächst die Struktur schneller als ihr Schutz.",
         abweichungen.len()
@@ -287,7 +306,7 @@ fn ac4_die_anzeige_trennt_rechenvorgabe_von_unbekannter_kernbindung() {
 /// **AC5** — ein Zeitabbruch ist nicht die Voreinstellung.
 #[test]
 fn ac5_ohne_ausdruecklichen_wunsch_gibt_es_keine_frist() {
-    let vertrag = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance, 7_200_000);
+    let vertrag = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
     assert!(
         vertrag.hard_deadline.is_none(),
         "Der abgeleitete Vertrag bringt eine Frist mit, ohne dass sie verlangt \
@@ -295,7 +314,7 @@ fn ac5_ohne_ausdruecklichen_wunsch_gibt_es_keine_frist() {
     );
 
     let mit = vertrag.with_hard_deadline(DeadlinePolicy::ActiveRuntime {
-        remaining_ms: 7_200_000,
+        remaining: ZWEI_STUNDEN,
     });
     assert!(
         mit.hard_deadline.is_some(),
@@ -327,9 +346,15 @@ fn ac5_ein_abgeschnittener_lauf_traegt_eine_eigene_garantie() {
 
     // GEGENPROBE: Die anderen vier Arten dürfen nicht plötzlich unvollständig
     // sein. Ohne sie wäre `is_complete` auch dann grün, wenn es schlicht
-    // `matches!(self, AnytimePartial{..})` verneinte.
+    // `matches!(self, AnytimePartial{..})` verneinte. Bis #914 standen hier
+    // nur drei der vier — `BoundedApproximation` fehlte.
     assert!(ResultGuarantee::CertifiedExact.is_complete());
     assert!(ResultGuarantee::BitExactOptimized.is_complete());
+    assert!(ResultGuarantee::BoundedApproximation {
+        lower: 1.0,
+        upper: 2.0
+    }
+    .is_complete());
     assert!(ResultGuarantee::StatisticalEstimate { confidence: 0.5 }.is_complete());
 }
 
@@ -338,10 +363,12 @@ fn ac5_ein_abgeschnittener_lauf_traegt_eine_eigene_garantie() {
 #[test]
 fn ac6_beide_fristarten_sind_unterscheidbar_und_die_zaehlung_steht_fest() {
     let wanduhr = DeadlinePolicy::WallClockUtc {
-        deadline_unix_s: 1_800_000_000,
+        deadline: DateTimeUtc {
+            unix_seconds: 1_800_000_000,
+        },
     };
     let rechenzeit = DeadlinePolicy::ActiveRuntime {
-        remaining_ms: 7_200_000,
+        remaining: ZWEI_STUNDEN,
     };
     assert_ne!(
         wanduhr, rechenzeit,
@@ -357,31 +384,33 @@ fn ac6_beide_fristarten_sind_unterscheidbar_und_die_zaehlung_steht_fest() {
     assert!(!z.counts_host_wait, "Wartezeit auf Rechner zählt mit.");
 }
 
-/// **AC7** — eine neue Zielzeit erzeugt ein NEUES Profil, kein umgerechnetes.
+/// **AC7** — die Zielzeit gehört zur Kampagne, und eine andere ist ein anderes
+/// Profil.
 ///
-/// Geprüft an der Eigenschaft, die das trägt: Die Zielzeit steht im **Vertrag**,
-/// die Arbeitsmenge in der **Kampagne**. Eine andere Zielzeit lässt das Budget
-/// also unberührt — wer es umrechnen wollte, müsste die Kampagne anfassen, und
-/// das ändert ihre Version.
+/// Bis #914 nahm `from_campaign` die Zielzeit als Parameter: Zwei Verträge mit
+/// zwei und vier Stunden entstanden aus DERSELBEN versionierten Kampagne. Das
+/// Budget blieb dabei gleich, aber nichts sagte, für welche Zielzeit es
+/// bemessen war. Jetzt übernimmt der Vertrag sie, und eine andere Zielzeit
+/// ändert den Fingerabdruck der Kampagne — das Versionieren und den Schutz
+/// prüft `tests/kampagne_versionen.rs`.
 #[test]
-fn ac7_eine_andere_zielzeit_rechnet_kein_budget_um() {
-    let k = kampagne();
-    let zwei_stunden = CampaignRunContract::from_campaign(&k, Mission::FullBalance, 7_200_000);
-    let vier_stunden = CampaignRunContract::from_campaign(&k, Mission::FullBalance, 14_400_000);
+fn ac7_die_zielzeit_kommt_aus_der_kampagne_und_ist_teil_ihrer_identitaet() {
+    let zwei = kampagne();
+    let mut vier = kampagne();
+    vier.target_wall_time = Duration::from_secs(14_400);
 
-    assert_ne!(
-        zwei_stunden.target_wall_time_ms, vier_stunden.target_wall_time_ms,
-        "Die Zielzeit kommt gar nicht im Vertrag an — dann prüft dieser Fall \
-         nichts."
-    );
+    let v_zwei = CampaignRunContract::from_campaign(&zwei, Mission::FullBalance);
+    let v_vier = CampaignRunContract::from_campaign(&vier, Mission::FullBalance);
+    assert_eq!(v_zwei.target_wall_time, ZWEI_STUNDEN);
+    assert_eq!(v_vier.target_wall_time, Duration::from_secs(14_400));
     assert_eq!(
-        zwei_stunden.deterministic_work_budget, vier_stunden.deterministic_work_budget,
+        v_zwei.deterministic_work_budget, v_vier.deterministic_work_budget,
         "Die doppelte Zielzeit hat das Budget verändert. Genau das ist der \
          Fehler, gegen den dieses Issue steht."
     );
-    assert_eq!(
-        zwei_stunden.campaign_definition_hash, vier_stunden.campaign_definition_hash,
-        "Dieselbe Kampagne, zwei Zielzeiten, verschiedene Herkunft."
+    assert_ne!(
+        v_zwei.campaign_definition_hash, v_vier.campaign_definition_hash,
+        "Zwei Zielzeiten, ein Fingerabdruck — dann wären es dasselbe Profil."
     );
 }
 
@@ -394,9 +423,10 @@ fn ac7_eine_andere_zielzeit_rechnet_kein_budget_um() {
 #[test]
 fn ac1_der_vertrag_entsteht_aus_der_kampagne_allein() {
     let k = kampagne();
-    let vertrag = CampaignRunContract::from_campaign(&k, Mission::FullBalance, 7_200_000);
+    let vertrag = CampaignRunContract::from_campaign(&k, Mission::FullBalance);
 
     // Jedes Feld der Kampagne hat einen Leser im Vertrag (AC0).
+    assert_eq!(vertrag.target_wall_time, k.target_wall_time);
     assert_eq!(vertrag.deterministic_work_budget, k.canonical_work_budget);
     assert_eq!(vertrag.exact_obligations, k.exact_obligations);
     assert_eq!(vertrag.interaction_coverage, k.coverage_spec);
@@ -443,16 +473,6 @@ fn ac3_das_referenzprofil_nennt_mindestressourcen() {
             h.name
         );
         assert!(
-            h.max_rtt_ms > 0,
-            "{}: keine Obergrenze für die Umlaufzeit",
-            h.name
-        );
-        assert!(
-            h.min_bandwidth_mibit_s > 0,
-            "{}: keine Untergrenze für die Bandbreite",
-            h.name
-        );
-        assert!(
             h.cpu.compute_threads() > 0,
             "{}: keine nutzbaren Stränge",
             h.name
@@ -476,7 +496,7 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
         (
             "name",
             HostRequirement {
-                name: "proxmox",
+                name: "node3",
                 ..REFERENZ_HOST
             },
         ),
@@ -532,16 +552,9 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
             },
         ),
         (
-            "rtt",
+            "gpu duty cycle",
             HostRequirement {
-                max_rtt_ms: 6,
-                ..REFERENZ_HOST
-            },
-        ),
-        (
-            "bandwidth",
-            HostRequirement {
-                min_bandwidth_mibit_s: 101,
+                gpu_duty_cycle: 0.25,
                 ..REFERENZ_HOST
             },
         ),
@@ -636,7 +649,124 @@ fn ac4_strangzahlen_werden_vor_der_multiplikation_verbreitert() {
     host.cpu = cpu;
     let deployment = RunDeployment {
         available_hosts: vec![host, host],
-        estimated_eta_ms: 0,
+        estimated_eta: Duration::ZERO,
     };
     assert_eq!(deployment.total_compute_threads(), 8_589_672_450);
+}
+
+/// Name und Netz des Referenzprofils gehören zur Identität wie seine Rechner.
+///
+/// Das Netz steht seit #914 am Profil und nicht mehr an jedem Rechner: AC3
+/// führt es als eigene Zeile, und im Profil „standard" gibt es genau eine
+/// Verbindung — vom Laptop, auf dem der Koordinator läuft, zu node3.
+#[test]
+fn ac2_name_und_netz_des_referenzprofils_aendern_den_fingerabdruck() {
+    let basis = kampagne();
+    let mut varianten: Vec<(&str, CampaignDefinition)> = Vec::new();
+
+    let mut k = basis;
+    k.reference_profile.name = "anderes";
+    varianten.push(("name", k));
+    let mut k = basis;
+    k.reference_profile.network = Some(NetworkRequirement {
+        max_rtt_ms: 6,
+        ..NETZ
+    });
+    varianten.push(("rtt", k));
+    let mut k = basis;
+    k.reference_profile.network = Some(NetworkRequirement {
+        min_bandwidth_mibit_s: 101,
+        ..NETZ
+    });
+    varianten.push(("bandwidth", k));
+    let mut k = basis;
+    k.reference_profile.network = None;
+    varianten.push(("kein Netz", k));
+
+    for (feld, k) in &varianten {
+        assert_ne!(
+            k.fingerprint(),
+            basis.fingerprint(),
+            "Profilfeld {feld} fehlt im Fingerabdruck"
+        );
+        assert_eq!(k.canonical_work_budget, basis.canonical_work_budget);
+    }
+
+    // `None` und ein Netz aus Nullen sind verschiedene Aussagen: „kein Netz im
+    // Profil" gegen „null Millisekunden Umlaufzeit verlangt".
+    let mut ohne = basis;
+    ohne.reference_profile.network = None;
+    let mut nullen = basis;
+    nullen.reference_profile.network = Some(NetworkRequirement {
+        max_rtt_ms: 0,
+        min_bandwidth_mibit_s: 0,
+    });
+    assert_ne!(ohne.fingerprint(), nullen.fingerprint());
+}
+
+/// **AC3** — das Referenzprofil „standard" ist Laptop + node3.
+///
+/// Entscheidung des Auftraggebers vom 2026-10-28: Der Plan nannte
+/// „Laptop + proxmox + gonet". Zusatzrechner ist nur noch node3 (Proxmox-Knoten
+/// `ovh-pve1`, AMD Ryzen 7 9700X, 8 Kerne/16 Stränge); gonet und 10.0.0.69
+/// gehören nicht mehr dazu.
+#[test]
+fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
+    let p = REFERENCE_PROFILE_STANDARD;
+    assert_eq!(p.name, "standard");
+    let namen: Vec<&str> = p.hosts.iter().map(|h| h.name).collect();
+    assert_eq!(
+        namen,
+        vec!["laptop", "node3"],
+        "Das Profil standard führt andere Rechner als Laptop + node3"
+    );
+
+    let laptop = &p.hosts[0];
+    assert_eq!(
+        laptop.cpu,
+        CpuReservation {
+            physical_cores: 8,
+            threads_per_core: 2,
+            reserved_physical_cores: 2,
+        },
+        "balanced: zwei physische Kerne samt Geschwistern bleiben frei (Plan Z. 46)"
+    );
+    assert_eq!(laptop.cpu.compute_threads(), 12);
+
+    for h in p.hosts {
+        assert!(
+            h.guaranteed_memory_mib > 0,
+            "{}: kein Speicherbudget",
+            h.name
+        );
+        assert!(h.cpu.compute_threads() > 0, "{}: keine Stränge", h.name);
+        assert!(
+            h.gpu_duty_cycle.is_finite() && (0.0..=1.0).contains(&h.gpu_duty_cycle),
+            "{}: Grafik-Einschaltdauer {} ist kein Anteil",
+            h.name,
+            h.gpu_duty_cycle
+        );
+        if let Some(quote) = h.guaranteed_cpu_quota {
+            assert!(
+                quote.is_finite() && quote > 0.0,
+                "{}: Quote {quote} ist keine Zusicherung",
+                h.name
+            );
+            assert!(
+                quote <= f64::from(h.cpu.compute_threads()),
+                "{}: Quote {quote} über den nutzbaren Strängen",
+                h.name
+            );
+        }
+        assert!(!h.thermal_throttling, "{}: aktives Drosseln erlaubt", h.name);
+    }
+
+    let netz = p
+        .network
+        .expect("Laptop + node3 hat eine Verbindung, also eine Netzvorgabe");
+    assert!(netz.max_rtt_ms > 0, "keine Obergrenze für die Umlaufzeit");
+    assert!(
+        netz.min_bandwidth_mibit_s > 0,
+        "keine Untergrenze für die Bandbreite"
+    );
 }
