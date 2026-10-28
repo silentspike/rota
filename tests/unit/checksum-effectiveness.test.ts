@@ -108,7 +108,16 @@ const MESSZEIT_MS = 8000;
 function gelaufen(): Combat {
   const boss = bossById('test-crucible-trial');
   if (boss === undefined) throw new Error('data/bosses/test-crucible-trial.json fehlt');
-  const combat = new Combat({ school: CALCINATION.value, boss });
+  // **Mit den beiden Schlüsseltalenten, die Zustand anlegen** (#419). Ihre
+  // Felder gehen nur bei verteiltem Talent ein — ohne es läse `combatChecksum`
+  // sie gar nicht, und dieser Wächter meldete sie zu Recht als ungespürt.
+  // Nur die Schlüsseltalente, ohne Stamm: Ein Schadensfaktor verschöbe den
+  // Zustand, an dem alle anderen Felder gemessen werden.
+  const combat = new Combat({
+    school: CALCINATION.value,
+    boss,
+    talents: { 'putrefaction-keystone': 1, 'coagulation-keystone': 1 },
+  });
   const kindle = combat.indexOf('kindle');
   const smoulder = combat.indexOf('smoulder');
   const crust = combat.indexOf('crust');
@@ -240,7 +249,12 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     // 37 seit #304: `playerCasting` und `playerCastEndsAt` tragen die laufende
     // Wirkzeit des Spielers. Bis dahin kannte die Prüfsumme nur die des
     // Bosses.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(37);
+    //
+    // 49 seit #419: Gezählt standen vorher 45 Größen hier, die Untergrenze
+    // war bei 37 stehengeblieben. Dazu kommen `hasKeystone` und die drei
+    // Felder der Schlüsseltalente. Die Grenze zieht auf den gemessenen Stand
+    // nach — acht Felder Spielraum hießen, dass acht verschwinden dürften.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(49);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {
