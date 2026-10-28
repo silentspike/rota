@@ -1956,7 +1956,13 @@ das Player Home.
 
 ### 17.1 Klang
 
-**Umfang V1: 126 Sounds**, jeder der 60 Zauber einzeln vertont.
+**Umfang V1: 135 Sounds**, jeder der 60 Zauber einzeln vertont.
+
+> **Nachgetragen am 2026-10-28.** Hier stand „126 Sounds". Es fehlten die **9 Klänge der
+> Boss-Ankündigungen**, die 11.5 verlangt („Eigener Klang je Ereignisart", „Gesprochener
+> Countdown 5-4-3-2-1"): je einer für die vier Warn-Arten und fünf gesprochene Countdown-Zahlen.
+> Sie stehen seit #797 als vorläufige Einträge im Verzeichnis, außerhalb der 126 aus den
+> `target`-Werten. Maßgeblich ist der Masterplan, Anhang A.9, mit derselben Aufstellung.
 
 > **Die Zahl ist die Summe der Tabelle darunter, nicht eine Schätzung daneben.** Bis zum
 > 2026-08-22 stand hier „~115" — der Wert von vor der Slot-Korrektur vom 2026-07-27, die
@@ -1977,6 +1983,7 @@ das Player Home.
 | Menü (Berühren, Drücken, Reiter, Fenster auf, Fenster zu, Talentpunkt, Talente zurück, Gegenstand angelegt, Zusammenstellung gespeichert, abgelehnt, **Freischaltung**, **Aufwertung**) | 12     |
 | **Beute nach Qualität**                                                                                                                                                                 | **4**  |
 | Klangteppich: 5 feste Schichten (Menü, Spannung, Endspurt, Phasenwechsel, Überdruck) plus **ein Grundklang je Instanz**                                                                 | 5 + 14 |
+| **Boss-Ankündigungen** (11.5): Schwächung auf dir, Allgemeiner Schaden, Jetzt handeln oder sterben, Gelegenheit, dazu der gesprochene Countdown 5-4-3-2-1                               | 4 + 5  |
 
 > **Zu den drei zuletzt benannten Klängen** (2026-07-27): Der Planungs-Plan nannte bei
 > Kampfzuständen die Zahl 6 und bei Menü die Zahl 12, listete aber nur 5 bzw. 10 Einträge — ein

@@ -561,6 +561,36 @@ fn der_schalter_schaltet() {
     assert_eq!(einzeln.tripel_geprueft, 0);
 }
 
+/// An der Längengrenze bekommt die Dreiergruppe **genau einen** Zug (#1027).
+///
+/// Die AC5-Suche trägt ihre Einzelzüge bis zur Grenze 10 und tauscht dort die
+/// Gruppe ein; danach endet sie. Mehr Runden an der Grenze änderten hier die
+/// gefundene Liste nicht — gemessen: Ohne die Beschränkung bleibt die ganze
+/// Suite grün —, wohl aber die Obergrenze aus `restmessungen_hoechstens`, die
+/// genau eine annimmt. Deshalb steht die Zahl im Ergebnis und hier.
+///
+/// Der Zwilling ist die Gegenprobe: Seine Suche endet unter der Grenze, und
+/// dort gibt es keine Runde an der Grenze.
+#[test]
+fn an_der_grenze_bekommt_die_gruppe_genau_einen_zug() {
+    let pool = all_candidates();
+    let toedlich = greedy_zuege(&config(TOEDLICH, 1.0), &pool, MAX_LEN, &[], Zuege::ALLE);
+    assert_eq!(
+        (toedlich.chosen.len(), toedlich.grenzrunden),
+        (MAX_LEN, 1),
+        "die AC5-Suche: Länge und Runden an der Grenze (Stopp {:?})",
+        toedlich.stop
+    );
+    let zwilling = greedy_zuege(&config(UEBERLEBBAR, 1.0), &pool, MAX_LEN, &[], Zuege::ALLE);
+    assert!(
+        zwilling.chosen.len() < MAX_LEN && zwilling.grenzrunden == 0,
+        "der Zwilling: Länge {}, Runden an der Grenze {} — die Gegenprobe braucht eine \
+         Suche, die unter der Grenze endet",
+        zwilling.chosen.len(),
+        zwilling.grenzrunden
+    );
+}
+
 /// Ein Zauber ohne Kosten bekommt keine Gruppe.
 ///
 /// # Was diese Zeile verhindert
