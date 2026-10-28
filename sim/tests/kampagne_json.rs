@@ -13,10 +13,13 @@
 //! Textbaustein, der kein gültiges JSON ergibt, fiele beim Zurücklesen mit dem
 //! eigenen Parser nie auf.
 
+use std::time::Duration;
+
 use rota_sim::kampagne::{
     AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    CpuReservation, DeadlinePolicy, HostRequirement, JsonError, Mission, ProjectionSet,
-    QualityTargets, ReferenceProfile, WorkUnits,
+    CpuReservation, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError, Mission,
+    NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
+    WorkUnits,
 };
 
 static HOSTS: &[HostRequirement] = &[
@@ -29,14 +32,13 @@ static HOSTS: &[HostRequirement] = &[
             threads_per_core: 2,
             reserved_physical_cores: 2,
         },
-        max_rtt_ms: 5,
-        min_bandwidth_mibit_s: 100,
+        gpu_duty_cycle: 0.0,
         thermal_throttling: false,
     },
     // Der zweite Rechner hat ausdrücklich KEINE Zusicherung — der Fall, den ein
     // Profil mit nur einem Eintrag nie prüfen würde.
     HostRequirement {
-        name: "gonet",
+        name: "best-effort",
         guaranteed_cpu_quota: None,
         guaranteed_memory_mib: 8192,
         cpu: CpuReservation {
@@ -44,8 +46,7 @@ static HOSTS: &[HostRequirement] = &[
             threads_per_core: 2,
             reserved_physical_cores: 2,
         },
-        max_rtt_ms: 20,
-        min_bandwidth_mibit_s: 1000,
+        gpu_duty_cycle: 0.5,
         thermal_throttling: false,
     },
 ];
@@ -54,9 +55,15 @@ fn kampagne() -> CampaignDefinition {
     CampaignDefinition {
         profile_version: 3,
         reference_profile: ReferenceProfile {
+            name: "json-probe",
             version: 2,
             hosts: HOSTS,
+            network: Some(NetworkRequirement {
+                max_rtt_ms: 250,
+                min_bandwidth_mibit_s: 50,
+            }),
         },
+        target_wall_time: Duration::new(7200, 5),
         canonical_work_budget: WorkUnits(1_234_567),
         exact_obligations: ProjectionSet { required: 12 },
         coverage_spec: CoverageSpec { strength: 2 },
@@ -80,8 +87,16 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
         serde_json::from_str(&text).unwrap_or_else(|e| panic!("kein gültiges JSON: {e}\n{text}"));
 
     assert_eq!(v["profileVersion"], 3);
-    assert_eq!(v["fingerprint"], k.fingerprint());
+    assert_eq!(v["fingerprint"], k.fingerprint().get());
+    assert_eq!(v["referenceProfile"]["name"], "json-probe");
     assert_eq!(v["referenceProfile"]["version"], 2);
+    assert_eq!(v["referenceProfile"]["network"]["maxRttMs"], 250);
+    assert_eq!(v["referenceProfile"]["network"]["minBandwidthMibitS"], 50);
+    // Sekunden UND Nanosekunden: Eine Zielzeit in Millisekunden verlöre die 5 ns
+    // hier, und zwei Profile mit verschiedenem Fingerabdruck schrieben
+    // denselben Text.
+    assert_eq!(v["targetWallTime"]["secs"], 7200);
+    assert_eq!(v["targetWallTime"]["nanos"], 5);
     assert_eq!(v["canonicalWorkBudget"], 1_234_567);
     assert_eq!(v["exactObligations"], 12);
     assert_eq!(v["coverageStrength"], 2);
@@ -101,6 +116,12 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
         "Die Anzeige rechnet die SMT-Geschwister nicht mit."
     );
     assert_eq!(hosts[0]["totalThreads"], 16);
+    assert_eq!(hosts[0]["gpuDutyCycle"], 0.0);
+    assert_eq!(hosts[1]["gpuDutyCycle"], 0.5);
+    assert!(
+        hosts[0].get("maxRttMs").is_none(),
+        "Das Netz steht am Profil, nicht mehr am Rechner"
+    );
 }
 
 /// **Ein fehlender Wert wird `null`, nicht `0`.**
@@ -150,7 +171,7 @@ fn ein_fehlender_wert_wird_null_und_nicht_null_komma_null() {
 /// Der Vertrag ohne Frist schreibt `null` — nicht eine sehr grosse Zahl (AC5).
 #[test]
 fn ohne_frist_steht_null_im_vertrag() {
-    let v0 = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance, 7_200_000);
+    let v0 = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
     let v: serde_json::Value =
         serde_json::from_str(&v0.to_json().expect("gültiger Vertrag")).expect("kein gültiges JSON");
 
@@ -159,8 +180,10 @@ fn ohne_frist_steht_null_im_vertrag() {
         "Ohne ausdrücklichen Wunsch steht eine Frist im Vertrag: {}",
         v["hardDeadline"]
     );
-    assert_eq!(v["campaignDefinitionHash"], kampagne().fingerprint());
+    assert_eq!(v["campaignDefinitionHash"], kampagne().fingerprint().get());
     assert_eq!(v["deterministicWorkBudget"], 1_234_567);
+    assert_eq!(v["targetWallTime"]["secs"], 7200);
+    assert_eq!(v["targetWallTime"]["nanos"], 5);
     assert_eq!(v["mission"]["kind"], "fullBalance");
 
     // Die drei Festlegungen stehen im Text, nicht nur im Typ (AC6).
@@ -176,13 +199,15 @@ fn ohne_frist_steht_null_im_vertrag() {
 /// benannt haben will.
 #[test]
 fn beide_fristarten_stehen_unterscheidbar_im_text() {
-    let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance, 7_200_000);
+    let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
 
     let wanduhr = basis.with_hard_deadline(DeadlinePolicy::WallClockUtc {
-        deadline_unix_s: 1_800_000_000,
+        deadline: DateTimeUtc {
+            unix_seconds: 1_800_000_000,
+        },
     });
     let rechenzeit = basis.with_hard_deadline(DeadlinePolicy::ActiveRuntime {
-        remaining_ms: 7_200_000,
+        remaining: Duration::new(7200, 123_456_789),
     });
 
     let a: serde_json::Value =
@@ -191,9 +216,13 @@ fn beide_fristarten_stehen_unterscheidbar_im_text() {
         serde_json::from_str(&rechenzeit.to_json().expect("gültiger Vertrag")).unwrap();
 
     assert_eq!(a["hardDeadline"]["kind"], "wallClockUtc");
-    assert_eq!(a["hardDeadline"]["deadlineUnixS"], 1_800_000_000_i64);
+    assert_eq!(
+        a["hardDeadline"]["deadline"]["unixSeconds"],
+        1_800_000_000_i64
+    );
     assert_eq!(b["hardDeadline"]["kind"], "activeRuntime");
-    assert_eq!(b["hardDeadline"]["remainingMs"], 7_200_000);
+    assert_eq!(b["hardDeadline"]["remaining"]["secs"], 7200);
+    assert_eq!(b["hardDeadline"]["remaining"]["nanos"], 123_456_789);
     assert_ne!(
         a["hardDeadline"], b["hardDeadline"],
         "Die beiden Fristarten sehen im Text gleich aus."
@@ -211,7 +240,7 @@ fn jede_mission_steht_unterscheidbar_im_text() {
     ]
     .into_iter()
     .map(|m| {
-        let vertrag = CampaignRunContract::from_campaign(&k, m, 7_200_000);
+        let vertrag = CampaignRunContract::from_campaign(&k, m);
         serde_json::from_str(&vertrag.to_json().expect("gültiger Vertrag"))
             .expect("kein gültiges JSON")
     })
@@ -246,11 +275,7 @@ fn namen_mit_steuerzeichen_und_unicode_sind_gueltige_json_strings() {
     let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Hostname");
     assert_eq!(gelesen["name"].as_str(), Some(NAME));
 
-    let vertrag = CampaignRunContract::from_campaign(
-        &kampagne(),
-        Mission::SingleBoss { boss: NAME },
-        7_200_000,
-    );
+    let vertrag = CampaignRunContract::from_campaign(&kampagne(), Mission::SingleBoss { boss: NAME });
     let text = vertrag.to_json().expect("endlicher Vertrag");
     let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Bossname");
     assert_eq!(gelesen["mission"]["boss"].as_str(), Some(NAME));
@@ -290,7 +315,7 @@ fn nichtendliche_qualitaetsvorgaben_werden_mit_feldname_abgelehnt() {
 
         // Der Laufvertrag ist öffentlich veränderbar. Seine Ausgabe darf
         // sich deshalb nicht allein auf die vorherige Kampagne verlassen.
-        let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance, 1);
+        let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
         let mut vertrag = basis;
         vertrag.minimum_niche_coverage = wert;
         assert_eq!(
@@ -362,5 +387,116 @@ fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
         assert_eq!(gelesen["physicalCores"], 8);
         assert_eq!(gelesen["threadsPerCore"], 2);
         assert_eq!(gelesen["reservedPhysicalCores"], 2);
+    }
+}
+
+#[test]
+fn nichtendliche_grafik_einschaltdauer_wird_abgelehnt() {
+    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let host = HostRequirement {
+            gpu_duty_cycle: wert,
+            ..HOSTS[0]
+        };
+        assert_eq!(
+            host.to_json(),
+            Err(JsonError::NonFinite {
+                field: "gpuDutyCycle"
+            })
+        );
+    }
+}
+
+/// **AC5** — jede der fünf Garantiearten steht unterscheidbar im Text, und das
+/// Teilergebnis nennt beide Zahlen.
+///
+/// Ein Teilergebnis, dessen Text nur die erledigte Arbeit nennt, liest sich
+/// beim Zurücklesen wie ein fertiges Ergebnis. Deshalb steht `complete` mit im
+/// Text — berechnet, nicht nachgetragen.
+#[test]
+fn jede_ergebnisgarantie_steht_unterscheidbar_im_text() {
+    let arten = [
+        ResultGuarantee::CertifiedExact,
+        ResultGuarantee::BitExactOptimized,
+        ResultGuarantee::BoundedApproximation {
+            lower: 0.25,
+            upper: 0.75,
+        },
+        ResultGuarantee::StatisticalEstimate { confidence: 0.99 },
+        ResultGuarantee::AnytimePartial {
+            work_completed: WorkUnits(400_000),
+            work_planned: WorkUnits(1_000_000),
+        },
+    ];
+    let texte: Vec<serde_json::Value> = arten
+        .iter()
+        .map(|g| {
+            let text = g.to_json().expect("endliche Garantie");
+            serde_json::from_str(&text).unwrap_or_else(|e| panic!("kein JSON: {e}\n{text}"))
+        })
+        .collect();
+
+    let kinds: Vec<&str> = texte
+        .iter()
+        .map(|v| v["kind"].as_str().expect("kind"))
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            "certifiedExact",
+            "bitExactOptimized",
+            "boundedApproximation",
+            "statisticalEstimate",
+            "anytimePartial"
+        ]
+    );
+    assert_eq!(texte[2]["lower"], 0.25);
+    assert_eq!(texte[2]["upper"], 0.75);
+    assert_eq!(texte[3]["confidence"], 0.99);
+    assert_eq!(texte[4]["workCompleted"], 400_000);
+    assert_eq!(texte[4]["workPlanned"], 1_000_000);
+
+    // Nur das abgeschnittene Teilergebnis ist unvollständig.
+    let vollstaendig: Vec<bool> = texte
+        .iter()
+        .map(|v| v["complete"].as_bool().expect("complete"))
+        .collect();
+    assert_eq!(vollstaendig, vec![true, true, true, true, false]);
+
+    // GEGENPROBE: Ein Teilergebnis, das sein Budget erreicht hat, meldet sich
+    // weiter als `anytimePartial` — aber vollständig.
+    let erreicht = ResultGuarantee::AnytimePartial {
+        work_completed: WorkUnits(1_000_000),
+        work_planned: WorkUnits(1_000_000),
+    };
+    let v: serde_json::Value = serde_json::from_str(&erreicht.to_json().unwrap()).unwrap();
+    assert_eq!(v["kind"], "anytimePartial");
+    assert_eq!(v["complete"], true);
+}
+
+#[test]
+fn nichtendliche_garantiewerte_werden_mit_feldname_abgelehnt() {
+    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(
+            ResultGuarantee::BoundedApproximation {
+                lower: wert,
+                upper: 1.0
+            }
+            .to_json(),
+            Err(JsonError::NonFinite { field: "lower" })
+        );
+        assert_eq!(
+            ResultGuarantee::BoundedApproximation {
+                lower: 0.0,
+                upper: wert
+            }
+            .to_json(),
+            Err(JsonError::NonFinite { field: "upper" })
+        );
+        assert_eq!(
+            ResultGuarantee::StatisticalEstimate { confidence: wert }.to_json(),
+            Err(JsonError::NonFinite {
+                field: "confidence"
+            })
+        );
     }
 }
