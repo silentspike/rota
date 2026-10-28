@@ -265,6 +265,8 @@ fn ac4_eine_erhebung_ohne_zaehler_faellt_nicht_aus() {
             };
             2
         ];
+        // Eine ruhige Maschine: Unter Fremdlast prüft die Zeile nicht.
+        r.druck.cpu = Some(0.4);
     });
     let bild = e.bild(&alt, &neu);
     assert!(matches!(&bild.messwerte.zaehler, Zaehlerlage::Fehlt(g) if g.contains("EACCES")));

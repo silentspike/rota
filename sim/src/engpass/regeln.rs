@@ -307,12 +307,13 @@ pub fn diagnose(m: &Messwerte, schluessel: &Schluessel, grundlage: Option<&Grund
         }
     }
 
-    match m.warteanteil() {
-        None => d.ungeprueft.push((
+    match (m.warteanteil(), zeit_gestoert(m)) {
+        (None, _) => d.ungeprueft.push((
             Regel::StraengeWarten,
             "kein über mehrere Stränge verteilter Abschnitt im Fenster".to_owned(),
         )),
-        Some(w) => {
+        (Some(_), Some(grund)) => d.ungeprueft.push((Regel::StraengeWarten, grund)),
+        (Some(w), None) => {
             d.geprueft.push(Regel::StraengeWarten);
             if w > STRANG_WARTEN_ANTEIL {
                 d.befunde.push(Befund {
@@ -549,6 +550,36 @@ fn zaehlerzeilen(d: &mut Diagnose, z: &Zaehlerwerte, g: &Grundlage) {
     }
 }
 
+/// Warum eine Zeitmessung in diesem Fenster nichts über den Lauf sagt —
+/// `None`, wenn sie es tut.
+///
+/// **Für beide Zeilen, die Zeit messen:** die Strangzeiten (Zeile 3) und die
+/// CPU-Zeit je Kampf im Rückfall. Fremdlast verlängert beide über geteilte
+/// Kerne, Zwischenspeicher und Takt, ohne dass der Lauf etwas falsch macht.
+/// Gemessen am 2026-10-28 auf dem Laptop: vier Stränge mit je 100 Kämpfen
+/// „warteten" nach CPU-Zeit 16,4 und 18,1 % bei PSI cpu 7,5 und 8,1 % — ein
+/// langer Abschnitt bei PSI 3,7 hatte 1,1 %. Darüber entscheidet derselbe
+/// Wert, unter dem das Projekt überhaupt misst (`hostcaps::PSI_CPU_MAX`).
+/// Ohne lesbaren Druckwert ist eine Verlangsamung von Fremdlast nicht zu
+/// trennen.
+fn zeit_gestoert(m: &Messwerte) -> Option<String> {
+    let grenze = crate::hostcaps::PSI_CPU_MAX;
+    match m.druck.cpu {
+        Some(psi) if psi > grenze => Some(format!(
+            "Fremdlast: PSI cpu some avg10 {} % über {} % — die Zeitmessung ist nicht \
+             aussagekräftig",
+            zahl(psi),
+            zahl(grenze)
+        )),
+        None => Some(
+            "kein Druckwert lesbar — ohne ihn ist eine Zeitmessung unter Fremdlast nicht von \
+             einer Verlangsamung zu trennen"
+                .to_owned(),
+        ),
+        Some(_) => None,
+    }
+}
+
 /// Die Zeile des Rückfalls: CPU-Zeit je Kampf gegen die Grundlage, sofern
 /// der Druck die Zeitmessung nicht verfälscht.
 fn rueckfall(d: &mut Diagnose, m: &Messwerte, vergleich: &Result<&Grundlage, String>) {
@@ -559,33 +590,9 @@ fn rueckfall(d: &mut Diagnose, m: &Messwerte, vergleich: &Result<&Grundlage, Str
             return;
         }
     };
-    // Fremdlast verlängert die CPU-Zeit je Kampf über geteilte Kerne und
-    // Zwischenspeicher, ohne dass der Lauf etwas falsch macht. Darüber
-    // entscheidet derselbe Wert, unter dem das Projekt überhaupt misst.
-    let grenze = crate::hostcaps::PSI_CPU_MAX;
-    match m.druck.cpu {
-        Some(psi) if psi > grenze => {
-            d.ungeprueft.push((
-                Regel::ZeitOhneZaehler,
-                format!(
-                    "Fremdlast: PSI cpu some avg10 {} % über {} % — die Zeitmessung ist nicht \
-                     aussagekräftig",
-                    zahl(psi),
-                    zahl(grenze)
-                ),
-            ));
-            return;
-        }
-        None => {
-            d.ungeprueft.push((
-                Regel::ZeitOhneZaehler,
-                "kein Druckwert lesbar — ohne ihn ist eine Zeitmessung unter Fremdlast nicht \
-                 von einer Verlangsamung zu trennen"
-                    .to_owned(),
-            ));
-            return;
-        }
-        Some(_) => {}
+    if let Some(grund) = zeit_gestoert(m) {
+        d.ungeprueft.push((Regel::ZeitOhneZaehler, grund));
+        return;
     }
     match relativ(m.cpu_ns_je_kampf, g.werte.cpu_ns_je_kampf) {
         None => d.ungeprueft.push((

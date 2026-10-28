@@ -334,6 +334,24 @@ fn zeile_3_schweigt_unter_der_schwelle() {
     assert!(befunde(&m, Some(&grundlage())).is_empty());
 }
 
+/// **Unter Fremdlast misst die Strangzeit die Maschine, nicht die Pakete.**
+/// Derselbe Warteanteil, der auf ruhiger Maschine anschlägt, bleibt über der
+/// PSI-Grenze ungeprüft — und ohne lesbaren Druckwert auch.
+#[test]
+fn zeile_3_unter_fremdlast_ist_ungeprueft() {
+    let grenze = rota_sim::hostcaps::PSI_CPU_MAX;
+    let mut m = mit_warteanteil(STRANG_WARTEN_ANTEIL * 2.0);
+    m.druck.cpu = Some(grenze * 1.6);
+    assert!(befunde(&m, Some(&grundlage())).is_empty());
+    let grund = ungeprueft(&m, Some(&grundlage()), Regel::StraengeWarten).expect("ungeprüft");
+    assert!(grund.contains("Fremdlast"), "{grund}");
+    m.druck.cpu = None;
+    assert!(befunde(&m, Some(&grundlage())).is_empty());
+    // Knapp unter der Grenze wird geprüft.
+    m.druck.cpu = Some(grenze * 0.9);
+    assert_eq!(befunde(&m, Some(&grundlage())), [Regel::StraengeWarten]);
+}
+
 #[test]
 fn zeile_3_ohne_parallelen_abschnitt_ist_ungeprueft() {
     let mut m = ruhig();
