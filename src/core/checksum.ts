@@ -14,6 +14,7 @@
  * dass der Rust-Simulator dieselbe Folge erzeugt (GAME-DESIGN 18.4).
  */
 import { DECAY_STACK_CAPACITY, type Combat, alsSpellIndex } from './combat.js';
+import { KEYSTONE_DECAY_ECHO, KEYSTONE_SHIELD_REFUND } from '../progression/talents.js';
 
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
@@ -301,5 +302,50 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
   // Der ZÄHLER `reflected` steht hier NICHT — er ist kumulativ und hat eine
   // eigene Leitung ins Ergebnis, genau wie `converted`.
   h = mixNamedInt(h, 'reflectPercent', combat.reflectPercent);
+  // **Der Zustand der Schlüsseltalente** (Issue #419, #418 AC5) — angehängt,
+  // und NUR bei verteiltem Talent.
+  //
+  // Ohne diese Zeilen war die Prüfsumme für ihn blind, gemessen: Zwei Kämpfe,
+  // einer mit verstelltem Nachlauf-Endpunkt, ergaben dieselbe Summe, und der
+  // Unterschied zeigte sich erst Takte später in den Stapeln
+  // (`schluesseltalent-pruefsumme.test.ts`).
+  //
+  // **Warum nur mit Talent:** Ohne es liest niemand diese Felder — geschrieben
+  // werden zwei davon trotzdem (`merkeDecayEcho`, das Legen einer Schicht).
+  // Gingen sie dann ein, änderte sich die Prüfsumme jedes Kampfes mit ROT oder
+  // CRUST, und jede eingecheckte Aufzeichnung wäre falsch. So bleibt jede
+  // bestehende bitgleich; geändert hat sich nur, was mit Talent gemischt wird.
+  //
+  // Die übrigen drei Schlüsseltalente legen kein eigenes Feld an. Sie schalten
+  // an je einer `hasKeystone`-Stelle im Kampf einen Zweig um, und der
+  // schreibt nur Felder, die es ohne das Talent genauso gibt: Vorrat
+  // (split-spender), Abklingzeit (auto-reset), Kontroll-Vorrat und seine
+  // Zähler (partial-control).
+  //
+  // Ohne Nachlauf steht im Spiel `NOT_ACTIVE` (-1), im Simulator 0 — der feste
+  // Wert -1 steht deshalb auf beiden Seiten, wie bei `castLandsAt`.
+  if (combat.hasKeystone(KEYSTONE_DECAY_ECHO)) {
+    for (let i = 0; i < combat.spells.length; i++)
+      h = mixNamedInt(h, 'decayEchoUntil', combat.decayEchoUntil(i));
+  }
+  if (combat.hasKeystone(KEYSTONE_SHIELD_REFUND)) {
+    h = mixNamedInt(h, 'shieldRefundUsed', combat.shieldRefundSpent ? 1 : 0);
+    h = mixNamedInt(h, 'shieldLastAmount', combat.shieldRefundBase);
+  }
+  // **Der Auswahlmodus der Rücksetzer** (#419, Abnahme von #1146) — dieselbe
+  // Lückenart, angehängt, und NUR solange er scharf steht.
+  //
+  // Wer scharf gestellt hat, entscheidet über „der Rücksetzer wählt sich nicht
+  // selbst"; die offenen Auswahlen darüber, ob der nächste Druck wählt oder
+  // wirkt. Ohne diese Zeilen ergaben zwei Kämpfe mit verschieden geführtem
+  // Modus dieselbe Summe (`auswahlmodus-pruefsumme.test.ts`).
+  //
+  // Nur scharf, weil sonst -1 und 0 in JEDE Prüfsumme eingingen. So ändern
+  // sich genau die Aufzeichnungen, in denen ein Rücksetzer wirkt — auf beiden
+  // Seiten gleich.
+  if (combat.resetArmed) {
+    h = mixNamedInt(h, 'resetArmedFor', combat.resetArmedFor);
+    h = mixNamedInt(h, 'resetChargesLeft', combat.resetChargesLeft);
+  }
   return h >>> 0;
 }

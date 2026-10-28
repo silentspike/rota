@@ -40,7 +40,7 @@
  * ist AC5: Der Wächter wächst mit, ohne dass jemand ihn anfasst.
  */
 import { describe, expect, it } from 'vitest';
-import { Combat } from '../../src/core/combat.js';
+import { Combat, FIGHT_RUNNING } from '../../src/core/combat.js';
 import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 
@@ -262,3 +262,207 @@ describe('Nach dem Zurücksetzen steht der Kampf wie ein frischer', () => {
     expect([...werte.keys()]).toContain('stacks.gains');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Die Schlüsseltalente (#419, #418 AC6)
+// ---------------------------------------------------------------------------
+//
+// **`einLauf` oben findet ihren Zustand nicht**, und das ist kein Mangel des
+// Wächters, sondern des Laufs: Er fährt ohne Talente, wirft kein ROT, und keine
+// seiner Schichten bricht unter einem Schlag. `decayEchoUntilMs`,
+// `shieldLastAmount` und `shieldRefundUsed` stehen nach ihm auf ihrem
+// Ruhewert — und ein Feld, das nie falsch war, sieht nach dem Reset richtig
+// aus.
+//
+// Deshalb ein eigener Lauf, der genau diese drei Felder bewegt, und dazu das
+// Umskillen in beide Richtungen: weg vom Talent und hin zu ihm.
+
+/** Beide Schlüsseltalente mit Zustand, jedes mit Stamm und Weg (`allocationProblem`). */
+const BEIDE_SCHLUESSEL = {
+  'putrefaction-trunk': 1,
+  'putrefaction-duration': 1,
+  'putrefaction-keystone': 1,
+  'coagulation-trunk': 1,
+  'coagulation-thicker': 1,
+  'coagulation-keystone': 1,
+};
+const KEINE_TALENTE = {};
+
+/** Die drei Felder — privat, nur für die Zusicherung vor der Messung geöffnet. */
+interface Schluesselzustand {
+  decayEchoUntilMs: Float64Array;
+  shieldRefundUsed: boolean;
+  shieldLastAmount: number;
+}
+function schluessel(combat: Combat): Schluesselzustand {
+  return combat as unknown as Schluesselzustand;
+}
+
+function kampfMit(talents: Record<string, number>, boss = bossOder('test-onslaught')): Combat {
+  return new Combat({ school: CALCINATION.value, boss, talents });
+}
+
+/**
+ * CRUST bei 0 ms, ROT bei 1500 ms, dann warten.
+ *
+ * Gegen `test-onslaught` bricht der erste Schlag (5000 ms) die Schicht — mit
+ * dem Talent liegt danach die Nachlage, der Merker ist verbraucht. ROT ist bei
+ * 5500 ms aus und läuft nach. Bei `bisMs = 6000` stehen also alle drei Felder
+ * abseits ihres Ruhewerts.
+ */
+function schluesselLauf(combat: Combat, bisMs = 6000): void {
+  const plan = new Map([
+    [0, combat.indexOf('crust')],
+    [1500, combat.indexOf('rot')],
+  ]);
+  combat.beginFight(0);
+  for (let t = 0; t <= bisMs; t += TICK_MS) {
+    combat.stepPassive(t);
+    // Wie die Sitzung: Das Kampfende stellt `checkDefeat` fest, nicht
+    // `stepPassive` — ohne diese Zeile liefe ein toter Spieler weiter.
+    if (combat.checkDefeat(t)) break;
+    const zauber = plan.get(t);
+    if (zauber !== undefined) combat.cast(zauber, t);
+  }
+}
+
+/** Was nach dem Reset anders steht als im frischen Kampf — beim Namen. */
+function stehenGeblieben(gespielt: Combat, frisch: Combat): string[] {
+  const nachher = zustand(gespielt);
+  const erwartet = zustand(frisch);
+  const abweichungen: string[] = [];
+  for (const [pfad, wert] of nachher) {
+    if (DARF_UEBERLEBEN.has(pfad)) continue;
+    if (erwartet.get(pfad) !== wert) {
+      abweichungen.push(
+        `${pfad}: nach reset ${String(wert)}, frisch ${String(erwartet.get(pfad))}`,
+      );
+    }
+  }
+  return abweichungen;
+}
+
+describe('Schlüsseltalente: Reset und Umskillen räumen ihren Zustand (#418 AC6)', () => {
+  it('der Lauf bewegt alle drei Felder — sonst misst der Wächter nichts', () => {
+    // **Die Zusicherung vor der Messung**, wie oben für `einLauf`.
+    const combat = kampfMit(BEIDE_SCHLUESSEL);
+    schluesselLauf(combat);
+    const rot = combat.indexOf('rot');
+    expect(combat.shield, 'die Nachlage liegt nicht').toBeGreaterThan(0);
+    expect(schluessel(combat).shieldRefundUsed, 'die Nachlage ist nicht verbraucht').toBe(true);
+    expect(schluessel(combat).shieldLastAmount, 'keine Dicke gemerkt').toBeGreaterThan(0);
+    expect(schluessel(combat).decayEchoUntilMs[rot], 'kein Nachlauf vorgemerkt').toBeGreaterThan(
+      6000,
+    );
+  });
+
+  it('nach dem Reset steht der Kampf wie ein frischer — mit denselben Talenten', () => {
+    const gespielt = kampfMit(BEIDE_SCHLUESSEL);
+    schluesselLauf(gespielt);
+    gespielt.reset();
+    const offen = stehenGeblieben(gespielt, kampfMit(BEIDE_SCHLUESSEL));
+    expect(offen, offen.join('\n')).toEqual([]);
+  });
+
+  it('Umskillen WEG vom Talent: zurück ins Menü, dann neu verteilt', () => {
+    // Der Weg des Spiels: `backToMenu` ruft `session.reset()`, danach ist die
+    // Talentansicht offen und `setTalents` nicht mehr gesperrt.
+    const gespielt = kampfMit(BEIDE_SCHLUESSEL);
+    schluesselLauf(gespielt);
+    gespielt.reset();
+    gespielt.setTalents(KEINE_TALENTE);
+    expect(gespielt.talentAllocation, 'setTalents war gesperrt').toEqual(KEINE_TALENTE);
+    const offen = stehenGeblieben(gespielt, kampfMit(KEINE_TALENTE));
+    expect(offen, offen.join('\n')).toEqual([]);
+  });
+
+  it('Umskillen HIN zum Talent: der Zustand aus dem Lauf ohne Talent überlebt nicht', () => {
+    // **Die Richtung, die man übersieht.** Ohne Talent wirkt keines der drei
+    // Felder — aber zwei davon werden trotzdem geschrieben (`merkeDecayEcho`
+    // und das Legen der Schicht). Wer danach das Talent verteilt, bekäme sie
+    // geerbt.
+    const gespielt = kampfMit(KEINE_TALENTE);
+    schluesselLauf(gespielt);
+    expect(
+      schluessel(gespielt).shieldLastAmount,
+      'ohne Talent wird die Dicke nicht gemerkt — der Fall misst nichts',
+    ).toBeGreaterThan(0);
+    gespielt.reset();
+    gespielt.setTalents(BEIDE_SCHLUESSEL);
+    expect(gespielt.talentAllocation, 'setTalents war gesperrt').toEqual(BEIDE_SCHLUESSEL);
+    const offen = stehenGeblieben(gespielt, kampfMit(BEIDE_SCHLUESSEL));
+    expect(offen, offen.join('\n')).toEqual([]);
+  });
+
+  it('Umskillen nach dem Kampfende, VOR dem Reset', () => {
+    // Der zweite Weg des Spiels: Im Ergebnis-Bildschirm ist die Talentansicht
+    // offen (gesperrt ist sie nur in Kampf und Countdown), und erst der
+    // Neustart setzt zurück. Der Kampf muss dafür wirklich zu Ende sein —
+    // `setTalents` sperrt sich, solange er läuft.
+    const boss = bossOder('test-lethal-strike');
+    const gespielt = kampfMit(BEIDE_SCHLUESSEL, boss);
+    schluesselLauf(gespielt, 20_000);
+    expect(gespielt.fightState, 'der Kampf ist nicht zu Ende').not.toBe(FIGHT_RUNNING);
+    expect(schluessel(gespielt).shieldLastAmount, 'keine Dicke gemerkt').toBeGreaterThan(0);
+    gespielt.setTalents(KEINE_TALENTE);
+    expect(gespielt.talentAllocation, 'setTalents war gesperrt').toEqual(KEINE_TALENTE);
+    gespielt.reset();
+    const offen = stehenGeblieben(gespielt, kampfMit(KEINE_TALENTE, boss));
+    expect(offen, offen.join('\n')).toEqual([]);
+  });
+
+  it('„Retry" schenkt keine Nachlage aus dem vorigen Kampf', () => {
+    // **Was ein stehengebliebenes Feld den Spieler kostet — gemessen.** Ein
+    // Feld-Vergleich sagt, DASS etwas steht; dieser Fall zeigt, dass es im
+    // Kampf ankommt.
+    //
+    // Eine Schicht aus Umwandlung (TEMPER) wird nicht gelegt, sie wächst: Sie
+    // schreibt weder `shieldLastAmount` noch `shieldRefundUsed`. Bricht sie,
+    // gibt die Nachlage die Hälfte dessen, was dort STEHT — im frischen Kampf
+    // 0, also nichts. Stand dort noch die CRUST aus dem vorigen Versuch, legt
+    // der Bruch eine halbe CRUST nach, die niemand gewirkt hat.
+    const nachlage = {
+      'coagulation-trunk': 1,
+      'coagulation-thicker': 1,
+      'coagulation-keystone': 1,
+    };
+    const zweiterVersuch = (combat: Combat): void => {
+      const plan = new Map([
+        [0, combat.indexOf('temper')],
+        [1500, combat.indexOf('kindle')],
+        [3000, combat.indexOf('kindle')],
+        [4500, combat.indexOf('kindle')],
+      ]);
+      for (let t = 0; t <= 6000; t += TICK_MS) {
+        combat.stepPassive(t);
+        const zauber = plan.get(t);
+        if (zauber !== undefined) combat.cast(zauber, t);
+      }
+    };
+
+    const wiederholt = kampfMit(nachlage);
+    // Der erste Versuch: CRUST liegt, ungebrochen, als abgebrochen wird.
+    crustOhneBruch(wiederholt);
+    wiederholt.reset();
+    zweiterVersuch(wiederholt);
+
+    const frisch = kampfMit(nachlage);
+    zweiterVersuch(frisch);
+
+    expect(frisch.converted, 'TEMPER wandelt nichts um — der Fall misst nichts').toBeGreaterThan(0);
+    expect(frisch.shieldAbsorbed, 'der Schlag trifft die Schicht nicht').toBeGreaterThan(0);
+    expect(wiederholt.shield, 'der zweite Versuch erbt eine Nachlage aus dem ersten').toBe(
+      frisch.shield,
+    );
+  });
+});
+
+/** CRUST bei 0 ms, dann bis 2000 ms warten — vor dem ersten Schlag (5000 ms). */
+function crustOhneBruch(combat: Combat): void {
+  const crust = combat.indexOf('crust');
+  for (let t = 0; t <= 2000; t += TICK_MS) {
+    combat.stepPassive(t);
+    if (t === 0) combat.cast(crust, t);
+  }
+  if (combat.shield === 0) throw new Error('CRUST liegt nicht — der erste Versuch misst nichts');
+}

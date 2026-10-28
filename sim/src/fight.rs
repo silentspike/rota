@@ -1868,6 +1868,14 @@ impl Fight {
         self.convert_buffs.reset();
         self.cap_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
+        // **Die Verwundbarkeit aus den Zersetzungs-Stapeln ebenso** (#419).
+        // `reset` leert die Stapel weiter unten, der Faktor stand danach noch
+        // auf dem letzten Stand — gemessen 1.24 nach fuenf Stapeln, frisch
+        // 1.0. Der Waechter fuer die Schluesseltalente hat es gefunden, weil
+        // sein Lauf ROT wirft; `cooldown-precision` (kindle, smoulder, pyre,
+        // quench) legt keinen einzigen Stapel. Das Spiel setzt den
+        // Faktor in `Combat.reset` auf 1 (`setDamageFactor('vulnerability', 1)`).
+        self.factors.vulnerability = crate::factors::NEUTRAL.vulnerability;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
         // `record_fields`, das die Pruefsumme mit ihren Namen aufzeichnet:
@@ -1897,6 +1905,13 @@ impl Fight {
         self.shield_expires_at = None;
         self.shield_stacks = 0;
         self.shield_absorbed = 0;
+        // **Der Zustand der Schluesseltalente endet mit dem Kampf** (#419,
+        // #418 AC6). Gemessen vor diesen Zeilen: Eine Umwandlungs-Schicht
+        // (TEMPER), die im zweiten Durchgang bricht, legte 495 nach — die
+        // halbe CRUST des ersten. Ein frischer `Fight` legt nichts nach.
+        // `decay_echo_until` raeumt `reset` schon weiter unten.
+        self.shield_last_amount = 0;
+        self.shield_refund_used = false;
         self.healed = 0;
         // **Auch die laufende Heilung endet mit der Runde.** Ohne diese Zeilen
         // liefe ein POULTICE aus der vorigen Runde in die naechste hinein und
@@ -3523,7 +3538,12 @@ impl Fight {
                 // weiter unten beim Spieler ankommen — sonst waere das Talent
                 // ein Freischlag statt einer Nachlage. Spiegelbild von
                 // `Combat.hitPlayer`.
-                let nachlage = if self.shield_refund {
+                //
+                // **Nur eine GELEGTE Schicht gibt sie** (Abnahme von #1146):
+                // ohne Stapel liegt nur Umwandlung (TEMPER), und die waechst,
+                // sie wird nicht gelegt. Vorher gab ihr Bruch die Haelfte einer
+                // CRUST, die ungebrochen abgelaufen war — gemessen 450 statt 0.
+                let nachlage = if self.shield_refund && self.shield_stacks > 0 {
                     self.shield_last_amount / 2
                 } else {
                     0
@@ -5477,6 +5497,32 @@ impl Fight {
         // Der ZAEHLER `reflected` steht hier NICHT — er ist kumulativ und hat
         // eine eigene Leitung ins Ergebnis, genau wie `converted`.
         h = mix_named_int(h, "reflectPercent", self.reflect_percent as i32);
+        // **Der Zustand der Schluesseltalente** (#419, #418 AC5) — angehaengt,
+        // und NUR bei verteiltem Talent. Dieselbe Folge und dieselben Namen wie
+        // in `src/core/checksum.ts`; die Begruendung steht dort.
+        //
+        // Ohne Nachlauf steht hier 0, im Spiel `NOT_ACTIVE` (-1) — der feste
+        // Wert -1 auf beiden Seiten, wie bei `castLandsAt`.
+        if self.decay_echo {
+            for &bis in &self.decay_echo_until {
+                h = mix_named_int(h, "decayEchoUntil", if bis == 0 { -1 } else { bis as i32 });
+            }
+        }
+        if self.shield_refund {
+            h = mix_named_int(h, "shieldRefundUsed", i32::from(self.shield_refund_used));
+            h = mix_named_int(h, "shieldLastAmount", self.shield_last_amount as i32);
+        }
+        // **Der Auswahlmodus der Ruecksetzer** (#419, Abnahme von #1146) —
+        // angehaengt, und NUR solange er scharf steht. Begruendung und Folge
+        // wie in `src/core/checksum.ts`.
+        if self.reset_mode.is_armed() {
+            h = mix_named_int(h, "resetArmedFor", i32::from(self.reset_mode.armed_for()));
+            h = mix_named_int(
+                h,
+                "resetChargesLeft",
+                i32::from(self.reset_mode.charges_left()),
+            );
+        }
         h
     }
 
@@ -5788,4 +5834,395 @@ pub fn vessel_with_gear(base: u32, worn_permille: u32) -> u32 {
         return base;
     }
     u32::try_from(u64::from(base) * (1000 + u64::from(worn_permille)) / 1000).unwrap_or(u32::MAX)
+}
+
+/// Der Zustand der Schluesseltalente steht in der Pruefsumme (#419, #418 AC5).
+///
+/// Spiegelbild von `tests/unit/schluesseltalent-pruefsumme.test.ts`.
+///
+/// **Hier und nicht unter `tests/`**, weil die Stoerung ein privates Feld
+/// verstellt. Von aussen ist es nicht erreichbar, und ein Zugang nur fuer den
+/// Test waere ein Eingriff in die Schnittstelle.
+///
+/// # Wie gemessen wird
+///
+/// An EINEM Zustand mit EINER gezielten Stoerung: zwei gleiche Kaempfe, in
+/// einem ist genau ein Feld verstellt. Zwei Laeufe mit verschiedenen Eingaben
+/// verschoeben die Summe auch dann, wenn das Feld gar nicht eingeht.
+///
+/// **Zu jeder Stoerung die positive Kontrolle:** Der verstellte Kampf rechnet
+/// danach messbar anders. Ohne sie bewiese eine gleiche Pruefsumme nur, dass
+/// das Feld bedeutungslos ist — und dann gehoerte es auch nicht hinein.
+#[cfg(test)]
+mod schluesseltalent_pruefsumme {
+    use super::*;
+    use crate::checksum::record_fields;
+    use crate::data::{boss_by_id, index_of};
+    use crate::replay::{Binding, Press};
+
+    /// Ein Zauber bei Takt 0, dann warten bis `ticks - 1`.
+    fn lauf(
+        boss_id: &str,
+        zauber: &str,
+        ticks: u32,
+        talente: impl FnOnce(&mut FightConfig),
+    ) -> Fight {
+        let mut config = FightConfig {
+            boss: boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} fehlt")),
+            duration_ms: Some(ticks * TICK_MS),
+            ..FightConfig::default()
+        };
+        talente(&mut config);
+        let mut fight = Fight::new(config);
+        let recording = Recording {
+            name: "schluesseltalent-pruefsumme".to_owned(),
+            seed: 0,
+            ticks,
+            bindings: vec![Binding {
+                slot: 0,
+                spell: index_of(zauber).unwrap_or_else(|| panic!("{zauber} fehlt")),
+            }],
+            presses: vec![Press { tick: 0, slot: 0 }],
+        };
+        let _ = fight.replay(&recording, false);
+        fight
+    }
+
+    /// Dieselben Promille wie die spielbare Verteilung im Spiel-Fall:
+    /// `putrefaction-trunk 1`, `putrefaction-duration 1`, `putrefaction-keystone 1`.
+    fn nachlauf(c: &mut FightConfig) {
+        c.talent_permille = 20;
+        c.talent_decay_ward_permille = 120;
+        c.decay_echo = true;
+    }
+
+    /// `coagulation-trunk 1`, `coagulation-thicker 1`, `coagulation-keystone 1`.
+    fn nachlage(c: &mut FightConfig) {
+        c.talent_permille = 20;
+        c.talent_shield_amount_permille = 100;
+        c.shield_refund = true;
+    }
+
+    /// ROT bei 0 ms; bei 6000 ms ist der Brand aus und der Nachlauf laeuft.
+    fn nachlauf_kampf(talente: impl FnOnce(&mut FightConfig)) -> (Fight, usize) {
+        (
+            lauf("first-crucible", "rot", 601, talente),
+            index_of("rot").expect("rot fehlt"),
+        )
+    }
+
+    /// CRUST bei 0 ms gegen `test-onslaught`; bei 1000 ms liegt die Schicht,
+    /// der erste Schlag faellt erst bei 5000 ms.
+    fn nachlage_kampf(talente: impl FnOnce(&mut FightConfig)) -> Fight {
+        lauf("test-onslaught", "crust", 101, talente)
+    }
+
+    #[test]
+    fn die_messung_trifft_einen_laufenden_nachlauf() {
+        let (fight, rot) = nachlauf_kampf(nachlauf);
+        assert_eq!(fight.time, 6000, "der Lauf endet nicht bei 6000 ms");
+        assert!(!fight.dot_active(rot), "ROT brennt noch");
+        assert!(
+            fight.decay_count > 0,
+            "ohne Stapel gaebe es nichts nachzuhalten"
+        );
+        assert!(
+            fight.decay_echo_until[rot] > 6000,
+            "kein Nachlauf vorgemerkt"
+        );
+    }
+
+    #[test]
+    fn ein_verstellter_endpunkt_aendert_die_pruefsumme() {
+        let (mut echt, rot) = nachlauf_kampf(nachlauf);
+        let (mut verstellt, _) = nachlauf_kampf(nachlauf);
+        // Der Nachlauf endet damit bei 7000 statt bei 16 000 ms.
+        verstellt.decay_echo_until[rot] = 7000;
+
+        assert_ne!(
+            verstellt.checksum_at(6000),
+            echt.checksum_at(6000),
+            "zwei Kaempfe mit verschiedenem Nachlauf ergeben dieselbe Pruefsumme — \
+             decay_echo_until geht nicht in checksum_at ein"
+        );
+
+        // Die positive Kontrolle: Bei 8000 ms laeuft nur der echte noch nach.
+        echt.time = 8000;
+        verstellt.time = 8000;
+        assert!(
+            echt.im_decay_echo(rot),
+            "der echte Nachlauf ist schon vorbei"
+        );
+        assert!(
+            !verstellt.im_decay_echo(rot),
+            "der verstellte Endpunkt wirkt nicht"
+        );
+    }
+
+    #[test]
+    fn die_messung_trifft_eine_liegende_unverbrauchte_schicht() {
+        let fight = nachlage_kampf(nachlage);
+        assert!(fight.shield > 0, "CRUST legt keine Schicht");
+        assert!(
+            !fight.shield_refund_used,
+            "die Nachlage ist schon verbraucht"
+        );
+        assert_eq!(
+            fight.shield_last_amount, fight.shield,
+            "die Dicke ist nicht gemerkt"
+        );
+    }
+
+    #[test]
+    fn ein_verbrauchter_merker_aendert_die_pruefsumme() {
+        let mut echt = nachlage_kampf(nachlage);
+        let mut verstellt = nachlage_kampf(nachlage);
+        verstellt.shield_refund_used = true;
+
+        assert_ne!(
+            verstellt.checksum_at(1000),
+            echt.checksum_at(1000),
+            "zwei Kaempfe, einer mit verbrauchter Nachlage, ergeben dieselbe \
+             Pruefsumme — shield_refund_used geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Nach dem Bruch legt nur der echte nach.
+        echt.hit_player(2000);
+        verstellt.hit_player(2000);
+        assert!(
+            echt.shield > 0,
+            "der Schlag hat die Schicht nicht gebrochen"
+        );
+        assert_eq!(
+            verstellt.shield, 0,
+            "der verbrauchte Merker legt trotzdem nach"
+        );
+    }
+
+    #[test]
+    fn eine_verstellte_dicke_aendert_die_pruefsumme() {
+        let mut echt = nachlage_kampf(nachlage);
+        let mut verstellt = nachlage_kampf(nachlage);
+        verstellt.shield_last_amount = 400;
+
+        assert_ne!(
+            verstellt.checksum_at(1000),
+            echt.checksum_at(1000),
+            "zwei Kaempfe mit verschiedener Nachlage-Grundlage ergeben dieselbe \
+             Pruefsumme — shield_last_amount geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Die Nachlage ist die Haelfte dessen, was gemerkt war.
+        echt.hit_player(2000);
+        verstellt.hit_player(2000);
+        assert_eq!(verstellt.shield, 200);
+        assert_ne!(echt.shield, verstellt.shield);
+    }
+
+    #[test]
+    fn die_neuen_felder_tragen_ihre_namen_angehaengt() {
+        // **Am Ende, nicht dazwischen** (#96) — und mit WOERTLICH denselben
+        // Namen wie im Spiel; der Gleichlauf-Waechter vergleicht sie.
+        let ohne = Fight::new(FightConfig::default());
+        let beide = Fight::new(FightConfig {
+            decay_echo: true,
+            shield_refund: true,
+            ..FightConfig::default()
+        });
+        let folge_ohne: Vec<&str> = record_fields(|| {
+            let _ = ohne.checksum_at(0);
+        })
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+        let folge_mit: Vec<&str> = record_fields(|| {
+            let _ = beide.checksum_at(0);
+        })
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+
+        assert_eq!(
+            &folge_mit[..folge_ohne.len().min(folge_mit.len())],
+            &folge_ohne[..]
+        );
+        let mut angehaengt = vec!["decayEchoUntil"; SPELL_COUNT];
+        angehaengt.extend(["shieldRefundUsed", "shieldLastAmount"]);
+        assert_eq!(
+            &folge_mit[folge_ohne.len().min(folge_mit.len())..],
+            &angehaengt[..]
+        );
+    }
+
+    #[test]
+    fn ohne_talent_gehen_die_felder_nicht_ein_und_bewirken_nichts() {
+        // **Der Grund, warum nur mit Talent gemischt wird.** Ohne Talent
+        // schreibt `merke_decay_echo` den Endpunkt trotzdem, und das Legen
+        // einer Schicht merkt sich ihre Dicke — gelesen wird beides nie. Ginge
+        // es ein, aenderte sich die Pruefsumme jedes Kampfes mit ROT oder CRUST.
+        let (echt, rot) = nachlauf_kampf(|_| {});
+        let (mut verstellt, _) = nachlauf_kampf(|_| {});
+        assert!(
+            echt.decay_echo_until[rot] > 0,
+            "der Endpunkt wird ohne Talent nicht geschrieben"
+        );
+        verstellt.decay_echo_until[rot] = 7000;
+        assert_eq!(verstellt.checksum_at(6000), echt.checksum_at(6000));
+        verstellt.time = 8000;
+        assert!(
+            !verstellt.im_decay_echo(rot),
+            "ohne Talent laeuft nichts nach"
+        );
+
+        let mut echt = nachlage_kampf(|_| {});
+        let mut verstellt = nachlage_kampf(|_| {});
+        verstellt.shield_refund_used = true;
+        verstellt.shield_last_amount = 400;
+        assert_eq!(verstellt.checksum_at(1000), echt.checksum_at(1000));
+        echt.hit_player(2000);
+        verstellt.hit_player(2000);
+        assert_eq!(
+            echt.shield, 0,
+            "ohne Talent darf nach dem Bruch nichts nachkommen"
+        );
+        assert_eq!(verstellt.shield, 0);
+        assert_eq!(verstellt.checksum_at(1000), echt.checksum_at(1000));
+    }
+}
+
+/// Der Auswahlmodus der Ruecksetzer steht in der Pruefsumme (#419,
+/// Nachbesserung).
+///
+/// Spiegelbild von `tests/unit/auswahlmodus-pruefsumme.test.ts`: CRUST bei
+/// 0 ms, ALEMBIC bei 1500 ms — der Modus steht scharf, zwei Auswahlen offen.
+/// Gestoert wird ueber `CooldownReset::arm`, weil seine Felder dem eigenen
+/// Modul gehoeren; das Ergebnis ist dasselbe wie eine direkt verstellte Zahl.
+#[cfg(test)]
+mod auswahlmodus_pruefsumme {
+    use super::*;
+    use crate::checksum::record_fields;
+    use crate::cooldown_reset::Choice;
+    use crate::data::index_of;
+    use crate::replay::{Binding, Press};
+
+    fn scharf() -> Fight {
+        let crust = index_of("crust").expect("crust fehlt");
+        let alembic = index_of("alembic").expect("alembic fehlt");
+        let mut fight = Fight::new(FightConfig {
+            duration_ms: Some(151 * TICK_MS),
+            ..FightConfig::default()
+        });
+        let recording = Recording {
+            name: "auswahlmodus-pruefsumme".to_owned(),
+            seed: 0,
+            ticks: 151,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: crust,
+                },
+                Binding {
+                    slot: 1,
+                    spell: alembic,
+                },
+            ],
+            presses: vec![Press { tick: 0, slot: 0 }, Press { tick: 150, slot: 1 }],
+        };
+        let _ = fight.replay(&recording, false);
+        fight
+    }
+
+    /// Eine Wahl, wie sie `replay` trifft.
+    fn waehle(fight: &mut Fight, spell: usize) -> Choice {
+        let gcd = fight.gcd_length();
+        fight.reset_mode.choose(
+            spell,
+            fight.time,
+            &mut fight.cooldown_ready_at,
+            &mut fight.gcd_ready_at,
+            gcd,
+        )
+    }
+
+    #[test]
+    fn die_messung_trifft_einen_scharfen_modus_mit_zwei_offenen_auswahlen() {
+        let fight = scharf();
+        assert_eq!(fight.time, 1500);
+        assert!(fight.reset_mode.is_armed(), "ALEMBIC stellt nicht scharf");
+        assert_eq!(
+            fight.reset_mode.armed_for(),
+            i16::try_from(index_of("alembic").expect("alembic")).expect("Index")
+        );
+        assert_eq!(fight.reset_mode.charges_left(), 2);
+    }
+
+    #[test]
+    fn wer_scharf_gestellt_hat_aendert_die_pruefsumme() {
+        let mut echt = scharf();
+        let mut verstellt = scharf();
+        let crust = index_of("crust").expect("crust fehlt");
+        verstellt.reset_mode.arm(crust, 2);
+
+        assert_ne!(
+            verstellt.checksum_at(1500),
+            echt.checksum_at(1500),
+            "zwei Kaempfe, scharf gestellt von verschiedenen Zaubern, ergeben \
+             dieselbe Pruefsumme — armed_for geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Der Ruecksetzer waehlt sich nicht selbst.
+        assert_eq!(waehle(&mut echt, crust), Choice::Applied);
+        assert_eq!(waehle(&mut verstellt, crust), Choice::Wasted);
+    }
+
+    #[test]
+    fn die_zahl_der_offenen_auswahlen_aendert_die_pruefsumme() {
+        let mut echt = scharf();
+        let mut verstellt = scharf();
+        let alembic = index_of("alembic").expect("alembic fehlt");
+        let crust = index_of("crust").expect("crust fehlt");
+        verstellt.reset_mode.arm(alembic, 1);
+
+        assert_ne!(
+            verstellt.checksum_at(1500),
+            echt.checksum_at(1500),
+            "zwei Kaempfe mit verschieden vielen offenen Auswahlen ergeben \
+             dieselbe Pruefsumme — charges_left geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Nach einer Wahl steht nur der echte noch scharf.
+        let _ = waehle(&mut echt, crust);
+        let _ = waehle(&mut verstellt, crust);
+        assert!(echt.reset_mode.is_armed());
+        assert!(!verstellt.reset_mode.is_armed());
+    }
+
+    #[test]
+    fn scharf_stehen_die_zwei_namen_am_ende_sonst_fehlen_sie() {
+        let ohne = Fight::new(FightConfig::default());
+        let mut mit = scharf();
+        let namen = |fight: &Fight| -> Vec<&'static str> {
+            record_fields(|| {
+                let _ = fight.checksum_at(1500);
+            })
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect()
+        };
+        let folge_ohne = namen(&ohne);
+        let folge_mit = namen(&mit);
+        let n = folge_ohne.len().min(folge_mit.len());
+        assert_eq!(&folge_mit[..n], &folge_ohne[..]);
+        assert_eq!(&folge_mit[n..], &["resetArmedFor", "resetChargesLeft"]);
+
+        // Und nach der letzten Auswahl gehen sie nicht mehr ein.
+        let crust = index_of("crust").expect("crust fehlt");
+        let _ = waehle(&mut mit, crust);
+        let _ = waehle(&mut mit, crust);
+        assert!(
+            !mit.reset_mode.is_armed(),
+            "zwei Auswahlen lassen den Modus stehen"
+        );
+        assert_eq!(namen(&mit), folge_ohne);
+    }
 }
