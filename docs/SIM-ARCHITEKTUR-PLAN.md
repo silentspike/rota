@@ -1231,14 +1231,23 @@ Standardkampagne nicht unabnehmbar machen:
 
 ```
 Greedy-Lauf · LNS-Lauf · Standardkampagne
-CPU-ONLY · ein Rechner UND zwei Rechner (Laptop + node3)
-mit Drosselung · mit einem absichtlichen Rechnerausfall
+CPU-ONLY · ein Teilnehmer UND zwei Teilnehmer — getrennte Arbeitsprozesse auf node3,
+           jeder mit eigener Kernbindung
+mit Drosselung · mit einem absichtlich mitten im Lauf beendeten Teilnehmer
 mit Coordinator-Neustart · mit Fortsetzung nach Abbruch
 Cache kalt UND warm
 ```
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier stand „ein Rechner UND drei
 > Rechner". Das Referenzprofil hat seitdem zwei.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „2 Prozesse auf node3").** Hier stand „ein Rechner
+> UND zwei Rechner (Laptop + node3)" und „mit einem absichtlichen Rechnerausfall". Die Teilnehmer
+> sind getrennte Arbeitsprozesse auf node3, jeder mit eigener Kernbindung; einer wird mitten im
+> Lauf beendet. Bei Teilen mit GPU ist die Laptop-GPU der zweite Teilnehmer (E11.0c-gpu). **Kein
+> weiterer Rechner, und das Netz zwischen zwei Maschinen wird hier nicht geprüft.** Geprüft wird
+> die Verteilung (E15.5), nicht die Leistung: bitgleiches Ergebnis mit einem und zwei Teilnehmern,
+> kein Arbeitsverlust beim Ausfall eines Teilnehmers, Budget und Restzeit über mehrere Teilnehmer.
 
 > **Zwei verschiedene Dinge heißen hier „warm" — und nur eines darf dieselbe Aufgabenmenge
 > fordern.**
@@ -1264,6 +1273,11 @@ GPU-Ausfall, CPU-Rückfall.
 > **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die GPU ist die des Laptops, und sie
 > darf rechnen — auf ausdrücklichen Aufruf und im zugeteilten Messfenster. Die CPU des Laptops
 > rechnet nur als Rückfall; „CPU" in den Varianten ist im Profil „standard" damit node3.
+
+> **Entschieden am 2026-10-28 (Auftraggeber: „2 Prozesse auf node3").** In den Varianten mit GPU
+> ist die Laptop-GPU der zweite Teilnehmer neben den Arbeitsprozessen auf node3; „GPU-Ausfall"
+> beendet diesen Teilnehmer. Kein weiterer Rechner; das Netz zwischen zwei Maschinen wird hier
+> nicht geprüft.
 
 **Fertig, wenn** — und die Wanduhr allein genügt nicht:
 
@@ -2374,12 +2388,16 @@ Belohnung  =  (Verbesserung + λ · neue Nischenzelle) / EINGEFRORENE logische W
 >   · RAM-bedingte Neuberechnung                              →  NULL zusätzliche Kosten
 > ```
 >
-> **Abnahme:** dieselbe `CampaignDefinition` mit kaltem Cache, warmem Cache, einem Rechner,
-> zwei Rechnern (Laptop + node3) und mitten im Lauf geänderter CPU-Quote erzeugt **dieselben
-> logischen Aufgaben-Kennungen, dasselbe Archiv, dasselbe Zertifikat**. Nur physische Zähler und
-> ETA dürfen abweichen.
+> **Abnahme:** dieselbe `CampaignDefinition` mit kaltem Cache, warmem Cache, einem Teilnehmer,
+> zwei Teilnehmern (getrennte Arbeitsprozesse auf node3, jeder mit eigener Kernbindung) und
+> mitten im Lauf geänderter CPU-Quote erzeugt **dieselben logischen Aufgaben-Kennungen, dasselbe
+> Archiv, dasselbe Zertifikat**. Nur physische Zähler und ETA dürfen abweichen.
 >
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier stand „drei Rechnern".
+>
+> **Entschieden am 2026-10-28 (Auftraggeber: „2 Prozesse auf node3").** Hier stand „einem Rechner,
+> zwei Rechnern (Laptop + node3)". Die Teilnehmer sind getrennte Arbeitsprozesse auf node3; kein
+> weiterer Rechner, und das Netz zwischen zwei Maschinen wird hier nicht geprüft.
 
 **Fertig, wenn:** ein Lauf je Operator druckt, wie viel Budget er bekam und was er einbrachte —
 und die adaptive Variante gegen feste Gleichverteilung gemessen ist. **Bringt sie nichts, ist
