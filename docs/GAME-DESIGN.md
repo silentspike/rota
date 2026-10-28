@@ -1961,16 +1961,19 @@ das Player Home.
 > **Nachgetragen am 2026-10-28.** Hier stand „126 Sounds". Es fehlten die **9 Klänge der
 > Boss-Ankündigungen**, die 11.5 verlangt („Eigener Klang je Ereignisart", „Gesprochener
 > Countdown 5-4-3-2-1"): je einer für die vier Warn-Arten und fünf gesprochene Countdown-Zahlen.
-> Sie stehen seit #797 als vorläufige Einträge im Verzeichnis, außerhalb der 126 aus den
-> `target`-Werten. Maßgeblich ist der Masterplan, Anhang A.9, mit derselben Aufstellung.
+> Sie standen seit #797 als vorläufige Einträge im Verzeichnis, außerhalb der 126 aus den
+> `target`-Werten. Seit ihre Dateien liegen (ebenfalls #797), zählt sie das Verzeichnis in einer
+> eigenen Gruppe `announce` mit 9 Zielen — der Zeile „Boss-Ankündigungen" unten. Maßgeblich ist
+> der Masterplan, Anhang A.9, mit derselben Aufstellung.
 
 > **Die Zahl ist die Summe der Tabelle darunter, nicht eine Schätzung daneben.** Bis zum
 > 2026-08-22 stand hier „~115" — der Wert von vor der Slot-Korrektur vom 2026-07-27, die
 > den Klangteppich von 8 auf 19 hob und die Tabelle damit um genau 11 erhöhte. Die
 > Überschrift wurde damals nicht mitgezogen, und 115 + 11 = 126.
 >
-> `data/sound-manifest.json` führt dieselbe 126 als Summe seiner `target`-Werte — die Daten
-> hatten die Korrektur, das Dokument nicht.
+> `data/sound-manifest.json` führte damals dieselbe 126 als Summe seiner `target`-Werte — die
+> Daten hatten die Korrektur, das Dokument nicht. Heute sind es dort 135, mit den 9 Zielen der
+> Gruppe `announce`.
 
 | Bereich                                                                                                                                                                                 | Anzahl |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -2048,8 +2051,12 @@ Aus Epic E8, für die Planung von E10:
 > 2026-07-28 mit einem Credits-Betrag daneben; sie im Nachhinein anzupassen hieße, eine
 > Messung zu ändern, statt sie einzuordnen.
 >
-> Für die Planung gilt die 126 aus der Tabelle in 17.1 und aus `data/sound-manifest.json`.
-> Der Stand von heute steht ohnehin dort und nicht hier: 85 der 126 Slots sind belegt.
+> Für die Planung gilt die 135 aus der Tabelle in 17.1 und aus `data/sound-manifest.json`.
+> Der Stand von heute steht ohnehin dort und nicht hier: 93 der 135 Slots sind belegt, gezählt als
+> Einträge ohne `provisional`, deren Dateien unter `assets/audio/` liegen (2026-10-28, nach den 9
+> Ankündigungs-Klängen aus #797). Hier stand „85 der 126" — gezählt waren am 2026-08-22 die 85
+> `.ogg`-Dateien im Ordner, und eine davon gehört dem vorläufigen Grundklang
+> `music-bed-placeholder`, der keinen Slot belegt; Einträge mit Datei waren es 84.
 
 > **E10 ist dadurch nicht blockiert, aber es passt nicht in eine Abrechnungsperiode.** Entweder über
 > zwei Monate verteilen oder aufladen. Bei den Instanz-Grundklängen ist mit mehr Aufwand zu rechnen:
@@ -2924,7 +2931,7 @@ eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen
 | **Erfolge**                    | Je Boss die konkreten Ziele, 288 Zeitmarken                                                                                                                                            | E10                                                          |
 | **Instanz-Themen und Namen**   | 14 Instanzen mit Thema, Farbwelt, Klangteppich                                                                                                                                         | E10                                                          |
 | **~150 Archiv-Texte**          | Inhalte, Stimmen-Verteilung, Reihenfolge                                                                                                                                               | E10                                                          |
-| **Sound-Manifest**             | 126 Prompts mit Ziel-Längen                                                                                                                                                            | E8                                                           |
+| **Sound-Manifest**             | 135 Prompts mit Ziel-Längen (bis 2026-10-28: 126, siehe 17.1)                                                                                                                          | E8                                                           |
 | **Grafik-Stil**                | Konkretes Asset-Set auswählen                                                                                                                                                          | E9                                                           |
 | **Cooldown-Rücksetzer**        | Abklingzeit, ob GCD-frei, auf welche Zauber anwendbar                                                                                                                                  | E3                                                           |
 | **Unterbrechen**               | Fensterbreite, Abklingzeit, Folgen des Verpassens                                                                                                                                      | E4                                                           |
