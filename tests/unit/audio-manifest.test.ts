@@ -40,7 +40,9 @@ describe('Sound-Manifest — das gepflegte Verzeichnis', () => {
     }
   });
 
-  it('haelt sich an die Aufstellung aus GAME-DESIGN 17.1 (126 Klaenge)', () => {
+  // 17.1 nennt seit dem 2026-10-28 135: die 126 gezaehlten Ziele hier plus die 9 Klaenge der
+  // Boss-Ankuendigungen (#797), die als vorlaeufige Eintraege ausserhalb der Ziele stehen.
+  it('haelt sich an die gezaehlte Aufstellung aus GAME-DESIGN 17.1 (126 Ziele, ohne die 9 vorlaeufigen Ankuendigungen)', () => {
     expect(coverageTotals(SOUND_MANIFEST).target).toBe(126);
   });
 
