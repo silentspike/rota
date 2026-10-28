@@ -47,6 +47,9 @@ pub struct Rechner {
     /// Seine Rate je Strang und [`Arbeitsart`]. Fehlt eine Art, darf er
     /// Aufgaben dieser Art nicht rechnen — etwa gonet ohne AVX2.
     pub raten: Vec<(Arbeitsart, RateModel)>,
+    /// Wie stark seine Rate gerade wandert, als Anteil — der gemessene Teil
+    /// des Restkostenfehlers ([`super::Fenster::strangtrend`]). 0 ohne Trend.
+    pub trend: f64,
 }
 
 /// Eine Stufe: Aufgaben, die gleichzeitig laufen dürfen. Zwischen zwei Stufen
@@ -133,6 +136,10 @@ pub struct Herleitung {
     pub rate_streuung: f64,
     /// Wie viele Sekundenabschnitte in die Streuung eingingen.
     pub rate_abschnitte: usize,
+    /// Wie stark die Rate im Fenster wandert, als Anteil — der Trend.
+    pub kosten_trend: f64,
+    /// Der Anteil der Spanne aus diesem Trend, in Sekunden.
+    pub sigma_kosten_s: f64,
     /// Simulierte Dauer der kleinsten Restmenge.
     pub ablauf_min_s: f64,
     /// Simulierte Dauer der größten Restmenge.
@@ -183,7 +190,85 @@ pub enum Restzeit {
 /// [`Ablauffehler`], wenn eine Stufe keinen zulässigen Rechner hat oder eine
 /// Rate unbrauchbar ist.
 pub fn ablauf(stufen: &[Stufe], rechner: &[Rechner]) -> Result<Ablauf, Ablauffehler> {
-    todo!("#933 {stufen:?} {rechner:?}")
+    let mut dauer_s = 0.0;
+    let mut kritischer_pfad_s = 0.0;
+    let mut naiv_s = 0.0;
+    let mut benutzt = vec![false; rechner.len()];
+    for stufe in stufen {
+        if stufe.aufgaben == 0 || stufe.wiederholungen == 0 {
+            continue;
+        }
+        // Die zulässigen Stränge dieser Stufe, je mit ihrer Rate.
+        let mut straenge: Vec<f64> = Vec::new();
+        for (i, r) in rechner.iter().enumerate() {
+            let Some(modell) = rate_fuer(r, stufe.art) else {
+                continue;
+            };
+            if !(modell.rate_per_s.is_finite() && modell.rate_per_s > 0.0) {
+                return Err(Ablauffehler::UngueltigeRate(stufe.art));
+            }
+            if r.straenge > 0 {
+                benutzt[i] = true;
+                straenge.extend(std::iter::repeat_n(modell.rate_per_s, r.straenge));
+            }
+        }
+        if straenge.is_empty() {
+            return Err(Ablauffehler::KeinRechner(stufe.art));
+        }
+        let mal = stufe.wiederholungen as f64;
+        let einheit = stufe.einheiten_je_aufgabe;
+        dauer_s += spanne(stufe.aufgaben, einheit, &straenge) * mal;
+        let schnellster = straenge.iter().copied().fold(0.0, f64::max);
+        kritischer_pfad_s += einheit / schnellster * mal;
+        naiv_s += stufe.aufgaben as f64 * einheit / straenge.iter().sum::<f64>() * mal;
+    }
+    Ok(Ablauf {
+        dauer_s,
+        kritischer_pfad_s,
+        naiv_s,
+        rechner: benutzt.iter().filter(|b| **b).count(),
+    })
+}
+
+/// Die Rate eines Rechners für eine Arbeitsart.
+fn rate_fuer(r: &Rechner, art: Arbeitsart) -> Option<&RateModel> {
+    r.raten.iter().find(|(a, _)| *a == art).map(|(_, m)| m)
+}
+
+/// Wie lange `n` gleiche Aufgaben zu je `einheit` Einheiten auf Strängen mit
+/// den Raten `raten` brauchen — Listenzuteilung, also die kürzeste Zeit `T`,
+/// in der die Stränge zusammen `n` ganze Aufgaben schaffen.
+///
+/// Bei gleich schnellen Strängen ist das geschlossen `⌈n/W⌉ · einheit/rate`:
+/// Fünf Aufgaben auf vier Strängen dauern zwei Aufgaben lang, nicht 1,25.
+/// Bei verschiedenen Raten wird `T` gesucht und dann auf die Zuteilung
+/// eingerastet, die es erreicht — sonst stünde dort die Genauigkeit der Suche
+/// statt der Zeit einer Aufgabe.
+fn spanne(n: u64, einheit: f64, raten: &[f64]) -> f64 {
+    let erste = raten[0];
+    if raten.iter().all(|r| r.to_bits() == erste.to_bits()) {
+        let je_strang = n.div_ceil(raten.len() as u64);
+        return je_strang as f64 * einheit / erste;
+    }
+    let schafft = |t: f64| -> u64 { raten.iter().map(|r| (t * r / einheit).floor() as u64).sum() };
+    let schnellster = raten.iter().copied().fold(0.0, f64::max);
+    let mut unten = 0.0;
+    let mut oben = n as f64 * einheit / schnellster;
+    for _ in 0..200 {
+        let mitte = (unten + oben) / 2.0;
+        if mitte <= unten || mitte >= oben {
+            break;
+        }
+        if schafft(mitte) >= n {
+            oben = mitte;
+        } else {
+            unten = mitte;
+        }
+    }
+    raten
+        .iter()
+        .map(|r| (oben * r / einheit).floor() * einheit / r)
+        .fold(0.0, f64::max)
 }
 
 /// Was auf einem Weg noch zu tun ist.
@@ -209,6 +294,45 @@ pub struct Restanteil {
 /// `begonnen` sind die Kämpfe, die die laufende Auswertung des ersten Anteils
 /// schon gerechnet hat. `raten` dienen nur dem Vergleich mit der naiven
 /// Division in der [`Herleitung`].
+///
+/// # Die Herleitung der Spanne (AC7)
+///
+/// Vier Quellen, jede mit ihrem eigenen Term:
+///
+/// ```text
+///   Restkostenfehler     a) die Restmenge selbst: exakt, oder zwischen min und max
+///                        b) die Kosten je Kampf: Trend τ der Strangrate im Fenster
+///   Ratenstreuung        σ_r aus dem RateModel (Std/Mittel der Sekundenabschnitte)
+///   kritischer Pfad      K aus der Ablaufsimulation
+///   Wiederholung         p je Kampf, N Kämpfe
+///
+///   g        = 1 / (1 − p)                     erwartete Versuche je Kampf
+///   T        = Ablaufdauer · g                 Mitte (bei exakter Menge)
+///   σ_rate   = σ_r · (K + (T − K) / √H)        H = beteiligte Rechner
+///   σ_kosten = τ · T
+///   σ_wdh    = T · √(p / N)
+///   σ        = √((σ_rate + σ_kosten)² + σ_wdh²)
+/// ```
+///
+/// **Warum `σ_rate + σ_kosten` und nicht in Quadratur:** Beide sind
+/// Eigenschaften derselben Rate. Wandert sie, ist sie auch unruhig; unabhängig
+/// sind die beiden nicht, und die Quadratur rechnete die Spanne schmaler, als
+/// die Messung hergibt. Wiederholungen dagegen hängen nicht an der Rate.
+///
+/// **Warum `√H` und nicht `√(Stränge)`:** Die Stränge eines Rechners drosseln
+/// gemeinsam — wird der Laptop warm, werden alle zwölf langsamer. Unabhängig
+/// voneinander schwanken nur verschiedene Rechner, und nur über die mittelt
+/// sich der parallele Teil. Der kritische Pfad mittelt sich nie: Er läuft auf
+/// einem Strang nach dem anderen, und eine Verzögerung dort verschiebt das
+/// Ende ganz. Mit einem Rechner ist `σ_rate = σ_r · T` — die volle Streuung.
+///
+/// **Warum `T · √(p/N)`:** Bei Wiederholungen mit Wahrscheinlichkeit `p`
+/// braucht ein Kampf im Mittel `g` Versuche, mit Varianz `p·g²`. Über `N`
+/// unabhängige Kämpfe ist die relative Standardabweichung der Summe `√(p/N)`.
+///
+/// Die Spanne ist **eine** Standardabweichung. Bei einer nur nach oben
+/// beschränkten Menge gibt es keine Mitte: Unten steht die kleinste Restmenge
+/// minus σ, oben die größte plus σ.
 #[must_use]
 pub fn restzeit(
     anteile: &[Restanteil],
@@ -217,7 +341,172 @@ pub fn restzeit(
     raten: Option<&Raten>,
     wiederholung_p: f64,
 ) -> Restzeit {
-    todo!("#933 {anteile:?} {begonnen} {rechner:?} {raten:?} {wiederholung_p}")
+    if !(0.0..1.0).contains(&wiederholung_p) {
+        return Restzeit::Unbestimmt("die Wiederholungswahrscheinlichkeit liegt nicht in [0, 1)");
+    }
+    let (stufen_min, kaempfe_min) = stufen_fuer(anteile, begonnen, Grenze::Mindestens);
+    let (stufen_max, kaempfe_max) = stufen_fuer(anteile, begonnen, Grenze::Hoechstens);
+    let (a_min, a_max) = match (ablauf(&stufen_min, rechner), ablauf(&stufen_max, rechner)) {
+        (Ok(a), Ok(b)) => (a, b),
+        (Err(e), _) | (_, Err(e)) => return Restzeit::Unbestimmt(grund(e)),
+    };
+    let genutzt: Vec<&RateModel> = rechner
+        .iter()
+        .filter_map(|r| rate_fuer(r, Arbeitsart::ScalarFullFight))
+        .collect();
+    let rate_streuung = genutzt.iter().map(|m| m.spread).fold(0.0, f64::max);
+    if !rate_streuung.is_finite() {
+        return Restzeit::Unbestimmt("die Rate streut unbestimmt — zu wenige Abschnitte");
+    }
+    let kosten_trend = rechner.iter().map(|r| r.trend).fold(0.0, f64::max);
+    if !kosten_trend.is_finite() {
+        return Restzeit::Unbestimmt("der Trend der Rate ist keine Zahl");
+    }
+    let exakt = kaempfe_min == kaempfe_max
+        && anteile.iter().all(|a| {
+            a.mindestens == a.hoechstens && matches!(a.kaempfe_je_kandidat, Kampfzahl::Fest(_))
+        });
+
+    let g = 1.0 / (1.0 - wiederholung_p);
+    let h = (a_max.rechner.max(1) as f64).sqrt();
+    let sigma_rate = |a: &Ablauf| {
+        let t = a.dauer_s * g;
+        let k = (a.kritischer_pfad_s * g).min(t);
+        rate_streuung * (k + (t - k) / h)
+    };
+    let sigma_wdh = |a: &Ablauf, n: u64| {
+        if wiederholung_p > 0.0 && n > 0 {
+            a.dauer_s * g * (wiederholung_p / n as f64).sqrt()
+        } else {
+            0.0
+        }
+    };
+    let sigma_kosten = |a: &Ablauf| kosten_trend * a.dauer_s * g;
+    let sigma = |a: &Ablauf, n: u64| (sigma_rate(a) + sigma_kosten(a)).hypot(sigma_wdh(a, n));
+
+    let herleitung = Herleitung {
+        restkosten: if exakt {
+            Restkosten::Exakt {
+                kaempfe: kaempfe_max,
+            }
+        } else {
+            Restkosten::Spanne {
+                mindestens: kaempfe_min,
+                hoechstens: kaempfe_max,
+            }
+        },
+        rate_je_strang: genutzt.first().map_or(f64::NAN, |m| m.rate_per_s),
+        rate_streuung,
+        rate_abschnitte: genutzt.iter().map(|m| m.samples).min().unwrap_or(0),
+        kosten_trend,
+        sigma_kosten_s: sigma_kosten(&a_max),
+        ablauf_min_s: a_min.dauer_s,
+        ablauf_max_s: a_max.dauer_s,
+        kritischer_pfad_s: a_max.kritischer_pfad_s * g,
+        rechner: a_max.rechner,
+        sigma_rate_s: sigma_rate(&a_max),
+        wiederholung_p,
+        sigma_wiederholung_s: sigma_wdh(&a_max, kaempfe_max),
+        naiv_kandidaten_s: raten.filter(|r| r.kandidaten_gleitend > 0.0).map(|r| {
+            anteile.iter().map(|a| a.hoechstens).sum::<u64>() as f64 / r.kandidaten_gleitend
+        }),
+        naiv_division_s: a_max.naiv_s,
+    };
+
+    if exakt {
+        let mitte = a_max.dauer_s * g;
+        let s = sigma(&a_max, kaempfe_max);
+        Restzeit::Spanne {
+            mitte_s: Some(mitte),
+            unten_s: (mitte - s).max(0.0),
+            oben_s: mitte + s,
+            herleitung,
+        }
+    } else {
+        Restzeit::Spanne {
+            mitte_s: None,
+            unten_s: (a_min.dauer_s * g - sigma(&a_min, kaempfe_min)).max(0.0),
+            oben_s: a_max.dauer_s * g + sigma(&a_max, kaempfe_max),
+            herleitung,
+        }
+    }
+}
+
+/// Welche Grenze der Restmenge in Stufen übersetzt wird.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Grenze {
+    Mindestens,
+    Hoechstens,
+}
+
+/// Die Restanteile als Stufen, dazu die Zahl der Kämpfe darin.
+///
+/// # Welcher Weg wie verteilt wird
+///
+/// Nur die feste Stichprobe verteilt ihre Kämpfe auf Stränge
+/// ([`crate::balance`] teilt die Durchgänge in Bereiche). Der Weg „ein Kampf"
+/// ist ein Kampf auf dem Leitstrang, und die gestaffelte Stichprobe rechnet in
+/// einem Strang, Versuch für Versuch — beide sind **eine** Aufgabe je
+/// Auswertung, und zwischen zwei Auswertungen liegt ein Sammelpunkt.
+///
+/// Bei [`Kampfzahl::Hoechstens`] kostet eine Auswertung höchstens das Budget,
+/// mindestens aber einen Kampf — und die schon begonnene keinen weiteren mehr,
+/// denn sie kann an ihrem nächsten Haltepunkt enden.
+fn stufen_fuer(anteile: &[Restanteil], begonnen: u64, grenze: Grenze) -> (Vec<Stufe>, u64) {
+    let mut stufen = Vec::new();
+    let mut kaempfe = 0;
+    for (i, a) in anteile.iter().enumerate() {
+        let anzahl = match grenze {
+            Grenze::Mindestens => a.mindestens,
+            Grenze::Hoechstens => a.hoechstens,
+        };
+        if anzahl == 0 {
+            continue;
+        }
+        let schon = if i == 0 { begonnen } else { 0 };
+        let (je, erste) = match (a.kaempfe_je_kandidat, grenze) {
+            (Kampfzahl::Fest(f), _) | (Kampfzahl::Hoechstens(f), Grenze::Hoechstens) => {
+                (f, f.saturating_sub(schon))
+            }
+            (Kampfzahl::Hoechstens(_), Grenze::Mindestens) => (1, u64::from(schon == 0)),
+        };
+        let parallel = a.weg == Weg::Stichprobe;
+        let stufe = |kaempfe_je: u64, wiederholungen: u64| {
+            if parallel {
+                Stufe {
+                    art: Arbeitsart::ScalarFullFight,
+                    aufgaben: kaempfe_je,
+                    einheiten_je_aufgabe: 1.0,
+                    wiederholungen,
+                }
+            } else {
+                Stufe {
+                    art: Arbeitsart::ScalarFullFight,
+                    aufgaben: 1,
+                    einheiten_je_aufgabe: kaempfe_je as f64,
+                    wiederholungen,
+                }
+            }
+        };
+        if erste > 0 {
+            stufen.push(stufe(erste, 1));
+        }
+        if anzahl > 1 && je > 0 {
+            stufen.push(stufe(je, anzahl - 1));
+        }
+        kaempfe += erste + je * (anzahl - 1);
+    }
+    (stufen, kaempfe)
+}
+
+/// Der Grund, warum keine Ablaufsimulation möglich war — als Satz.
+const fn grund(fehler: Ablauffehler) -> &'static str {
+    match fehler {
+        Ablauffehler::KeinRechner(_) => {
+            "noch keine Rate je Strang: kein Rechner mit gemessener Kampfrate"
+        }
+        Ablauffehler::UngueltigeRate(_) => "die gemessene Rate ist null oder keine Zahl",
+    }
 }
 
 /// Die Restzeit eines Laufs aus seiner Momentaufnahme (AC3).
@@ -226,6 +515,14 @@ pub fn restzeit(
 /// [`Restzeit::Plateau`] — vor jeder Rechnung, nicht als deren Ergebnis.
 ///
 /// [`Arbeitsmenge::Offen`]: super::zaehlwerk::Arbeitsmenge::Offen
+///
+/// # Was schon begonnen ist
+///
+/// Kämpfe zählt der heiße Pfad sofort, Auswertungen erst, wenn sie fertig
+/// sind. Bei fester Kampfzahl `f` hat die laufende Auswertung also
+/// `Kämpfe − f · fertige Auswertungen` schon gerechnet. Bei der gestaffelten
+/// Stichprobe ist das nur für die erste bestimmbar; danach zählt die Rechnung
+/// keinen Vorlauf ab und bleibt damit eine obere Schranke.
 #[must_use]
 pub fn restzeit_aus(
     probe: &Momentaufnahme,
@@ -234,5 +531,43 @@ pub fn restzeit_aus(
     raten: Option<&Raten>,
     wiederholung_p: f64,
 ) -> Restzeit {
-    todo!("#933 {probe:?} {kosten:?} {rechner:?} {raten:?} {wiederholung_p}")
+    use super::zaehlwerk::Arbeitsmenge;
+    let fertig = probe.kandidaten_gesamt();
+    let (mindestens, hoechstens) = match probe.stand.menge {
+        Arbeitsmenge::Offen => return Restzeit::Plateau,
+        Arbeitsmenge::Unbekannt => {
+            return Restzeit::Unbestimmt("die Arbeitsmenge steht noch nicht fest")
+        }
+        Arbeitsmenge::Bekannt { kandidaten } => {
+            let rest = kandidaten.saturating_sub(fertig);
+            (rest, rest)
+        }
+        Arbeitsmenge::Hoechstens {
+            mindestens,
+            hoechstens,
+        } => (
+            mindestens.saturating_sub(fertig),
+            hoechstens.saturating_sub(fertig),
+        ),
+    };
+    let begonnen = match kosten.kaempfe_je_kandidat {
+        Kampfzahl::Fest(f) => probe
+            .kaempfe
+            .saturating_sub(f.saturating_mul(fertig))
+            .min(f),
+        Kampfzahl::Hoechstens(b) if fertig == 0 => probe.kaempfe.min(b),
+        Kampfzahl::Hoechstens(_) => 0,
+    };
+    restzeit(
+        &[Restanteil {
+            weg: kosten.weg,
+            kaempfe_je_kandidat: kosten.kaempfe_je_kandidat,
+            mindestens,
+            hoechstens,
+        }],
+        begonnen,
+        rechner,
+        raten,
+        wiederholung_p,
+    )
 }

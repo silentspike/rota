@@ -28,7 +28,7 @@
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
 /// Wie weit zwei Strangzähler mindestens auseinanderliegen, in Bytes.
@@ -101,6 +101,11 @@ pub const WEGE_OHNE_LAUF: [&str; 5] = ["cache", "analytic", "ledger", "suffix", 
 ///
 /// Nur `kaempfe` liegt im heißen Pfad. Die übrigen Felder ändern sich einmal je
 /// Auswertung, und auch das nur im Strang, der die Auswertung angestoßen hat.
+///
+/// Die Ausrichtung prüft `tests/fortschritt.rs` zur Laufzeit und nicht als
+/// Übersetzungsbedingung: Die Gegenprobe — `align(128)` durch `align(8)`
+/// ersetzen — soll dort beim Namen rot werden, nicht als Baufehler ohne
+/// Prüffall.
 #[repr(C, align(128))]
 #[derive(Debug, Default)]
 pub struct Strangzaehler {
@@ -113,11 +118,6 @@ pub struct Strangzaehler {
     /// Abgeschlossene Auswertungen je [`Weg`].
     kandidaten: [AtomicU64; Weg::ANZAHL],
 }
-
-// Die Zusicherung aus AC9 als Übersetzungsbedingung: Ein Umbau, der die
-// Ausrichtung verliert, baut nicht mehr — er fällt nicht erst in einer Messung auf.
-const _: () = assert!(std::mem::align_of::<Strangzaehler>() >= CACHE_ZEILE);
-const _: () = assert!(std::mem::size_of::<Strangzaehler>() % CACHE_ZEILE == 0);
 
 /// Wie viel Arbeit zu einem Lauf gehört — in abgeschlossenen Auswertungen.
 ///
@@ -251,14 +251,27 @@ thread_local! {
 
 impl Zaehlwerk {
     /// Ein Zählwerk für einen Leitstrang und `arbeitsstraenge` Arbeitsstränge.
+    ///
+    /// Mindestens ein Arbeitsplatz entsteht immer: Ein Lauf mit `threads: 0`
+    /// rechnet wie einer mit einem Strang ([`crate::balance`] nimmt
+    /// `threads.max(1)`), und dann darf ihm kein Platz fehlen.
     #[must_use]
     pub fn neu(arbeitsstraenge: usize) -> Arc<Self> {
-        todo!("#933 {arbeitsstraenge}")
+        let plaetze = arbeitsstraenge.max(1) + 1;
+        Arc::new(Self {
+            beginn: Instant::now(),
+            straenge: (0..plaetze).map(|_| Strangzaehler::default()).collect(),
+            zustand: Mutex::new(Laufstand::default()),
+        })
     }
 
     /// Meldet den laufenden Strang als Leitstrang an (Platz 0).
     pub fn anmelden(self: &Arc<Self>) -> Anmeldung {
-        todo!("#933 {self:?}")
+        Strang {
+            werk: Arc::clone(self),
+            platz: 0,
+        }
+        .anmelden()
     }
 
     /// Wie viele Strangplätze es gibt, Leitstrang eingeschlossen.
@@ -274,14 +287,40 @@ impl Zaehlwerk {
     }
 
     /// Liest alle Zähler und den Laufzustand.
+    ///
+    /// Die Zähler werden einzeln gelesen, nicht unter einer Sperre — das ist
+    /// der Preis dafür, dass der heiße Pfad keine anfasst. Zwischen dem ersten
+    /// und dem letzten Platz können ein paar Kämpfe fertig werden; jede Zahl
+    /// für sich ist trotzdem ein Stand, den es gegeben hat.
     #[must_use]
     pub fn momentaufnahme(&self) -> Momentaufnahme {
-        todo!("#933 {self:?}")
+        let elapsed_ns = self.elapsed_ns();
+        let mut kaempfe = 0;
+        let mut durchgaenge = 0;
+        let mut kandidaten = [0; Weg::ANZAHL];
+        let mut kaempfe_je_strang = Vec::with_capacity(self.straenge.len());
+        for z in &*self.straenge {
+            let k = z.kaempfe.load(Ordering::Relaxed);
+            kaempfe_je_strang.push(k);
+            kaempfe += k;
+            durchgaenge += z.durchgaenge.load(Ordering::Relaxed);
+            for (summe, zaehler) in kandidaten.iter_mut().zip(&z.kandidaten) {
+                *summe += zaehler.load(Ordering::Relaxed);
+            }
+        }
+        Momentaufnahme {
+            elapsed_ns,
+            kaempfe,
+            durchgaenge,
+            kandidaten,
+            kaempfe_je_strang,
+            stand: *self.stand(),
+        }
     }
 
     /// Setzt die Arbeitsmenge des Laufs.
     pub fn setze_menge(&self, menge: Arbeitsmenge) {
-        todo!("#933 {menge:?}")
+        self.stand().menge = menge;
     }
 
     /// Nanosekunden seit dem Anlegen.
@@ -289,30 +328,69 @@ impl Zaehlwerk {
     pub fn elapsed_ns(&self) -> u64 {
         u64::try_from(self.beginn.elapsed().as_nanos()).unwrap_or(u64::MAX)
     }
+
+    /// Abgeschlossene Auswertungen über alle Plätze.
+    fn kandidaten_gesamt(&self) -> u64 {
+        self.straenge
+            .iter()
+            .flat_map(|z| z.kandidaten.iter())
+            .map(|k| k.load(Ordering::Relaxed))
+            .sum()
+    }
+
+    /// Der Laufzustand, auch wenn ein anderer Strang beim Schreiben abstürzte.
+    ///
+    /// Eine vergiftete Sperre heißt hier nur, dass ein Strang mitten in einer
+    /// Zuweisung von `Copy`-Feldern starb. Der Wert ist dann der alte oder der
+    /// neue, nie ein halber — und die Anzeige soll den Absturz melden können,
+    /// statt selbst daran zu sterben.
+    fn stand(&self) -> std::sync::MutexGuard<'_, Laufstand> {
+        self.zustand.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 impl Strang {
     /// **Der heiße Pfad:** ein gerechneter Kampf.
+    ///
+    /// `Relaxed`, weil nichts anderes an diesem Wert hängt: Der Anzeigestrang
+    /// liest ihn als Zahl und folgert daraus nichts über andere Speicherstellen.
     #[inline]
     pub fn kampf(&self) {
-        todo!("#933 {self:?}")
+        self.werk.straenge[self.platz]
+            .kaempfe
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Der Strang für den Arbeitsbereich `nummer` desselben Zählwerks.
+    ///
+    /// Gibt es mehr Bereiche als Plätze, teilen sich die überzähligen den
+    /// letzten. Das bleibt richtig — jede Erhöhung ist atomar —, kostet dann
+    /// aber genau die geteilte Zeile, die AC9 verbietet. Wer ein Zählwerk
+    /// anlegt, gibt ihm deshalb die Strangzahl des Laufs.
     #[must_use]
     pub fn arbeiter(&self, nummer: usize) -> Self {
-        todo!("#933 {nummer}")
+        Self {
+            werk: Arc::clone(&self.werk),
+            platz: (nummer + 1).min(self.werk.straenge.len() - 1),
+        }
     }
 
     /// Meldet diesen Strang für den laufenden Strang an.
     pub fn anmelden(self) -> Anmeldung {
-        todo!("#933 {self:?}")
+        let vorher = ANGEMELDET.with(|a| a.borrow_mut().replace(self));
+        Anmeldung { vorher }
     }
 
     /// Der Platz im Zählwerk.
     #[must_use]
     pub const fn platz(&self) -> usize {
         self.platz
+    }
+
+    /// Das Zählwerk dieses Strangs.
+    #[must_use]
+    pub const fn zaehlwerk(&self) -> &Arc<Zaehlwerk> {
+        &self.werk
     }
 }
 
@@ -330,37 +408,95 @@ pub fn strang() -> Option<Strang> {
     ANGEMELDET.with(|a| a.borrow().clone())
 }
 
+/// Ruft `f` mit dem Strang des laufenden Strangs, falls er angemeldet ist.
+///
+/// Ohne Anmeldung geschieht nichts — dieselbe Haltung wie bei
+/// [`crate::diagnostics`]: Wer nicht misst, zahlt einen Vergleich.
+fn mit_strang(f: impl FnOnce(&Strang)) {
+    ANGEMELDET.with(|a| {
+        if let Some(s) = &*a.borrow() {
+            f(s);
+        }
+    });
+}
+
 /// Eine abgeschlossene Auswertung auf `weg`, die `durchgaenge` Durchgänge
 /// geliefert hat.
 pub fn kandidat(weg: Weg, durchgaenge: u64) {
-    todo!("#933 {weg:?} {durchgaenge}")
+    mit_strang(|s| {
+        let z = &s.werk.straenge[s.platz];
+        z.kandidaten[weg.index()].fetch_add(1, Ordering::Relaxed);
+        z.durchgaenge.fetch_add(durchgaenge, Ordering::Relaxed);
+    });
 }
 
 /// Setzt die Arbeitsmenge des angemeldeten Laufs.
 pub fn menge(menge: Arbeitsmenge) {
-    todo!("#933 {menge:?}")
+    mit_strang(|s| s.werk.setze_menge(menge));
 }
 
 /// Eine Runde der Suche beginnt.
 ///
 /// `geplant` sind die Auswertungen, die diese Runde sicher kostet;
-/// `rest_hoechstens` die obere Schranke für alle übrigen bis zum Ende der
-/// Suche, diese Runde eingeschlossen.
-pub fn suchrunde(runde: u64, geplant: u64, rest_hoechstens: u64) {
-    todo!("#933 {runde} {geplant} {rest_hoechstens}")
+/// `rest_mindestens` und `rest_hoechstens` die Schranken für alle übrigen bis
+/// zum Ende der Suche, diese Runde eingeschlossen. Daraus wird die absolute
+/// [`Arbeitsmenge::Hoechstens`] — gegen die Zahl, die in diesem Augenblick
+/// abgeschlossen ist.
+pub fn suchrunde(runde: u64, geplant: u64, rest_mindestens: u64, rest_hoechstens: u64) {
+    mit_strang(|s| {
+        let fertig = s.werk.kandidaten_gesamt();
+        let mut stand = s.werk.stand();
+        stand.runde = Some(runde);
+        stand.runde_ab_kandidaten = fertig;
+        stand.runde_geplant = geplant;
+        stand.menge = Arbeitsmenge::Hoechstens {
+            mindestens: fertig + rest_mindestens,
+            hoechstens: fertig + rest_hoechstens,
+        };
+    });
 }
 
 /// Die laufende Runde kostet `zusatz` Auswertungen mehr als geplant.
+///
+/// Die Untergrenze wächst mit: Was jetzt begonnen hat, wird auch gemessen. Die
+/// Obergrenze bleibt — sie enthielt diese Auswertungen schon.
 pub fn runde_ergaenzt(zusatz: u64) {
-    todo!("#933 {zusatz}")
+    mit_strang(|s| {
+        let mut stand = s.werk.stand();
+        stand.runde_geplant += zusatz;
+        if let Arbeitsmenge::Hoechstens {
+            mindestens,
+            hoechstens,
+        } = stand.menge
+        {
+            stand.menge = Arbeitsmenge::Hoechstens {
+                mindestens: (mindestens + zusatz).min(hoechstens),
+                hoechstens,
+            };
+        }
+    });
 }
 
 /// Die Suche hat ein neues bestes Ergebnis.
+///
+/// Derselbe Wert ein zweites Mal setzt die Uhr **nicht** zurück: „seit wann
+/// unverändert" soll die Zeit seit der letzten Verbesserung sein, nicht seit
+/// dem letzten Aufruf.
 pub fn bestes(wert: f64) {
-    todo!("#933 {wert}")
+    mit_strang(|s| {
+        let fertig = s.werk.kandidaten_gesamt();
+        let jetzt = s.werk.elapsed_ns();
+        let mut stand = s.werk.stand();
+        if stand
+            .bestes
+            .is_some_and(|b| b.wert.to_bits() == wert.to_bits())
+        {
+            return;
+        }
+        stand.bestes = Some(Bestes {
+            wert,
+            seit_ns: jetzt,
+            bei_kandidaten: fertig,
+        });
+    });
 }
-
-/// Dieser Strang trägt nur `AtomicU64`, und `Ordering` braucht er hier nicht
-/// selbst — die Bindung hält den Import sichtbar, bis die Umsetzung steht.
-#[allow(dead_code)]
-const _ORDNUNG: Ordering = Ordering::Relaxed;
