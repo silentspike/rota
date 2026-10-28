@@ -111,6 +111,12 @@ und je einmal gefahren; der erste und der letzte Stand zweimal, bytegleich:
 | B + (a)(b)(c)           | `52a3b22dd3a8bc8db4f8535a` | `d816fff7…`                                                                   |
 | Endstand, mit der Suche | `8b8b08a40fe7e19781bcbeb7` | `76420049…` (×2)                                                              |
 
+**Nach der Zusammenführung mit `main` (`2fe6e419`) dieselben Zahlen:** A auf `main` (die drei
+geänderten Simulator-Dateien von dort, Bau-Job `c7b8bbad8eceda2ab4de5a89`) ergibt bytegleich
+`c29fdf9d…`, der zusammengeführte Endstand (`de4e9f5a`, Bau-Job `d8102a67eba554c7c1d557b6`) zweimal
+bytegleich `76420049…` — auch mit der dabei eingeführten Beschränkung auf genau eine Runde an der
+Längengrenze.
+
 Die beiden Gleichheiten oben belegen zweierlei: Was seit der dritten Nachbesserung in `main` kam,
 bewegt keine dieser Zahlen, und der eingebaute Weckruf ist der gemessene Patch, nicht ein ähnlicher.
 
