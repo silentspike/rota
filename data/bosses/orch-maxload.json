@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "MESSWERKZEUG DES ORCHESTRATORS (E11.0b) — KEIN SPIELINHALT.\n\nAUFGENOMMEN AM 2026-08-20 auf ausdrückliche Freigabe des Auftraggebers (Fragenseite f-905-lastprofil, Antwort 'als Prüfprofil'). Bis dahin stand hier 'NICHT COMMITTEN', und die Datei lag ungetrackt in einem einzigen Arbeitsbaum — mit der Folge, dass die Ausgangsmessung von #905 (Faktor 1,40 langsamer, 77 058 gegen 108 250 Kämpfe/s) für niemanden sonst nachrechenbar war.\n\nWARUM 'testing' UND NICHT 'prologue': Die Klassifikation läuft über das Feld 'instance', nicht über den Dateinamen (build.rs, SCORED_INSTANCES gegen PROBE_INSTANCES). Mit 'prologue' hätte dieses Messwerkzeug als WERTUNGSFÄHIGER Spielboss gezählt — scoredBosses wäre von 17 auf 18 gesprungen, und eine Elite, die versehentlich gegen ihn optimiert wird, sähe im Ergebnis vollkommen plausibel aus.\n\nmax-concurrency-current: alle neun heute gebauten Mechanik-Bausteine GLEICHZEITIG, dazu Zeitleisten-Schleife, Eskalation, Phasen, Bossheilung und Widerstaende. Er soll nicht schaffbar oder fair sein — er soll die Ereignisschlange fuellen. An ihm werden Queue-Verteilung, expire_buffs-Trefferquote und Durchsatz gemessen, BEVOR eine Kapazitaet festgelegt wird.\n\nDer heutige Hoechstwert bei echten Bossen sind VIER gleichzeitige Systeme (boss-2-4). Dieser hier hat elf.\n\nSCHADENSWERTE BEWUSST WINZIG: Ein Lastprofil misst, was die SYSTEME kosten. Toetet der Boss den Spieler nach 5 s, misst die Zahl die Kampflaenge statt der Ereignisdichte — erste Fassung lief dadurch SCHNELLER als boss-1-1 (117 326 gegen 104 607 Kaempfe/s).",
+  "_comment": "MESSWERKZEUG DES ORCHESTRATORS (E11.0b) — KEIN SPIELINHALT.\n\nAUFGENOMMEN AM 2026-08-20 auf ausdrückliche Freigabe des Auftraggebers (Fragenseite f-905-lastprofil, Antwort 'als Prüfprofil'). Bis dahin stand hier 'NICHT COMMITTEN', und die Datei lag ungetrackt in einem einzigen Arbeitsbaum — mit der Folge, dass die Ausgangsmessung von #905 (Faktor 1,40 langsamer, 77 058 gegen 108 250 Kämpfe/s) für niemanden sonst nachrechenbar war.\n\nWARUM 'testing' UND NICHT 'prologue': Die Klassifikation läuft über das Feld 'instance', nicht über den Dateinamen (build.rs, SCORED_INSTANCES gegen PROBE_INSTANCES). Mit 'prologue' hätte dieses Messwerkzeug als WERTUNGSFÄHIGER Spielboss gezählt — scoredBosses wäre von 17 auf 18 gesprungen, und eine Elite, die versehentlich gegen ihn optimiert wird, sähe im Ergebnis vollkommen plausibel aus.\n\nmax-concurrency-current: alle neun heute gebauten Mechanik-Bausteine GLEICHZEITIG, dazu Zeitleisten-Schleife, Eskalation, Phasen, Bossheilung und Widerstaende. Er soll nicht schaffbar oder fair sein — er soll die Ereignisschlange fuellen. An ihm werden Queue-Verteilung, expire_buffs-Trefferquote und Durchsatz gemessen, BEVOR eine Kapazitaet festgelegt wird.\n\nDer heutige Hoechstwert bei echten Bossen sind VIER gleichzeitige Systeme (boss-2-4). Dieser hier hat elf.\n\nSCHADENSWERTE BEWUSST WINZIG: Ein Lastprofil misst, was die SYSTEME kosten. Toetet der Boss den Spieler nach 5 s, misst die Zahl die Kampflaenge statt der Ereignisdichte — erste Fassung lief dadurch SCHNELLER als boss-1-1 (117 326 gegen 104 607 Kaempfe/s).\n\nARBEITSNAMEN (Issue #797): \"Load Gauge\" (doom), \"Load Pile\" (stacks), \"Load Taint\" (affliction), \"Load Seal\" (race). Kein Spielinhalt; die Namen braucht nur die Ankuendigung (GAME-DESIGN 11.5), die jede Faehigkeit beim Namen nennt.",
   "id": "orch-maxload",
   "name": "Maximallast (Messwerkzeug)",
   "instance": "testing",
@@ -32,6 +32,7 @@
     }
   },
   "doom": {
+    "name": "Load Gauge",
     "perStepMs": 1000,
     "amount": 1,
     "threshold": 100,
@@ -39,18 +40,21 @@
     "clearCharges": 3
   },
   "stacks": {
+    "name": "Load Pile",
     "perStepMs": 4000,
     "baseDamage": 1,
     "factor": 2,
     "maxStacks": 4
   },
   "affliction": {
+    "name": "Load Taint",
     "atMs": 8000,
     "perStepMs": 1500,
     "damage": 1,
     "clearedBy": ["quench", "temper"]
   },
   "race": {
+    "name": "Load Seal",
     "atMs": 12000,
     "windowMs": 5000,
     "threshold": 1400
