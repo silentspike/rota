@@ -68,6 +68,7 @@ import {
   TIER_LETHAL,
   countdownSecond,
   highlighted,
+  warnsAudibly,
   type Announcement,
 } from '../combat/boss/announcements.js';
 import { LatencyTrace } from './latency.js';
@@ -669,9 +670,12 @@ export class Session implements Simulation {
    *
    * | Stufe | Klang |
    * | --- | --- |
-   * | 1 | keiner — „ruhigere Ankündigung", der Balken genügt |
+   * | 1 | nur „Schwächung auf dir" und „Gelegenheit"; Allgemeiner Schaden ist die „ruhigere Ankündigung" |
    * | 2 | einmal, wenn sie in ihre letzten Sekunden tritt |
    * | 3 | ebenso, dazu je Sekunde 5-4-3-2-1 |
+   *
+   * Welche Ankündigung klingt, steht in `warnsAudibly` — eine Regel, die das
+   * Bild nicht braucht, aber an derselben Stelle wie die des Bildes.
    *
    * **„Das Nebensächliche kurz unterdrückt"**: Tritt eine Fähigkeit in ihr
    * Fenster, während eine höhere Stufe schon in ihrem ist, bleibt sie stumm —
@@ -691,12 +695,14 @@ export class Session implements Simulation {
     let lauteste = 0;
     for (let rank = 0; rank < ann.count; rank++) {
       const a = ann.at(rank);
-      if (!highlighted(a)) continue;
+      const hervor = highlighted(a);
+      const klingt = warnsAudibly(a);
+      if (!hervor && !klingt) continue;
       const i = abilities.indexOf(a);
       if (this.warnedOccurrence[i] !== a.occurrence) {
         this.warnedOccurrence[i] = a.occurrence;
         this.warnedSecond[i] = 0;
-        if (a.tier >= lauteste) {
+        if (klingt && a.tier >= lauteste) {
           this.emit(EV_BOSS_WARNING_BY_KIND[a.kind] as number, NO_KEY, timeMs);
         }
       }
