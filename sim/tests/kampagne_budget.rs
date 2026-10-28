@@ -8,8 +8,14 @@
 //!
 //! | AC2 verlangt | hier geprüft |
 //! | --- | --- |
-//! | drei echte Läufe mit einem, zwei, drei Rechnern | drei **Deployments** mit einem, zwei, drei Rechnern |
+//! | drei echte Läufe mit einem, zwei, drei Teilnehmern | drei **Deployments** mit einem, zwei, drei Teilnehmern |
 //! | gleicher Ergebnis-Fingerabdruck | gleicher **Kampagnen**-Fingerabdruck |
+//!
+//! **Teilnehmer sind Arbeitsprozesse auf node3**, jeder mit eigener
+//! Kernbindung — Entscheidung des Auftraggebers vom 2026-10-28 („2 Prozesse auf
+//! node3"). Hier stand „mit einem, zwei, drei Rechnern"; „drei Rechner" heißt
+//! seitdem drei Prozesse. Kein weiterer Rechner; das Netz zwischen zwei
+//! Maschinen prüft die Abnahme nicht.
 //!
 //! **Nicht belegt ist damit, dass ein echter verteilter Lauf dasselbe
 //! Ergebnis liefert.** Das kann erst das Verteiler-Issue, das den Rechenweg
@@ -101,26 +107,56 @@ fn host(name: &'static str, kerne: u16) -> DeployedHost {
     }
 }
 
-/// Ein, zwei, drei Rechner — mit ABSICHTLICH verschiedener Ausstattung, damit
-/// die Deployments sich nicht nur in der Länge unterscheiden.
+/// Physische Kerne von node3 — die Grenze, in die alle Teilnehmer passen.
+const NODE3_KERNE: u16 = 8;
+
+/// Ein Teilnehmer der Abnahme: ein Arbeitsprozess auf node3, gebunden an
+/// `kerne` eigene physische Kerne samt ihren SMT-Geschwistern.
+///
+/// Entscheidung des Auftraggebers vom 2026-10-28: „2 Prozesse auf node3" —
+/// getrennte Arbeitsprozesse, jeder mit eigener Kernbindung, kein weiterer
+/// Rechner.
+fn prozess(name: &'static str, kerne: u16) -> DeployedHost {
+    DeployedHost {
+        name,
+        cgroup_quota: 1.0,
+        runtime_perf_profile: 1.0,
+        cpu: CpuReservation {
+            physical_cores: kerne,
+            threads_per_core: 2,
+            reserved_physical_cores: 0,
+        },
+    }
+}
+
+/// Ein, zwei, drei Teilnehmer — mit ABSICHTLICH verschiedener Kernbindung,
+/// damit die Deployments sich nicht nur in der Länge unterscheiden.
+///
+/// Bis zum 2026-10-28 waren es Rechner („laptop" mit 8, „node3" mit 12,
+/// „dritter" mit 16 Kernen). Seitdem teilen sich die Teilnehmer die Kerne von
+/// node3; die Schätzung ist deshalb überall dieselbe.
 fn deployments() -> [RunDeployment; 3] {
     [
         RunDeployment {
-            available_hosts: vec![host("laptop", 8)],
+            available_hosts: vec![prozess("node3/1", 8)],
             estimated_eta: Duration::from_secs(7200),
         },
         RunDeployment {
-            available_hosts: vec![host("laptop", 8), host("node3", 12)],
-            estimated_eta: Duration::from_secs(3600),
+            available_hosts: vec![prozess("node3/1", 5), prozess("node3/2", 3)],
+            estimated_eta: Duration::from_secs(7200),
         },
         RunDeployment {
-            available_hosts: vec![host("laptop", 8), host("node3", 12), host("dritter", 16)],
-            estimated_eta: Duration::from_secs(2400),
+            available_hosts: vec![
+                prozess("node3/1", 4),
+                prozess("node3/2", 3),
+                prozess("node3/3", 1),
+            ],
+            estimated_eta: Duration::from_secs(7200),
         },
     ]
 }
 
-/// **AC2** — dieselbe Kampagne, drei Rechnerzahlen, ein Fingerabdruck.
+/// **AC2** — dieselbe Kampagne, ein, zwei, drei Teilnehmer, ein Fingerabdruck.
 #[test]
 fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
     let k = kampagne();
@@ -128,14 +164,44 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 
     // ZUSICHERUNG: Die drei Deployments müssen sich WIRKLICH unterscheiden.
     // Ohne sie verglichen wir dreimal dasselbe, und die Gleichheit wäre trivial
-    // wahr — der Fall bliebe grün, auch wenn jemand alle drei gleich baut.
-    let stränge: Vec<u64> = d.iter().map(RunDeployment::total_compute_threads).collect();
+    // wahr — der Fall bliebe grün, auch wenn jemand alle drei gleich baut. Die
+    // Summe der Stränge ist dafür kein Maß mehr: Alle drei teilen sich node3.
+    let straenge_je_teilnehmer: Vec<Vec<u32>> = d
+        .iter()
+        .map(|x| {
+            x.available_hosts
+                .iter()
+                .map(|t| t.cpu.compute_threads())
+                .collect()
+        })
+        .collect();
     assert_eq!(
-        stränge,
-        vec![12, 12 + 20, 12 + 20 + 28],
+        straenge_je_teilnehmer,
+        vec![vec![16], vec![10, 6], vec![8, 6, 2]],
         "Die drei Deployments unterscheiden sich nicht wie erwartet — dann \
          prüft dieser Fall nichts."
     );
+
+    // Kein weiterer Rechner: Jeder Teilnehmer ist ein Prozess auf node3, und
+    // zusammen binden sie höchstens dessen Kerne.
+    for x in &d {
+        for t in &x.available_hosts {
+            assert!(
+                t.name.starts_with("node3/"),
+                "Teilnehmer {} ist kein Prozess auf node3",
+                t.name
+            );
+        }
+        let kerne: u32 = x
+            .available_hosts
+            .iter()
+            .map(|t| u32::from(t.cpu.physical_cores))
+            .sum();
+        assert!(
+            kerne <= u32::from(NODE3_KERNE),
+            "{kerne} gebundene Kerne passen nicht auf node3 ({NODE3_KERNE})"
+        );
+    }
 
     let abdruecke: Vec<Hash> = d
         .iter()
@@ -145,11 +211,11 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
         .collect();
     assert_eq!(
         abdruecke[0], abdruecke[1],
-        "ein Rechner gegen zwei: verschiedene Fingerabdrücke"
+        "ein Teilnehmer gegen zwei: verschiedene Fingerabdrücke"
     );
     assert_eq!(
         abdruecke[1], abdruecke[2],
-        "zwei Rechner gegen drei: verschiedene Fingerabdrücke"
+        "zwei Teilnehmer gegen drei: verschiedene Fingerabdrücke"
     );
 
     // Und die Arbeitsmenge selbst ist dieselbe, nicht nur ihr Abdruck.
