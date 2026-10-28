@@ -8,7 +8,6 @@ import os
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 
@@ -29,21 +28,24 @@ class StreichVolllauf(unittest.TestCase):
         (self.temp / 'bin').mkdir()
 
     def window(self, text, code):
-        fake = self.temp / 'bin/rota-fenster'
-        fake.write_text(textwrap.dedent(f'''\
-            #!/bin/sh
-            [ "$1" = status ] || exit 9
-            cat <<'STATUS'
-            {text.rstrip()}
-            STATUS
-            exit {code}
-            '''))
-        fake.chmod(0o755)
+        # Written line by line: a dedent over the inserted status text left
+        # the shebang indented, the start failed, and the PATH search went on
+        # to the REAL rota-fenster. The marker proves this one ran.
+        self.fake = self.temp / 'bin/rota-fenster'
+        self.marker = self.temp / 'fake-called'
+        self.fake.write_text('#!/bin/sh\n'
+                             f'touch {self.marker}\n'
+                             '[ "$1" = status ] || exit 9\n'
+                             "cat <<'STATUS'\n" + text.rstrip() + '\nSTATUS\n'
+                             f'exit {code}\n')
+        self.fake.chmod(0o755)
 
     def run_tool(self, *args):
-        env = dict(os.environ, PATH=f"{self.temp / 'bin'}:{os.environ['PATH']}")
-        return subprocess.run([sys.executable, '-B', str(TOOL), *args], cwd=ROOT, env=env,
-                              capture_output=True, text=True, timeout=60, check=False)
+        env = dict(os.environ, ROTA_FENSTER=str(self.fake))
+        result = subprocess.run([sys.executable, '-B', str(TOOL), *args], cwd=ROOT, env=env,
+                                capture_output=True, text=True, timeout=60, check=False)
+        self.assertTrue(self.marker.exists(), 'the fake rota-fenster was not the one asked')
+        return result
 
     def test_a_free_window_is_not_an_assigned_one(self):
         self.window(*FREE)
@@ -59,6 +61,14 @@ class StreichVolllauf(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn('w3-912', result.stdout)
 
+    def test_a_window_the_role_already_handed_back_refuses(self):
+        handed_back = HELD_BY[0].format(role='w3-streich').replace('LIEGT NICHT VOR', '28.10. 21:00:00')
+        self.window(handed_back, 0)
+        result = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
+                               '--aus', str(self.temp / 'lauf'))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Abgabe liegt vor', result.stdout)
+
     def test_the_assigned_window_shows_the_exact_command_without_creating_anything(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
         target = self.temp / 'lauf'
@@ -72,6 +82,20 @@ class StreichVolllauf(unittest.TestCase):
                      f'--nachweis {target}/evidence.json', 'setsid', 'nohup', 'TROCKEN'):
             self.assertIn(part, result.stdout)
         self.assertFalse(target.exists(), 'a dry run must not create the output directory')
+
+    def test_a_probe_needs_a_free_window_and_passes_its_fields(self):
+        self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
+        held = self.run_tool('--rolle', 'w3-streich', '--probe', 'clearsDoom', '--stand', 'HEAD',
+                             '--trocken', '--aus', str(self.temp / 'probe'))
+        self.assertEqual(held.returncode, 2, held.stdout + held.stderr)
+        self.assertIn('belegt', held.stdout)
+        self.window(*FREE)
+        free = self.run_tool('--rolle', 'w3-streich', '--probe', 'clearsDoom', '--probe', 'heal.amount',
+                             '--stand', 'HEAD', '--trocken', '--aus', str(self.temp / 'probe'))
+        self.assertEqual(free.returncode, 0, free.stdout + free.stderr)
+        for part in ('--vorproben', '--feld clearsDoom', '--feld heal.amount', 'frei (Probe)'):
+            self.assertIn(part, free.stdout)
+        self.assertFalse((self.temp / 'probe').exists())
 
     def test_an_existing_output_directory_refuses(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
