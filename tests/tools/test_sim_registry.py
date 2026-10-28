@@ -74,6 +74,26 @@ class SimRegistry(unittest.TestCase):
         self.entries['E11.0']['depends_on'] = ['E11.0b']
         self.assert_rejected('dependency cycle: E11.0 -> E11.0b -> E11.0')
 
+    def test_ac2_prerequisite_in_later_phase_is_rejected_by_cli(self):
+        # The tables are regenerated, so the phase order is the only remaining error.
+        self.entries['E20.0']['depends_on'] = ['E12.0']
+        plan = REGISTRY.update_tables(self.registry, self.plan)
+        self.assert_rejected('E20.0: phase A0b precedes prerequisite E12.0 in phase G', plan)
+
+    def test_prerequisite_in_same_or_earlier_phase_or_without_rank_is_accepted_by_cli(self):
+        for ident, dep in [('E20.0', 'E11.0'),    # A0b -> A0b
+                           ('E12.0', 'E16.0'),    # G -> B
+                           ('E20.0', 'E11.4e'),   # A0b -> fortlaufend
+                           ('E11.4e', 'E13.0'),   # fortlaufend -> H
+                           ('E15.6', 'E13.0'),    # no phase -> H
+                           ('E20.0', 'E15.6')]:   # A0b -> no phase
+            with self.subTest(edge=f'{ident} -> {dep}'):
+                registry = copy.deepcopy(self.registry)
+                entry = next(e for e in registry['entries'] if e['id'] == ident)
+                entry['depends_on'] = entry['depends_on'] + [dep]
+                result, _ = self.cli(registry, REGISTRY.update_tables(registry, self.plan))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_ac2_counted_task_without_section_is_rejected_by_cli(self):
         self.entries['E11.0']['normative_section'] = 'nonexistent-section'
         self.assert_rejected('missing normative section nonexistent-section')
