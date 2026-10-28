@@ -1132,6 +1132,21 @@ fn engpass_liest_den_hoechsten_druck_im_fenster() {
         .map(|(_, g)| g.as_str())
         .expect("ungeprüft");
     assert!(grund.contains("bis 18,40 % im Fenster"), "{grund}");
+    // Zeile und Strom sagen es auch — nicht nur die Liste der ungeprüften.
+    let zeile = a
+        .zeilen()
+        .into_iter()
+        .find(|z| z.trim_start().starts_with("Engpass"))
+        .expect("eine Zeile 'Engpass'");
+    assert!(
+        zeile.contains("Zeitdiagnose ausgesetzt: PSI cpu 18,40 %"),
+        "{zeile}"
+    );
+    let j = json(&a.jsonl("pruef-1", "pruefrechner"));
+    assert_eq!(
+        j["metrics"]["bottleneck"]["time_diagnosis_suspended"],
+        "PSI cpu 18,40 %"
+    );
 }
 
 /// Ohne Erhebung sagt die Zeile, dass nichts erhoben wird — nicht nur, dass

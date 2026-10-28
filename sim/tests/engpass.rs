@@ -352,6 +352,47 @@ fn zeile_3_unter_fremdlast_ist_ungeprueft() {
     assert_eq!(befunde(&m, Some(&grundlage())), [Regel::StraengeWarten]);
 }
 
+/// **Eine ausgesetzte Zeitdiagnose schweigt nicht** (Entscheidung des
+/// Orchestrators, 2026-10-28): Der Satz sagt, warum die Zeitzeilen aussetzen —
+/// ohne Befund wie mit, und auf ruhiger Maschine steht nichts davon da.
+#[test]
+fn eine_ausgesetzte_zeitdiagnose_steht_im_satz() {
+    let grenze = rota_sim::hostcaps::PSI_CPU_MAX;
+    let mut m = ruhig();
+    m.druck.cpu = Some(grenze * 2.0);
+    let satz = diagnose(&m, &schluessel(), Some(&grundlage())).satz();
+    assert!(satz.starts_with("keine Diagnose"), "{satz}");
+    assert!(
+        satz.contains("Zeitdiagnose ausgesetzt: PSI cpu 10,00 %"),
+        "{satz}"
+    );
+
+    let mut v = verzweigungsgebunden();
+    v.druck.cpu = Some(grenze * 2.0);
+    let satz = diagnose(&v, &schluessel(), Some(&grundlage())).satz();
+    assert!(satz.starts_with("verzweigungsgebunden"), "{satz}");
+    assert!(satz.contains("Zeitdiagnose ausgesetzt"), "{satz}");
+
+    let mut speicher = ruhig();
+    speicher.druck.speicher = Some(rota_sim::hostcaps::PSI_IO_MEM_MAX * 1.25);
+    let satz = diagnose(&speicher, &schluessel(), Some(&grundlage())).satz();
+    assert!(
+        satz.contains("Zeitdiagnose ausgesetzt: PSI memory 12,50 %"),
+        "{satz}"
+    );
+
+    let mut ohne = ruhig();
+    ohne.druck.cpu = None;
+    let satz = diagnose(&ohne, &schluessel(), Some(&grundlage())).satz();
+    assert!(
+        satz.contains("Zeitdiagnose ausgesetzt: kein Druckwert lesbar"),
+        "{satz}"
+    );
+
+    let satz = diagnose(&ruhig(), &schluessel(), Some(&grundlage())).satz();
+    assert!(!satz.contains("ausgesetzt"), "{satz}");
+}
+
 #[test]
 fn zeile_3_ohne_parallelen_abschnitt_ist_ungeprueft() {
     let mut m = ruhig();
