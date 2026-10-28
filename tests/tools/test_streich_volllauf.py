@@ -41,7 +41,11 @@ class StreichVolllauf(unittest.TestCase):
         self.fake.chmod(0o755)
 
     def run_tool(self, *args):
+        # The node_modules source is named explicitly: its default /work/rota
+        # exists on this machine and not on CI — as /work itself does not,
+        # which a disk check on a fixed '/work' met there (lint, PR #1160).
         env = dict(os.environ, ROTA_FENSTER=str(self.fake))
+        args = (*args, '--node-modules-von', str(ROOT))
         result = subprocess.run([sys.executable, '-B', str(TOOL), *args], cwd=ROOT, env=env,
                                 capture_output=True, text=True, timeout=60, check=False)
         self.assertTrue(self.marker.exists(), 'the fake rota-fenster was not the one asked')
@@ -113,6 +117,14 @@ class StreichVolllauf(unittest.TestCase):
                               '--trocken', '--aus', str(self.temp / 'probe'))
         self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-probe ',
                       probe.stdout)
+
+    def test_free_space_is_measured_where_output_and_checkout_go(self):
+        self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
+        result = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
+                               '--aus', str(self.temp / 'neu/lauf'), '--baum', str(self.temp / 'neu/baum'))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f'MB frei unter {self.temp.resolve()} ', result.stdout)
+        self.assertNotIn('unter /work ', result.stdout)
 
     def test_an_existing_checkout_directory_refuses(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
