@@ -107,10 +107,10 @@ export class AudioFeedback implements FeedbackSink {
   /**
    * Klang-Kontext anlegen und alle Dateien laden, die es tatsächlich gibt.
    *
-   * Das Verzeichnis führt alle 126 vorgesehenen Klänge, von denen 56 erzeugt
-   * sind (GAME-DESIGN 22). Würden alle angemeldet, liefe beim Start ein Schwall
-   * vergeblicher Abrufe — deshalb wird gegen die Liste der wirklich gebauten
-   * Dateien gefiltert.
+   * Das Verzeichnis beschreibt auch Klänge, deren Datei noch nicht liegt (wie
+   * viele, steht in seiner `coverage`; GAME-DESIGN 17.1). Würden alle
+   * angemeldet, liefe beim Start ein Schwall vergeblicher Abrufe — deshalb wird
+   * gegen die Liste der wirklich gebauten Dateien gefiltert.
    */
   async init(): Promise<void> {
     try {
