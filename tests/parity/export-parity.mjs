@@ -70,6 +70,12 @@ import {
   spenderTalentPayload,
   kontrollPreisTalentPayload,
   KONTROLL_PREIS_TALENT_NAME,
+  schluesselNachlaufPayload,
+  SCHLUESSEL_NACHLAUF_NAME,
+  schluesselNachlagePayload,
+  SCHLUESSEL_NACHLAGE_NAME,
+  schluesselNachlageAblaufPayload,
+  SCHLUESSEL_NACHLAGE_ABLAUF_NAME,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -684,6 +690,40 @@ console.log(
   `  Kontroll-Preis  ${kontrollPreisTalent.expected.controlFailed} fehlgeschlagen, ` +
     `${kontrollPreisTalent.expected.controlSpent} Punkte ausgegeben, ` +
     `${kontrollPreisTalent.expected.latchCasts} LATCH`,
+);
+
+// Die zwei Schluesseltalente mit Zustand (#419, #418 AC4) — je eine Runde, die
+// jeden Zweig ihres Zustands faehrt. Die Felder gehen nur mit Talent in die
+// Pruefsumme ein; nur diese beiden Dateien tragen sie.
+const schluesselNachlauf = schluesselNachlaufPayload();
+const schluesselNachlaufPath = join(here, 'recordings', `${SCHLUESSEL_NACHLAUF_NAME}.json`);
+writeFileSync(schluesselNachlaufPath, serialize(schluesselNachlauf), 'utf8');
+console.log(`geschrieben: ${schluesselNachlaufPath}`);
+console.log(
+  `  Nachlauf        endet in Takt ${schluesselNachlauf.expected.echoEnds.join(' und ')}, ` +
+    `${schluesselNachlauf.expected.decayStacks} Stapel am Ende`,
+);
+const schluesselNachlage = schluesselNachlagePayload();
+const schluesselNachlagePath = join(here, 'recordings', `${SCHLUESSEL_NACHLAGE_NAME}.json`);
+writeFileSync(schluesselNachlagePath, serialize(schluesselNachlage), 'utf8');
+console.log(`geschrieben: ${schluesselNachlagePath}`);
+console.log(
+  `  Nachlage        in Takt ${schluesselNachlage.expected.refunds.join(' und ')}, ` +
+    `Schild am Ende ${schluesselNachlage.expected.shield}`,
+);
+// Der gelegte Schild laeuft ungebrochen ab, danach brechen Umwandlungs-
+// Schichten — und keine legt nach (Abnahme von #1146).
+const schluesselNachlageAblauf = schluesselNachlageAblaufPayload();
+const schluesselNachlageAblaufPath = join(
+  here,
+  'recordings',
+  `${SCHLUESSEL_NACHLAGE_ABLAUF_NAME}.json`,
+);
+writeFileSync(schluesselNachlageAblaufPath, serialize(schluesselNachlageAblauf), 'utf8');
+console.log(`geschrieben: ${schluesselNachlageAblaufPath}`);
+console.log(
+  `  Ablauf          Brueche in Takt ${schluesselNachlageAblauf.expected.breaks.join(' und ')}, ` +
+    `Nachlagen: ${schluesselNachlageAblauf.expected.refunds.length}`,
 );
 
 const buffCombat = buffCombatPayload();
