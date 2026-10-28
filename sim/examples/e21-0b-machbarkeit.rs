@@ -12,6 +12,7 @@
 //! kein vollständiger Kampagnen-Runner und gibt kein Balance-Ergebnis aus.
 
 use std::process::ExitCode;
+use std::time::Duration;
 
 use rota_sim::apl::{parse, AplName};
 use rota_sim::balance::{run, BalanceConfig};
@@ -156,9 +157,13 @@ fn execute() -> Result<(), String> {
     let campaign = CampaignDefinition {
         profile_version: 1,
         reference_profile: ReferenceProfile {
+            name: "e21-0b-beispiel",
             version: 1,
             hosts: &[],
+            network: None,
         },
+        // Seit #914 gehört die Zielzeit zur Kampagne; der Vertrag übernimmt sie.
+        target_wall_time: Duration::from_millis(target_ms),
         canonical_work_budget: WorkUnits(work_budget),
         exact_obligations: ProjectionSet { required: 1 },
         coverage_spec: CoverageSpec { strength: 0 },
@@ -171,14 +176,11 @@ fn execute() -> Result<(), String> {
             final_audit: AuditPolicy::ScalarReplayAll,
         },
     };
-    let mut contract = CampaignRunContract::from_campaign(
-        &campaign,
-        Mission::SingleBoss { boss: BOSS },
-        target_ms,
-    );
+    let mut contract =
+        CampaignRunContract::from_campaign(&campaign, Mission::SingleBoss { boss: BOSS });
     if hard_deadline {
         contract = contract.with_hard_deadline(DeadlinePolicy::ActiveRuntime {
-            remaining_ms: target_ms,
+            remaining: Duration::from_millis(target_ms),
         });
     }
     let work = WorkEstimate {
