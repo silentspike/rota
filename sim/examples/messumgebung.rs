@@ -3138,10 +3138,12 @@ mod bewertung_verknuepft_die_kriterien {
     /// **Der Durchsatz kommt aus dem Zählstand, aus nichts sonst** (#933).
     #[test]
     fn der_durchsatz_kommt_aus_dem_zaehlstand() {
+        // Durchgänge bewusst NICHT gleich den Kämpfen: Läse die Funktion die
+        // falsche Größe, fiele es hier auf und nicht erst im Bericht.
         let stand = Momentaufnahme {
             elapsed_ns: 0,
             kaempfe: 1234,
-            durchgaenge: 1234,
+            durchgaenge: 61_700,
             kandidaten: [7, 3, 0],
             kaempfe_je_strang: vec![1234],
             stand: rota_sim::fortschritt::Laufstand::default(),
