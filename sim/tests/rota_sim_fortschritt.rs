@@ -223,7 +223,8 @@ fn in_jeder_meldung_liegt_die_runde_in_ihrem_plan() {
     let mut mit_runde = 0;
     for m in &alle {
         let c = &m["metrics"]["candidates"];
-        let (Some(erledigt), Some(geplant)) = (c["round_done"].as_u64(), c["round_planned"].as_u64())
+        let (Some(erledigt), Some(geplant)) =
+            (c["round_done"].as_u64(), c["round_planned"].as_u64())
         else {
             continue;
         };
@@ -240,7 +241,10 @@ fn in_jeder_meldung_liegt_die_runde_in_ihrem_plan() {
         ende(&alle)["metrics"]["round"].as_u64().is_some(),
         "Zusicherung: die end-Meldung trägt eine Runde"
     );
-    assert!(mit_runde > 0, "keine Meldung mit Runde — der Fall prüfte nichts");
+    assert!(
+        mit_runde > 0,
+        "keine Meldung mit Runde — der Fall prüfte nichts"
+    );
 }
 
 /// Die Zahl hinter der Zeilenmarke `marke` im Textbericht.
@@ -290,7 +294,11 @@ fn bericht_nennt_messungen_und_auswertungen_getrennt() {
         messungen + 2,
         "Auswertungen sind die Messungen der Suche plus Start- und Fundliste"
     );
-    assert_eq!(kampfzeile(&stdout), auswertungen, "ohne Würfel ein Kampf je Auswertung");
+    assert_eq!(
+        kampfzeile(&stdout),
+        auswertungen,
+        "ohne Würfel ein Kampf je Auswertung"
+    );
 
     // Dieselbe Beziehung im JSON-Bericht.
     let (code, json, stderr) = rufe(&[
