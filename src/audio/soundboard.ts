@@ -91,13 +91,21 @@ engine.library.put('dev://tone', makeSeamlessTone(ctx));
  * Hervorheben per Adresse: `?neu=id1,id2` stellt genau diese Klaenge an den
  * Anfang, markiert sie und gibt ihnen die ersten Tasten. Fuer die Hoerabnahme
  * einzelner neuer Klaenge — zwischen allen anderen findet man sie sonst nicht.
+ * Statt einer Kennung geht auch eine Gruppe des Verzeichnisses
+ * (`?neu=announce`): Eine lange Liste von Kennungen bricht im Terminal um, und
+ * der Rest der Adresse geht beim Oeffnen verloren.
  */
-const hervorgehoben = new Set(
+const groups = new Map(SOUND_MANIFEST.sounds.map((sound) => [sound.id, sound.group]));
+const angefragt = new Set(
   (new URLSearchParams(location.search).get('neu') ?? '')
     .split(',')
-    .map((id) => id.trim())
-    .filter((id) => id !== ''),
+    .map((name) => name.trim())
+    .filter((name) => name !== ''),
 );
+function istHervorgehoben(id: string): boolean {
+  const group = groups.get(id);
+  return angefragt.has(id) || (group !== undefined && angefragt.has(group));
+}
 
 const entries: Entry[] = defs.map((def) => ({
   def,
@@ -108,7 +116,7 @@ const entries: Entry[] = defs.map((def) => ({
 }));
 // Stabil sortiert: Die Hervorgehobenen behalten untereinander die Reihenfolge
 // des Verzeichnisses, alle anderen ebenso.
-entries.sort((a, b) => Number(hervorgehoben.has(b.def.id)) - Number(hervorgehoben.has(a.def.id)));
+entries.sort((a, b) => Number(istHervorgehoben(b.def.id)) - Number(istHervorgehoben(a.def.id)));
 const byKey = new Map<string, Entry>();
 
 /**
@@ -191,19 +199,20 @@ const soundsEl = document.getElementById('sounds') as HTMLTableSectionElement;
 const fadersEl = document.getElementById('faders') as HTMLDivElement;
 const hervorhebungEl = document.getElementById('hervorhebung') as HTMLParagraphElement;
 
-/** Sagt, was hervorgehoben ist — und welche angefragte Kennung es nicht gibt. */
+/** Sagt, was hervorgehoben ist — und welcher angefragte Name nichts trifft. */
 function renderHervorhebung(): void {
-  if (hervorgehoben.size === 0) {
+  if (angefragt.size === 0) {
     hervorhebungEl.textContent = '';
     return;
   }
-  const bekannt = new Set(entries.map((entry) => entry.def.id));
-  const unbekannt = [...hervorgehoben].filter((id) => !bekannt.has(id));
-  const gefunden = hervorgehoben.size - unbekannt.length;
+  const ids = new Set(entries.map((entry) => entry.def.id));
+  const gruppen = new Set(groups.values());
+  const unbekannt = [...angefragt].filter((name) => !ids.has(name) && !gruppen.has(name));
+  const gefunden = entries.filter((entry) => istHervorgehoben(entry.def.id)).length;
   hervorhebungEl.textContent =
-    `${gefunden} Klang/Klaenge hervorgehoben und oben einsortiert (Adresse ?neu=…), ` +
-    `Tasten 1 bis ${Math.min(gefunden, 9)}.` +
-    (unbekannt.length > 0 ? ` Unbekannte Kennung: ${unbekannt.join(', ')}.` : '');
+    `${gefunden} Klang/Klaenge hervorgehoben, oben einsortiert und mit NEU markiert ` +
+    `(Adresse ?neu=Kennung oder Gruppe).` +
+    (unbekannt.length > 0 ? ` Trifft nichts: ${unbekannt.join(', ')}.` : '');
 }
 
 function renderStatus(extra = ''): void {
@@ -289,7 +298,7 @@ function renderSounds(): void {
 
     const id = document.createElement('td');
     id.textContent = entry.def.id;
-    if (hervorgehoben.has(entry.def.id)) {
+    if (istHervorgehoben(entry.def.id)) {
       tr.className = 'neu';
       const marke = document.createElement('span');
       marke.className = 'marke';
@@ -374,7 +383,7 @@ renderSounds();
 // Die Liste steht unter Zustand, Lautstaerke und Verzoegerung — wer
 // hervorhebt, will sofort dorthin. Erst nach dem Fuellen der Liste, sonst ist
 // die Seite zu kurz, um zu scrollen.
-if (hervorgehoben.size > 0) {
+if (angefragt.size > 0) {
   hervorhebungEl.scrollIntoView({ block: 'start' });
 }
 renderStatus();
