@@ -38,9 +38,21 @@
 //!    Lastprofil ist die Zahl der Ereignisse je Kampf im deterministischen
 //!    Simulator dieselbe, die relative Abweichung also gleich.
 //! 2. **„hoch" und „niedrig" der zweiten Zeile** nennen keine eigene Zahl.
-//!    Hier gilt für beide Ebenen die Speicherschwelle aus AC2: die zweite
-//!    Ebene mindestens +50 %, die dritte darunter — und die Speicher-
-//!    Wartezeit selbst mindestens +50 %.
+//!    „Hoch" ist die Speicherschwelle aus AC2: Fehlgriffe der zweiten Ebene
+//!    und Speicher-Wartezeit je mindestens +50 %. „Niedrig" heißt: **Von den
+//!    zusätzlichen Fehlgriffen der zweiten Ebene geht weniger als die Hälfte
+//!    auch an der dritten vorbei** ([`DRITTE_EBENE_ANTEIL`]) — die Mehrheit
+//!    trifft dort, der Zustand passt in L3, nicht in L2.
+//!
+//!    Hier stand zuerst „die dritte Ebene unter +50 % gegen die Grundlage".
+//!    Die Lage „Speicher" auf dem Laptop hat das widerlegt (2026-10-28):
+//!    Fehlgriffe der zweiten Ebene 4,6 → 142,4 je Kampf, der dritten
+//!    2,27 → 6,32. Relativ waren das +178 % — bei einer dritten Ebene, die in
+//!    der Grundlage fast nichts zu tun hat, ist jede Handvoll Fehlgriffe ein
+//!    großer Anteil. Von den 138 zusätzlichen gingen 4 an L3 vorbei, also 3 %.
+//!    Ein Zustand, der auch für L3 zu groß ist, schickt dagegen fast jeden
+//!    zusätzlichen Fehlgriff weiter — dann schweigt die Zeile, denn die
+//!    Tabelle hat für ihn keine.
 
 use super::grundlage::{Grundlage, Schluessel};
 use super::messwerte::{Messwerte, Zaehlerlage, Zaehlerwerte};
@@ -61,6 +73,11 @@ pub const NETZ_WARTEN_ANTEIL: f64 = 0.10;
 pub const ABLAUF_TREFFER_ANTEIL: f64 = 0.20;
 /// Belegung der Ereignisschlange: mehr als das ihrer Kapazität (AC5).
 pub const SCHLANGE_BELEGUNG_ANTEIL: f64 = 0.80;
+/// Zeile 2, „dritte niedrig": Von den zusätzlichen Fehlgriffen der zweiten
+/// Ebene gehen weniger als dieser Anteil auch an der dritten vorbei — die
+/// Mehrheit trifft dort. Ein Anteil der eigenen Fehlgriffe, kein Betrag; was
+/// er ersetzt und warum, steht im Kopf dieser Datei.
+pub const DRITTE_EBENE_ANTEIL: f64 = 0.50;
 
 /// Eine Zeile der Tabelle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -485,26 +502,39 @@ fn zaehlerzeilen(d: &mut Diagnose, z: &Zaehlerwerte, g: &Grundlage) {
         g.werte.speicherwartezyklen_je_kampf,
     );
     let l2 = relativ(z.l2_je_kampf, g.werte.l2_je_kampf);
-    let l3 = relativ(z.l3_je_kampf, g.werte.l3_je_kampf);
-    match (zyklen, speicher, l2, l3) {
-        (Some(zy), Some(sp), Some(l2), Some(l3)) => {
+    // Welcher Teil der ZUSÄTZLICHEN Fehlgriffe der zweiten Ebene auch an der
+    // dritten vorbeiging — nur bestimmt, wenn es zusätzliche gibt.
+    let weiter = match (
+        z.l2_je_kampf,
+        g.werte.l2_je_kampf,
+        z.l3_je_kampf,
+        g.werte.l3_je_kampf,
+    ) {
+        (Some(l2), Some(g2), Some(l3), Some(g3)) if l2 > g2 => {
+            Some(((l3 - g3) / (l2 - g2)).max(0.0))
+        }
+        (Some(_), Some(_), Some(_), Some(_)) => Some(f64::INFINITY),
+        _ => None,
+    };
+    match (zyklen, speicher, l2, weiter) {
+        (Some(zy), Some(sp), Some(l2), Some(weiter)) => {
             d.geprueft.push(Regel::ZweiteEbene);
             if zy >= ZYKLEN_JE_EREIGNIS_PLUS
                 && sp >= SPEICHER_WARTEZEIT_PLUS
                 && l2 >= SPEICHER_WARTEZEIT_PLUS
-                && l3 < SPEICHER_WARTEZEIT_PLUS
+                && weiter < DRITTE_EBENE_ANTEIL
             {
                 d.befunde.push(Befund {
                     regel: Regel::ZweiteEbene,
                     beobachtung: format!(
-                        "Fehlgriffe der zweiten Ebene je Kampf {} statt {} ({}), der dritten {} \
-                         statt {} ({}), Speicher-Wartezeit {}, Zyklen je Kampf {}",
+                        "Fehlgriffe der zweiten Ebene je Kampf {} statt {} ({}), davon {} auch an \
+                         der dritten vorbei ({} statt {}), Speicher-Wartezeit {}, Zyklen je Kampf {}",
                         zahl(z.l2_je_kampf.unwrap_or(f64::NAN)),
                         zahl(g.werte.l2_je_kampf.unwrap_or(f64::NAN)),
                         prozent(l2),
+                        anteil(weiter),
                         zahl(z.l3_je_kampf.unwrap_or(f64::NAN)),
                         zahl(g.werte.l3_je_kampf.unwrap_or(f64::NAN)),
-                        prozent(l3),
                         prozent(sp),
                         prozent(zy)
                     ),

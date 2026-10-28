@@ -12,8 +12,8 @@
 use rota_sim::engpass::{
     diagnose, Ablauftreffer, Druck, Grundlage, Kernklasse, Messwerte, Netzwerte, Regel,
     Schlangenbelegung, Schluessel, Strangzeit, Vergleichswerte, Wegtreffer, Zaehlerlage,
-    Zaehlerwerte, ABLAUF_TREFFER_ANTEIL, DURCHSATZ_MINUS, FEHLSPRUENGE_PLUS, NETZ_WARTEN_ANTEIL,
-    SCHLANGE_BELEGUNG_ANTEIL, SPEICHER_WARTEZEIT_PLUS, STRANG_WARTEN_ANTEIL,
+    Zaehlerwerte, ABLAUF_TREFFER_ANTEIL, DRITTE_EBENE_ANTEIL, DURCHSATZ_MINUS, FEHLSPRUENGE_PLUS,
+    NETZ_WARTEN_ANTEIL, SCHLANGE_BELEGUNG_ANTEIL, SPEICHER_WARTEZEIT_PLUS, STRANG_WARTEN_ANTEIL,
     ZYKLEN_JE_EREIGNIS_PLUS,
 };
 
@@ -236,16 +236,24 @@ fn zeile_2_zustand_zu_gross_fuer_l2_schlaegt_an() {
     );
 }
 
-/// Steigt auch die dritte Ebene, ist der Zustand zu groß für L3 — das sagt
-/// die Tabelle nicht, also schweigt die Zeile.
+/// Geht die Mehrheit der zusätzlichen Fehlgriffe auch an der dritten Ebene
+/// vorbei, ist der Zustand zu groß für L3 — das sagt die Tabelle nicht, also
+/// schweigt die Zeile.
 #[test]
 fn zeile_2_schweigt_wenn_auch_die_dritte_ebene_steigt() {
     let mut m = zweite_ebene();
     let Zaehlerlage::Gemessen(z) = &mut m.zaehler else {
         unreachable!()
     };
-    z.l3_je_kampf = Some(ueber(4.0, SPEICHER_WARTEZEIT_PLUS));
+    let zusaetzlich = z.l2_je_kampf.unwrap() - 40.0;
+    z.l3_je_kampf = Some(4.0 + zusaetzlich * (DRITTE_EBENE_ANTEIL + 0.3));
     assert!(befunde(&m, Some(&grundlage())).is_empty());
+    // Die Gegenrichtung desselben Falls: knapp unter der Hälfte schlägt sie an.
+    let Zaehlerlage::Gemessen(z) = &mut m.zaehler else {
+        unreachable!()
+    };
+    z.l3_je_kampf = Some(4.0 + zusaetzlich * (DRITTE_EBENE_ANTEIL - 0.1));
+    assert_eq!(befunde(&m, Some(&grundlage())), [Regel::ZweiteEbene]);
 }
 
 /// **Gemessen am 2026-10-28 auf dem Laptop** (AC6, Lage „Speicher"): `bench`
