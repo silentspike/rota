@@ -164,26 +164,75 @@ export interface ReferenceOptions {
 export interface DriveOutcome {
   /** Kampfzeit des Sieges in ms, oder -1, wenn der Boss überlebt hat. */
   readonly killedAtMs: number;
-  /** Je Takt, in dem gewirkt werden durfte und die Liste nichts wählte, 10 ms. */
+  /** Je Takt, in dem die globale Wartezeit bereit war und nichts gewirkt wurde, 10 ms. */
   readonly idleMs: number;
+}
+
+/**
+ * Wie viele Würfe die Schleife beim **selben** Zeitstempel höchstens zulässt
+ * (Issue #1027, Teil c).
+ *
+ * Nach einem Wurf entscheidet die Liste beim selben Zeitstempel erneut (siehe
+ * {@link driveRotation}). Das endet, sobald sie nichts mehr wählt — und das
+ * kommt, weil jeder Wurf etwas verbraucht: Ein Zauber mit Wartezeit sperrt alle
+ * anderen mit Wartezeit, jeder Zauber seine eigene Abklingzeit. Ohne Rücksetzer
+ * wirkt also jeder Zauber höchstens einmal je Zeitstempel, und die Zahl der
+ * Zauber ist eine Grenze, die kein gültiger Datensatz erreicht.
+ *
+ * **Wer sie erreicht, hat einen Nullzeit-Zyklus gebaut** — etwa einen Zauber
+ * ohne Wartezeit, der nach dem Wurf bereit bleibt. Das ist ein Datenfehler und
+ * wird abgelehnt, nicht endlos gerechnet (`docs/SIM-ARCHITEKTUR-PLAN.md`,
+ * „Das Optimum-Orakel"). Der Simulator führt dieselbe Grenze
+ * (`NULLZEIT_BUDGET` in `sim/src/fight.rs`, `SPELL_COUNT`); die Aufzeichnung
+ * `gcd-freier-wurf.json` trägt sie, damit beide Seiten sie gegeneinander
+ * prüfen.
+ */
+export function nullzeitBudget(combat: Combat): number {
+  return combat.spells.length;
 }
 
 /**
  * Die Schleife hinter {@link runReference}, für eine beliebige Prioritätenliste
  * (Issue #1027).
  *
- * **Eine Entscheidung je Takt, und nur, wenn die globale Wartezeit bereit ist.**
- * Daraus folgt, was nach einem Wurf ohne Wartezeit geschieht (QUENCH, oder der
- * Wurf, den SUBLIME befreit): Die Wartezeit bleibt bereit, also entscheidet die
- * Liste im nächsten Takt erneut — nicht im selben und nicht erst beim nächsten
- * Ereignis. Der Simulator muss das bitgleich nachbilden; geprüft wird es an
- * `tests/parity/recordings/gcd-freier-wurf.json`.
+ * # Wann entschieden wird
+ *
+ * **In jedem Takt, und nach jedem Wurf beim selben Zeitstempel erneut, bis die
+ * Liste nichts mehr wählt.** Das ist das Entscheidungsmodell, das der
+ * Orchestrator am 2026-10-28 an #1027 festgelegt hat, und es ist dasselbe, was
+ * das Spiel einem Spieler erlaubt: `Session.tick` arbeitet alle Drücke eines
+ * Takts ab, und ein Zauber ohne Wartezeit wird von keiner laufenden gesperrt.
+ *
+ * | | |
+ * | --- | --- |
+ * | (a) | nach einem Wurf ohne Wartezeit (QUENCH, oder der Wurf, den SUBLIME befreit) wählt die Liste beim selben Zeitstempel weiter |
+ * | (b) | während einer laufenden Wartezeit kommt ein Zauber ohne Wartezeit zum Zug — auch im Takt des Wurfs, der sie ausgelöst hat |
+ * | (c) | mehr als {@link nullzeitBudget} Würfe beim selben Zeitstempel sind ein Nullzeit-Zyklus und brechen ab |
+ *
+ * Bis dahin entschied die Schleife je Takt einmal und nur bei bereiter
+ * Wartezeit: nach QUENCH erst im nächsten Takt, und QUENCH nie während eines
+ * GCD. Ohne Zauber ohne Wartezeit ändert sich nichts — dann ist während einer
+ * laufenden Wartezeit kein Zauber bereit, und nach einem Wurf mit Wartezeit
+ * auch nicht.
+ *
+ * **Ein gewählter Zauber, der nicht bereit ist, heißt warten.** Der Druck
+ * bliebe ohne Wirkung (`Combat.cast` weist ihn ab), und ihn erneut zu wählen
+ * änderte nichts — ohne diese Regel wäre schon eine Liste, die einen Zauber auf
+ * Abklingzeit zurückgibt, ein Nullzeit-Zyklus.
+ *
+ * # Leerlauf
+ *
+ * Je Takt, in dem die Wartezeit bereit war und nichts gewirkt wurde, 10 ms —
+ * dieselbe Zählung wie `Session.idleTicks`. Ein Takt mitten in einer
+ * Wartezeit ist kein Leerlauf, auch wenn die Liste dort nichts wählt.
  *
  * **Eine eigene Funktion, damit die Aufzeichnung DIESE Schleife fährt** und
  * keinen Nachbau. Bis #1027 stand sie nur in `runReference`, fest verdrahtet mit
  * den vier Rotationen aus Schritt 1 — eine Aufzeichnung mit QUENCH hätte sie
  * abschreiben müssen, und eine Abschrift ist genau die zweite Quelle, die
- * plausibel antwortet und nichts belegt.
+ * plausibel antwortet und nichts belegt. Der Simulator muss sie bitgleich
+ * nachbilden; geprüft wird das an `tests/parity/recordings/gcd-freier-wurf.json`
+ * und `strikter-umschlag.json`.
  *
  * @param choose Der gewählte Zauber-Index, oder -1 für warten.
  * @param cast Wirkt den gewählten Zauber; die Aufzeichnung schreibt hier mit.
@@ -198,6 +247,7 @@ export function driveRotation(
   let killedAtMs = -1;
   let idleMs = 0;
   let timeMs = 0;
+  const budget = nullzeitBudget(combat);
 
   while (timeMs < durationMs) {
     combat.stepPassive(timeMs);
@@ -205,11 +255,24 @@ export function driveRotation(
       killedAtMs = timeMs;
       if (stopOnKill) break;
     }
-    if (combat.gcd.isReady(timeMs)) {
+    const gcdBereit = combat.gcd.isReady(timeMs);
+    let wuerfe = 0;
+    for (;;) {
       const choice = choose(timeMs);
-      if (choice === IDLE) idleMs += TICK_MS;
-      else cast(alsSpellIndex(choice), timeMs);
+      if (choice === IDLE) break;
+      const spell = alsSpellIndex(choice);
+      if (!combat.isReady(spell, timeMs)) break;
+      if (wuerfe === budget) {
+        throw new Error(
+          `Nullzeit-Zyklus bei ${String(timeMs)} ms: ${String(wuerfe)} Würfe beim selben ` +
+            `Zeitstempel, und die Liste wählt weiter (${combat.spells[spell]?.id ?? '?'}). ` +
+            `Das ist ein Datenfehler — ein Zauber bleibt nach seinem Wurf bereit.`,
+        );
+      }
+      cast(spell, timeMs);
+      wuerfe++;
     }
+    if (wuerfe === 0 && gcdBereit) idleMs += TICK_MS;
     timeMs += TICK_MS;
   }
 

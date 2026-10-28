@@ -48,7 +48,7 @@ import {
 } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
-import { driveRotation } from '../../src/devtools/reference-run.js';
+import { driveRotation, nullzeitBudget } from '../../src/devtools/reference-run.js';
 export { productionPhasesPayload, PRODUCTION_PHASES_NAME } from './phase-bindings-production.js';
 import {
   POOL_CATALYSIS,
@@ -3865,8 +3865,9 @@ function smoulderRest(combat: Combat, timeMs: number): number {
  */
 const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
   {
-    // QUENCH vor dem Füller, ohne jede zeitabhängige Bedingung. Hier warf der
-    // Simulator den Füller erst bei 2000 statt bei 10 (#1027).
+    // QUENCH vor dem Füller, ohne jede zeitabhängige Bedingung. Bis #1135 warf
+    // der Simulator den Füller erst bei 2000; seit dem Entscheidungsmodell vom
+    // 2026-10-28 folgt er beim selben Zeitstempel (0), vorher im nächsten Takt.
     name: 'quench-fueller',
     zeilen: [
       { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
@@ -3874,10 +3875,9 @@ const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
     ],
   },
   {
-    // Die strikte Nachlegezeile der Suche neben QUENCH: QUENCH fällt auf das
-    // GCD-Ende, an dem SMOULDER genau auf 1500 steht. `< 1500` ist dort falsch
-    // und wird einen Takt später wahr — die Lage, in der sich 14 der 15
-    // verschobenen Suchen des Berichts trennen.
+    // Die strikte Nachlegezeile der Suche neben QUENCH — die Lage, in der sich
+    // vor #1135 14 der 15 verschobenen Suchen des Berichts trennten. QUENCH
+    // kommt hier auch mitten in den GCD des Füllers (5000, 10000, …).
     name: 'quench-nachlegen-strikt',
     zeilen: [
       { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
@@ -3892,8 +3892,10 @@ const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
   {
     // Dieselbe Lage, aber genau getroffen: QUENCH fällt auf das GCD-Ende bei
     // 10500, an dem SMOULDER (gewirkt bei 0) genau auf 1500 steht. `< 1500`
-    // ist dort falsch und einen Takt später wahr, ohne dass dazwischen ein
-    // Ereignis liegt. `time >= 10500` setzt nur den Zeitpunkt.
+    // ist dort falsch; die Liste wählt beim selben Zeitstempel den Füller, und
+    // SMOULDER kommt erst am nächsten GCD-Ende. (Bis zum Entscheidungsmodell
+    // vom 2026-10-28 entschied sie einen Takt später und legte bei 10510 nach.)
+    // `time >= 10500` setzt nur den Zeitpunkt.
     name: 'quench-auf-der-schwelle',
     zeilen: [
       {
@@ -3938,6 +3940,30 @@ const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
     ],
   },
   {
+    // (b) QUENCH UNTER dem Füller: KINDLE ist an jedem GCD-Ende bereit, also
+    // kam QUENCH bis zum Entscheidungsmodell vom 2026-10-28 nie zum Zug. Jetzt
+    // nach KINDLE im selben Takt und am Ende jeder Abklingzeit, mitten im GCD.
+    name: 'quench-unter-dem-fueller',
+    zeilen: [
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // (b) Eine Bedingung, die mitten im GCD wahr wird: QUENCH bei 700, im GCD
+    // des KINDLE von 0. Der Simulator braucht dafür einen Weckruf INNERHALB der
+    // Wartezeit — bis hierher legte er jeden auf ihr Ende.
+    name: 'quench-mitten-im-gcd',
+    zeilen: [
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'quench',
+        bedingung: 'time >= 700',
+        gilt: (_combat, timeMs) => timeMs >= 700,
+      },
+    ],
+  },
+  {
     // Die Gegenprobe OHNE freien Wurf: nur Warten auf die Uhr. Sie trennt den
     // Leerlauf vom freien Wurf — zählt der Simulator hier falsch, liegt es am
     // Zählen selbst.
@@ -3956,7 +3982,8 @@ const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
  * Was nach einem Wurf ohne Wartezeit geschieht (Issue #1027).
  *
  * Gefahren wird die Schleife von `runReference` selbst
- * ({@link driveRotation}): eine Entscheidung je Takt, nur bei bereiter
+ * ({@link driveRotation}): je Takt, und nach jedem Wurf beim selben Zeitstempel
+ * erneut, bis die Liste nichts mehr wählt — auch während einer laufenden
  * Wartezeit. Die Aufzeichnung hält deshalb zweierlei fest — die Drücke, die
  * die Rust-Seite wie jede andere Aufzeichnung abspielt, und **wann die Liste
  * entschieden hat**, samt Leerlauf. Gegen das Zweite fährt
@@ -4145,6 +4172,12 @@ function listenPayload(
     seed: 0,
     ticks,
     tickMs: TICK_MS,
+    /**
+     * Die Grenze aus {@link nullzeitBudget}. Der Simulator hält seine eigene
+     * (`NULLZEIT_BUDGET`) dagegen — sonst bräche eine Seite einen Zyklus ab,
+     * den die andere noch rechnet.
+     */
+    nullzeitBudget: nullzeitBudget(new Combat({ school: CALCINATION.value, boss, seed: 0 })),
     bindings: bindings.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     runs,
   };
