@@ -73,7 +73,12 @@ Referenzprofil "standard"
 > Messfenster —, **die CPU nur als Rückfall.** „Koordiniert nur" gilt deshalb der CPU: Im Code ist
 > die Rolle eine CPU-Rolle (`CpuRole`), und die Grafik-Einschaltdauer steht bei jedem Rechner, auch
 > beim Koordinator. Im Referenzlauf ist sie 0 %, weil es noch keinen GPU-Pfad gibt und GPU-Arbeit
-> nicht von selbst läuft. Läuft die GPU des Laptops auf Aufruf mit, ist das kein `remote-only` mehr.
+> nicht von selbst läuft.
+
+> **Entschieden am 2026-10-28 (Orchestrator).** Hier stand zuletzt „Läuft die GPU des Laptops auf
+> Aufruf mit, ist das kein `remote-only` mehr." **Die Betriebsprofile regeln nur die CPU.** Die
+> Laptop-GPU wird je Lauf ausdrücklich genannt (etwa `--gpu local`), zusätzlich zum Profil; ein
+> Lauf mit Laptop-GPU bleibt `remote-only` (E15.1).
 
 **Bei weniger Rechnern bleibt die Arbeit gleich — nur die ETA wächst.** Das ist der Zweck des
 eingefrorenen Arbeitsbudgets (E21.0): Ein Rechnerausfall darf das **Ergebnis** nicht ändern.
@@ -100,10 +105,16 @@ eingefrorenen Arbeitsbudgets (E21.0): Ein Rechnerausfall darf das **Ergebnis** n
 > dasselbe eingefrorene Arbeitsbudget und damit dasselbe Ergebnis (E21.0), nur in längerer Zeit.
 
 > **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die CPU des Laptops rechnet nur als
-> Rückfall. Erst dann wird sie kalibriert (E15.0, „Fertig, wenn"), und der Lauf sagt ausdrücklich,
-> dass er auf dem Laptop rechnet (E20, Punkt 4). Seine GPU darf auf ausdrücklichen Aufruf und im
-> zugeteilten Messfenster rechnen; in der Tabelle steht sie nicht, weil der Referenzlauf sie nicht
-> nutzt.
+> Rückfall. Erst dann wird sie kalibriert (E15.0, „Fertig, wenn"). Seine GPU darf auf
+> ausdrücklichen Aufruf und im zugeteilten Messfenster rechnen; in der Tabelle steht sie nicht, weil
+> der Referenzlauf sie nicht nutzt.
+
+> **Entschieden am 2026-10-28 (Orchestrator).** Hier stand zuletzt zusätzlich „und der Lauf sagt
+> ausdrücklich, dass er auf dem Laptop rechnet (E20, Punkt 4)". **Kein stilles Ausweichen:** Ist
+> node3 nicht erreichbar, rechnet ein Lauf nicht von selbst auf der Laptop-CPU, sondern bricht mit
+> einer Meldung ab, die den Weg nennt — etwa „node3 nicht erreichbar — mit `--hosts local` auf der
+> Laptop-CPU rechnen". Das gilt im Referenzprofil wie bei Einzelläufen; die Laptop-CPU rechnet nur
+> auf ausdrücklichen Aufruf.
 
 **Was ausdrücklich nicht zugesichert wird:** den Vollraum zu rechnen. Bei 350 000 Kämpfen/s
 bräuchte allein der **reduzierte** Raum 2,8·10²⁵ Jahre. Kein Issue in diesem Plan darf mit
@@ -3641,10 +3652,20 @@ Schnell weg, langsam zurück — ein symmetrischer Regler verbringt seine Zeit m
 > 2 Kerne und VRAM-Reserve — **Voreinstellung dort**" und bei `remote-only` nur „lokal nur
 > Koordinator und Anzeige". Die Voreinstellung auf dem Laptop ist seitdem `remote-only` — im
 > Referenzprofil „standard" wie außerhalb davon (E20, Punkt 4): Seine CPU koordiniert, node3
-> rechnet. Die CPU des Laptops rechnet nur als Rückfall, wenn node3 nicht erreichbar ist; dann gilt
-> dort weiter die Grenze aus „Der Sonderfall Laptop" unten, also `balanced`. Seine GPU darf auf
-> ausdrücklichen Aufruf und im zugeteilten Messfenster rechnen — ein solcher Lauf ist kein
-> `remote-only` mehr.
+> rechnet. Die CPU des Laptops rechnet nur als Rückfall, auf ausdrücklichen Aufruf
+> (`--hosts local`); dann gilt dort weiter die Grenze aus „Der Sonderfall Laptop" unten, also
+> `balanced`. Seine GPU darf auf ausdrücklichen Aufruf und im zugeteilten Messfenster rechnen.
+
+> **Entschieden am 2026-10-28 (Orchestrator).** Hier stand zuletzt „Die CPU des Laptops rechnet nur
+> als Rückfall, wenn node3 nicht erreichbar ist" und „ein solcher Lauf ist kein `remote-only`
+> mehr". Zwei Festlegungen:
+>
+> - **Die Betriebsprofile regeln nur die CPU.** Profil regelt die CPU; GPU nur auf ausdrücklichen
+>   Aufruf, im zugeteilten Messfenster. Die Laptop-GPU wird je Lauf ausdrücklich genannt (etwa
+>   `--gpu local`), zusätzlich zum Profil — ein Lauf mit Laptop-GPU bleibt `remote-only`. Kein
+>   neues Profil.
+> - **Kein stilles Ausweichen.** Ist node3 nicht erreichbar, rechnet die Laptop-CPU nicht von
+>   selbst; der Lauf bricht mit einer Meldung ab, die den Weg nennt (E15.5, E20 Punkt 4).
 
 **Der Sonderfall Laptop:** Er ist die Maschine, an der gearbeitet wird. Dort gilt zusätzlich
 eine Obergrenze, die nicht der Regler setzt, sondern der Nutzer.
@@ -4134,9 +4155,18 @@ Heartbeat aus?       → Lease läuft ab, Job wird neu vergeben (auch lokal)
 > Lauf, bis node3 wieder zieht. Ohne `--hosts` rechnet im Profil also nur node3.
 >
 > **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die CPU des Laptops rechnet nur als
-> Rückfall, wenn node3 nicht erreichbar ist, und der Lauf sagt dann ausdrücklich, dass er auf dem
-> Laptop rechnet. Seine GPU darf auf ausdrücklichen Aufruf und im zugeteilten Messfenster rechnen;
-> eine GPU-Aufgabe geht deshalb an den Laptop, eine CPU-Aufgabe im Profil „standard" an node3.
+> Rückfall, auf ausdrücklichen Aufruf (`--hosts local`). Seine GPU darf auf ausdrücklichen Aufruf
+> und im zugeteilten Messfenster rechnen; eine GPU-Aufgabe geht deshalb an den Laptop, eine
+> CPU-Aufgabe im Profil „standard" an node3.
+>
+> **Entschieden am 2026-10-28 (Orchestrator).** Im Vermerk darüber stand zuletzt „wenn node3 nicht
+> erreichbar ist, und der Lauf sagt dann ausdrücklich, dass er auf dem Laptop rechnet". **Kein
+> stilles Ausweichen:** Ist node3 nicht erreichbar, rechnet die Laptop-CPU nicht von selbst. Für die
+> erste Zeile des Ablaufs („überspringen, EINMAL vermerken, weiterlaufen") heißt das: Ist der
+> übersprungene Rechner der einzige rechnende — im Profil „standard" wie bei Einzelläufen node3 —,
+> bricht der Lauf mit einer Meldung ab, die den Weg nennt, etwa „node3 nicht erreichbar — mit
+> `--hosts local` auf der Laptop-CPU rechnen". Die Laptop-GPU wird je Lauf ausdrücklich genannt
+> (etwa `--gpu local`), zusätzlich zum Profil (E15.1).
 
 > **KORRIGIERT am 2026-08-14, dritte Runde — zwei Stellen.**
 >
@@ -4816,14 +4846,22 @@ verhindert einen falsch parametrierten Lauf über Nacht.
 
 **4. Voreinstellungen, die stimmen.** `rota-sim run --boss boss-1-1` muss ohne weitere Optionen
 etwas Sinnvolles tun: auf node3 rechnen, Fortschritt anzeigen, Ergebnis auf die Standardausgabe.
-Die CPU des Laptops rechnet nur, wenn node3 nicht erreichbar ist, und das sagt der Lauf dann
-ausdrücklich. **Wer eine Option braucht, um überhaupt etwas zu bekommen, hat kein Werkzeug.**
+Ist node3 nicht erreichbar, bricht der Lauf mit einer Meldung ab, die den Weg nennt — etwa „node3
+nicht erreichbar — mit `--hosts local` auf der Laptop-CPU rechnen". **Wer eine Option braucht, um
+überhaupt etwas zu bekommen, hat kein Werkzeug.**
 
 > **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Hier stand „Profil `balanced` auf dem
 > Laptop, erreichbare Zusatzrechner mitnehmen". Außerhalb des Referenzprofils gilt dasselbe wie in
 > ihm: Einzelläufe beim Entwickeln laufen auf node3. Bis E15.5 Läufe verteilt, heißt das: direkt im
 > Container CT 105 per ssh. Die GPU des Laptops darf auf ausdrücklichen Aufruf und im zugeteilten
 > Messfenster rechnen.
+
+> **Entschieden am 2026-10-28 (Orchestrator).** Hier stand zuletzt „Die CPU des Laptops rechnet nur,
+> wenn node3 nicht erreichbar ist, und das sagt der Lauf dann ausdrücklich." **Kein stilles
+> Ausweichen:** Ein Einzellauf rechnet ohne node3 nicht von selbst auf der Laptop-CPU — wie im
+> Referenzprofil; die Laptop-CPU rechnet nur auf ausdrücklichen Aufruf (`--hosts local`). Die
+> „ausdrückliche" Aussage des Laufs ist die Abbruchmeldung mit dem Weg. Die Laptop-GPU wird je
+> Lauf ausdrücklich genannt (etwa `--gpu local`), zusätzlich zum Profil.
 
 **5. Zwei Ausgabearten, ein Datenstrom.** Für Menschen eine überschriebene Zeile (E15.2), für
 Automatisierung `--json` bzw. `--jsonl`. **Nie zwei getrennte Zähler** — die Anzeige liest
