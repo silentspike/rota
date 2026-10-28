@@ -1,7 +1,7 @@
 //! Messung A: Ab welcher Entscheidung weicht ein Kampfverlauf ab?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
+//! cargo remote -c -- build --release \
 //!   --example trace-wiederverwendung
 //! ./target/release/examples/trace-wiederverwendung
 //! ```

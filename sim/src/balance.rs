@@ -36,12 +36,15 @@
 //! **verschiedene** Durchgänge rechnen, teilen dagegen nichts.
 
 use std::thread;
+use std::time::Instant;
 
 use crate::apl::Apl;
 use crate::data::{Boss, BOSS};
 use crate::factors::{DamageFactors, NEUTRAL};
 use crate::fight::{Fight, FightConfig};
 use crate::gear::WornValues;
+use crate::objective::{Outcome, WinCondition};
+use crate::stichprobe::{gestaffelt, Befund};
 use crate::time::Millis;
 
 /// Einstellungen eines Balance-Laufs.
@@ -699,6 +702,44 @@ pub fn erster_todesfeld_widerspruch(samples: &[Sample]) -> Option<u32> {
         .map(|s| s.seed)
 }
 
+/// Welchen Weg ein Lauf mit dieser Konfiguration nimmt (#933).
+///
+/// **Dieselbe Entscheidung wie in [`run`], nicht ihr Nachbau:** Beide rufen
+/// [`weg_von`]. Die Anzeige braucht den Weg, bevor der erste Kampf läuft — für
+/// die Kosten einer Auswertung —, und ein zweites Mal hingeschrieben liefe die
+/// Bedingung beim nächsten Umbau auseinander.
+#[must_use]
+pub fn auswertungsweg(config: &BalanceConfig) -> crate::fortschritt::Weg {
+    weg_von(config, true)
+}
+
+/// Der Weg einer Auswertung: ein Kampf, wenn die Reduktion erlaubt ist und
+/// nirgends gewürfelt wird — sonst die feste Stichprobe.
+fn weg_von(config: &BalanceConfig, reduktion: bool) -> crate::fortschritt::Weg {
+    if reduktion
+        && crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn)
+    {
+        crate::fortschritt::Weg::EinKampf
+    } else {
+        crate::fortschritt::Weg::Stichprobe
+    }
+}
+
+/// Rechnet jeden Durchgang als eigenen Kampf, ohne die Reduktion aus #908.
+///
+/// **Für Durchsatzmessungen.** Ohne Würfel rechnet [`run`] einen Kampf und
+/// vervielfacht ihn; eine Messung, die „Kämpfe je Sekunde" meldet, teilte dann
+/// die angeforderte Zahl durch die Zeit eines einzigen. Genau so hat
+/// `rota-sim bench` bis #933 gemessen — und `orch-verteilung` vor ihm, siehe
+/// [`crate::kalibrierung::referenz_fights_per_s`].
+///
+/// Das Ergebnis ist bitgleich mit dem von [`run`]; `tests/fortschritt.rs`
+/// hält das fest.
+#[must_use]
+pub fn run_vollstaendig(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
+    run_with_control(config, apl, false, None)
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
@@ -738,12 +779,15 @@ fn run_with_control(
 ) -> BalanceResult {
     let threads = config.threads.max(1);
     let iterations = config.iterations;
+    let weg = weg_von(config, reduktion);
+    if reduktion {
+        // Der Nenner der Trefferquote dieses Wegs (#934): geprüft wurde, ob
+        // ein Kampf genügt — getroffen hat es, wenn `weg` EinKampf ist.
+        crate::fortschritt::reduktionsversuch();
+    }
 
     let mut casts_total = [0u32; crate::data::SPELL_COUNT];
-    let mut samples: Vec<Sample> = if reduktion
-        && iterations > 1
-        && crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn)
-    {
+    let mut samples: Vec<Sample> = if weg == crate::fortschritt::Weg::EinKampf && iterations > 1 {
         // **Ein Durchgang statt fuenfzig bis zweihundert** (Issue #908, AC1).
         //
         // Die Bedingung ist abgeleitet, nicht `purity == 0`: Sobald irgendetwas
@@ -800,20 +844,53 @@ fn run_with_control(
             }
         }
 
+        // Die Arbeitsstränge erben das Zählwerk des Leitstrangs (#933), jeder
+        // auf dem Platz seines Bereichs — sonst sähe ein mehrsträngiger Lauf
+        // nur die Kämpfe des Leitstrangs, und das sind keine.
+        let leitstrang = crate::fortschritt::strang();
+        // Ebenso den Schalter der Kampfzähler (#934): Sie sind strang-lokal,
+        // und ohne ihn zählte ein mehrsträngiger Lauf nichts. Ihre Zähler
+        // kommen nach dem Ende in den Leitstrang zurück. Der Trace-Hash bleibt
+        // einsträngig (siehe `diagnostics::vereinigen`).
+        let kampfzaehler = crate::diagnostics::is_enabled();
         thread::scope(|scope| {
             let handles: Vec<_> = ranges
                 .iter()
-                .map(|&(offset, len)| {
-                    scope.spawn(move || run_range(config, apl, offset, len, control))
+                .enumerate()
+                .map(|(nummer, &(offset, len))| {
+                    let arbeiter = leitstrang.as_ref().map(|s| s.arbeiter(nummer));
+                    scope.spawn(move || {
+                        let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
+                        if kampfzaehler {
+                            crate::diagnostics::enable();
+                        }
+                        let beginn = Instant::now();
+                        let cpu_vorher = crate::engpass::strang_cpu_ns();
+                        let teil = run_range(config, apl, offset, len, control);
+                        let cpu = crate::engpass::strang_cpu_ns()
+                            .zip(cpu_vorher)
+                            .map(|(nachher, vorher)| nachher.saturating_sub(vorher));
+                        let ende = Instant::now();
+                        let zaehler = kampfzaehler.then(crate::diagnostics::snapshot);
+                        (teil, (beginn, ende, cpu), zaehler)
+                    })
                 })
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
+            let mut zeiten = Vec::with_capacity(handles.len());
             for handle in handles {
-                let (s, c, _) = handle.join().expect("ein Strang ist abgestuerzt");
+                let ((s, c, _), zeit, zaehler) = handle.join().expect("ein Strang ist abgestuerzt");
                 for (i, n) in c.iter().enumerate() {
                     casts_total[i] += *n;
                 }
+                if let Some(z) = zaehler {
+                    crate::diagnostics::vereinigen(&z);
+                }
+                zeiten.push(zeit);
                 all.extend(s);
+            }
+            if let Some(s) = &leitstrang {
+                abschnitt_eintragen(s, &zeiten, threads);
             }
             all
         })
@@ -852,7 +929,7 @@ fn run_with_control(
     // enthalten. `samples` kommt bereits in dieser Reihenfolge.
     let death_values = todeszeiten(&samples);
 
-    BalanceResult {
+    let ergebnis = BalanceResult {
         apl_name: apl.name.clone(),
         iterations,
         base_seed: config.base_seed,
@@ -876,6 +953,45 @@ fn run_with_control(
         deaths: samples.iter().filter(|s| s.died).count(),
         casts: casts_total.to_vec(),
         samples,
+    };
+
+    // Eine Auswertung ist fertig (#933), wenn ihr Ergebnis vorliegt — also
+    // NACH Sortieren und Statistik, nicht nach dem letzten Kampf. Gemessen am
+    // 2026-10-28: Bei `bench --fights 3000000` stand die erste Meldung mit allen
+    // Kämpfen 0,61 s vor dem Ende des Laufs. Gezählt im Strang, der die
+    // Auswertung angestoßen hat, einmal je Lauf und nicht je Kampf.
+    crate::fortschritt::kandidat(weg, u64::from(iterations));
+    ergebnis
+}
+
+/// Trägt einen parallelen Abschnitt ins Zählwerk ein: je Strang des Laufs,
+/// wie lange er gerechnet und wie lange er gewartet hat (#934).
+///
+/// `zeiten` hält je Paket, in der Reihenfolge der Bereiche, Beginn und Ende
+/// an der Wanduhr und die CPU-Zeit des Strangs. Was daraus Arbeit und was
+/// Warten ist, rechnet [`crate::engpass::abschnitt`]; fehlt die CPU-Zeit,
+/// gilt die Dauer an der Wanduhr.
+///
+/// Zwei Zeitstempel und zwei Uhrabfragen je Paket, ein Eintrag je Strang und
+/// Abschnitt — der heiße Pfad sieht davon nichts.
+fn abschnitt_eintragen(
+    leitstrang: &crate::fortschritt::Strang,
+    zeiten: &[(Instant, Instant, Option<u64>)],
+    threads: usize,
+) {
+    if zeiten.is_empty() {
+        return;
+    }
+    let ns = |d: std::time::Duration| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX);
+    let arbeit: Vec<u64> = zeiten
+        .iter()
+        .map(|&(beginn, ende, cpu)| cpu.unwrap_or_else(|| ns(ende - beginn)))
+        .collect();
+    for (nummer, zeit) in crate::engpass::abschnitt(&arbeit, threads)
+        .into_iter()
+        .enumerate()
+    {
+        leitstrang.abschnitt(nummer, zeit.arbeit_ns, zeit.warten_ns);
     }
 }
 
@@ -890,8 +1006,50 @@ fn run_range(
     len: u32,
     control: Option<&crate::drosselung::RuntimeControl>,
 ) -> (Vec<Sample>, [u32; crate::data::SPELL_COUNT], u32) {
-    let mut fight = Fight::new(FightConfig {
-        seed: config.base_seed.wrapping_add(offset),
+    let mut fight = Fight::new(kampf_konfiguration(
+        config,
+        config.base_seed.wrapping_add(offset),
+    ));
+
+    let mut out = Vec::with_capacity(len as usize);
+    // **Die Cast-Zahlen lagen schon vor** (Issue #525): `RunResult.casts`
+    // fuehrt sie je Zauber, der Laeufer hat sie bisher weggeworfen. Ohne sie
+    // brauchte jede Zauber-Messung eine isolierende Rotation (#517, #523).
+    let mut casts = [0u32; crate::data::SPELL_COUNT];
+    // **Wie oft ueberhaupt gewuerfelt wurde** (Issue #908). Der Laeufer hat die
+    // Zahl bisher weggeworfen; sie ist die Nachpruefung fuer den reduzierten
+    // Pfad in [`run`] — nicht der Beleg, dass die Ableitung richtig gerechnet
+    // hat, sondern der, dass ihre Voraussetzung wirklich galt.
+    let mut wuerfe = 0u32;
+    // Einmal je Bereich geholt, nicht je Kampf (#933): Im Kampf selbst bleibt
+    // es bei einer Erhöhung auf der eigenen Cache-Zeile.
+    let strang = crate::fortschritt::strang();
+    for index in 0..len {
+        let _permit = control.map(crate::drosselung::RuntimeControl::acquire);
+        let seed = config.base_seed.wrapping_add(offset + index);
+        fight.reset(seed);
+        let result = fight.run_apl(apl);
+        if let Some(s) = &strang {
+            s.kampf();
+        }
+        wuerfe += result.random_draws;
+        for (i, n) in result.casts.iter().enumerate() {
+            casts[i] += *n;
+        }
+        out.push(probe_aus(&fight, seed, &result));
+    }
+    (out, casts, wuerfe)
+}
+
+/// Die Kampfkonfiguration eines Balance-Laufs für einen Startwert.
+///
+/// **Eine Stelle für beide Läufer.** [`run_range`] und [`run_gestaffelt`] bauen
+/// ihren Kampf hier; stünde das Literal zweimal da, liefe ein neues Feld nur in
+/// einen der beiden durch, und die Stichprobe mäße einen anderen Kampf als der
+/// Balance-Lauf daneben.
+fn kampf_konfiguration(config: &BalanceConfig, seed: u32) -> FightConfig {
+    FightConfig {
+        seed,
         duration_ms: config.duration_ms,
         stop_on_kill: config.stop_on_kill,
         factors: config.factors,
@@ -964,40 +1122,310 @@ fn run_range(
         sealed_vessel: false,
         long_grip: false,
         perpetual_draft: false,
-    });
+    }
+}
 
-    let mut out = Vec::with_capacity(len as usize);
-    // **Die Cast-Zahlen lagen schon vor** (Issue #525): `RunResult.casts`
-    // fuehrt sie je Zauber, der Laeufer hat sie bisher weggeworfen. Ohne sie
-    // brauchte jede Zauber-Messung eine isolierende Rotation (#517, #523).
-    let mut casts = [0u32; crate::data::SPELL_COUNT];
-    // **Wie oft ueberhaupt gewuerfelt wurde** (Issue #908). Der Laeufer hat die
-    // Zahl bisher weggeworfen; sie ist die Nachpruefung fuer den reduzierten
-    // Pfad in [`run`] — nicht der Beleg, dass die Ableitung richtig gerechnet
-    // hat, sondern der, dass ihre Voraussetzung wirklich galt.
-    let mut wuerfe = 0u32;
-    for index in 0..len {
-        let _permit = control.map(crate::drosselung::RuntimeControl::acquire);
-        let seed = config.base_seed.wrapping_add(offset + index);
+/// Ein Durchgang als [`Sample`], gelesen aus dem Kampf direkt nach seinem Lauf.
+fn probe_aus(fight: &Fight, seed: u32, result: &crate::fight::RunResult) -> Sample {
+    Sample {
+        seed,
+        damage: result.damage,
+        killed_at_ms: result.killed_at_ms,
+        damage_taken: fight.damage_taken(),
+        absorbed: fight.shield_absorbed(),
+        healed: fight.healed(),
+        boss_healed: fight.boss_healed(),
+        died: fight.player_dead(),
+        died_at_ms: fight.died_at_ms(),
+    }
+}
+
+// ------------------------------------------------ Durchgangssteuerung (#915)
+
+/// Welcher Weg die Zahl der Durchgänge bestimmt (Issue #915, AC3).
+///
+/// # Vorerst genau zwei Wege
+///
+/// | Weg | wann | Kämpfe |
+/// | --- | --- | --- |
+/// | [`Durchgangswahl::EinDurchgang`] | kein Strom zieht ([`crate::durchgaenge::ein_durchgang_genuegt`]) | genau einer |
+/// | [`Durchgangswahl::Gestaffelt`] | sonst | bis die Schwelle sicher über- oder unterschritten ist, höchstens das Budget |
+///
+/// **Die Verteilungs-DP und der analytische Krit sind NICHT Teil der Wahl.**
+/// Beide wären schneller, und beide setzen voraus, dass der Krit den
+/// Kontrollfluss des Kampfes nicht berührt — bei einem Boss mit
+/// Lebenspunkt-Phasen kann er es (#915, AC2). Woran die Durchgangssteuerung
+/// das erkennt, ist noch nicht entschieden. Bis dahin läuft alles, was
+/// würfelt, über die Stichprobe: langsamer, aber ohne eine Voraussetzung, die
+/// niemand geprüft hat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Durchgangswahl {
+    /// Kein Strom zieht: Ein Kampf ist die ganze Verteilung, sein Ausgang ist
+    /// exakt.
+    EinDurchgang,
+    /// Es wird gewürfelt: die gestaffelte Stichprobe aus [`crate::stichprobe`].
+    Gestaffelt,
+}
+
+impl Durchgangswahl {
+    /// Die Wahl für diese Konfiguration — abgeleitet aus der Beschreibung und
+    /// der getragenen Ausrüstung, nicht aus einer Bossliste.
+    #[must_use]
+    pub fn fuer(config: &BalanceConfig) -> Self {
+        if crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn) {
+            Self::EinDurchgang
+        } else {
+            Self::Gestaffelt
+        }
+    }
+}
+
+/// Mehr verschiedene Startwerte hat ein Lauf nicht: `BalanceConfig::base_seed`
+/// ist ein `u32`, Versuch `i` rechnet mit `base_seed + i`.
+///
+/// Ein größeres Budget würde Kämpfe **wiederholen** und sie als unabhängige
+/// Versuche zählen. Das ist keine feste Obergrenze der Stichprobe, sondern die
+/// Grenze dessen, was dieser Läufer überhaupt unterscheiden kann.
+pub const STARTWERTE: u64 = 1 << 32;
+
+/// Die Vorgabe einer gestaffelten Stichprobe (Issue #915, AC3).
+///
+/// # Keine Voreinstellung, mit Absicht
+///
+/// Eine voreingestellte Schwelle wäre eine Balance-Entscheidung, die niemand
+/// getroffen hat, und ein voreingestelltes Budget genau die feste Obergrenze,
+/// die das Issue verbietet — „auch nicht als Voreinstellung". Deshalb gibt es
+/// kein `Default`, und alle drei Felder muss der Aufrufer nennen.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Staffelung {
+    /// Die geforderte **Siegwahrscheinlichkeit**, echt zwischen 0 und 1.
+    ///
+    /// Gezählt wird der Sieg wie im Zielvertrag ([`crate::objective::Outcome::of`]),
+    /// also mit umgekehrtem Ziel bei einem Boss mit `runaway`. Der Zielvertrag
+    /// misst „Überleben" als Siegwahrscheinlichkeit; einen Mechanikerfolg gibt
+    /// der Kampf heute nicht heraus.
+    pub schwelle: f64,
+    /// Die Irrtumswahrscheinlichkeit über **alle** Haltepunkte zusammen, echt
+    /// zwischen 0 und 1. Die Aufteilung macht [`crate::stichprobe::gestaffelt`].
+    pub alpha: f64,
+    /// Höchstens so viele Kämpfe — eine Grenze der Kosten, keine
+    /// Stichprobengröße. Wird sie erreicht, ohne dass eine Seite sicher ist,
+    /// lautet der Befund `Ungeklaert`, nicht eine Zahl.
+    pub budget: u64,
+}
+
+impl Staffelung {
+    /// Prüft die Vorgabe, bevor ein Kampf startet.
+    ///
+    /// # Errors
+    ///
+    /// Der erste unzulässige Wert, als [`Staffelungsfehler`].
+    pub fn pruefe(&self) -> Result<(), Staffelungsfehler> {
+        // `!(0 < x < 1)` statt `x <= 0 || x >= 1`: Ein NaN fällt so ebenfalls
+        // heraus — beide Vergleiche wären für NaN falsch und ließen es durch.
+        if !(self.schwelle > 0.0 && self.schwelle < 1.0) {
+            return Err(Staffelungsfehler::Schwelle(self.schwelle));
+        }
+        if !(self.alpha > 0.0 && self.alpha < 1.0) {
+            return Err(Staffelungsfehler::Alpha(self.alpha));
+        }
+        if self.budget == 0 {
+            return Err(Staffelungsfehler::BudgetNull);
+        }
+        if self.budget > STARTWERTE {
+            return Err(Staffelungsfehler::BudgetUeberStartwerten(self.budget));
+        }
+        Ok(())
+    }
+}
+
+/// Warum eine [`Staffelung`] nicht gefahren wird.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Staffelungsfehler {
+    /// Die Schwelle liegt nicht echt zwischen 0 und 1.
+    ///
+    /// Auch 1 selbst nicht: Eine Siegwahrscheinlichkeit von genau 1 lässt sich
+    /// mit einer Stichprobe nie belegen; ohne einen Fehler liefe die Folge bis
+    /// zum Budget.
+    Schwelle(f64),
+    /// `alpha` liegt nicht echt zwischen 0 und 1.
+    Alpha(f64),
+    /// Ein Budget von null Kämpfen misst nichts.
+    BudgetNull,
+    /// Das Budget übersteigt [`STARTWERTE`].
+    BudgetUeberStartwerten(u64),
+}
+
+impl std::fmt::Display for Staffelungsfehler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Schwelle(wert) => write!(
+                f,
+                "Die Schwelle muss echt zwischen 0 und 1 liegen, bekommen: {wert}. \
+                 Eine Siegwahrscheinlichkeit von genau 1 belegt keine Stichprobe."
+            ),
+            Self::Alpha(wert) => write!(
+                f,
+                "alpha muss echt zwischen 0 und 1 liegen, bekommen: {wert}."
+            ),
+            Self::BudgetNull => write!(f, "Ein Budget von null Kaempfen misst nichts."),
+            Self::BudgetUeberStartwerten(wert) => write!(
+                f,
+                "Das Budget {wert} uebersteigt die {STARTWERTE} verschiedenen \
+                 Startwerte; mehr Versuche wiederholten Kaempfe."
+            ),
+        }
+    }
+}
+
+/// Das Ergebnis eines Laufs mit Durchgangssteuerung.
+///
+/// **Die Zahl der Versuche steht immer da**, auch beim Befund `Erfuellt`: AC3
+/// verlangt, dass ein Bericht nennt, wie viele Versuche die Sicherheit
+/// tatsächlich gekostet hat — nicht nur, dass sie erreicht wurde.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GestaffelterLauf {
+    /// Welcher Weg gewählt wurde.
+    pub wahl: Durchgangswahl,
+    /// Die Vorgabe, mit der gerechnet wurde.
+    pub staffelung: Staffelung,
+    /// Der Befund zur Schwelle, mit seiner Versuchszahl.
+    pub befund: Befund,
+    /// Wie viele Kämpfe gerechnet wurden — **gezählt**, nicht aus dem Befund
+    /// übernommen. Die beiden müssen übereinstimmen; ein Prüffall hält das fest.
+    pub kaempfe: u64,
+    /// Wie viele davon gewonnen wurden.
+    pub siege: u64,
+    /// Wie oft insgesamt gewürfelt wurde.
+    ///
+    /// Beim Weg [`Durchgangswahl::EinDurchgang`] ist das die Nachprüfung der
+    /// Wahl (Auflage 2): Es muss null sein, sonst bricht der Lauf ab.
+    pub wuerfe: u64,
+    /// Der Schaden aller Kämpfe zusammen.
+    ///
+    /// Für den Mittelwert je Kampf — und als Abgleich: Er streut mit dem Krit,
+    /// hängt also am Startwert. Ein Prüffall vergleicht ihn mit dem festen Lauf
+    /// auf denselben Startwerten; Siegzahl und Befund allein fingen einen
+    /// verschobenen Startwert nicht, weil fast alle Kämpfe gleich ausgehen.
+    pub schaden: u64,
+}
+
+/// Fährt einen Balance-Lauf mit Durchgangssteuerung (Issue #915, AC3).
+///
+/// Die Wahl kommt aus [`Durchgangswahl::fuer`]. Beim Weg
+/// [`Durchgangswahl::EinDurchgang`] wird **ein** Kampf gerechnet, und sein
+/// Ausgang ist exakt: gewonnen heißt Siegwahrscheinlichkeit 1, also
+/// `Erfuellt` nach einem Versuch, verloren heißt 0, also `Verfehlt`. Beim Weg
+/// [`Durchgangswahl::Gestaffelt`] läuft [`gestaffelt`], ein Kampf je Versuch,
+/// Versuch `i` mit dem Startwert `base_seed + i` — dieselben Startwerte wie
+/// [`run`], also dieselben Kämpfe wie ein fester Lauf derselben Länge.
+///
+/// # Speicher
+///
+/// **Konstant, unabhängig vom Budget.** Es gibt einen Kampf, der je Versuch
+/// zurückgesetzt wird, und vier Zähler; kein Einzelergebnis wird aufgehoben.
+/// Das ist die Speichergrenze, die das Issue für Läufe ohne feste
+/// Versuchszahl verlangt: Sie folgt aus dem Aufbau, nicht aus einer Zahl, die
+/// jemand richtig wählen müsste.
+///
+/// # Ein Strang
+///
+/// `config.threads` wird nicht gelesen. Die Haltepunkte prüfen in fester
+/// Reihenfolge, und jeder Versuch hängt allein an seinem Startwert — ein
+/// paralleler Lauf wäre möglich, ist aber nicht gebaut.
+///
+/// # Errors
+///
+/// [`Staffelungsfehler`], wenn die Vorgabe unzulässig ist. Geprüft wird, bevor
+/// ein Kampf startet.
+///
+/// # Panics
+///
+/// Wenn der Weg [`Durchgangswahl::EinDurchgang`] gewählt war und der Kampf
+/// trotzdem gewürfelt hat — dann passt die abgeleitete Quellenmaske nicht zum
+/// Lauf, wie in [`run`].
+pub fn run_gestaffelt(
+    config: &BalanceConfig,
+    apl: &Apl,
+    staffelung: Staffelung,
+) -> Result<GestaffelterLauf, Staffelungsfehler> {
+    staffelung.pruefe()?;
+    let wahl = Durchgangswahl::fuer(config);
+    // Dieselbe Frage wie im festen Lauf — genügt ein Kampf? —, also derselbe
+    // Nenner der Trefferquote (#934).
+    crate::fortschritt::reduktionsversuch();
+    let bedingung = WinCondition::of(config.boss);
+    let mut fight = Fight::new(kampf_konfiguration(config, config.base_seed));
+    let mut kaempfe = 0u64;
+    let mut siege = 0u64;
+    let mut wuerfe = 0u64;
+    let mut schaden = 0u64;
+    let strang = crate::fortschritt::strang();
+    let mut versuch = |i: u64| -> bool {
+        // `pruefe` hat `budget <= STARTWERTE` sichergestellt, also passt jeder
+        // Index in ein `u32`.
+        let index = u32::try_from(i).expect("das Budget ist auf STARTWERTE begrenzt");
+        let seed = config.base_seed.wrapping_add(index);
         fight.reset(seed);
         let result = fight.run_apl(apl);
-        wuerfe += result.random_draws;
-        for (i, n) in result.casts.iter().enumerate() {
-            casts[i] += *n;
+        if let Some(s) = &strang {
+            s.kampf();
         }
-        out.push(Sample {
-            seed,
-            damage: result.damage,
-            killed_at_ms: result.killed_at_ms,
-            damage_taken: fight.damage_taken(),
-            absorbed: fight.shield_absorbed(),
-            healed: fight.healed(),
-            boss_healed: fight.boss_healed(),
-            died: fight.player_dead(),
-            died_at_ms: fight.died_at_ms(),
-        });
+        let sieg = Outcome::of(&probe_aus(&fight, seed, &result), bedingung).is_win();
+        kaempfe += 1;
+        siege += u64::from(sieg);
+        wuerfe += u64::from(result.random_draws);
+        schaden += u64::from(result.damage);
+        sieg
+    };
+
+    let befund = match wahl {
+        Durchgangswahl::EinDurchgang => {
+            let sieg = versuch(0);
+            // Exakt, nicht geschätzt: Die Schwelle liegt echt zwischen 0 und 1,
+            // also ist eine Siegwahrscheinlichkeit von 1 sicher darüber und
+            // eine von 0 sicher darunter — nach einem Versuch.
+            if sieg {
+                Befund::Erfuellt { versuche: 1 }
+            } else {
+                Befund::Verfehlt { versuche: 1 }
+            }
+        }
+        Durchgangswahl::Gestaffelt => gestaffelt(
+            staffelung.schwelle,
+            staffelung.alpha,
+            staffelung.budget,
+            &mut versuch,
+        ),
+    };
+
+    if wahl == Durchgangswahl::EinDurchgang {
+        // **Die Wahl wird nachgeprüft, nicht geglaubt** (Auflage 2), mit
+        // derselben Begründung wie im reduzierten Pfad von `run`.
+        assert_eq!(
+            wuerfe, 0,
+            "ein Durchgang war gewählt, aber es wurde {wuerfe}-mal gezogen — \
+             die abgeleitete Quellenmaske passt nicht zum Lauf"
+        );
     }
-    (out, casts, wuerfe)
+
+    crate::fortschritt::kandidat(
+        match wahl {
+            Durchgangswahl::EinDurchgang => crate::fortschritt::Weg::EinKampf,
+            Durchgangswahl::Gestaffelt => crate::fortschritt::Weg::Gestaffelt,
+        },
+        kaempfe,
+    );
+
+    Ok(GestaffelterLauf {
+        wahl,
+        staffelung,
+        befund,
+        kaempfe,
+        siege,
+        wuerfe,
+        schaden,
+    })
 }
 
 #[cfg(test)]
@@ -1275,6 +1703,61 @@ mod tests {
             "Trägerzusicherung: hier streuen die Durchgänge wirklich — sonst \
              wäre der Fall von der Reduktion gar nicht zu unterscheiden"
         );
+    }
+
+    /// **Die Wurfzahl der Stichprobe ist die des festen Läufers** (Issue #915).
+    ///
+    /// `GestaffelterLauf::wuerfe` steht in der Ausgabe von `rota-sim` als
+    /// Beleg, dass gewürfelt wurde. Geprüft war nur, dass sie über null liegt;
+    /// eine doppelt gezählte Zahl blieb grün. Hier steht sie gegen die Zählung
+    /// von [`super::run_range`] auf denselben Startwerten: die Zahl, mit der
+    /// der feste Lauf seine Reduktion nachprüft, aus einer eigenen Schleife.
+    ///
+    /// Drei Startwerte, einer davon am Überlauf des `u32`: Die Würfe hängen am
+    /// Kampf, also am Startwert.
+    #[test]
+    fn die_wurfzahl_der_stichprobe_ist_die_des_festen_laeufers() {
+        use super::{run_gestaffelt, run_range, Durchgangswahl, Staffelung};
+
+        let apl = gute_liste();
+        let mut worn = crate::gear::WornValues::none();
+        worn.purity = 500;
+        let vorgabe = Staffelung {
+            schwelle: 0.9,
+            alpha: 0.05,
+            budget: 2048,
+        };
+        for base_seed in [0, 1000, u32::MAX - 50] {
+            let config = BalanceConfig {
+                base_seed,
+                threads: 1,
+                boss: crate::data::boss_by_id("boss-1-1").expect("den Boss gibt es"),
+                worn,
+                ..BalanceConfig::default()
+            };
+            let lauf = run_gestaffelt(&config, &apl, vorgabe).expect("gültige Vorgabe");
+            assert_eq!(
+                lauf.wahl,
+                Durchgangswahl::Gestaffelt,
+                "Startwert {base_seed}"
+            );
+            let laenge = u32::try_from(lauf.kaempfe).expect("passt");
+            let (_, _, wuerfe_fest) = run_range(&config, &apl, 0, laenge, None);
+            assert!(
+                wuerfe_fest > 0,
+                "Trägerzusicherung: ab Startwert {base_seed} wird gewürfelt"
+            );
+            assert_eq!(
+                lauf.wuerfe,
+                u64::from(wuerfe_fest),
+                "Startwert {base_seed}: die Stichprobe meldet andere Würfe als \
+                 der feste Läufer über dieselben {laenge} Kämpfe"
+            );
+            println!(
+                "Startwert {base_seed}: {} Kämpfe, {} Würfe",
+                lauf.kaempfe, lauf.wuerfe
+            );
+        }
     }
 
     /// **Waechter: Jeder Faktor der Struktur steht in der Liste** (Issue #159).

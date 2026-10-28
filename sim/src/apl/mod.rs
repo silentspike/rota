@@ -111,9 +111,13 @@
 //! weil der Füller den GCD ständig neu auslöst und dadurch dicht genug geweckt
 //! wird. Eine Rotation mit Wartezeiten träfe den Zeitpunkt nicht.
 //!
-//! [`Apl::next_wakeup`] rechnet deshalb aus, wann die **früheste** zeitabhängige
-//! Bedingung ihren Wahrheitswert ändern kann, und der Kampf plant dafür einen
-//! Weckruf ein. Damit ist die Grenze aus #53 nicht nur beschrieben, sondern weg.
+//! [`Apl::next_wakeup`] rechnet deshalb aus, an welchem Takt ein Vergleich auf
+//! einem zeitabhängigen Wert **kippt**, und der Kampf plant dafür einen Weckruf
+//! ein. Das ist der Takt, an dem auch das Spiel den Umschlag sieht — für jede
+//! der sechs Vergleichsformen, auch für die strikten (Fassung B aus #1027,
+//! entschieden am 2026-10-28). Bis dahin lag der Weckruf dort, wo der Wert die
+//! Schwelle **erreicht**, und die strikten Formen griffen erst am nächsten
+//! fremden Ereignis; Einzelheiten an `switch_point`.
 
 mod parse;
 
@@ -121,7 +125,7 @@ pub use parse::{parse, AplError, AplName};
 
 use crate::data::{Spell, MAX_LEVEL, RESOURCE, SPELLS};
 use crate::fight::Fight;
-use crate::time::{Millis, GCD_MS};
+use crate::time::{Millis, GCD_MS, TICK_MS};
 
 /// Eine Zahl, wie die Sprache sie kennt: ganzzahlig, mit Vorzeichen.
 ///
@@ -382,6 +386,23 @@ pub enum Compare {
 }
 
 impl Compare {
+    /// Dieselbe Bedingung mit vertauschten Seiten: `T > v` ist `v < T`.
+    ///
+    /// [`Apl::next_wakeup`] rechnet immer vom zeitabhängigen Wert aus. Steht er
+    /// rechts, muss die Form gespiegelt werden, sonst weckt `1500 > dot.x.remains`
+    /// wie `dot.x.remains > 1500` — am falschen Takt (#1027).
+    #[must_use]
+    const fn reversed(self) -> Self {
+        match self {
+            Compare::Less => Compare::Greater,
+            Compare::LessEqual => Compare::GreaterEqual,
+            Compare::Greater => Compare::Less,
+            Compare::GreaterEqual => Compare::LessEqual,
+            Compare::Equal => Compare::Equal,
+            Compare::NotEqual => Compare::NotEqual,
+        }
+    }
+
     #[must_use]
     const fn apply(self, left: Number, right: Number) -> bool {
         match self {
@@ -477,6 +498,10 @@ impl crate::fight::Decide for Apl {
     fn next_wakeup(&self, fight: &Fight) -> Option<Millis> {
         Apl::next_wakeup(self, fight)
     }
+
+    fn next_wakeup_ohne_gcd(&self, fight: &Fight) -> Option<Millis> {
+        Apl::next_wakeup_ohne_gcd(self, fight)
+    }
 }
 
 impl Apl {
@@ -510,12 +535,34 @@ impl Apl {
     /// `None`, wenn keine Bedingung von der Uhr abhängt.
     #[must_use]
     pub fn next_wakeup(&self, fight: &Fight) -> Option<Millis> {
+        self.wakeup_ueber(fight, |_| true)
+    }
+
+    /// Dasselbe, aber nur über die Regeln, deren Zauber **keine** globale
+    /// Wartezeit auslöst (#1027, Teil b).
+    ///
+    /// Während einer laufenden Wartezeit kann nur ein solcher Zauber gewirkt
+    /// werden. Der Kampf legt den Weckruf aus [`Apl::next_wakeup`] deshalb auf
+    /// das Ende der Wartezeit — und bräuchte für eine Zeile wie
+    /// `quench if boss.cast_remains < 500` einen Weckruf **darin**. Aus dem
+    /// frühesten Umschlag aller Regeln lässt er sich nicht ablesen: Liegt der
+    /// einer Zeile mit Wartezeit früher, verdeckt er den der Zeile ohne.
+    #[must_use]
+    pub fn next_wakeup_ohne_gcd(&self, fight: &Fight) -> Option<Millis> {
+        self.wakeup_ueber(fight, |rule| !SPELLS[rule.spell].triggers_gcd)
+    }
+
+    /// Der früheste Umschlag über die Regeln, die `beachten` zulässt.
+    fn wakeup_ueber(&self, fight: &Fight, beachten: impl Fn(&Rule) -> bool) -> Option<Millis> {
         let now = fight.time();
         let mut earliest: Option<Millis> = None;
 
-        for rule in &self.rules {
+        for rule in self.rules.iter().filter(|rule| beachten(rule)) {
             for term in rule.condition.terms() {
-                for (value, other) in [(term.left, term.right), (term.right, term.left)] {
+                for (value, other, compare) in [
+                    (term.left, term.right, term.compare),
+                    (term.right, term.left, term.compare.reversed()),
+                ] {
                     if !value.is_time_dependent() {
                         continue;
                     }
@@ -529,7 +576,7 @@ impl Apl {
                     if other.is_time_dependent() {
                         continue;
                     }
-                    if let Some(at) = switch_point(value, other.read(fight), fight) {
+                    if let Some(at) = switch_point(value, other.read(fight), compare, fight) {
                         if at > now {
                             earliest = Some(earliest.map_or(at, |best| best.min(at)));
                         }
@@ -541,11 +588,36 @@ impl Apl {
     }
 }
 
-/// Wann ein zeitabhängiger Wert die Schwelle `threshold` erreicht.
+/// An welchem Takt der Vergleich `value <compare> threshold` frühestens kippt.
 ///
 /// Alle diese Werte laufen **gleichmäßig herunter** (Restzeiten) oder **hinauf**
 /// (die Uhr), je Millisekunde um eins. Der Umschlagpunkt ist damit eine einfache
 /// Rechnung und keine Suche.
+///
+/// # Der Vergleich gehört dazu, nicht nur die Schwelle (#1027)
+///
+/// Bis #1027 bekam diese Funktion den Operator nicht übergeben und legte den
+/// Weckruf dorthin, wo der Wert die Schwelle **erreicht**. Für `<=` und `==`
+/// auf einem fallenden Wert ist das der Umschlag; für `v < T` (auch `T > v`) und
+/// `v != T` nicht — sie sind beim Erreichen noch falsch und werden erst danach
+/// wahr. Auf der Uhr ebenso `time > T` (auch `T < time`) und `time != T`. Einen
+/// zweiten Weckruf gab es nicht, und solche Zeilen griffen erst am nächsten
+/// fremden Ereignis — gemessen in 24 von 84 Wurfproben, um bis zu 1500 ms, in 6
+/// davon gar nicht (`docs/APL-STRICT-COMPARISON-2026-10-24.md`, PR #1135).
+///
+/// **Entschieden am 2026-10-28, Fassung B** („B, wie das Spiel"): Der Weckruf
+/// liegt auf dem ersten Takt, an dem der Vergleich tatsächlich kippt. Das ist
+/// der Takt, an dem das Spiel ihn sieht — es prüft seinen Zustand nur an
+/// Takt-Grenzen ([`TICK_MS`]). Festgehalten in
+/// `sim/tests/apl_strikte_vergleiche.rs` (alle sechs Formen in beiden
+/// Reihenfolgen an `boss.next_strike_in`, `dot.*.remains` und `time` gegen eine
+/// Takt-Referenz) und gegen das Spiel selbst in
+/// `sim/tests/parity_strikter_umschlag.rs` (`dot.*.remains`, gespiegelt, und
+/// `cooldown.*.remains`, aus der Schleife des Spiels aufgezeichnet).
+///
+/// **Wer hier ändert, ändert gefundene Rotationen.** Unter A gegen B verschob
+/// sich nach den Behebungen aus #1135 genau eine von 84 Suchen — die
+/// #797-AC5-Suche, an einer Liste ohne Füller, an der A falsch bewertete.
 ///
 /// # Exhaustiv, seit hier ein Wert durchgefallen ist (#797)
 ///
@@ -567,16 +639,58 @@ impl Apl {
 /// Wert an der Uhr?" statt an der Frage „wann schlägt er um?". Die zweite ist
 /// die, deren Antwort gebraucht wird. Ohne Auffang-Zweig muss jeder neue Wert
 /// hier beantwortet werden — auch mit `None`, dann aber sichtbar und begründet.
-fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis> {
+fn switch_point(
+    value: Value,
+    threshold: Number,
+    compare: Compare,
+    fight: &Fight,
+) -> Option<Millis> {
     let now = fight.time();
-    let at = |remaining_now: Millis, target: Number| -> Option<Millis> {
-        // Ein Restwert sinkt je Millisekunde um eins: Er erreicht `target` in
-        // `remaining_now - target` Millisekunden.
-        let delta = Number::from(remaining_now) - target;
-        if delta <= 0 {
-            return None;
+    // Auf den nächsten Takt aufgerundet: Kippt ein Vergleich zwischen zwei
+    // Takten (`v < 1500` bei 1499, also eine Millisekunde nach dem Erreichen),
+    // sieht das Spiel es erst am Takt danach.
+    let auf_takt = |t: Millis| -> Option<Millis> {
+        match t % TICK_MS {
+            0 => Some(t),
+            rest => t.checked_add(TICK_MS - rest),
         }
-        u32::try_from(delta).ok().map(|d| now.saturating_add(d))
+    };
+    // **Der Weckruf liegt dort, wo der Vergleich KIPPT — nicht dort, wo der
+    // Wert die Schwelle ERREICHT** (#1027, Fassung B, entschieden am
+    // 2026-10-28). Ein fallender Wert `v(now + d) = remaining_now - d` kippt:
+    //
+    //   `<` und `>=`   bei `threshold - 1`   (erst darunter ist `<` wahr)
+    //   `>` und `<=`   bei `threshold`       (am Erreichen)
+    //   `==` und `!=`  bei beiden            (wahr auf, falsch nach der Schwelle)
+    //
+    // Bis #1027 stand hier nur das Erreichen. `v < T` und `v != T` sind dort
+    // noch falsch, und einen zweiten Weckruf gab es nicht: `at(500, 500)` hat
+    // `delta == 0` und lieferte `None`. Diese Zeilen griffen erst am nächsten
+    // fremden Ereignis — `boss.next_strike_in < 3000` bei 10000 statt 9010,
+    // `dot.smoulder.remains < 1500` ohne Füller bei 12000 statt 10510.
+    //
+    // Restwerte enden bei 0; ein Zielwert unter 0 wird nie erreicht und darf
+    // keinen Weckruf stellen (`v < 0` ist nie wahr).
+    let at = |remaining_now: Millis, threshold: Number| -> Option<Millis> {
+        let ziele: [Option<Number>; 2] = match compare {
+            Compare::Less | Compare::GreaterEqual => [threshold.checked_sub(1), None],
+            Compare::Greater | Compare::LessEqual => [Some(threshold), None],
+            Compare::Equal | Compare::NotEqual => [Some(threshold), threshold.checked_sub(1)],
+        };
+        ziele
+            .into_iter()
+            .flatten()
+            .filter_map(|ziel| {
+                if ziel < 0 {
+                    return None;
+                }
+                let delta = Number::from(remaining_now).checked_sub(ziel)?;
+                if delta <= 0 {
+                    return None;
+                }
+                auf_takt(now.checked_add(u32::try_from(delta).ok()?)?)
+            })
+            .min()
     };
 
     match value {
@@ -591,8 +705,20 @@ fn switch_point(value: Value, threshold: Number, fight: &Fight) -> Option<Millis
             (remains > 0).then(|| now.saturating_add(remains))
         }
         Value::Time => {
-            let target = u32::try_from(threshold).ok()?;
-            (target > now).then_some(target)
+            // Die steigende Uhr kippt gespiegelt: `<` und `>=` bei `threshold`,
+            // `>` und `<=` bei `threshold + 1`, `==` und `!=` an beiden.
+            let ziele: [Option<Number>; 2] = match compare {
+                Compare::Less | Compare::GreaterEqual => [Some(threshold), None],
+                Compare::Greater | Compare::LessEqual => [threshold.checked_add(1), None],
+                Compare::Equal | Compare::NotEqual => [Some(threshold), threshold.checked_add(1)],
+            };
+            ziele
+                .into_iter()
+                .flatten()
+                .filter_map(|ziel| u32::try_from(ziel).ok())
+                .filter_map(auf_takt)
+                .filter(|&ziel| ziel > now)
+                .min()
         }
         Value::FightRemains => at(fight.fight_remaining_ms(), threshold),
         // Der Wert, für den diese Funktion exhaustiv gemacht wurde (#797). Er

@@ -90,31 +90,33 @@ Aus `GAME-DESIGN.md` 18.4. Jede einzelne davon ist schon einmal jemandem zum Ver
 
 ---
 
-## Bauen: bitte remote — und ein offener Punkt dazu
+## Bauen: bitte remote
 
 Für Rust-Projekte unter `/work` gilt: **remote bauen**, um den Laptop zu entlasten (16 GB RAM).
+Seit 2026-10-23 ist der Bau-Dienst **cargo remote v2** (`rustbuild-ovh` auf node3). Jeder Aufruf
+startet in der Wurzel des Repositorys, nicht in `sim/`:
 
 ```bash
-cargo remote -c -- build          # das -c ist PFLICHT
-cargo remote -c -- test --no-run > /work/tmp/bau.log
-bash tools/tests-lokal.sh /work/tmp/bau.log
-cargo remote -c -- clippy --all-targets -- -D warnings
-cargo-remote-fmt                  # NICHT `cargo remote -- fmt`
-cargo-remote-fmt --check          # CI-Parität, vor jedem Push
+cargo remote -- test                                       # wie die CI
+cargo remote -- test --all-targets --features diagnostics  # wie die CI
+cargo remote -- clippy --all-targets -- -D warnings        # wie die CI
+cargo-remote-fmt --check             # wie die CI, vor jedem Push
+cargo-remote-fmt                     # formatiert und schreibt zurück — NICHT `cargo remote -- fmt`
+cargo remote -c -- build --release   # Programm nach target/release/rota-sim
 ```
 
-> **`cargo remote -- fmt` formatiert zwar remote, synct aber nur `target/` zurück, nicht das
-> formatierte `src/`.** Die Änderungen landen dann nie im Repo, und die CI-Stufe `fmt` kippt.
+> **`cargo remote -- fmt` formatiert nur die Kopie auf dem Server**, lokal ändert sich nichts. Die
+> Änderungen landen dann nie im Repo, und die CI-Stufe `fmt` kippt. Gemessen am 2026-10-23.
 
-**Offener Punkt, geprüft am 2026-07-28:** Der Bau-Server (`root@10.0.0.155`, CT 155 auf Proxmox
-`10.0.0.106`) **läuft**, Rust 1.97.1 ist installiert, `sshd` lauscht auf `*:22` — aber eine
-SSH-Verbindung von hier wird mit `Connection refused` abgelehnt. Ping geht durch (allerdings mit
-auffälligen 220–440 ms gegenüber 2 ms zum Proxmox-Host).
+Der frühere offene Punkt — SSH zum alten Bau-Server CT 155 abgelehnt, geprüft am 2026-07-28 — ist
+mit der Umstellung gegenstandslos: ROTA benutzt den alten Dienst nicht mehr.
 
-**Was das für dich heißt:** Versuch zuerst `cargo remote -c -- build`. Schlägt es fehl, **melde es
-und weiche nicht stillschweigend auf einen lokalen Bau aus** — die Remote-Regel existiert aus einem
-Grund. Lokal ist Rust zwar vorhanden (cargo 1.93.1), aber ob der Laptop das tragen soll, entscheidet
-der Auftraggeber, nicht du.
+**Was das für dich heißt:** Schlägt ein Aufruf fehl, **melde es und weiche nicht stillschweigend
+auf einen lokalen Bau aus** — die Remote-Regel existiert aus einem Grund. Lokal sperrt ein Wächter
+Rust (`cargo metadata` endete am 2026-10-23 mit „LOKALES RUST IST AUF DIESEM GERAET GESPERRT");
+ob der Laptop das tragen soll, entscheidet der Auftraggeber, nicht du. **Exit 75** ist dabei kein
+Fehler im Code: Der Dienst hatte keinen Platz oder in deinem Arbeitsverzeichnis lief schon ein Job,
+und gebaut wurde nichts — `cargo remote --status` ansehen, dann erneut.
 
 ---
 

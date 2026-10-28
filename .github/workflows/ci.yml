@@ -91,7 +91,23 @@ jobs:
             # Dieselbe Klasse wie #134, #138, #159 und die Zeilen darueber, nur
             # eine Ebene hoeher: Dort fehlten Eingaben der Pruefung im Muster,
             # hier fehlt die DEFINITION der Pruefung.
-            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)')"
+            #
+            # rust-toolchain.toml MUSS dabei sein: Die Datei bestimmt seit der
+            # Umstellung auf cargo remote v2 (2026-10-23) den Compiler der
+            # sim-Stufe. Ohne sie im Muster wechselt jemand die Version, die
+            # Stufe laeuft NICHT, und ci-pass meldet gruen fuer einen Compiler,
+            # auf dem nie geprueft wurde. .cargo-remote.toml braucht es hier
+            # nicht: Dass beide Dateien dieselbe Version nennen, prueft der
+            # lint-Job, und der laeuft ohne Filter.
+            #
+            # Jedes Werkzeug, das der sim-Job selbst faehrt, MUSS dabei sein
+            # (#892): Es ist Teil der Pruefung wie diese Datei. Ohne es im Muster
+            # aendert jemand die Baubruch-Gegenprobe oder das Lesen des
+            # Rust-Pins, die Stufe laeuft NICHT, und ci-pass meldet gruen.
+            # Welche Werkzeuge das sind, liest tests/unit/ci-sim-filter.test.ts
+            # aus dem Job selbst — als die Pruefung dazukam, fehlte
+            # tools/rust-pin.py bereits.
+            echo "sim=$(match '^(sim/|data/|tests/parity/recordings/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$|tools/rust-pin\.py$|tools/wirkung-baubruch-gegenprobe\.py$)')"
             # "rules" ist bewusst KEINE Pfadliste mehr, sondern dasselbe wie
             # "code": alles außer reiner Dokumentation.
             #
@@ -131,7 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -146,6 +162,15 @@ jobs:
 
       - name: Simulator planning registry
         run: python3 -B tools/sim-registry.py --check
+
+      # CI und Bau-Dienst fahren denselben Compiler: rust-toolchain.toml (CI)
+      # und .cargo-remote.toml (cargo remote v2) muessen dieselbe exakte
+      # Version nennen. Der v2-Client nimmt seinen Wert aus .cargo-remote.toml
+      # und uebergeht rust-toolchain.toml — eine Aenderung an nur einer Datei
+      # faellt sonst nirgends auf. Hier und nicht im sim-Job, weil dieser Job
+      # keinen Pfad-Filter hat.
+      - name: Rust-Pin von CI und Bau-Dienst
+        run: python3 -B tools/rust-pin.py
 
       # #1051: The probes deliberately damage inputs. They run the real guards
       # in a disposable copy, with SHA-256 readback after each probe, rather
@@ -193,7 +218,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -206,7 +231,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -219,7 +244,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -247,11 +272,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
+      # Der Compiler kommt aus rust-toolchain.toml — derselbe, mit dem cargo
+      # remote v2 baut. Mit `toolchain: stable` fuhr die CI, was GitHub gerade
+      # fuer stable hielt (am 2026-10-19: rustc 1.99.1), der Bau-Dienst aber
+      # seinen Pin: zwei Compiler, beide gruen, keiner merkt es.
+      - id: pin
+        name: Rust-Pin lesen
+        shell: bash
+        run: |
+          pin=$(python3 -B tools/rust-pin.py)
+          echo "toolchain=$pin" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.pin.outputs.toolchain }}
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # Zusicherung, nicht Annahme: Es laeuft wirklich der gepinnte Compiler.
+      - name: Gepinnter Compiler aktiv
+        shell: bash
+        run: python3 -B tools/rust-pin.py --rustc "$(rustc --version)"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           # Das Bau-Verzeichnis liegt in der Wurzel, weil dort der Workspace
           # definiert ist. Mit "sim" griffe der Cache ins Leere.
@@ -298,6 +337,23 @@ jobs:
       # rechnet — und blieben grün, wenn der Kampf die Zähler nie füttert.
       - run: cargo test --all-targets --features diagnostics
 
+      # #892: Ein neuer Effekt-Baustein muss den Bau an JEDER registrierten
+      # Analyse brechen, bis er dort eingeordnet ist. Das ist ein
+      # Übersetzungsfehler und lässt sich aus keinem Prüffall heraus zeigen —
+      # deshalb baut dieser Schritt eine Wegwerfkopie mit genau diesem Compiler:
+      # Kontrolle, Baustein ohne Einordnung, Kontrolle eingeordnet, je Pass eine
+      # Mutation, die nur ihn offen lässt, und eine Gegenprobe der Gegenprobe
+      # mit Auffangzweig. Dasselbe je semantischem Typ des Knotens (neuer Wert
+      # ohne und mit Einordnung), dazu eine Suche nach Auffangformen, die der
+      # Übersetzer nicht sieht (`matches!`, `_`, `==` gegen einen Wert).
+      # Der Arbeitsbaum bleibt unberührt (SHA-256-Rücklesung).
+      # Exit 1 ist ein Befund, Exit 2 heißt „nicht gelaufen“ — beides bricht die
+      # Stufe. Darum hat der Schritt kein `if:`, kein `continue-on-error:`, keine
+      # eigene `shell:` und keinen Zusatz hinter dem Befehl; das prüft
+      # tests/unit/ci-sim-filter.test.ts am Schritt selbst.
+      - name: Wirkungs-Baubruch-Gegenprobe
+        run: python3 -B tools/wirkung-baubruch-gegenprobe.py --befehl cargo
+
   # ------------------------------------------------------------------- Parität
   # Aufgezeichnete Runden müssen in Spiel UND Simulator denselben Wert ergeben
   # (GAME-DESIGN 18.4). Läuft nur, wenn die Regeln betroffen sind.
@@ -307,16 +363,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
       # Die dritte Umsetzung derselben Regeln (GAME-DESIGN 18.4) — ohne sie
-      # prüft dieser Job nur zwei von drei Seiten.
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # stable
+      # prüft dieser Job nur zwei von drei Seiten. Compiler aus dem Pin, wie im
+      # sim-Job.
+      - id: pin
+        name: Rust-Pin lesen
+        shell: bash
+        run: |
+          pin=$(python3 -B tools/rust-pin.py)
+          echo "toolchain=$pin" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable
         with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+          toolchain: ${{ steps.pin.outputs.toolchain }}
+      - name: Gepinnter Compiler aktiv
+        shell: bash
+        run: python3 -B tools/rust-pin.py --rustc "$(rustc --version)"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Referenz-Rechnung Schritt 1
         run: python3 tools/step1-check.py
       - name: Gemeinsame Prüffälle

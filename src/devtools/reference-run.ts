@@ -160,6 +160,138 @@ export interface ReferenceOptions {
   readonly worn?: WornValues;
 }
 
+/** Was die Schleife unter einer Prioritätenliste ausser dem Kampf selbst hinterlässt. */
+export interface DriveOutcome {
+  /** Kampfzeit des Sieges in ms, oder -1, wenn der Boss überlebt hat. */
+  readonly killedAtMs: number;
+  /** Je Takt, in dem die globale Wartezeit bereit war und nichts gewirkt wurde, 10 ms. */
+  readonly idleMs: number;
+}
+
+/**
+ * Wie viele Würfe die Schleife beim **selben** Zeitstempel höchstens zulässt
+ * (Issue #1027, Teil c).
+ *
+ * Nach einem Wurf entscheidet die Liste beim selben Zeitstempel erneut (siehe
+ * {@link driveRotation}). Das endet, sobald sie nichts mehr wählt — und das
+ * kommt, weil jeder Wurf etwas verbraucht: Ein Zauber mit Wartezeit sperrt alle
+ * anderen mit Wartezeit, jeder Zauber seine eigene Abklingzeit. Ohne Rücksetzer
+ * wirkt also jeder Zauber höchstens einmal je Zeitstempel, und die Zahl der
+ * Zauber ist eine Grenze, die kein gültiger Datensatz erreicht.
+ *
+ * **Wer sie erreicht, hat einen Nullzeit-Zyklus gebaut** — etwa einen Zauber
+ * ohne Wartezeit, der nach dem Wurf bereit bleibt. Das ist ein Datenfehler und
+ * wird abgelehnt, nicht endlos gerechnet (`docs/SIM-ARCHITEKTUR-PLAN.md`,
+ * „Das Optimum-Orakel"). Der Simulator führt dieselbe Grenze
+ * (`NULLZEIT_BUDGET` in `sim/src/fight.rs`, `SPELL_COUNT`); die Aufzeichnung
+ * `gcd-freier-wurf.json` trägt sie, damit beide Seiten sie gegeneinander
+ * prüfen.
+ */
+export function nullzeitBudget(combat: Combat): number {
+  return combat.spells.length;
+}
+
+/**
+ * Ob `Combat.cast` diesen Zauber jetzt annähme: bereit, und der Kampf läuft
+ * noch. Dieselben Prüfungen wie dort, ohne zu wirken.
+ */
+function nimmtAn(combat: Combat, spell: SpellIndex, timeMs: number): boolean {
+  return combat.isReady(spell, timeMs) && combat.fightState === FIGHT_RUNNING && !combat.playerDead;
+}
+
+/**
+ * Die Schleife hinter {@link runReference}, für eine beliebige Prioritätenliste
+ * (Issue #1027).
+ *
+ * # Wann entschieden wird
+ *
+ * **In jedem Takt, und nach jedem Wurf beim selben Zeitstempel erneut, bis die
+ * Liste nichts mehr wählt.** Das ist das Entscheidungsmodell, das der
+ * Orchestrator am 2026-10-28 an #1027 festgelegt hat, und es ist dasselbe, was
+ * das Spiel einem Spieler erlaubt: `Session.tick` arbeitet alle Drücke eines
+ * Takts ab, und ein Zauber ohne Wartezeit wird von keiner laufenden gesperrt.
+ *
+ * | | |
+ * | --- | --- |
+ * | (a) | nach einem Wurf ohne Wartezeit (QUENCH, oder der Wurf, den SUBLIME befreit) wählt die Liste beim selben Zeitstempel weiter |
+ * | (b) | während einer laufenden Wartezeit kommt ein Zauber ohne Wartezeit zum Zug — auch im Takt des Wurfs, der sie ausgelöst hat |
+ * | (c) | mehr als {@link nullzeitBudget} Würfe beim selben Zeitstempel sind ein Nullzeit-Zyklus und brechen ab |
+ *
+ * Bis dahin entschied die Schleife je Takt einmal und nur bei bereiter
+ * Wartezeit: nach QUENCH erst im nächsten Takt, und QUENCH nie während eines
+ * GCD. Ohne Zauber ohne Wartezeit ändert sich nichts — dann ist während einer
+ * laufenden Wartezeit kein Zauber bereit, und nach einem Wurf mit Wartezeit
+ * auch nicht.
+ *
+ * **Ein gewählter Zauber, den der Kampf nicht annähme, beendet die Entscheidung
+ * beim Zeitstempel** — er ist nicht bereit, oder der Kampf ist vorbei
+ * (`Combat.cast` meldet dann `CAST_FIGHT_OVER`, während `isReady` den Zauber
+ * weiter bereit nennt). Der Druck bliebe ohne Wirkung, und ihn erneut zu wählen
+ * änderte nichts: Ohne diese Regel liefe die Schleife nach dem Kampfende in
+ * einen Nullzeit-Zyklus — gemessen an `boss-1-2`, wo die gute Rotation den
+ * Spieler bei 18000 über das Verhängnis verliert.
+ *
+ * # Leerlauf
+ *
+ * Je Takt, in dem die Wartezeit bereit war und die Liste **nichts wählte**,
+ * 10 ms — wie bisher. Ein gewählter, aber abgewiesener Zauber ist kein leerer
+ * Takt, ebenso wenig ein Takt mitten in einer Wartezeit.
+ *
+ * **Eine eigene Funktion, damit die Aufzeichnung DIESE Schleife fährt** und
+ * keinen Nachbau. Bis #1027 stand sie nur in `runReference`, fest verdrahtet mit
+ * den vier Rotationen aus Schritt 1 — eine Aufzeichnung mit QUENCH hätte sie
+ * abschreiben müssen, und eine Abschrift ist genau die zweite Quelle, die
+ * plausibel antwortet und nichts belegt. Der Simulator muss sie bitgleich
+ * nachbilden; geprüft wird das an `tests/parity/recordings/gcd-freier-wurf.json`
+ * und `strikter-umschlag.json`.
+ *
+ * @param choose Der gewählte Zauber-Index, oder -1 für warten.
+ * @param cast Wirkt den gewählten Zauber; die Aufzeichnung schreibt hier mit.
+ */
+export function driveRotation(
+  combat: Combat,
+  choose: (timeMs: number) => number,
+  durationMs: number,
+  stopOnKill: boolean,
+  cast: (spell: SpellIndex, timeMs: number) => void,
+): DriveOutcome {
+  let killedAtMs = -1;
+  let idleMs = 0;
+  let timeMs = 0;
+  const budget = nullzeitBudget(combat);
+
+  while (timeMs < durationMs) {
+    combat.stepPassive(timeMs);
+    if (killedAtMs < 0 && combat.damageDealt >= combat.boss.hp) {
+      killedAtMs = timeMs;
+      if (stopOnKill) break;
+    }
+    const gcdBereit = combat.gcd.isReady(timeMs);
+    let gewaehlt = false;
+    let wuerfe = 0;
+    for (;;) {
+      const choice = choose(timeMs);
+      if (choice === IDLE) break;
+      gewaehlt = true;
+      const spell = alsSpellIndex(choice);
+      if (!nimmtAn(combat, spell, timeMs)) break;
+      if (wuerfe === budget) {
+        throw new Error(
+          `Nullzeit-Zyklus bei ${String(timeMs)} ms: ${String(wuerfe)} Würfe beim selben ` +
+            `Zeitstempel, und die Liste wählt weiter (${combat.spells[spell]?.id ?? '?'}). ` +
+            `Das ist ein Datenfehler — ein Zauber bleibt nach seinem Wurf bereit.`,
+        );
+      }
+      cast(spell, timeMs);
+      wuerfe++;
+    }
+    if (!gewaehlt && gcdBereit) idleMs += TICK_MS;
+    timeMs += TICK_MS;
+  }
+
+  return { killedAtMs, idleMs };
+}
+
 /** Eine Runde nach fester Prioritätenliste durchrechnen. */
 /**
  * Die gültigen Schlüssel — **abgeleitet, nicht gepflegt** (Issue #338).
@@ -231,23 +363,15 @@ export function runReference(
   const durationMs = options.durationMs ?? combat.boss.overpressureMs;
   const stopOnKill = options.stopOnKill !== false;
 
-  let killedAtMs = -1;
-  let idleMs = 0;
-  let timeMs = 0;
-
-  while (timeMs < durationMs) {
-    combat.stepPassive(timeMs);
-    if (killedAtMs < 0 && combat.damageDealt >= combat.boss.hp) {
-      killedAtMs = timeMs;
-      if (stopOnKill) break;
-    }
-    if (combat.gcd.isReady(timeMs)) {
-      const choice = apl(combat, index, timeMs);
-      if (choice === IDLE) idleMs += TICK_MS;
-      else combat.cast(alsSpellIndex(choice), timeMs);
-    }
-    timeMs += TICK_MS;
-  }
+  const { killedAtMs, idleMs } = driveRotation(
+    combat,
+    (timeMs) => apl(combat, index, timeMs),
+    durationMs,
+    stopOnKill,
+    (spell, timeMs) => {
+      combat.cast(spell, timeMs);
+    },
+  );
 
   const casts: Record<string, number> = {};
   const damageBySpell: Record<string, number> = {};

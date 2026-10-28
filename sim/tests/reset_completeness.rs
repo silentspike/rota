@@ -377,3 +377,221 @@ fn der_lauf_hinterlaesst_ueberhaupt_zustand() {
         "weniger als zwei Zauber gewirkt"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Die Schluesseltalente (#419, #418 AC6)
+// ---------------------------------------------------------------------------
+//
+// **Die Aufzeichnung oben findet ihren Zustand nicht.** `cooldown-precision`
+// faehrt ohne Talente, wirft kein ROT und legt keine Schicht, die ein Schlag
+// bricht. `shield_last_amount` und `shield_refund_used` stehen nach ihr auf
+// ihrem Ruhewert — und ein Feld, das nie falsch war, sieht nach dem Reset
+// richtig aus.
+//
+// **Umskillen gibt es auf dieser Seite nicht als eigenen Weg.** Die Talente
+// kommen ueber `FightConfig` und werden in `Fight::new` uebernommen; ein
+// `Fight` mit anderer Verteilung ist ein neuer `Fight`, und der beginnt
+// leer. Die Frage aus #418 AC6 ist hier deshalb genau die nach `reset`.
+
+/// Die spielbare Verteilung mit beiden Schluesseltalenten, die Zustand anlegen
+/// — als Promille, wie der Simulator sie bekommt.
+fn mit_beiden_schluesseln(ticks: u32) -> Fight {
+    Fight::new(FightConfig {
+        seed: 0,
+        boss: boss_by_id("test-onslaught").expect("test-onslaught fehlt"),
+        duration_ms: Some(ticks * TICK_MS),
+        // putrefaction-trunk 1 + coagulation-trunk 1, je 20 Promille Schaden.
+        talent_permille: 40,
+        talent_decay_ward_permille: 120,
+        talent_shield_amount_permille: 100,
+        decay_echo: true,
+        shield_refund: true,
+        ..FightConfig::default()
+    })
+}
+
+/// Eine feste Runde: Belegung `zauber[i]` auf Platz `i`, Druck `(takt, platz)`.
+fn runde(name: &str, ticks: u32, zauber: &[&str], druecke: &[(u32, u8)]) -> Recording {
+    Recording {
+        name: name.to_owned(),
+        seed: 0,
+        ticks,
+        bindings: zauber
+            .iter()
+            .enumerate()
+            .map(|(slot, id)| Binding {
+                slot: u8::try_from(slot).expect("zu viele Plaetze"),
+                spell: rota_sim::data::index_of(id).unwrap_or_else(|| panic!("{id} fehlt")),
+            })
+            .collect(),
+        presses: druecke
+            .iter()
+            .map(|&(tick, slot)| Press { tick, slot })
+            .collect(),
+    }
+}
+
+/// CRUST bei 0 ms, ROT bei 1500 ms, bis 6000 ms. Der erste Schlag (5000 ms)
+/// bricht die Schicht, die Nachlage liegt, ROT laeuft nach.
+fn schluessel_runde() -> Recording {
+    runde(
+        "schluessel-reset",
+        601,
+        &["crust", "rot"],
+        &[(0, 0), (150, 1)],
+    )
+}
+
+#[test]
+fn schluesseltalente_der_lauf_bewegt_ihren_zustand() {
+    // **Die Zusicherung vor der Messung** — gelesen aus derselben
+    // `Debug`-Auflistung, die der Waechter vergleicht.
+    let rec = schluessel_runde();
+    let mut fight = mit_beiden_schluesseln(rec.ticks);
+    let _ = fight.replay(&rec, false);
+    let auflistung = format!("{fight:?}");
+    assert!(fight.shield() > 0, "die Nachlage liegt nicht");
+    assert!(
+        auflistung.contains("shield_refund_used: true"),
+        "die Nachlage ist nicht verbraucht"
+    );
+    assert!(
+        !auflistung.contains("shield_last_amount: 0,"),
+        "keine Dicke gemerkt"
+    );
+}
+
+#[test]
+fn schluesseltalente_kein_feld_ueberlebt_das_zuruecksetzen() {
+    let rec = schluessel_runde();
+    let mut wiederverwendet = mit_beiden_schluesseln(rec.ticks);
+    let _ = wiederverwendet.replay(&rec, false);
+    wiederverwendet.reset(rec.seed);
+    let frisch = mit_beiden_schluesseln(rec.ticks);
+
+    let nach_reset = format!("{wiederverwendet:?}");
+    let neu = format!("{frisch:?}");
+    // Nicht nur das erste abweichende Feld: Wer behebt, soll alle auf einmal
+    // sehen. Verglichen wird Feld fuer Feld auf der obersten Ebene.
+    let felder = |s: &str| -> Vec<String> {
+        let mut tiefe = 0_i32;
+        let mut aktuell = String::new();
+        let mut liste = Vec::new();
+        for c in s.chars() {
+            match c {
+                '{' | '[' | '(' => tiefe += 1,
+                '}' | ']' | ')' => tiefe -= 1,
+                _ => {}
+            }
+            if c == ',' && tiefe == 1 {
+                liste.push(aktuell.trim().to_owned());
+                aktuell.clear();
+            } else {
+                aktuell.push(c);
+            }
+        }
+        liste.push(aktuell.trim().to_owned());
+        liste
+    };
+    let (a, b) = (felder(&nach_reset), felder(&neu));
+    assert_eq!(a.len(), b.len(), "verschieden viele Felder");
+    assert!(
+        a.len() > 100,
+        "zu wenige Felder ({}) — die Zerlegung greift nicht",
+        a.len()
+    );
+    let abweichend: Vec<String> = a
+        .iter()
+        .zip(b.iter())
+        .filter(|(x, y)| x != y)
+        .map(|(x, y)| {
+            // Der Name des Felds und die Stelle, an der es abweicht — bei
+            // `factors` stehen sonst acht gleiche Werte vor dem einen anderen.
+            let name = x.split(':').next().unwrap_or("?");
+            let stelle = x
+                .chars()
+                .zip(y.chars())
+                .position(|(p, q)| p != q)
+                .unwrap_or(0);
+            let fenster = |s: &str| {
+                s.chars()
+                    .skip(stelle.saturating_sub(30))
+                    .take(70)
+                    .collect::<String>()
+            };
+            format!(
+                "{name}: nach reset ...{}... | frisch ...{}...",
+                fenster(x),
+                fenster(y)
+            )
+        })
+        .collect();
+    assert!(
+        abweichend.is_empty(),
+        "`Fight::reset` laesst Zustand der Schluesseltalente stehen:\n  {}",
+        abweichend.join("\n  ")
+    );
+}
+
+#[test]
+fn schluesseltalente_retry_schenkt_keine_nachlage_aus_dem_vorigen_kampf() {
+    // **Was ein stehengebliebenes Feld kostet — gemessen**, Spiegelbild des
+    // gleichnamigen Falls in `tests/unit/reset-completeness.test.ts`.
+    //
+    // Eine Schicht aus Umwandlung (TEMPER) wird nicht gelegt, sie waechst: Sie
+    // schreibt weder `shield_last_amount` noch `shield_refund_used`. Bricht
+    // sie, gibt die Nachlage die Haelfte dessen, was dort STEHT — im frischen
+    // Kampf 0, also nichts. Stand dort noch die CRUST aus dem vorigen Durchgang,
+    // legt der Bruch eine halbe CRUST nach, die niemand gewirkt hat.
+    //
+    // Fuer den Simulator ist das kein Randfall: Die Balance-Laeufe setzen
+    // denselben `Fight` fuer jede Runde zurueck, statt ihn neu zu bauen.
+    let erster = runde("crust-ohne-bruch", 201, &["crust"], &[(0, 0)]);
+    let zweiter = runde(
+        "temper-dann-bruch",
+        601,
+        &["temper", "kindle"],
+        &[(0, 0), (150, 1), (300, 1), (450, 1)],
+    );
+    let nachlage = |ticks: u32| {
+        Fight::new(FightConfig {
+            seed: 0,
+            boss: boss_by_id("test-onslaught").expect("test-onslaught fehlt"),
+            duration_ms: Some(ticks * TICK_MS),
+            talent_permille: 20,
+            talent_shield_amount_permille: 100,
+            shield_refund: true,
+            ..FightConfig::default()
+        })
+    };
+
+    let mut wiederholt = nachlage(zweiter.ticks);
+    let vorher = wiederholt.replay(&erster, false);
+    assert!(
+        wiederholt.shield() > 0,
+        "CRUST liegt nicht — der erste Durchgang misst nichts"
+    );
+    assert_eq!(
+        vorher.damage_taken, 0,
+        "der erste Durchgang darf die Schicht nicht brechen"
+    );
+    wiederholt.reset(0);
+    let _ = wiederholt.replay(&zweiter, false);
+
+    let mut frisch = nachlage(zweiter.ticks);
+    let _ = frisch.replay(&zweiter, false);
+
+    assert!(
+        frisch.converted() > 0,
+        "TEMPER wandelt nichts um — der Fall misst nichts"
+    );
+    assert!(
+        frisch.shield_absorbed() > 0,
+        "der Schlag trifft die Schicht nicht"
+    );
+    assert_eq!(
+        wiederholt.shield(),
+        frisch.shield(),
+        "der zweite Durchgang erbt eine Nachlage aus dem ersten"
+    );
+}

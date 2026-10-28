@@ -1,7 +1,7 @@
 //! Issue #672: Ist `test-doomsayer` zu schaffen, und kommt die Mechanik vor?
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- build --release \
+//! cargo remote -c -- build --release \
 //!   --example doomsayer-672
 //! ./target/release/examples/doomsayer-672
 //! ```

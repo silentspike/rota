@@ -1,14 +1,50 @@
-# Bau-Server fuer den Simulator (CLAUDE.md, Abschnitt "RUST REMOTE BUILD").
+# Bau-Dienst für den Simulator: cargo remote v2 auf rustbuild-ovh (node3).
 #
-# `cargo remote` sucht diese Datei im Wurzelverzeichnis des Workspace — deshalb
-# liegt sie hier und nicht in `sim/` (Begruendung siehe Cargo.toml).
+# `cargo remote` liest diese Datei im Wurzelverzeichnis des Workspace — deshalb
+# liegt sie hier und nicht in `sim/` (Begründung siehe Cargo.toml). Jeder Aufruf
+# startet deshalb in der Wurzel. Aus `sim/` heraus findet der v2-Client keine
+# Konfiguration und reicht an den alten Client weiter; der scheitert schon an
+# der lokalen Rust-Sperre (`cargo metadata` gesperrt, Panic, Exit 101 —
+# gemessen am 2026-10-23). Einen alten Server fände er hier ohnehin nicht mehr,
+# siehe den letzten Absatz.
 #
-#   cargo remote -c -- build          # das -c ist Pflicht
-#   cargo remote -c -- test --no-run > /work/tmp/bau.log
-#   bash tools/tests-lokal.sh /work/tmp/bau.log
-#   cargo remote -c -- clippy --all-targets -- -D warnings
-#   cargo-remote-fmt                  # NICHT `cargo remote -- fmt`
-#   cargo-remote-fmt --check          # CI-Paritaet, vor jedem Push
-[[remote]]
-host = "root@10.0.0.155"
-temp_dir = "/tmp/builds"
+#   cargo remote -- test                                       # wie die CI
+#   cargo remote -- test --all-targets --features diagnostics  # wie die CI
+#   cargo remote -- clippy --all-targets -- -D warnings        # wie die CI
+#   cargo-remote-fmt --check                                   # wie die CI
+#   cargo-remote-fmt                     # formatiert und schreibt die .rs zurück
+#   cargo remote -c -- build --release   # Programm nach target/release/rota-sim
+#   cargo remote -c -- test --no-run > /work/tmp/bau.log   # Testbinaries holen,
+#   bash tools/tests-lokal.sh /work/tmp/bau.log            # dann lokal fahren
+#
+# Exit 75 heißt: kein Platz auf dem Server, oder in diesem Arbeitsverzeichnis
+# läuft schon ein Job. Gebaut und eingereiht wurde NICHTS. Erst
+# `cargo remote --status` ansehen, dann erneut — nie denselben Aufruf doppelt.
+#
+# Den Abschnitt unten schreibt der Client selbst: bei `--init` und nach jedem
+# erfolgreichen Lauf neu. Erklärungen gehören deshalb HIERHER, über ihn — ein
+# Kommentar zwischen seinen Schlüsseln geht beim Neuschreiben verloren. Seine
+# Kopfzeile darf in keinem Kommentar wörtlich stehen: Der Client trennt die
+# Datei an ihrem ersten Vorkommen und schreibt sie danach doppelt — ungültiges
+# TOML, der nächste Lauf scheitert (beides gemessen am 2026-10-23).
+#
+#   toolchain   muss gleich `channel` in rust-toolchain.toml sein. Die CI liest
+#               die Version von dort und prüft beides (tools/rust-pin.py).
+#   image       unveränderliche Image-ID zu Profil und Toolchain. Wer die
+#               Toolchain wechselt, löscht diese Zeile mit; der nächste
+#               erfolgreiche Lauf trägt das neue Image ein.
+#   project_id  steht mit Absicht im Repository: Alle Worktrees sind dasselbe
+#               Projekt, jeder bekommt trotzdem einen eigenen Arbeitsbereich.
+#
+# Der Eintrag des alten Dienstes (CT 155, root@10.0.0.155) ist gelöscht, nicht
+# nur überstimmt: Ein Aufruf, der v2 verfehlt, soll scheitern, statt still auf
+# dem alten Dienst zu bauen. Zurück geht es über `git revert` dieses Wechsels.
+
+[cargo_remote]
+schema = 1
+project_id = "8516fde7-4113-4e17-8899-1665bf581a22"
+profile = "linux-gnu-bookworm"
+toolchain = "1.98.1"
+targets = []
+resources = "normal"
+image = "4189b0091c5ee882a7c738c03c89ab6ba8ec419c42acbdbeee5d3dcd6cc19e3b"
