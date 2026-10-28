@@ -859,6 +859,18 @@ fn ac3_eine_offene_suche_zeigt_keine_restzeit() {
     assert_eq!(plateau["round"], 7);
     assert!(plateau["best_unchanged_s"].as_f64().expect("Zahl") > 4.0);
     assert_eq!(plateau["evaluations_since_best"], 800 - 300);
+
+    // Auch in der ersten Sekunde, ohne jede Rate: das Plateau, nicht „noch
+    // keine vier Messsekunden". Die Entscheidung fällt vor jeder Rechnung.
+    let mut kurz = Fenster::neu(FENSTER);
+    for i in 0..=4u64 {
+        kurz.aufnehmen(probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], stand));
+    }
+    assert!(kurz.strangrate().is_none(), "Zusicherung: noch keine Rate");
+    let frueh = beschreibung(EIN_KAMPF)
+        .anzeige(&kurz, Ereignis::Fortschritt, 1, Duration::ZERO)
+        .expect("Anzeige");
+    assert_eq!(frueh.restzeit, Restzeit::Plateau);
 }
 
 #[test]
