@@ -6,11 +6,13 @@
  * Er prüft die **Struktur**: dass alle sechs Bäume da sind, jeder einen Stamm
  * und drei Wege trägt, und dass die Wege ihren Stamm verlangen. Das ist AC1.
  *
- * Er prüft **nicht** die Wirkung. Die drei Wege eines Baums wirken heute alle
- * über denselben Topf (`damagePerRankPerMille`) — der Kopfkommentar von
- * `data/player/talents.json` nennt das ausdrücklich „eine Zwischenstufe und
- * keine Umsetzung von 12.5". Wer die Wirkung ersetzt, ersetzt nicht die
- * Struktur, die hier steht.
+ * Er prüft **nicht** die Wirkung. Die steht in den Wirkungs-Fällen
+ * (`talent-wirkungen*.test.ts`, `globaler-baum-drei-wege.test.ts`,
+ * `umgebaute-wege.test.ts`): Seit #723, #729, #751, #812 und #824 bewegt jeder
+ * der achtzehn Wege eine eigene Größe. Hier stand bis 2026-10-24, sie wirkten
+ * alle über denselben Topf (`damagePerRankPerMille`) — das war die
+ * Zwischenstufe, bevor die Wege eigene Größen bekamen. Wer die Wirkung ändert,
+ * ändert nicht die Struktur, die hier steht.
  *
  * # Warum die Liste abgeschrieben ist
  *
@@ -192,7 +194,9 @@ describe('AC4 — mit den Punkten des Spiels lässt sich NICHT alles ausbauen', 
     );
 
     // Die Aussage von 12.5: „zwei Bäume tief ausbauen und ein dritter
-    // antippen — niemals alles". Heute fehlen 59 Ränge.
+    // antippen — niemals alles". Gemessen am 2026-10-24: 113 Ränge gegen 50
+    // Punkte, es fehlen 63. Hier stand 59 — das galt vor #801, das vier
+    // Schlüsseltalente mit je einem Rang dazubrachte (109 Ränge).
     expect(noetig - punkte).toBeGreaterThan(0);
   });
 

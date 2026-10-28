@@ -86,6 +86,22 @@ mehrerer Fehlgriffe.
 |                  | Rücksetzer  | `cooldownResetCharges`                   |     ? |     ? | keine neue    |
 |                  | Schwelle    | `cooldownReductionBelowMs`               |     ? |     ? | keine neue    |
 
+> **Überholt — markiert am 2026-10-24 (#419), nicht neu entschieden.** Seit #824 (2026-08-13)
+> tragen drei Zeilen dieser Tabelle eine andere Größe als hier beschrieben, und GLOBAL steht
+> nicht darin:
+>
+> ```text
+>   PUTREFACTION Aufbau        decayCapPerRankPerMille      die OBERGRENZE der Stapel
+>   PUTREFACTION Haltbarkeit   decayWardPerRankPerMille     der SCHUTZ je Stapel
+>   SUBLIMATION  Abzug         convertPerRankPerMille       EFFLUX' Umwandlung
+>   GLOBAL       build         buildDamagePerRankPerMille   der Schaden der Aufbau-Zauber
+> ```
+>
+> Gemessen mit dem Befehl im Kopfkommentar von `data/player/talents.json`. Die Spalten TS und
+> Rust sind für diese vier nicht neu gezählt. Die Tabelle selbst bleibt, wie sie war: Die beiden
+> PUTREFACTION-Zeilen stehen im Widerspruch zum Abschnitt „Zwei Gruppen wurden ausgeschlossen"
+> unten, und welche Festlegung gilt, ist nicht entschieden.
+
 > **SUBLIMATIONs drei Wege sind seit #751 gebaut**, und zwar mit je eigener Größe:
 > `sublimation-reduction` → `cooldownReductionPerRankPerMille`, `-charges` →
 > `cooldownResetChargesPerRank`, `-threshold` → `cooldownThresholdPerRankPerMille`.
@@ -102,6 +118,12 @@ bewegen Größen, die bereits in beiden Prüfsummen stehen.
 > tragen heute alle `damagePerRankPerMille` — denselben Topf wie der Stamm. Solange das so ist,
 > braucht auch er keine neue Zeile; sobald jemand ihm eigene Größen gibt, gehört die Frage neu
 > gestellt.
+>
+> **Überholt — markiert am 2026-10-24 (#419):** Er hat sie inzwischen. Seit #812 und #824 trägt
+> GLOBAL `buildDamagePerRankPerMille` (build), `spenderDamagePerRankPerMille` (release) und für
+> hold `dotDurationPerRankPerMille`, `decayDurationPerRankPerMille` und
+> `shieldDurationPerRankPerMille`. Die Frage nach einer Prüfsummen-Zeile ist damit gestellt und
+> hier nicht beantwortet.
 
 ## Zwei Wege sind schon gebaut — nur der Schalter davor fehlt
 
@@ -146,6 +168,14 @@ Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei sind gestrichen:
 Beide wären technisch baubar (je 1–2 Stellen, keine neue Prüfsummen-Zeile). Der Einwand ist
 fachlich: Ein Weg, der einen Zauber verdoppelt, ist so wenig eine Wahl wie einer, der eine Mechanik
 verdoppelt.
+
+> **Widerspricht dem Bestand — markiert am 2026-10-24 (#419), nicht entschieden.** PR #824 hat
+> nach der Entscheidung des Auftraggebers vom 2026-08-13 („Jeder der vier bekommt eine Wirkung
+> anderer BAUART", Kommentar in #419) genau diese beiden Größen gewählt: `putrefaction-build`
+> trägt seither `decayCapPerRankPerMille` (die Obergrenze), `putrefaction-duration`
+> `decayWardPerRankPerMille` (den Schutz je Stapel). Der Ausschluss oben und der Bestand
+> schließen einander aus. Welche Festlegung gilt, entscheidet der Auftraggeber; bis dahin bleibt
+> dieser Abschnitt stehen, wie er war.
 
 ## Die Kennungen sind inzwischen sprechend — bei vier von sechs Bäumen
 
@@ -205,6 +235,11 @@ weiterhin nicht.
   GLOBAL bewegt weiterhin dreimal `damagePerRankPerMille` (15 je Rang) — dort trifft die alte
   Aussage zu, und dort allein.
 
+  > **Überholt — markiert am 2026-10-24 (#419):** Beide Absätze darüber sind gealtert.
+  > `sublimation-reduction` trägt seit #824 `convertPerRankPerMille` (120 je Rang, EFFLUX'
+  > Umwandlung) statt `cooldownReductionPerRankPerMille`, und GLOBAL trägt seit #812 und #824
+  > eigene Größen, siehe den Hinweis bei der Tabelle oben.
+
   Sechs der zwölf Zauber tragen die Zahlen, an denen die Wege greifen:
 
   ```
@@ -225,6 +260,13 @@ weiterhin nicht.
 - **Die Schlüsseltalente** je Schule. Nur CALCINATION hat eines (`calcination-keystone`).
   `keystone: string` und `hasKeystone()` sind wiederverwendbar; jedes Schlüsseltalent ist ein
   eigenes Verhalten, kein Zahlendreher.
+
+  > **Überholt — markiert am 2026-10-24 (#419):** Es sind fünf, je Schul-Baum eines
+  > (`split-spender`, `partial-control`, `auto-reset`, `shield-refund`, `decay-echo`); der globale
+  > Baum hat keines. Gemessen mit
+  > `jq -r '[.trees[].talents[] | select(.keystone != null)] | length' data/player/talents.json`.
+  > Wie viele es werden sollen — je Baum oder je Weg —, ist offen.
+
 - **Die Verteilung der 50 Talentpunkte** über die Stufen (`talentPointTarget` in
   `data/player/levels.json`). Die Zahl
   ist entschieden, ihre Verteilung nicht. Warnung für den Wächter: Wer die Verteilung summiert und

@@ -11,7 +11,7 @@
  *   App.setTalents   1 Aufrufer ausserhalb der Tests — in devtools
  * ```
  *
- * Sechs Bäume, achtzehn Wege, vier Schlüsseltalente, ~50 Punkte auf 100
+ * Sechs Bäume, achtzehn Wege, fünf Schlüsseltalente, ~50 Punkte auf 100
  * Stufen: alles gebaut, alles geprüft, alles mit Rust-Parität — und kein
  * Spieler konnte einen einzigen Punkt setzen. Die Kette war bis
  * `persistTalents` fertig und endete davor an der Wand.

@@ -7,7 +7,7 @@ import { withPlainText } from '../analysis/help.js';
  *
  * # Warum es diese Datei gibt
  *
- * Sechs Bäume, achtzehn Wege, vier Schlüsseltalente und ~50 Punkte auf 100
+ * Sechs Bäume, achtzehn Wege, fünf Schlüsseltalente und ~50 Punkte auf 100
  * Stufen waren gebaut, geprüft und paritätsgesichert — und **kein Spieler
  * konnte einen einzigen Punkt setzen**. `App.setTalents` hatte genau einen
  * Aufrufer ausserhalb der Prüffälle, in den Entwicklungswerkzeugen.
