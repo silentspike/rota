@@ -1130,6 +1130,8 @@ fn engpass_mit_erhebung_steht_als_satz_in_zeile_und_strom() {
             };
             4
         ];
+        // Eine ruhige Maschine: Unter Fremdlast prüft die Zeile nicht.
+        p.engpass.druck.cpu = Some(0.4);
         fenster.aufnehmen(p);
     }
     let a = b
