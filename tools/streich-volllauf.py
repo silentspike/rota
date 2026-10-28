@@ -26,11 +26,18 @@ endet mit Exit 2 und dem Grund, ohne dass etwas angelegt wurde:
   5. `package-lock.json` des Standes gleicht dem der Quelle für node_modules;
      sonst wäre ein `npm ci` nötig, und das gehört nicht in dieses Werkzeug.
 
-Danach: Checkout per `git worktree add --detach`, node_modules per Reflink,
+Danach: Checkout per `git worktree add --detach` unter
+/work/rota-worktrees/<Rolle>-1055-volllauf (bzw. -probe), node_modules per Reflink,
 der historische Bericht des Standes als Vergleichsgrundlage, und der Lauf
 abgekoppelt (`setsid nohup`), weil ein Hintergrundlauf des Bash-Werkzeugs nach
 Minuten ohne Meldung eingesammelt werden kann. Sein Exit-Code steht am Ende
 des Protokolls als `rc=N`.
+
+WARUM DER CHECKOUT UNTER /work/rota-worktrees LIEGT, und nicht neben den
+Nachweisen unter /work/tmp: `rota-fenster` kennt Rollen nur als Verzeichnisse
+dort und ordnet Prozesse über `rota-worktrees/<name>/` zu. Die erste Probe
+(2026-10-28, 18:09 bis 18:41) lief unter /work/tmp, und um 18:25 wurde das
+Fenster mitten hinein einer kerngepinnten Messung zugeteilt.
 
 Exit 0: gestartet (oder mit --trocken: alle Bedingungen erfüllt). Exit 2:
 nicht gestartet.
@@ -84,6 +91,8 @@ def main():
     ap.add_argument("--rolle", required=True, help="die Rolle, der das Messfenster zugeteilt ist")
     ap.add_argument("--stand", default="origin/main", help="zu messender Commit (Vorgabe origin/main)")
     ap.add_argument("--aus", help="Ausgabeverzeichnis, darf nicht existieren")
+    ap.add_argument("--baum", help="Checkout, darf nicht existieren; Vorgabe "
+                                   "/work/rota-worktrees/<Rolle>-1055-volllauf bzw. -probe")
     ap.add_argument("--node-modules-von", default="/work/rota",
                     help="Checkout, dessen node_modules per Reflink übernommen werden")
     ap.add_argument("--timeout", type=int, default=1800, help="je Stufe, an streich-mutation.py")
@@ -116,6 +125,10 @@ def main():
                        f"/work/tmp/rota-1055-{art}{datetime.datetime.now():%Y%m%d-%H%M}").resolve()
     if aus.exists():
         return abbruch(f"{aus} existiert bereits — ein alter Nachweis darin sähe aus wie dieser Lauf")
+    baum = pathlib.Path(args.baum or f"/work/rota-worktrees/{args.rolle}-1055-"
+                        f"{'probe' if args.probe else 'volllauf'}").resolve()
+    if baum.exists():
+        return abbruch(f"Checkout {baum} existiert bereits — erst `git worktree remove {baum}`")
     frei_mb = shutil.disk_usage("/work").free // (1 << 20)
     if frei_mb < MINDEST_FREI_MB:
         return abbruch(f"nur {frei_mb} MB frei auf /work, verlangt {MINDEST_FREI_MB}")
@@ -127,7 +140,6 @@ def main():
         return abbruch(f"package-lock.json von {commit[:12]} gleicht nicht dem von {quelle}, "
                        "oder dort fehlt node_modules — dann wäre `npm ci` nötig")
 
-    baum = aus / "baum"
     befehl = [sys.executable, "-B", "tools/streich-mutation.py", "--vorproben",
               "--aus", f"{aus}/result.md", "--roh", f"{aus}/failure-names.json",
               "--nachweis", f"{aus}/evidence.json", "--vergleich", f"{aus}/historical-report.md",
@@ -172,11 +184,11 @@ def main():
     (aus / "lauf.pid").write_text(f"{lauf.pid}\n")
     print(f"\nGESTARTET: PID {lauf.pid}. Verfolgen: tail -f {protokoll}")
     print(f"Fertig, wenn das Protokoll mit rc=N endet. Dann {aus}/evidence.json lesen")
-    print("(completed, probes_passed, historical_comparison.full_pass), erst danach")
+    print("(completed, probes_passed, historical_comparison.full_pass).")
     if args.probe:
         print("Eine Probe ersetzt docs/streich-mutation-ergebnis.md NIE (full_pass bleibt false).")
     else:
-        print("docs/streich-mutation-ergebnis.md ersetzen, und das Fenster abgeben:")
+        print("Erst danach docs/streich-mutation-ergebnis.md ersetzen und das Fenster abgeben:")
         print(f"  rota-fenster abgeben {args.rolle}")
     print(f"Der Checkout ist ein neuer Arbeitsbereich auf dem Bau-Dienst — danach aufräumen:")
     print(f"  git worktree remove {baum}")
