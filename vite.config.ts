@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import pkg from './package.json';
+import pkg from './package.json' with { type: 'json' };
 
 // GAME-DESIGN 19.3: Die Entwicklungs-Werkzeuge stehen hinter __ROTA_DEVTOOLS__.
 // In der Auslieferungs-Fassung ersetzt Vite die Konstante durch `false`; der
