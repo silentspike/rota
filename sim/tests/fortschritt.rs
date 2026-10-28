@@ -151,10 +151,27 @@ fn eine_stichprobe_zaehlt_jeden_kampf_im_strang_der_ihn_rechnet() {
     let m = werk.momentaufnahme();
     assert_eq!(m.kaempfe, 20);
     assert_eq!(m.kandidaten, [0, 1, 0]);
+    // **Die Eigenschaft, nicht die Verteilung** (Entscheidung des
+    // Orchestrators vom 2026-10-28, #912): Seit der dynamischen Entnahme
+    // rechnet jeder Strang so viele Kämpfe, wie er schafft — `[0, 5, 5, 5, 5]`
+    // galt nur für feste Bereiche. Verlangt bleibt: Jeder Kampf wird genau
+    // einmal gezählt, auf dem Platz des Strangs, der ihn rechnet; der
+    // Leitstrang zählt für sich nichts, und die Summe ist die Gesamtzahl.
     assert_eq!(
-        m.kaempfe_je_strang,
-        vec![0, 5, 5, 5, 5],
-        "der Leitstrang rechnet nicht, jeder Arbeitsstrang fünf"
+        m.kaempfe_je_strang.len(),
+        5,
+        "ein Platz je Strang und der Leitstrang"
+    );
+    assert_eq!(
+        m.kaempfe_je_strang[0], 0,
+        "der Leitstrang zaehlt auf seinem eigenen Platz: {:?}",
+        m.kaempfe_je_strang
+    );
+    assert_eq!(
+        m.kaempfe_je_strang.iter().sum::<u64>(),
+        20,
+        "nicht jeder Kampf genau einmal gezaehlt: {:?}",
+        m.kaempfe_je_strang
     );
 }
 
