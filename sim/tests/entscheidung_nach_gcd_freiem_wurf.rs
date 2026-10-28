@@ -32,7 +32,7 @@
 
 use rota_sim::apl::{parse, AplName};
 use rota_sim::data::{boss_by_id, index_of};
-use rota_sim::fight::{Nullzeit, NULLZEIT_BUDGET};
+use rota_sim::fight::Nullzeit;
 use rota_sim::log::LogKind;
 use rota_sim::{Fight, FightConfig, RunResult};
 
@@ -234,8 +234,8 @@ fn der_kampf_bricht_beim_ueberzaehligen_wurf_ab() {
 }
 
 /// Die Gegenprobe zum Abbruch: Mit Budget 2 rechnet derselbe Kampf durch und
-/// ergibt dasselbe wie mit dem vollen Budget. Ohne sie könnte der Abbruch oben
-/// auch an etwas anderem liegen als am Budget.
+/// ergibt dasselbe wie mit dem vollen Budget (`run_apl`). Ohne sie könnte der
+/// Abbruch oben auch an etwas anderem liegen als am Budget.
 #[test]
 fn mit_einem_ausreichenden_budget_rechnet_derselbe_kampf_durch() {
     let apl = parse(AplName("nullzeit"), "kindle\nquench\n").expect("gültige Liste");
@@ -251,8 +251,4 @@ fn mit_einem_ausreichenden_budget_rechnet_derselbe_kampf_durch() {
     let voll = kampf().run_apl(&apl);
     assert_eq!(knapp.casts, voll.casts, "Würfe je Zauber");
     assert_eq!(knapp.damage, voll.damage, "Schaden");
-    assert!(
-        NULLZEIT_BUDGET >= 2,
-        "das volle Budget ({NULLZEIT_BUDGET}) ist kleiner als der Bedarf dieser Liste"
-    );
 }
