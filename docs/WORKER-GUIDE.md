@@ -4145,6 +4145,9 @@ python tools/suno_api.py auth-test
   Credits: 1342 | Tier: True
 ```
 
+(Das Werkzeug liegt seit 2026-10-28 als `suno/suno_api.py` im privaten Werkzeug-Repo
+`silentspike/rota-werkzeuge`.)
+
 Der Klang war zwei Minuten später fertig. Die Einordnung der Sitzung selbst: _„Meine Suno-Sperre war
 eine ungeprüfte Annahme aus einer alten Notiz."_
 

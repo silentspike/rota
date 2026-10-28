@@ -13,12 +13,12 @@ vier Kernklänge müssen fertig sein, wenn E1 seinen Kampf abgibt.
 
 ## Zuerst lesen
 
-| #   | Datei                      | Warum                                                              |
-| --- | -------------------------- | ------------------------------------------------------------------ |
-| 1   | `CLAUDE.md`                | Rahmenbedingungen, besonders zum Klang                             |
-| 2   | `docs/GAME-DESIGN.md` 17.1 | Die Aufstellung aller 115 Klänge und die Musik-Schichten           |
-| 3   | `docs/suno-sfx.md`         | Die fertige Werkzeugkette — Prompt-Regeln, Längen, Nachbearbeitung |
-| 4   | `docs/WORKER-GUIDE.md`     | Der verbindliche Ablauf je Issue                                   |
+| #   | Datei                                                                     | Warum                                                              |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1   | `CLAUDE.md`                                                               | Rahmenbedingungen, besonders zum Klang                             |
+| 2   | `docs/GAME-DESIGN.md` 17.1                                                | Die Aufstellung aller 115 Klänge und die Musik-Schichten           |
+| 3   | `suno/suno-sfx.md` im privaten Werkzeug-Repo `silentspike/rota-werkzeuge` | Die fertige Werkzeugkette — Prompt-Regeln, Längen, Nachbearbeitung |
+| 4   | `docs/WORKER-GUIDE.md`                                                    | Der verbindliche Ablauf je Issue                                   |
 
 ## Dein Arbeitsplatz
 
@@ -43,7 +43,8 @@ Teil von #16, werden aber am dringendsten gebraucht. Mach sie zuerst.
 
 ## Zwei Dinge, die nicht verhandelbar sind
 
-1. **Nur das Suno-Konto `backupslave`.** `tools/suno_api.py` erzwingt das über einen Konto-Wächter.
+1. **Nur das Suno-Konto `backupslave`.** `suno/suno_api.py` (Werkzeug-Repo) erzwingt das über einen
+   Konto-Wächter.
 2. **Die ästhetische Abnahme macht der Auftraggeber.** Claude kann nicht hören. Du prüfst technisch
    mit `ffprobe`: Länge, Pegel, Anfangs-Stille, Clipping. Für das Urteil baust du ein
    Abhör-Soundboard.
