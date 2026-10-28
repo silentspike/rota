@@ -29,6 +29,43 @@ fn konfiguration(iterations: u32, threads: usize, base_seed: u32) -> BalanceConf
     }
 }
 
+/// **Bitgleich über jede Strangzahl — mit Würfel.** Die Strangvergleiche in
+/// `tests/balance.rs` und in `rota-sim verify` fahren ohne Würfel; seit #908
+/// schrumpft ein solcher Lauf auf einen Kampf und berührt den parallelen
+/// Pfad gar nicht (`verify` meldet „Kaempfe gerechnet: 3"). Hier würfelt
+/// jeder Kampf, und 997 Durchgänge teilen sich auf keine Strangzahl glatt auf.
+#[test]
+fn jede_strangzahl_rechnet_bitgleich_wie_einer_auch_mit_wuerfel() {
+    let liste = gute_liste();
+    let einer = run_vollstaendig(&konfiguration(997, 1, 5), &liste);
+    for threads in [2usize, 3, 4, 8, 16] {
+        let viele = run_vollstaendig(&konfiguration(997, threads, 5), &liste);
+        assert_eq!(
+            (
+                viele.damage.mean.to_bits(),
+                viele.damage_taken.mean.to_bits(),
+                viele.healed.mean.to_bits(),
+                viele.absorbed.mean.to_bits(),
+                viele.damage.min.to_bits(),
+                viele.damage.max.to_bits(),
+                viele.kills,
+                &viele.casts,
+            ),
+            (
+                einer.damage.mean.to_bits(),
+                einer.damage_taken.mean.to_bits(),
+                einer.healed.mean.to_bits(),
+                einer.absorbed.mean.to_bits(),
+                einer.damage.min.to_bits(),
+                einer.damage.max.to_bits(),
+                einer.kills,
+                &einer.casts,
+            ),
+            "{threads} Straenge rechnen anders als einer"
+        );
+    }
+}
+
 /// **Acht Aufrufer zugleich, jeder bekommt sein eigenes Ergebnis.** Die
 /// Helfer sind geteilt; landete ein Bereich in der Sammlung eines fremden
 /// Laufs, wiche dessen Ergebnis ab.
