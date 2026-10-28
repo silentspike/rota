@@ -59,6 +59,7 @@ import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
 import eingecheckterGcdFreierWurf from './recordings/gcd-freier-wurf.json';
+import eingecheckterStrikterUmschlag from './recordings/strikter-umschlag.json';
 import eingecheckteCondenseRunde from './recordings/condense-merker.json';
 import eingecheckteKontrollFehlschlagRunde from './recordings/kontrolle-fehlschlag.json';
 import eingecheckteRetortRunde from './recordings/retort-erstattung.json';
@@ -159,6 +160,7 @@ import {
   aetherPayload,
   sublimePayload,
   gcdFreiPayload,
+  strikterUmschlagPayload,
   condensePayload,
   kontrollFehlschlagPayload,
   retortPayload,
@@ -654,6 +656,13 @@ describe('Gemeinsame Vergleichsdateien', () => {
     expect(eingecheckterGcdFreierWurf, HINWEIS).toEqual(gcdFreiPayload());
   });
 
+  it('der strikte Umschlag entspricht dem heutigen Spielstand', () => {
+    // Issue #1027, Fassung B. Die Läufe tragen die Würfe der Schleife an dem
+    // Takt, an dem ein strikter Vergleich kippt — die Größe, die der Simulator
+    // mit seinem Weckruf treffen muss.
+    expect(eingecheckterStrikterUmschlag, HINWEIS).toEqual(strikterUmschlagPayload());
+  });
+
   it('AETHERs Fenster entspricht dem heutigen Spielstand', () => {
     // Issue #480. Die Aufzeichnung traegt `kindleRest` — die Restzeit, an der
     // die verdoppelte Verkuerzung sichtbar wird.
@@ -1030,6 +1039,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'putrid-bloom',
   'pin-befreiung',
   'gcd-freier-wurf',
+  'strikter-umschlag',
   'decay-ward',
   'efflux-restzeit',
   'krit-umwandlung',

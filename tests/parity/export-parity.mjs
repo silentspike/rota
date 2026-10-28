@@ -155,6 +155,8 @@ import {
   SUBLIME_NAME,
   gcdFreiPayload,
   GCD_FREI_NAME,
+  strikterUmschlagPayload,
+  STRIKT_NAME,
   condensePayload,
   CONDENSE_NAME,
   retortPayload,
@@ -547,6 +549,17 @@ const gcdFreiPath = join(here, 'recordings', `${GCD_FREI_NAME}.json`);
 writeFileSync(gcdFreiPath, serialize(gcdFrei), 'utf8');
 console.log(`geschrieben: ${gcdFreiPath}`);
 for (const lauf of gcdFrei.runs) {
+  console.log(
+    `  ${lauf.name.padEnd(24)} Schaden ${lauf.expected.damage}, Leerlauf ${lauf.expected.idleMs} ms`,
+  );
+}
+
+// Ein strikter Vergleich trifft seinen Umschlag im selben Takt wie das Spiel (#1027).
+const strikt = strikterUmschlagPayload();
+const striktPath = join(here, 'recordings', `${STRIKT_NAME}.json`);
+writeFileSync(striktPath, serialize(strikt), 'utf8');
+console.log(`geschrieben: ${striktPath}`);
+for (const lauf of strikt.runs) {
   console.log(
     `  ${lauf.name.padEnd(24)} Schaden ${lauf.expected.damage}, Leerlauf ${lauf.expected.idleMs} ms`,
   );

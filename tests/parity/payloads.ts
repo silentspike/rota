@@ -12,7 +12,7 @@
  * Moment nichts mehr aussagen, in dem er gebraucht wird.
  */
 import { combatChecksum, mixFloat, mixInt, recordFieldOrder } from '../../src/core/checksum.js';
-import { STEP1_BINDINGS } from '../../src/core/loadout.js';
+import { STEP1_BINDINGS, type Binding } from '../../src/core/loadout.js';
 import { pressRecorder, slotFor, slotMap } from './press-recorder.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs, tickCount } from '../../src/core/haste.js';
@@ -48,7 +48,7 @@ import {
 } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
-import { driveRotation } from '../../src/devtools/reference-run.js';
+import { driveRotation, nullzeitBudget } from '../../src/devtools/reference-run.js';
 export { productionPhasesPayload, PRODUCTION_PHASES_NAME } from './phase-bindings-production.js';
 import {
   POOL_CATALYSIS,
@@ -3839,11 +3839,17 @@ const GCD_FREI_BINDINGS = [
  * auseinander, ohne dass es jemand sähe — dieselbe Lage wie bei `aplGood` und
  * `step1-good.apl` (`sim/tests/apl_paritaets_luecke.rs`).
  */
-interface GcdFreiZeile {
+interface ListenZeile {
   readonly spellId: string;
   /** Leer heißt „ohne Bedingung". */
   readonly bedingung: string;
   readonly gilt: (combat: Combat, timeMs: number) => boolean;
+}
+
+/** Ein Lauf einer Listen-Aufzeichnung: ein Name und seine Prioritätenliste. */
+interface ListenLauf {
+  readonly name: string;
+  readonly zeilen: readonly ListenZeile[];
 }
 
 const OHNE_BEDINGUNG = (): boolean => true;
@@ -3857,10 +3863,11 @@ function smoulderRest(combat: Combat, timeMs: number): number {
  * `gcd`-Proben aus `sim/examples/e1027-operator-measure.rs`, damit die Zahlen
  * des Berichts `docs/APL-STRICT-COMPARISON-2026-10-24.md` hier nachzulesen sind.
  */
-const GCD_FREI_LAEUFE: readonly { name: string; zeilen: readonly GcdFreiZeile[] }[] = [
+const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
   {
-    // QUENCH vor dem Füller, ohne jede zeitabhängige Bedingung. Hier warf der
-    // Simulator den Füller erst bei 2000 statt bei 10 (#1027).
+    // QUENCH vor dem Füller, ohne jede zeitabhängige Bedingung. Bis #1135 warf
+    // der Simulator den Füller erst bei 2000; seit dem Entscheidungsmodell vom
+    // 2026-10-28 folgt er beim selben Zeitstempel (0), vorher im nächsten Takt.
     name: 'quench-fueller',
     zeilen: [
       { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
@@ -3868,10 +3875,9 @@ const GCD_FREI_LAEUFE: readonly { name: string; zeilen: readonly GcdFreiZeile[] 
     ],
   },
   {
-    // Die strikte Nachlegezeile der Suche neben QUENCH: QUENCH fällt auf das
-    // GCD-Ende, an dem SMOULDER genau auf 1500 steht. `< 1500` ist dort falsch
-    // und wird einen Takt später wahr — die Lage, in der sich 14 der 15
-    // verschobenen Suchen des Berichts trennen.
+    // Die strikte Nachlegezeile der Suche neben QUENCH — die Lage, in der sich
+    // vor #1135 14 der 15 verschobenen Suchen des Berichts trennten. QUENCH
+    // kommt hier auch mitten in den GCD des Füllers (5000, 10000, …).
     name: 'quench-nachlegen-strikt',
     zeilen: [
       { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
@@ -3886,8 +3892,10 @@ const GCD_FREI_LAEUFE: readonly { name: string; zeilen: readonly GcdFreiZeile[] 
   {
     // Dieselbe Lage, aber genau getroffen: QUENCH fällt auf das GCD-Ende bei
     // 10500, an dem SMOULDER (gewirkt bei 0) genau auf 1500 steht. `< 1500`
-    // ist dort falsch und einen Takt später wahr, ohne dass dazwischen ein
-    // Ereignis liegt. `time >= 10500` setzt nur den Zeitpunkt.
+    // ist dort falsch; die Liste wählt beim selben Zeitstempel den Füller, und
+    // SMOULDER kommt erst am nächsten GCD-Ende. (Bis zum Entscheidungsmodell
+    // vom 2026-10-28 entschied sie einen Takt später und legte bei 10510 nach.)
+    // `time >= 10500` setzt nur den Zeitpunkt.
     name: 'quench-auf-der-schwelle',
     zeilen: [
       {
@@ -3932,6 +3940,30 @@ const GCD_FREI_LAEUFE: readonly { name: string; zeilen: readonly GcdFreiZeile[] 
     ],
   },
   {
+    // (b) QUENCH UNTER dem Füller: KINDLE ist an jedem GCD-Ende bereit, also
+    // kam QUENCH bis zum Entscheidungsmodell vom 2026-10-28 nie zum Zug. Jetzt
+    // nach KINDLE im selben Takt und am Ende jeder Abklingzeit, mitten im GCD.
+    name: 'quench-unter-dem-fueller',
+    zeilen: [
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // (b) Eine Bedingung, die mitten im GCD wahr wird: QUENCH bei 700, im GCD
+    // des KINDLE von 0. Der Simulator braucht dafür einen Weckruf INNERHALB der
+    // Wartezeit — bis hierher legte er jeden auf ihr Ende.
+    name: 'quench-mitten-im-gcd',
+    zeilen: [
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'quench',
+        bedingung: 'time >= 700',
+        gilt: (_combat, timeMs) => timeMs >= 700,
+      },
+    ],
+  },
+  {
     // Die Gegenprobe OHNE freien Wurf: nur Warten auf die Uhr. Sie trennt den
     // Leerlauf vom freien Wurf — zählt der Simulator hier falsch, liegt es am
     // Zählen selbst.
@@ -3950,18 +3982,127 @@ const GCD_FREI_LAEUFE: readonly { name: string; zeilen: readonly GcdFreiZeile[] 
  * Was nach einem Wurf ohne Wartezeit geschieht (Issue #1027).
  *
  * Gefahren wird die Schleife von `runReference` selbst
- * ({@link driveRotation}): eine Entscheidung je Takt, nur bei bereiter
+ * ({@link driveRotation}): je Takt, und nach jedem Wurf beim selben Zeitstempel
+ * erneut, bis die Liste nichts mehr wählt — auch während einer laufenden
  * Wartezeit. Die Aufzeichnung hält deshalb zweierlei fest — die Drücke, die
  * die Rust-Seite wie jede andere Aufzeichnung abspielt, und **wann die Liste
  * entschieden hat**, samt Leerlauf. Gegen das Zweite fährt
  * `sim/tests/parity_gcd_freier_wurf.rs` dieselbe Liste durch den Simulator.
  */
 export function gcdFreiPayload(): Record<string, unknown> {
+  return listenPayload(GCD_FREI_NAME, GCD_FREI_BINDINGS, GCD_FREI_LAEUFE);
+}
+
+export const STRIKT_NAME = 'strikter-umschlag';
+
+/** Die Leiste dieser Aufzeichnung — VOR der Funktion (Issue #405). */
+const STRIKT_BINDINGS = [
+  { slot: 0, spellId: 'smoulder' },
+  { slot: 1, spellId: 'kindle' },
+  { slot: 2, spellId: 'purge' },
+] as const;
+
+function purgeRest(combat: Combat, timeMs: number): number {
+  return combat.cooldownRemainingMs(combat.indexOf('purge'), timeMs);
+}
+
+/**
+ * Strikte Vergleiche auf zwei zeitabhängigen Werten, je ohne Füller (#1027).
+ *
+ * **Ohne Füller, weil nur dort ein Weckruf über den Wurf entscheidet.** Mit
+ * Füller entscheidet die Liste an jedem GCD-Ende ohnehin; ohne ihn wartet sie,
+ * und der Wurf fällt genau auf den Takt, an dem der strikte Vergleich kippt —
+ * oder, wenn der Simulator diesen Takt nicht weckt, erst am nächsten fremden
+ * Ereignis. Das ist die Lage, in der sich der Weg der #797-AC5-Suche trennte
+ * (`docs/APL-STRICT-COMPARISON-2026-10-24.md`, „Am Weg der Suche").
+ */
+const STRIKT_LAEUFE: readonly ListenLauf[] = [
+  {
+    // `dot.remains < 1500`: SMOULDER (12000 ms) steht bei 10500 auf 1500 und
+    // ist einen Takt später darunter. Das Spiel legt bei 10510 nach.
+    name: 'brand-strikt-ohne-fueller',
+    zeilen: [
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains < 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) < 1500,
+      },
+    ],
+  },
+  {
+    // Derselbe Vergleich mit vertauschten Seiten — der Simulator spiegelt die
+    // Form (`1500 > v` ist `v < 1500`), und das muss er hier tun.
+    name: 'brand-strikt-gespiegelt',
+    zeilen: [
+      {
+        spellId: 'smoulder',
+        bedingung: '1500 > dot.smoulder.remains',
+        gilt: (combat, timeMs) => 1500 > smoulderRest(combat, timeMs),
+      },
+    ],
+  },
+  {
+    // `cooldown.remains < 1000`: PURGE bei 0 (Abklingzeit 7500) steht bei 6500
+    // auf 1000 und ist einen Takt später darunter. Das Spiel wirft KINDLE bei
+    // 6510; das nächste fremde Ereignis wäre das Ende der Abklingzeit bei 7500.
+    name: 'abklingzeit-strikt',
+    zeilen: [
+      {
+        spellId: 'purge',
+        bedingung: 'time == 0',
+        gilt: (_combat, timeMs) => timeMs === 0,
+      },
+      {
+        spellId: 'kindle',
+        bedingung: 'cooldown.purge.remains < 1000',
+        gilt: (combat, timeMs) => purgeRest(combat, timeMs) < 1000,
+      },
+    ],
+  },
+  {
+    // Die Gegenprobe mit `<=`: Sie kippt am Erreichen der Schwelle, also bei
+    // 10500. Trifft der Simulator sie und verfehlt die strikte Form, liegt es
+    // am Vergleich und nicht am Brand.
+    name: 'brand-nicht-strikt',
+    zeilen: [
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains <= 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) <= 1500,
+      },
+    ],
+  },
+];
+
+/**
+ * Ein strikter Vergleich trifft seinen Umschlag im selben Takt wie das Spiel
+ * (Issue #1027, Fassung B, entschieden am 2026-10-28).
+ *
+ * Dieselbe Bauart wie {@link gcdFreiPayload}: Die Schleife des Spiels
+ * entscheidet je Takt, `sim/tests/parity_strikter_umschlag.rs` fährt dieselbe
+ * Liste als Text durch den Simulator und hält Wurf für Wurf dagegen.
+ */
+export function strikterUmschlagPayload(): Record<string, unknown> {
+  return listenPayload(STRIKT_NAME, STRIKT_BINDINGS, STRIKT_LAEUFE);
+}
+
+/**
+ * Fährt jede Liste durch die Schleife des Spiels ({@link driveRotation}) an
+ * `first-crucible`, je 30 s, und schreibt Drücke, Ergebnis und Leerlauf auf.
+ *
+ * **Eine Funktion für alle Listen-Aufzeichnungen**, damit zwei Aufzeichnungen
+ * nicht zwei Abschriften derselben Schleife fahren.
+ */
+function listenPayload(
+  name: string,
+  bindings: readonly Binding[],
+  laeufe: readonly ListenLauf[],
+): Record<string, unknown> {
   const boss = bossById('first-crucible');
   if (boss === undefined) throw new Error('Der Boss first-crucible fehlt.');
   const ticks = 3000; // 30 s
 
-  const runs = GCD_FREI_LAEUFE.map(({ name, zeilen }) => {
+  const runs = laeufe.map(({ name: laufName, zeilen }) => {
     const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
     const regeln = zeilen.map((zeile) => {
       const index = combat.indexOf(zeile.spellId);
@@ -3969,7 +4110,7 @@ export function gcdFreiPayload(): Record<string, unknown> {
       return { index, gilt: zeile.gilt };
     });
     const presses: RecordedPress[] = [];
-    const press = pressRecorder(combat, GCD_FREI_BINDINGS, presses);
+    const press = pressRecorder(combat, bindings, presses);
 
     const ergebnisDerListe = driveRotation(
       combat,
@@ -3992,16 +4133,16 @@ export function gcdFreiPayload(): Record<string, unknown> {
     // sind so gewählt, dass keiner den Boss legt — und das steht hier als
     // Bedingung, nicht als Annahme.
     if (ergebnisDerListe.killedAtMs >= 0) {
-      throw new Error(`Der Lauf ${name} legt den Boss bei ${ergebnisDerListe.killedAtMs} ms.`);
+      throw new Error(`Der Lauf ${laufName} legt den Boss bei ${ergebnisDerListe.killedAtMs} ms.`);
     }
 
     const ergebnis = replayRecording(
-      { name, seed: 0, ticks, presses, bindings: GCD_FREI_BINDINGS },
+      { name: laufName, seed: 0, ticks, presses, bindings },
       { checksumPerTick: true, boss },
     );
 
     return {
-      name,
+      name: laufName,
       apl: zeilen
         .map((z) => (z.bedingung === '' ? z.spellId : `${z.spellId} if ${z.bedingung}`))
         .join('\n'),
@@ -4026,12 +4167,18 @@ export function gcdFreiPayload(): Record<string, unknown> {
 
   return {
     schema: SCHEMA,
-    name: GCD_FREI_NAME,
+    name,
     bossId: boss.id,
     seed: 0,
     ticks,
     tickMs: TICK_MS,
-    bindings: GCD_FREI_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    /**
+     * Die Grenze aus {@link nullzeitBudget}. Der Simulator hält seine eigene
+     * (`NULLZEIT_BUDGET`) dagegen — sonst bräche eine Seite einen Zyklus ab,
+     * den die andere noch rechnet.
+     */
+    nullzeitBudget: nullzeitBudget(new Combat({ school: CALCINATION.value, boss, seed: 0 })),
+    bindings: bindings.map((b) => ({ slot: b.slot, spellId: b.spellId })),
     runs,
   };
 }
