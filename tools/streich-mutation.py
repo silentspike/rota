@@ -454,6 +454,85 @@ def gesamtabdruck(abdruecke):
     return hashlib.sha256(zeilen.encode()).hexdigest()[:12]
 
 
+@contextmanager
+def gesicherter_datensatz(eintrag):
+    """Sicherung, Fingerabdrücke und byteweiser Rückbau der sechs Zauberdateien.
+
+    Sicherungskopien ALLER Schulen, nicht nur der betroffenen: Ein Feld kann in
+    mehreren stehen (control.cost in fixation, heal.amount in coagulation), und
+    ein halb zurückgesetzter Datensatz verfälscht jeden folgenden Lauf. Feld
+    und Vorprobe nehmen denselben Weg — zwei Kopien dieser Zeilen gingen
+    auseinander, und am Rückbau wird das teuer.
+
+    FINGERABDRÜCKE an vier Stellen (AC4 #1087), je Datei in `eintrag["sha256"]`:
+        before          der Stand, gegen den die Nullprobe gemessen hat
+        mutated         was die Suiten sehen sollen (setzt der Aufrufer)
+        before_restore  was sie gesehen HABEN (setzt der Aufrufer nach dem
+                        Lauf, sonst hier) — weicht es von `mutated` ab, hat
+                        während des Laufs jemand geschrieben
+        after_restore   muss `before` gleichen; `restored` sagt, ob es das tut
+    """
+    pfade = pfade_aller_schulen()
+    sicherung = {s: p.read_bytes() for s, p in pfade.items()}
+    abdruecke = eintrag["sha256"] = {"before": fingerabdruecke(pfade)}
+    try:
+        yield pfade, abdruecke
+    finally:
+        if "mutated" in abdruecke and "before_restore" not in abdruecke:
+            abdruecke["before_restore"] = fingerabdruecke(pfade)
+        for schule, p in pfade.items():
+            p.write_bytes(sicherung[schule])
+        abdruecke["after_restore"] = fingerabdruecke(pfade)
+        eintrag["restored"] = (all(p.read_bytes() == sicherung[s] for s, p in pfade.items())
+                               and abdruecke["after_restore"] == abdruecke["before"])
+        if "mutated" in abdruecke:
+            print(f"      sha256 vorher {gesamtabdruck(abdruecke['before'])}"
+                  f"  mutiert {gesamtabdruck(abdruecke['mutated'])}"
+                  f"  vor Rückbau {gesamtabdruck(abdruecke['before_restore'])}"
+                  f"  nachher {gesamtabdruck(abdruecke['after_restore'])}"
+                  f" — {'Rückbau byteweise identisch' if eintrag['restored'] else 'RÜCKBAU ABWEICHEND'}",
+                  flush=True)
+
+
+def _liste(daten):
+    return daten if isinstance(daten, list) else daten["spells"]
+
+
+def vorprobe_bau(pfade):
+    """Streicht das Pflichtfeld `id` im ersten Zauber von common.json.
+
+    `id` ist Stammdatum, kein Wirkfeld, und build.rs liest es mit `text()`,
+    das bei fehlendem Feld panickt — der Bau MUSS brechen, mit Exit 101 und
+    ohne Compilermeldung. Genau diesen Fall hat Worker-1 bei #1045 hergestellt
+    und die alte Textregel übersehen (#1055).
+    """
+    p = pfade["common"]
+    daten = json.loads(p.read_text())
+    zauber = _liste(daten)[0]
+    sid = zauber.pop("id")
+    p.write_text(json.dumps(daten, indent=2, ensure_ascii=False) + "\n")
+    return f"common.json: Pflichtfeld id ('{sid}') im ersten Zauber gestrichen"
+
+
+def vorprobe_rot(pfade):
+    """+1 auf `baseDamage` des ersten Zaubers, der einen positiven trägt (Schulreihenfolge).
+
+    Ein Grundwert, den jede Schadensrechnung liest, auf beiden Seiten: Färbt
+    hier nicht mindestens ein Rust- UND ein TS-Fall, sammelt der Durchgang die
+    Namen einer Seite nicht ein — und ein ROT stünde auf Namen der anderen.
+    """
+    for schule in SCHULEN:
+        p = pfade[schule]
+        daten = json.loads(p.read_text())
+        for zauber in _liste(daten):
+            alt = zauber.get("baseDamage")
+            if type(alt) is int and alt > 0:
+                zauber["baseDamage"] = alt + 1
+                p.write_text(json.dumps(daten, indent=2, ensure_ascii=False) + "\n")
+                return f"{schule}.json: {zauber.get('id', '?')} baseDamage {alt}->{alt + 1}"
+    raise SystemExit("ROT-Vorprobe nicht möglich: kein Zauber trägt einen positiven baseDamage")
+
+
 def spells(schule):
     d = json.loads((WURZEL / f"data/spells/{schule}.json").read_text())
     return d if isinstance(d, list) else d["spells"]
@@ -741,10 +820,13 @@ def bau_vergleich(alt, nachweis):
     ungemessen = sorted(set(alt) - {
                 f for f, eintrag in gemessen.items()
                 if eintrag.get("status") in ("BAU", "ROT", "GRUEN")})
+    # Ohne bestandene Vorproben ist auch ein vollständiger Durchgang keine
+    # Abnahme: Eine leere BAU-Spalte wäre dann nicht deutbar (#1055).
     return {"historical_fields": len(alt), "new_bau": neu_bau,
             "unmeasured_old_fields": ungemessen,
             "new_fields": sorted(set(nachweis["all_fields"]) - set(alt)),
-            "full_pass": nachweis.get("full_pass", False) and not ungemessen}
+            "full_pass": (nachweis.get("full_pass", False) and not ungemessen
+                          and nachweis.get("probes_passed", False))}
 
 
 def schreibe(ziel, ergebnisse):
@@ -1250,6 +1332,72 @@ def main():
             return 3
         print("Nullprobe gruen — gemessen wird gegen einen sauberen Baum.\n", flush=True)
 
+    # DREI VORPROBEN (#1055): die Nullprobe oben, dazu BAU und ROT. Eine leere
+    # BAU-Spalte hieß bisher entweder „kein Feld bricht den Bau" oder „das
+    # Muster hat nie gegriffen", und aus der Datei war das nicht zu trennen.
+    # Erst eine positive Kontrolle IM SELBEN LAUF trennt es: Bricht ein
+    # bekannter Pflichtfeld-Abbruch hier als BAU, kann ein Feld ohne BAU nicht
+    # an der Erkennung gelegen haben. Dasselbe für ROT und die Rust-Namen.
+    # Eine Vorprobe mit falschem Ausgang beendet den Durchgang vor dem ersten
+    # Feld, Exit 3 wie die Nullprobe.
+    if args.vorproben:
+        nachweis["probes"], nachweis["probes_passed"] = {}, False
+        for name, aendern, erwartet in (("bau", vorprobe_bau, "BAU"), ("rot", vorprobe_rot, "ROT")):
+            eintrag = nachweis["probes"][name] = {"status": "UNGEPRUEFT", "expected": erwartet}
+            if args.nur_bau and name == "rot":
+                eintrag.update(status="SKIPPED", reason="build-only")
+                continue
+            aus_r = aus_t = ""
+            try:
+                with gesicherter_datensatz(eintrag) as (pfade, abdruecke):
+                    eintrag["mutation"] = aendern(pfade)
+                    abdruecke["mutated"] = fingerabdruecke(pfade)
+                    print(f"Vorprobe {erwartet}: {eintrag['mutation']}", flush=True)
+                    if args.nur_bau:
+                        rc_bau, aus_bau, eintrag["build"] = bauen(f"vorprobe-{name}")
+                    else:
+                        rc_bau, aus_bau, _, aus_r, _, aus_t = messen(f"vorprobe-{name}", eintrag)
+                    abdruecke["before_restore"] = fingerabdruecke(pfade)
+            except BaseException as error:
+                eintrag.update(status="ABBRUCH", detail=f"{type(error).__name__}: {error}")
+                raise
+            finally:
+                speichern()
+            if not eintrag["restored"]:
+                raise RuntimeError(f"Rückbau nach der {erwartet}-Vorprobe nicht byteweise identisch")
+            gebrochen = bau_gebrochen(rc_bau, aus_bau)
+            if name == "bau":
+                # Die Stelle, die #1055 meint: Exit 101 aus einem build.rs-Panic,
+                # ohne eine der beiden Compilermeldungen.
+                eintrag["old_rule_detects"] = "error: could not compile" in aus_bau or "error[E" in aus_bau
+                stand = ("baut" if not gebrochen else
+                         "BAU" if "panicked at" in aus_bau else "BAU ohne build.rs-Panic")
+            else:
+                f_r, f_t = rote_namen(aus_r)[0], rote_namen(aus_t)[0]
+                eintrag["failure_names"] = {"rust": f_r, "ts": f_t}
+                stand = ("BAU" if gebrochen else
+                         "FEHLER" if any(eintrag[s]["status"] == "ERROR" for s in ("rust", "ts")) else
+                         "ROT" if f_r and f_t else
+                         "ROT nur TS" if f_t else "ROT nur Rust" if f_r else "GRUEN")
+            if abdruecke["before_restore"] != abdruecke["mutated"]:
+                stand = "FEHLER: Datensatz während der Vorprobe verändert"
+            eintrag["status"] = stand
+            speichern()
+            if stand != erwartet:
+                print(f"ABBRUCH: Die {erwartet}-Vorprobe ergab „{stand}“. Die Erkennung ist in "
+                      "diesem Lauf nicht belegt — jedes Feldergebnis wäre unbelegt, eine "
+                      "leere Spalte nicht deutbar.")
+                return 3
+            print(f"Vorprobe {erwartet}: wie erwartet"
+                  + (f" (Exit {rc_bau}, build.rs-Panic; die alte Textregel "
+                     f"{'fand ihn' if eintrag['old_rule_detects'] else 'hätte nichts gefunden'})"
+                     if name == "bau" else
+                     f" ({len(eintrag['failure_names']['rust'])} Rust-, "
+                     f"{len(eintrag['failure_names']['ts'])} TS-Namen)"), flush=True)
+        nachweis["probes_passed"] = True
+        speichern()
+        print("Vorproben bestanden.\n", flush=True)
+
     # Die Kopfzeile nennt, WAS gefahren wird — im Nur-Bau-Modus ist das etwas
     # anderes, und ein Protokoll, das "je ein Lauf beider Suiten" behauptet,
     # während keine Suite läuft, ist später nicht mehr auseinanderzuhalten.
@@ -1274,19 +1422,12 @@ def main():
                                             "evidence": fundstelle}
         nachweis["fields"][feld] = eintrag
         probe = f"{i:03d}-" + re.sub(r"[^A-Za-z0-9_.-]", "_", feld)
-        # Sicherungskopien ALLER Schulen, nicht nur der betroffenen: Ein Feld
-        # kann in mehreren stehen (control.cost in fixation, heal.amount in
-        # coagulation), und ein halb zurückgesetzter Datensatz verfälscht jeden
-        # folgenden Lauf.
-        pfade = {s: WURZEL / f"data/spells/{s}.json" for s in SCHULEN}
-        sicherung = {s: p.read_bytes() for s, p in pfade.items()}
-        # FINGERABDRÜCKE an vier Stellen (AC4 #1087), je Datei im Nachweis:
-        #   before          der Stand, gegen den die Nullprobe gemessen hat
-        #   mutated         was die Suiten sehen sollen
-        #   before_restore  was sie gesehen HABEN — weicht es von `mutated` ab,
-        #                   hat während des Laufs jemand geschrieben: FEHLER
-        #   after_restore   muss `before` gleichen, sonst endet der Durchgang
-        abdruecke = eintrag["sha256"] = {"before": fingerabdruecke(pfade)}
+        # Sicherung, Fingerabdrücke und Rückbau über `gesicherter_datensatz`,
+        # denselben Weg wie die Vorproben. Ausdrücklich betreten und verlassen,
+        # weil der Rückbau VOR `speichern()` im `finally` liegen muss und der
+        # Rumpf dieser Schleife sonst eine Stufe tiefer stünde.
+        rahmen = gesicherter_datensatz(eintrag)
+        pfade, abdruecke = rahmen.__enter__()
         getroffen = 0
         # Was die Wertänderung TATSÄCHLICH getan hat, je Zauber. Ohne diese
         # Aufzeichnung sähe „GRÜN" bei einem Aufzählungsfeld genauso aus wie
@@ -1522,20 +1663,7 @@ def main():
             eintrag.update(status="ABBRUCH", detail=f"{type(error).__name__}: {error}")
             raise
         finally:
-            if "mutated" in abdruecke and "before_restore" not in abdruecke:
-                abdruecke["before_restore"] = fingerabdruecke(pfade)
-            for schule, p in pfade.items():
-                p.write_bytes(sicherung[schule])
-            abdruecke["after_restore"] = fingerabdruecke(pfade)
-            eintrag["restored"] = (all(p.read_bytes() == sicherung[s] for s, p in pfade.items())
-                                   and abdruecke["after_restore"] == abdruecke["before"])
-            if "mutated" in abdruecke:
-                print(f"      sha256 vorher {gesamtabdruck(abdruecke['before'])}"
-                      f"  mutiert {gesamtabdruck(abdruecke['mutated'])}"
-                      f"  vor Rückbau {gesamtabdruck(abdruecke['before_restore'])}"
-                      f"  nachher {gesamtabdruck(abdruecke['after_restore'])}"
-                      f" — {'Rückbau byteweise identisch' if eintrag['restored'] else 'RÜCKBAU ABWEICHEND'}",
-                      flush=True)
+            rahmen.__exit__(None, None, None)
             if not eintrag["restored"]:
                 rueckbau_kaputt = feld
             speichern()
@@ -1587,8 +1715,9 @@ def main():
         print(f"\nHistorischer Vergleich: {len(vergleich['new_bau'])} alte Felder jetzt BAU")
         for zeile in vergleich["new_bau"]:
             print(f"  {zeile['field']}: {zeile['old_verdict']} -> BAU (Exit {zeile['build_exit']})")
-        if not nachweis["full_pass"]:
-            print("KEINE VOLLSTÄNDIGE ABNAHME: Teilmenge, Nur-Bau, Wertänderung oder unvollständige Suite.")
+        if not vergleich["full_pass"]:
+            print("KEINE VOLLSTÄNDIGE ABNAHME: Teilmenge, Nur-Bau, Wertänderung, "
+                  "unvollständige Suite oder ohne bestandene Vorproben.")
     return 1 if fehler else 0
 
 
