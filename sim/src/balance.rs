@@ -36,6 +36,7 @@
 //! **verschiedene** Durchgänge rechnen, teilen dagegen nichts.
 
 use std::thread;
+use std::time::Instant;
 
 use crate::apl::Apl;
 use crate::data::{Boss, BOSS};
@@ -779,6 +780,11 @@ fn run_with_control(
     let threads = config.threads.max(1);
     let iterations = config.iterations;
     let weg = weg_von(config, reduktion);
+    if reduktion {
+        // Der Nenner der Trefferquote dieses Wegs (#934): geprüft wurde, ob
+        // ein Kampf genügt — getroffen hat es, wenn `weg` EinKampf ist.
+        crate::fortschritt::reduktionsversuch();
+    }
 
     let mut casts_total = [0u32; crate::data::SPELL_COUNT];
     let mut samples: Vec<Sample> = if weg == crate::fortschritt::Weg::EinKampf && iterations > 1 {
@@ -842,6 +848,11 @@ fn run_with_control(
         // auf dem Platz seines Bereichs — sonst sähe ein mehrsträngiger Lauf
         // nur die Kämpfe des Leitstrangs, und das sind keine.
         let leitstrang = crate::fortschritt::strang();
+        // Ebenso den Schalter der Kampfzähler (#934): Sie sind strang-lokal,
+        // und ohne ihn zählte ein mehrsträngiger Lauf nichts. Ihre Zähler
+        // kommen nach dem Ende in den Leitstrang zurück. Der Trace-Hash bleibt
+        // einsträngig (siehe `diagnostics::vereinigen`).
+        let kampfzaehler = crate::diagnostics::is_enabled();
         thread::scope(|scope| {
             let handles: Vec<_> = ranges
                 .iter()
@@ -850,17 +861,33 @@ fn run_with_control(
                     let arbeiter = leitstrang.as_ref().map(|s| s.arbeiter(nummer));
                     scope.spawn(move || {
                         let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
-                        run_range(config, apl, offset, len, control)
+                        if kampfzaehler {
+                            crate::diagnostics::enable();
+                        }
+                        let beginn = Instant::now();
+                        let teil = run_range(config, apl, offset, len, control);
+                        let ende = Instant::now();
+                        let zaehler = kampfzaehler.then(crate::diagnostics::snapshot);
+                        (teil, beginn, ende, zaehler)
                     })
                 })
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
+            let mut zeiten = Vec::with_capacity(handles.len());
             for handle in handles {
-                let (s, c, _) = handle.join().expect("ein Strang ist abgestuerzt");
+                let ((s, c, _), beginn, ende, zaehler) =
+                    handle.join().expect("ein Strang ist abgestuerzt");
                 for (i, n) in c.iter().enumerate() {
                     casts_total[i] += *n;
                 }
+                if let Some(z) = zaehler {
+                    crate::diagnostics::vereinigen(&z);
+                }
+                zeiten.push((beginn, ende));
                 all.extend(s);
+            }
+            if let Some(s) = &leitstrang {
+                abschnitt_eintragen(s, &zeiten, threads);
             }
             all
         })
@@ -932,6 +959,39 @@ fn run_with_control(
     // Auswertung angestoßen hat, einmal je Lauf und nicht je Kampf.
     crate::fortschritt::kandidat(weg, u64::from(iterations));
     ergebnis
+}
+
+/// Trägt einen parallelen Abschnitt ins Zählwerk ein: je Strang des Laufs,
+/// wie lange er gerechnet und wie lange er gewartet hat (#934).
+///
+/// `zeiten` hält Beginn und Ende je Paket, in der Reihenfolge der Bereiche.
+/// Ein Strang wartet vom Ende seines Pakets bis zum Ende des langsamsten.
+/// Bekam ein Strang des Laufs **kein** Paket — weniger Durchgänge als
+/// Stränge —, wartet er den ganzen Abschnitt. Die Zeit bis zum Start eines
+/// Strangs zählt bei keinem: Sie ist Aufwand des Startens, nicht Warten auf
+/// Arbeit, und kein kleineres Paket verkürzte sie.
+///
+/// Zwei Zeitstempel je Paket und ein Eintrag je Strang und Abschnitt — der
+/// heiße Pfad sieht davon nichts.
+fn abschnitt_eintragen(
+    leitstrang: &crate::fortschritt::Strang,
+    zeiten: &[(Instant, Instant)],
+    threads: usize,
+) {
+    let (Some(beginn), Some(ende)) = (
+        zeiten.iter().map(|(b, _)| *b).min(),
+        zeiten.iter().map(|(_, e)| *e).max(),
+    ) else {
+        return;
+    };
+    let ns = |d: std::time::Duration| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX);
+    for nummer in 0..threads {
+        let (arbeit, warten) = match zeiten.get(nummer) {
+            Some(&(b, e)) => (ns(e - b), ns(ende - e)),
+            None => (0, ns(ende - beginn)),
+        };
+        leitstrang.abschnitt(nummer, arbeit, warten);
+    }
 }
 
 /// Rechnet `len` Durchgänge ab `offset`, alle in einem Strang.
@@ -1290,6 +1350,9 @@ pub fn run_gestaffelt(
 ) -> Result<GestaffelterLauf, Staffelungsfehler> {
     staffelung.pruefe()?;
     let wahl = Durchgangswahl::fuer(config);
+    // Dieselbe Frage wie im festen Lauf — genügt ein Kampf? —, also derselbe
+    // Nenner der Trefferquote (#934).
+    crate::fortschritt::reduktionsversuch();
     let bedingung = WinCondition::of(config.boss);
     let mut fight = Fight::new(kampf_konfiguration(config, config.base_seed));
     let mut kaempfe = 0u64;

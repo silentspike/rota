@@ -480,6 +480,10 @@ pub fn kandidat(weg: Weg, durchgaenge: u64) {
         let z = &s.werk.straenge[s.platz];
         z.kandidaten[weg.index()].fetch_add(1, Ordering::Relaxed);
         z.durchgaenge.fetch_add(durchgaenge, Ordering::Relaxed);
+        if crate::diagnostics::is_enabled() {
+            *s.werk.kampf.lock().unwrap_or_else(PoisonError::into_inner) =
+                Some(crate::diagnostics::kampfzaehlung());
+        }
     });
 }
 
