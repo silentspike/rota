@@ -137,6 +137,7 @@
     "hp": 20000,
     "overpressureMs": 120000,
     "race": {
+      "name": "Racer Seal",
       "atMs": 10000,
       "windowMs": 6000,
       "threshold": 300

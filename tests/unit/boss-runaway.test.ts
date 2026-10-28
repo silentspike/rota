@@ -88,7 +88,10 @@ const LANGSAM = { ...RUNAWAY, runaway: { perStepMs: 1000, amount: 1 } };
  * Code entscheiden MUSS, was im Fenster mit der Reaktion geschieht — und eine
  * Antwort, die niemand geprüft hat, ist geraten.
  */
-const MIT_FENSTER = { ...RUNAWAY, race: { atMs: 3000, windowMs: 6000, threshold: 999999 } };
+const MIT_FENSTER = {
+  ...RUNAWAY,
+  race: { name: 'Test Seal', atMs: 3000, windowMs: 6000, threshold: 999999 },
+};
 
 /**
  * Derselbe Boss, der auch zuschlägt.
