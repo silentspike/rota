@@ -146,8 +146,8 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
         .expect("hosts ist keine Liste");
     assert_eq!(hosts.len(), 2, "Beide Rechner müssen im Text stehen.");
     assert_eq!(hosts[0]["name"], "laptop");
-    assert_eq!(hosts[0]["role"], "compute");
-    assert_eq!(hosts[1]["role"], "compute");
+    assert_eq!(hosts[0]["cpuRole"], "compute");
+    assert_eq!(hosts[1]["cpuRole"], "compute");
     assert_eq!(
         hosts[0]["computeThreads"], 12,
         "Die Anzeige rechnet die SMT-Geschwister nicht mit."
@@ -169,11 +169,19 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     );
 }
 
-/// **AC3** — im Profil „standard" rechnet nur node3, der Laptop koordiniert.
+/// **AC3** — im Profil „standard" rechnet nur node3 auf der CPU; die CPU des
+/// Laptops koordiniert, seine GPU darf rechnen.
 ///
-/// Entscheidung des Auftraggebers vom 2026-10-28 auf die Frage, ob der Laptop
-/// weiter mitrechnet oder nur koordiniert: „Nur koordinieren". Bis dahin
-/// rechnete er mit zwölf Strängen mit (Betriebsprofil `balanced`).
+/// Zwei Entscheidungen des Auftraggebers vom 2026-10-28. Auf die Frage, ob der
+/// Laptop weiter mitrechnet oder nur koordiniert: „Nur koordinieren" — bis dahin
+/// rechnete er mit zwölf Strängen mit (Betriebsprofil `balanced`). Auf die
+/// Frage, ob er außer Koordinieren rechnen darf: „NUR GPU" — GPU-Arbeit ja, auf
+/// ausdrücklichen Aufruf; die CPU nur als Rückfall.
+///
+/// **Bewusst umgestellt.** Dieser Fall verlangte zuerst, dass der Koordinator
+/// auch keine Grafik-Einschaltdauer führt — also „der Laptop rechnet gar
+/// nichts". Das hat die zweite Entscheidung aufgehoben: Die Rolle gilt der CPU
+/// (`cpuRole`), die Grafik-Einschaltdauer steht bei jedem Rechner.
 ///
 /// Der Fall liest den **Text**, weil ein Leser des Profils die Rolle dort finden
 /// muss. Ein Koordinator, der nur an fehlenden oder leeren Zahlen zu erkennen
@@ -194,10 +202,14 @@ fn ac3_im_profil_standard_rechnet_nur_node3_der_laptop_koordiniert() {
 
     let laptop = &hosts[0];
     assert_eq!(laptop["name"], "laptop");
-    assert_eq!(laptop["role"], "coordinator", "{laptop}");
+    assert_eq!(laptop["cpuRole"], "coordinator", "{laptop}");
+    assert!(
+        laptop.get("role").is_none(),
+        "Eine Rolle ohne „cpu“ läse sich als „rechnet gar nicht“: {laptop}"
+    );
     assert_eq!(
         laptop["computeThreads"], 0,
-        "Der Koordinator rechnet mit: {laptop}"
+        "Die CPU des Koordinators rechnet mit: {laptop}"
     );
     // Keine CPU-Quote für Rechenarbeit — auch keine leere. Ein `null` an dieser
     // Stelle hieße „best effort", also: rechnet ohne Zusicherung.
@@ -207,13 +219,19 @@ fn ac3_im_profil_standard_rechnet_nur_node3_der_laptop_koordiniert() {
         "physicalCores",
         "threadsPerCore",
         "reservedPhysicalCores",
-        "gpuDutyCycle",
     ] {
         assert!(
             laptop.get(feld).is_none(),
             "Der Koordinator führt {feld}: {laptop}"
         );
     }
+    // Die GPU darf rechnen, also steht ihre Einschaltdauer da — als Zahl. Im
+    // Referenzlauf ist sie 0: Es gibt keinen GPU-Pfad, und GPU-Arbeit läuft nur
+    // auf ausdrücklichen Aufruf.
+    assert_eq!(
+        laptop["gpuDutyCycle"], 0.0,
+        "Der Koordinator führt keine Grafik-Einschaltdauer: {laptop}"
+    );
     assert_eq!(laptop["memoryLimitMib"], 4096);
     assert_eq!(laptop["thermalThrottling"], false);
 
@@ -222,7 +240,8 @@ fn ac3_im_profil_standard_rechnet_nur_node3_der_laptop_koordiniert() {
     // Rechenangaben für JEDEN Rechner wegließe.
     let node3 = &hosts[1];
     assert_eq!(node3["name"], "node3");
-    assert_eq!(node3["role"], "compute", "{node3}");
+    assert_eq!(node3["cpuRole"], "compute", "{node3}");
+    assert_eq!(node3["gpuDutyCycle"], 0.0);
     assert_eq!(node3["computeThreads"], 16);
     assert_eq!(node3["totalThreads"], 16);
     assert_eq!(node3["reservedPhysicalCores"], 0);
