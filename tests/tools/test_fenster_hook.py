@@ -89,8 +89,7 @@ class FensterHookTests(unittest.TestCase):
             'npm run lint', 'npx prettier --write docs/WORKER-GUIDE.md',
             "jq '.casts' tests/parity/recordings/*",
             "jq -s length /work/rota/tests/parity/recordings/*.json",
-            'cargo remote --no-copy-lock -- test',
-            'cargo-remote-fmt --check', 'bash tools/gegenprobe-grid.sh',
+            'bash tools/gegenprobe-grid.sh',
             'python3 tools/streich-mutation.py', 'git worktree add /tmp/unused branch',
         ]:
             with self.subTest(command=command):
@@ -136,7 +135,7 @@ class FensterHookTests(unittest.TestCase):
         self.assertIsNone(self.call(env=env))
 
     def test_wrappers_pipelines_and_command_substitution_are_classified(self):
-        for command in ['cd sim && cargo remote -- test', 'FOO=bar npm run lint',
+        for command in ['FOO=bar npm run lint',
                         'env FOO=bar npx prettier --write docs/README.md',
                         'FOO="a b" npm run lint', 'env -u NODE_OPTIONS npm run lint',
                         'env -C /work/rota npm run lint', '/usr/bin/time -f %E npm run lint',
@@ -223,7 +222,6 @@ class FensterHookTests(unittest.TestCase):
     def test_heredocs_that_run_code_warn(self):
         for command in [
             "bash <<'EOF'\nnpm run lint\nEOF",
-            'sh -s <<EOF\ncargo remote -- test\nEOF',
             "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['npx', 'vitest', 'run'])\nEOF",
             "python3 - <<'EOF'\nimport importlib.util\n"
             "spec = importlib.util.spec_from_file_location('m', 'tools/streich-mutation.py')\nEOF",
@@ -254,18 +252,16 @@ class FensterHookTests(unittest.TestCase):
     # B3: process wrappers start the command they are given.
     def test_process_wrappers_are_unwrapped(self):
         for command in [
-            'timeout 1800 cargo remote -c -- test --no-run', 'timeout -k 5 60 npm run lint',
+            'timeout -k 5 60 npm run lint',
             'timeout --signal=KILL 5m npx prettier --check docs/README.md',
-            'nice -n 10 cargo remote -- test', 'nohup npm run lint > /work/tmp/lint.log 2>&1 &',
+            'nohup npm run lint > /work/tmp/lint.log 2>&1 &',
             'stdbuf -oL npm run lint', 'ionice -c3 npm run lint',
-            'taskset -c 0-3 cargo remote -- test',
             'git diff --name-only | xargs -r npx prettier --check',
-            'setsid nohup cargo-remote-fmt --check &',
             'timeout 600 nice -n 5 python3 tools/streich-mutation.py',
-            '{ time cargo remote -c -- test; } 2>&1', 'if git push origin HEAD; then echo ok; fi',
+            'if git push origin HEAD; then echo ok; fi',
             'run() { npx vitest run; }; run', 'sudo -u root npm run lint',
             "find docs -name '*.md' -exec npx prettier --check {} +", "eval 'npm run lint'",
-            'source tools/env.sh', '. tools/env.sh', 'xargs -I{} sh -c "cargo remote -- test {}"',
+            'source tools/env.sh', '. tools/env.sh',
         ]:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
@@ -287,7 +283,7 @@ class FensterHookTests(unittest.TestCase):
                         'cargo-remote-fmt --help', 'cargo-remote-fmt -h']:
             with self.subTest(command=command):
                 self.assertIsNone(self.call(command))
-        for command in ['cargo remote -h -- build', 'npm run lint -- --help',
+        for command in ['npm run lint -- --help',
                         'cargo test -- --help', 'npx tsx tools/x.ts --help', 'yarn lint --help']:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
@@ -318,7 +314,6 @@ class FensterHookTests(unittest.TestCase):
     def test_flock_is_unwrapped_like_the_other_wrappers(self):
         for command in ['flock -w 900 /work/tmp/rota-ts-schwer.lock npx vitest run x.test.ts --maxWorkers=1',
                         'flock -w 900 /work/tmp/rota-ts-schwer.lock npm run lint',
-                        'flock --timeout 60 /work/tmp/x.lock cargo remote -- test',
                         'flock /work/tmp/x.lock -c "npm run lint"', 'flock -x -n /work/tmp/x.lock npx tsc']:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
@@ -327,8 +322,7 @@ class FensterHookTests(unittest.TestCase):
                 self.assertIsNone(self.call(command))
 
     def test_load_tools_are_recognised_by_path_and_as_script_operands(self):
-        for command in ['bash ~/bin/cargo-remote-fmt --check', 'sh /home/jan/bin/cargo-remote-fmt',
-                        'node_modules/.bin/tsc --noEmit', './node_modules/.bin/eslint .',
+        for command in ['node_modules/.bin/tsc --noEmit', './node_modules/.bin/eslint .',
                         'node_modules/.bin/vite build', 'npx --no-install tsc -p .',
                         'node node_modules/vitest/vitest.mjs run',
                         'tsc --noEmit', 'eslint .', 'vite build', 'tsx tools/x.ts']:
@@ -359,6 +353,94 @@ class FensterHookTests(unittest.TestCase):
                 self.assertIsNone(self.call(command))
         # A script that is neither visible nor readable is not known to be quiet.
         self.report('bash gibt-es-nicht.sh', 'UNBEKANNT')
+
+    # The place of the window (rota-fenster --ort, rota#1049): on node3 the
+    # build service shares the CPU with the measurement, so there a foreign
+    # `cargo remote` disturbs and local load does not; on the Laptop it is the
+    # other way round (f-lastwarnung-hook-3, decision of 28.10.). Every
+    # command below was a Laptop-window case before; none is dropped.
+    BUILD_SERVICE = [
+        'cargo remote --no-copy-lock -- test',
+        'cargo-remote-fmt --check',
+        'cd sim && cargo remote -- test',
+        'sh -s <<EOF\ncargo remote -- test\nEOF',
+        'timeout 1800 cargo remote -c -- test --no-run',
+        'nice -n 10 cargo remote -- test',
+        'taskset -c 0-3 cargo remote -- test',
+        'setsid nohup cargo-remote-fmt --check &',
+        '{ time cargo remote -c -- test; } 2>&1',
+        'xargs -I{} sh -c "cargo remote -- test {}"',
+        'cargo remote -h -- build',
+        'flock --timeout 60 /work/tmp/x.lock cargo remote -- test',
+        'bash ~/bin/cargo-remote-fmt --check',
+        'sh /home/jan/bin/cargo-remote-fmt',
+        'cargo remote --resources=large -c -- build --release',
+        "python3 -c \"import subprocess; subprocess.run(['cargo', 'remote', '--', 'test'])\"",
+        'bash tools/remote.sh',
+    ]
+
+    def tools_scripts(self):
+        (self.base / 'tools').mkdir(exist_ok=True)
+        (self.base / 'tools/remote.sh').write_text('#!/bin/sh\ncargo remote --no-copy-lock -- test\n')
+        (self.base / 'tools/lokal.sh').write_text('#!/bin/sh\nnpx vitest run\n')
+        (self.base / 'tools/beides.sh').write_text('#!/bin/sh\nnpx vitest run\ncargo remote -- test\n')
+
+    def test_build_service_commands_warn_only_in_a_foreign_node3_window(self):
+        self.tools_scripts()
+        for command in self.BUILD_SERVICE:
+            with self.subTest(command=command):
+                self.state(ort='node3')
+                warning = self.report(command, 'belasten')
+                for detail in ['OtherReview', 'Isolated measurement', '2026-09-06 09:00:00', 'node3']:
+                    self.assertIn(detail, warning)
+                self.state(ort='laptop')
+                self.assertIsNone(self.call(command), 'a Laptop window is not disturbed by the build service')
+                self.state()
+                self.assertIsNone(self.call(command), 'an old switch without a place is a Laptop window')
+                self.state(ort='node3', abgabe='2026-09-06 09:01:00')
+                self.assertIsNone(self.call(command))
+
+    def test_local_load_warns_only_in_a_foreign_laptop_window(self):
+        self.tools_scripts()
+        for command in ['npm run lint', 'npx prettier --write docs/WORKER-GUIDE.md',
+                        "jq '.casts' tests/parity/recordings/*", 'bash tools/lokal.sh',
+                        'flock -w 900 /work/tmp/rota-ts-schwer.lock npx vitest run', 'cargo build']:
+            with self.subTest(command=command):
+                self.state(ort='laptop')
+                self.report(command, 'belasten')
+                self.state(ort='node3')
+                self.assertIsNone(self.call(command), 'local load does not reach node3')
+
+    def test_a_tools_script_carries_the_load_of_what_it_runs(self):
+        self.tools_scripts()
+        for place in ['laptop', 'node3']:
+            with self.subTest(place=place):
+                self.state(ort=place)
+                self.report('bash tools/beides.sh', 'belasten')
+                # unreadable: both places, because it could be either
+                self.report('bash tools/gibt-es-nicht.sh', 'belasten')
+
+    def test_build_service_queries_are_quiet_in_every_window(self):
+        for place in ['laptop', 'node3']:
+            for command in ['cargo remote --status', 'cargo remote --logs 07073adf4ce6251799dcfb03',
+                            'cargo remote --cancel 07073adf4ce6251799dcfb03',
+                            'cargo remote --resume 07073adf4ce6251799dcfb03']:
+                with self.subTest(place=place, command=command):
+                    self.state(ort=place)
+                    self.assertIsNone(self.call(command))
+
+    def test_undecidable_input_is_reported_in_both_places(self):
+        for place in ['laptop', 'node3']:
+            with self.subTest(place=place):
+                self.state(ort=place)
+                self.report("echo 'unterminated", 'UNBEKANNT')
+                self.report('B=$(ls target/debug/deps/x-*)\n"$B"', 'UNBEKANNT')
+
+    def test_an_unknown_place_makes_the_switch_unreadable(self):
+        for place in ['mars', 17, '']:
+            with self.subTest(place=place):
+                self.state(ort=place)
+                self.report('npm run lint', 'Belegung UNBEKANNT')
 
     def test_configured_command_loads_classifier_next_to_hook_only_when_needed(self):
         scripts = self.base / 'project with spaces' / 'tools'
