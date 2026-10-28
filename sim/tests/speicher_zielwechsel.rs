@@ -791,19 +791,33 @@ fn e19_kontrolle_zwei_geaenderte_kampfsemantik_rechnet_alle_neu() {
 
     // Die Zusicherung, dass die Aenderung den Kampf beruehrt hat: Sonst haette
     // der Fall nur zwei Namen fuer dieselben Zahlen verglichen.
-    for (vorher, nachher) in alte_kandidaten.iter().zip(&neue_kandidaten) {
-        let v = verbund
-            .ergebnisse
-            .hole(&ErgebnisSchluessel::fuer_lauf(&vorher.config, vorher.apl))
-            .expect("das alte Ergebnis liegt weiter");
-        let n = verbund
-            .ergebnisse
-            .hole(&ErgebnisSchluessel::fuer_lauf(&nachher.config, nachher.apl))
-            .expect("das neue Ergebnis liegt");
+    //
+    // Gelesen ueber die Schluessel, die der Speicher SELBST haelt, in
+    // Einfuegereihenfolge — nicht ueber neu abgeleitete. So bleibt diese
+    // Kontrolle unabhaengig davon, wie der Verbund seine Schluessel bildet, und
+    // eine Mutation an genau dieser Stelle trifft die Abnahme, nicht sie.
+    let liegend: Vec<_> = verbund
+        .ergebnisse
+        .schluessel()
+        .map(|k| {
+            let vektor = verbund
+                .ergebnisse
+                .hole(k)
+                .expect("ein gelisteter Schluessel");
+            (k.clone(), vektor.clone())
+        })
+        .collect();
+    let (alte, neue) = liegend.split_at(alte_kandidaten.len());
+    assert_eq!(neue.len(), neue_kandidaten.len());
+    for (k_alt, v_alt) in alte {
+        let (_, v_neu) = neue
+            .iter()
+            .find(|(k, _)| k.aufbau == k_alt.aufbau)
+            .unwrap_or_else(|| panic!("{} fehlt unter der neuen Semantik", k_alt.aufbau));
         assert_ne!(
-            v, n,
+            v_alt, v_neu,
             "{}: der geaenderte Faktor hat den Kampf nicht veraendert",
-            vorher.apl.name
+            k_alt.aufbau
         );
     }
 }

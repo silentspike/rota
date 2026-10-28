@@ -323,10 +323,19 @@ fn ein_zielwechsel_rechnet_null_kaempfe_neu() {
     }
 
     // ---- DER ZIELWECHSEL ----
+    //
+    // **Ueber `hole_oder_rechne`, nicht ueber `hole`** (Epic #903). `hole`
+    // nimmt `&self` und KANN den Zaehler nicht bewegen — die Zusicherung
+    // darunter waere dann wahr, gleich was der Speicher tut. Gemessen: Mit
+    // einem `hole_oder_rechne`, das immer rechnet, blieb dieser Fall in der
+    // Fassung mit `hole` gruen. Jetzt geht der Wechsel den Weg, den eine
+    // Suche geht, und ein Kampf an dieser Stelle bricht den Fall sofort.
     for a in aufbauten {
         let erg = schluessel(a, SEMANTIK_A);
         let vektor = ergebnisse
-            .hole(&erg)
+            .hole_oder_rechne(erg.clone(), || {
+                panic!("Ein Zielwechsel hat fuer '{a}' einen Kampf angestossen")
+            })
             .expect("das rohe Ergebnis bleibt gueltig");
         // Eine voellig andere Zielfunktion ueber DENSELBEN Zahlen.
         let neuer_wert = -vektor.erlittener_schaden.mean;
