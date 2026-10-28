@@ -6073,3 +6073,140 @@ mod schluesseltalent_pruefsumme {
         assert_eq!(verstellt.checksum_at(1000), echt.checksum_at(1000));
     }
 }
+
+/// Der Auswahlmodus der Ruecksetzer steht in der Pruefsumme (#419,
+/// Nachbesserung).
+///
+/// Spiegelbild von `tests/unit/auswahlmodus-pruefsumme.test.ts`: CRUST bei
+/// 0 ms, ALEMBIC bei 1500 ms — der Modus steht scharf, zwei Auswahlen offen.
+/// Gestoert wird ueber `CooldownReset::arm`, weil seine Felder dem eigenen
+/// Modul gehoeren; das Ergebnis ist dasselbe wie eine direkt verstellte Zahl.
+#[cfg(test)]
+mod auswahlmodus_pruefsumme {
+    use super::*;
+    use crate::checksum::record_fields;
+    use crate::cooldown_reset::Choice;
+    use crate::data::index_of;
+    use crate::replay::{Binding, Press};
+
+    fn scharf() -> Fight {
+        let crust = index_of("crust").expect("crust fehlt");
+        let alembic = index_of("alembic").expect("alembic fehlt");
+        let mut fight = Fight::new(FightConfig {
+            duration_ms: Some(151 * TICK_MS),
+            ..FightConfig::default()
+        });
+        let recording = Recording {
+            name: "auswahlmodus-pruefsumme".to_owned(),
+            seed: 0,
+            ticks: 151,
+            bindings: vec![
+                Binding {
+                    slot: 0,
+                    spell: crust,
+                },
+                Binding {
+                    slot: 1,
+                    spell: alembic,
+                },
+            ],
+            presses: vec![Press { tick: 0, slot: 0 }, Press { tick: 150, slot: 1 }],
+        };
+        let _ = fight.replay(&recording, false);
+        fight
+    }
+
+    /// Eine Wahl, wie sie `replay` trifft.
+    fn waehle(fight: &mut Fight, spell: usize) -> Choice {
+        let gcd = fight.gcd_length();
+        fight.reset_mode.choose(
+            spell,
+            fight.time,
+            &mut fight.cooldown_ready_at,
+            &mut fight.gcd_ready_at,
+            gcd,
+        )
+    }
+
+    #[test]
+    fn die_messung_trifft_einen_scharfen_modus_mit_zwei_offenen_auswahlen() {
+        let fight = scharf();
+        assert_eq!(fight.time, 1500);
+        assert!(fight.reset_mode.is_armed(), "ALEMBIC stellt nicht scharf");
+        assert_eq!(
+            fight.reset_mode.armed_for(),
+            i16::try_from(index_of("alembic").expect("alembic")).expect("Index")
+        );
+        assert_eq!(fight.reset_mode.charges_left(), 2);
+    }
+
+    #[test]
+    fn wer_scharf_gestellt_hat_aendert_die_pruefsumme() {
+        let mut echt = scharf();
+        let mut verstellt = scharf();
+        let crust = index_of("crust").expect("crust fehlt");
+        verstellt.reset_mode.arm(crust, 2);
+
+        assert_ne!(
+            verstellt.checksum_at(1500),
+            echt.checksum_at(1500),
+            "zwei Kaempfe, scharf gestellt von verschiedenen Zaubern, ergeben \
+             dieselbe Pruefsumme — armed_for geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Der Ruecksetzer waehlt sich nicht selbst.
+        assert_eq!(waehle(&mut echt, crust), Choice::Applied);
+        assert_eq!(waehle(&mut verstellt, crust), Choice::Wasted);
+    }
+
+    #[test]
+    fn die_zahl_der_offenen_auswahlen_aendert_die_pruefsumme() {
+        let mut echt = scharf();
+        let mut verstellt = scharf();
+        let alembic = index_of("alembic").expect("alembic fehlt");
+        let crust = index_of("crust").expect("crust fehlt");
+        verstellt.reset_mode.arm(alembic, 1);
+
+        assert_ne!(
+            verstellt.checksum_at(1500),
+            echt.checksum_at(1500),
+            "zwei Kaempfe mit verschieden vielen offenen Auswahlen ergeben \
+             dieselbe Pruefsumme — charges_left geht nicht in checksum_at ein"
+        );
+
+        // Positive Kontrolle: Nach einer Wahl steht nur der echte noch scharf.
+        let _ = waehle(&mut echt, crust);
+        let _ = waehle(&mut verstellt, crust);
+        assert!(echt.reset_mode.is_armed());
+        assert!(!verstellt.reset_mode.is_armed());
+    }
+
+    #[test]
+    fn scharf_stehen_die_zwei_namen_am_ende_sonst_fehlen_sie() {
+        let ohne = Fight::new(FightConfig::default());
+        let mut mit = scharf();
+        let namen = |fight: &Fight| -> Vec<&'static str> {
+            record_fields(|| {
+                let _ = fight.checksum_at(1500);
+            })
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect()
+        };
+        let folge_ohne = namen(&ohne);
+        let folge_mit = namen(&mit);
+        let n = folge_ohne.len().min(folge_mit.len());
+        assert_eq!(&folge_mit[..n], &folge_ohne[..]);
+        assert_eq!(&folge_mit[n..], &["resetArmedFor", "resetChargesLeft"]);
+
+        // Und nach der letzten Auswahl gehen sie nicht mehr ein.
+        let crust = index_of("crust").expect("crust fehlt");
+        let _ = waehle(&mut mit, crust);
+        let _ = waehle(&mut mit, crust);
+        assert!(
+            !mit.reset_mode.is_armed(),
+            "zwei Auswahlen lassen den Modus stehen"
+        );
+        assert_eq!(namen(&mit), folge_ohne);
+    }
+}
