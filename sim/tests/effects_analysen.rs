@@ -1,15 +1,21 @@
 //! Die Zusicherungen der Wirkungsbeschreibung (Issue #911).
 //!
-//! # Was hier geprueft wird — und was nicht
+//! # Was hier geprüft wird — und was nicht
 //!
-//! **Nicht** geprueft wird AC2. Dass ein neuer Baustein den Bau bricht, ist ein
-//! **Uebersetzungsfehler** und laesst sich aus einem Prueffall heraus gar nicht
-//! zeigen: Waere der Baustein da, liesse sich diese Datei nicht uebersetzen.
-//! Der Nachweis dafuer steht im PR-Text als echter roter Lauf.
+//! **Nicht** hier geprüft wird AC2. Dass ein neuer Baustein den Bau bricht, ist
+//! ein **Übersetzungsfehler** und lässt sich aus einem Prüffall heraus nicht
+//! zeigen: Wäre der Baustein da, ließe sich schon die Bibliothek nicht
+//! übersetzen. Bis Epic #892 stand der Nachweis nur als einmaliger roter Lauf im
+//! Text von PR #984. Seither führt ihn `tools/wirkung-baubruch-gegenprobe.py`
+//! im sim-Job bei jeder Änderung, je registrierter Analyse einzeln.
 //!
-//! Geprueft wird alles, was zur Laufzeit sichtbar ist: die Registry (AC3), das
-//! Signatur-Schlupfloch (AC4), der konservative Rueckfall (AC5) und die Grenze
-//! des Monotonie-Hinweises (AC6).
+//! Geprüft wird, was zur Laufzeit sichtbar ist: die Registry (AC3), das
+//! Signatur-Schlupfloch (AC4), der konservative Rückfall (AC5) und die Grenze
+//! des Monotonie-Hinweises (AC6). Den Rückfall belegt diese Datei nur am völlig
+//! blinden Knoten und an EINER fehlenden Angabe (`timing`). Je Bedingung von
+//! `hat_luecke`, an Signatur und Baustein, steht er in `effects_rueckfall.rs` —
+//! dort auch, warum ein unbekannter Wertebereich und ein Hinweis ohne Richtung
+//! keine Lücke sind, obwohl #911 AC4 beide zu den Pflichtangaben zählt.
 
 use rota_sim::effects::passes::{anzahl_analysen, beispielknoten, namen, REGISTRY};
 use rota_sim::effects::registry::{
