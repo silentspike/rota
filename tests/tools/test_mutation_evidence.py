@@ -298,14 +298,15 @@ class MutationEvidence(unittest.TestCase):
         common = json.loads((self.root / 'data/spells/common.json').read_text())['spells'][0]
         return 'bau' if 'id' not in common else 'rot' if first['baseDamage'] != 100 else None
 
-    def probe_process(self, bau_breaks=True, rust_names=True):
+    def probe_process(self, bau_build=None, rust_names=True):
         calls = []
+        bau_build = bau_build or (101, self.BUILD_PANIC)
 
         def process(command, _timeout):
             state, field = self.probe_state(), self.missing()
             calls.append((command.split()[0], state, field))
             if '--no-run' in command:
-                return (101, self.BUILD_PANIC) if state == 'bau' and bau_breaks else (0, 'Finished\n')
+                return bau_build if state == 'bau' else (0, 'Finished\n')
             if command.startswith('cargo'):
                 return (101, self.RUST_FAIL) if state == 'rot' and rust_names else (0, RUST_PASS)
             return (1, TS_FAIL) if state or field else (0, TS_PASS)
@@ -334,11 +335,17 @@ class MutationEvidence(unittest.TestCase):
         self.assert_restored()
 
     def test_a_probe_with_the_wrong_outcome_stops_before_any_field(self):
-        for bau_breaks, rust_names, failing in ((False, True, 'bau'), (True, False, 'rot')):
-            with self.subTest(failing=failing):
+        # Each condition of the BAU probe on its own: a build that passes, one
+        # that passes with the panic text in its log, one that breaks elsewhere.
+        cases = (((0, 'Finished\n'), True, 'bau'),
+                 ((0, "Finished\nwarning: a test named 'panicked at sim/build.rs'\n"), True, 'bau'),
+                 ((101, 'error: linking with `cc` failed: exit status: 1\n'), True, 'bau'),
+                 (None, False, 'rot'))
+        for bau_build, rust_names, failing in cases:
+            with self.subTest(failing=failing, build=bau_build):
                 self.fresh_tool()
                 self.with_base_damage()
-                process, calls = self.probe_process(bau_breaks, rust_names)
+                process, calls = self.probe_process(bau_build, rust_names)
                 self.assertEqual(self.drive(process, '--vorproben'), 3)
                 evidence = json.loads((self.root / 'evidence.json').read_text())
                 self.assertEqual(evidence['fields'], {})
