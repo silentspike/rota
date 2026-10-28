@@ -15,27 +15,39 @@ double quotes), process substitution, comments, case patterns and heredocs far
 enough to separate commands from data. A heredoc body is data unless the shell
 reads it as code (bash/sh/zsh), unless Python/Node code in it visibly starts a
 tools/ file, a load tool or a Rust binary, or unless an unquoted delimiter lets
-the shell expand $( ) and backquotes in it. It is not a shell: aliases, shell
-functions defined elsewhere and scripts outside tools/ remain out of scope.
+the shell expand $( ) and backquotes in it. It is not a shell: aliases and
+shell functions defined elsewhere remain out of scope.
+
+A script that is run (`bash x.sh`, `python3 x.py`, `source x.sh`, `./x.sh`) is
+judged by what it runs: by the heredoc that wrote it earlier in the same
+command, else by the file itself, read relative to the session's working
+directory. A script that is neither is undecidable — the review of 24.10.
+found `cat > x.sh <<EOF … EOF; bash x.sh` quiet in a foreign window.
 """
 
 import os
 import re
 
 LOAD_TOOLS = {'npm', 'npx', 'pnpm', 'yarn', 'cargo', 'cargo-remote-fmt',
-              'rustc', 'vitest', 'prettier', 'rota-sim'}
+              'rustc', 'vitest', 'prettier', 'rota-sim', 'tsc', 'eslint', 'vite', 'tsx'}
 # Help/version flags per load tool. Cargo Remote v2 uses -h for --sync-hidden,
-# so `cargo remote -h -- build` and `cargo-remote-fmt -h` still run remotely.
+# so `cargo remote -h -- build` still runs remotely. `cargo-remote-fmt -h` is
+# help: its format mode parses with argparse's own -h before any remote action
+# (measured 28.10.: usage, exit 0, no job).
 HELP = {'npm': {'--help', '-h', '--version', '-v'},
         'pnpm': {'--help', '-h', '--version', '-v'},
         'yarn': {'--help', '-h', '--version', '-v'},
         'npx': {'--help', '-h', '--version'},
         'cargo': {'--help', '-h', '--version', '-V', '--list'},
-        'cargo-remote-fmt': {'--help', '--version'},
+        'cargo-remote-fmt': {'--help', '-h', '--version'},
         'rustc': {'--help', '-h', '--version', '-V'},
         'vitest': {'--help', '-h', '--version', '-v'},
         'prettier': {'--help', '-h', '--version', '-v'},
-        'rota-sim': {'--help', '-h', '--version', '-V'}}
+        'rota-sim': {'--help', '-h', '--version', '-V'},
+        'tsc': {'--help', '-h', '--version', '-v'},
+        'eslint': {'--help', '-h', '--version', '-v'},
+        'vite': {'--help', '-h', '--version', '-v'},
+        'tsx': {'--help', '-h', '--version', '-v'}}
 # Wrapper: (short options taking a value, long options taking a value,
 #           positional words before the wrapped command).
 WRAPPERS = {'env': ('uCS', {'--unset', '--chdir', '--split-string'}, 0),
@@ -50,9 +62,13 @@ WRAPPERS = {'env': ('uCS', {'--unset', '--chdir', '--split-string'}, 0),
             'ionice': ('cnpPu', {'--class', '--classdata', '--pid', '--pgid', '--uid'}, 0),
             'taskset': ('', set(), 1),
             'xargs': ('adEILnPs', {'--arg-file', '--delimiter', '--max-args', '--max-procs',
-                                   '--max-chars', '--process-slot-var'}, 0)}
+                                   '--max-chars', '--process-slot-var'}, 0),
+            # `flock [-w s] FILE CMD …` or `FILE -c 'CMD'`; `flock FD` starts none.
+            # Our own form for heavy runs, and quiet until the review of 24.10.
+            'flock': ('wE', {'--wait', '--timeout', '--conflict-exit-code'}, 1)}
 # Options after which a wrapper starts no command (query, existing process).
-NO_COMMAND = {'command': 'vV', 'ionice': 'pPu', 'taskset': 'p', 'sudo': 'eKlvV'}
+NO_COMMAND = {'command': 'vV', 'ionice': 'pPu', 'taskset': 'p', 'sudo': 'eKlvV',
+              'flock': 'hV'}
 NO_COMMAND_LONG = {'--help', '--version', '--pid', '--pgid', '--uid', '--list',
                    '--validate', '--edit', '--remove-timestamp'}
 RESERVED = {'!', '{', '}', 'if', 'then', 'elif', 'else', 'fi', 'while', 'until',
@@ -93,19 +109,40 @@ STARTS = re.compile(r'\b(?:subprocess|os\.system|os\.popen|Popen|check_output|ch
 LOAD_LITERAL = re.compile(r'''['"`](?:npm|npx|pnpm|yarn|cargo|cargo-remote-fmt|rustc|vitest'''
                           r'''|prettier|rota-sim)\b''')
 CODE_TARGET = re.compile(r'(?:^|[^A-Za-z0-9_.-])target/(?:debug|release)/(?:examples|deps)/')
+# A load tool reached by its installed path: node_modules/.bin/<tool> or the
+# package directory itself (`node node_modules/vitest/vitest.mjs`).
+NODE_TOOL = re.compile(r'(?:^|/)node_modules/(?:\.bin/(?:tsc|eslint|vite|vitest|prettier|tsx)(?:$|[^A-Za-z0-9_-])'
+                       r'|(?:typescript|eslint|vite|vitest|prettier|tsx)/)')
+OUTPUTS = {'>', '>>', '>|', '&>', '&>>'}
+SCRIPT_LIMIT = 256 * 1024     # a larger script is not read; it is undecidable
 
 
 class ShellError(ValueError):
     """The visible text does not decide whether the command loads the machine."""
 
 
+class Context:
+    """What every rule of one hook call shares: the whole text, the session's
+    working directory and the files this command writes from a heredoc."""
+
+    __slots__ = ('text', 'cwd', 'written')
+
+    def __init__(self, text, cwd=None, written=None):
+        self.text, self.cwd, self.written = text, cwd, {} if written is None else written
+
+    def path(self, name):
+        name = os.path.expanduser(name)
+        return os.path.normpath(name if os.path.isabs(name) or not self.cwd
+                                else os.path.join(self.cwd, name))
+
+
 class Segment:
     """One simple command: its words plus the data its redirections supply."""
 
-    __slots__ = ('words', 'heredocs', 'strings', 'inputs', 'piped')
+    __slots__ = ('words', 'heredocs', 'strings', 'inputs', 'outputs', 'piped')
 
     def __init__(self, piped=False):
-        self.words, self.heredocs, self.strings, self.inputs = [], [], [], []
+        self.words, self.heredocs, self.strings, self.inputs, self.outputs = [], [], [], [], []
         self.piped = piped
 
 
@@ -192,7 +229,7 @@ class Lexer:
     def finish(self, segment, piped=False):
         if segment.words:
             self.found.append(segment)
-        elif not (segment.heredocs or segment.strings or segment.inputs
+        elif not (segment.heredocs or segment.strings or segment.inputs or segment.outputs
                   or any(item[3] is segment for item in self.pending)):
             segment.piped = segment.piped or piped   # e.g. a newline after '|'
             return segment
@@ -228,6 +265,8 @@ class Lexer:
             segment.strings.append(value)
         elif operator in ('<', '<>'):
             segment.inputs.append(value)
+        elif operator in OUTPUTS:
+            segment.outputs.append(value)
 
     def substitution(self):
         """Lex the commands of $( ), <( ) or >( ); the word keeps their text."""
@@ -445,18 +484,24 @@ class Lexer:
         return DYNAMIC + code
 
 
-def load_command(command, depth=0, text=None):
-    """True: visible load; False: none visible; ValueError: not decidable."""
+def load_command(command, depth=0, ctx=None, cwd=None):
+    """True: visible load; False: none visible; ValueError: not decidable.
+
+    `cwd` is the session's working directory; scripts named relative to it are
+    read from there. `ctx` carries it through nested shells and scripts.
+    """
     if depth > MAX_DEPTH:
         raise ShellError('shell nesting exceeds classifier limit')
+    ctx = ctx or Context(command, cwd)
     found, error = [], None
     try:
         Lexer(command, found).commands()
     except ShellError as exc:
         error = exc   # Bash runs the lines before a syntax error
+    remember_written(found, ctx)
     for segment in found:
         try:
-            if segment_load(segment.words, segment, text or command, depth):
+            if segment_load(segment.words, segment, ctx, depth):
                 return True
         except ShellError as exc:
             error = error or exc
@@ -465,7 +510,23 @@ def load_command(command, depth=0, text=None):
     return False
 
 
-def segment_load(words, segment, text, depth):
+def remember_written(found, ctx):
+    """Files this command writes from a heredoc or here-string (`cat > x.sh <<EOF`,
+    `tee x.sh <<EOF`): a later `bash x.sh` in the same call runs that text,
+    and the file does not exist yet when the hook looks."""
+    for segment in found:
+        body = segment.heredocs + segment.strings
+        if not body:
+            continue
+        targets = list(segment.outputs)
+        if segment.words and os.path.basename(segment.words[0]) == 'tee':
+            targets += [word for word in segment.words[1:] if not word.startswith('-')]
+        for target in targets:
+            if DYNAMIC not in target and target != '/dev/null':
+                ctx.written[ctx.path(target)] = '\n'.join(body)
+
+
+def segment_load(words, segment, ctx, depth):
     while words and (words[0] in RESERVED or words[0] == 'function'
                      or ASSIGNMENT.match(words[0])):
         words = words[2:] if words[0] == 'function' else words[1:]
@@ -475,7 +536,7 @@ def segment_load(words, segment, text, depth):
     args = words[1:]
     if tool in WRAPPERS:
         inner = unwrap(tool, args)
-        return bool(inner) and segment_load(inner, segment, text, depth)
+        return bool(inner) and segment_load(inner, segment, ctx, depth)
     if tool in LOAD_TOOLS:
         return not help_or_version(tool, args)
     if tool == 'git':
@@ -487,28 +548,65 @@ def segment_load(words, segment, text, depth):
             ['worktree', 'add'], ['worktree', 'remove'],
         ]))
     if tool == 'jq':
-        return bool(RECORDINGS.search(text))
+        return bool(RECORDINGS.search(ctx.text))
     if tool == 'eval':
-        return load_command(' '.join(args), depth + 1, text)
+        return load_command(' '.join(args), depth + 1, ctx)
     if tool in {'source', '.'}:
-        return bool(args) and program_load(args[0])
+        return bool(args) and script_load(args[0], 'shell', ctx, depth)
     if tool == 'find':
-        return find_load(args, segment, text, depth)
+        return find_load(args, segment, ctx, depth)
     if tool in SHELLS:
-        return shell_load(args, segment, text, depth)
+        return shell_load(args, segment, ctx, depth)
     if tool in CODE_RUNNERS:
-        return code_load(args, segment)
+        return code_load(args, segment, ctx, depth)
+    if '/' in words[0] and DYNAMIC not in words[0] and not program_load(words[0], TARGET_BIN):
+        return script_load(words[0], None, ctx, depth, missing_is_quiet=True)
     return program_load(words[0], TARGET_BIN)
 
 
 def program_load(name, pattern=None):
-    """A visible tools/ (or target/) path loads. A program named only at run time
-    is undecidable; in this project "$B" is mostly a Rust test binary."""
+    """A visible tools/ (or target/) path, or a load tool by its installed path,
+    loads. A program named only at run time is undecidable; in this project
+    "$B" is mostly a Rust test binary."""
     if TOOLS_PATH.search(name) or (pattern and pattern.search(name)):
+        return True
+    if os.path.basename(name) in LOAD_TOOLS or NODE_TOOL.search(name):
         return True
     if DYNAMIC in os.path.basename(name):
         raise ShellError('program name is only known at run time')
     return False
+
+
+def script_load(name, language, ctx, depth, missing_is_quiet=False):
+    """A script run by name: a tools/ path or a load tool decide at once, else
+    the text this command wrote to it, else the file. `language` is 'shell',
+    'code' or None (decided by the #! line, as the kernel would)."""
+    if program_load(name):
+        return True
+    path = ctx.path(name)
+    body = ctx.written.get(path)
+    if body is None:
+        try:
+            with open(path, 'rb') as source:
+                # A program path run directly is a script only with a #! line;
+                # a binary is not read further, whatever its size.
+                if language is None and source.read(2) != b'#!':
+                    return False
+                source.seek(0)
+                raw = source.read(SCRIPT_LIMIT + 1)
+        except OSError:
+            if missing_is_quiet:
+                return False    # a program path, not a script we were asked to run
+            raise ShellError('script is neither written here nor readable')
+        if len(raw) > SCRIPT_LIMIT:
+            raise ShellError('script too large to classify')
+        body = raw.decode('utf-8', errors='replace')
+    if language is None:
+        first = body.split('\n', 1)[0]
+        language = 'code' if any(runner in first for runner in CODE_RUNNERS) else 'shell'
+    if language == 'code':
+        return code_starts_load(body)
+    return load_command(body, depth + 1, Context(body, ctx.cwd, ctx.written))
 
 
 def unwrap(tool, args):
@@ -545,7 +643,10 @@ def unwrap(tool, args):
             index += 1
         else:
             break
-    return args[index + positional:]
+    rest = args[index + positional:]
+    if tool == 'flock' and rest[:1] in (['-c'], ['--command']):
+        return ['sh', '-c', *rest[1:2]]    # `flock FILE -c 'CMD'` hands CMD to a shell
+    return rest
 
 
 def help_or_version(tool, args):
@@ -564,7 +665,7 @@ def help_or_version(tool, args):
     return len(flags) == 1 and flags[0] in HELP[tool]
 
 
-def find_load(args, segment, text, depth):
+def find_load(args, segment, ctx, depth):
     for index, arg in enumerate(args):
         if arg in {'-exec', '-execdir', '-ok', '-okdir'}:
             inner = []
@@ -572,7 +673,7 @@ def find_load(args, segment, text, depth):
                 if word in {';', '+'}:
                     break
                 inner.append(word)
-            if segment_load(inner, segment, text, depth):
+            if segment_load(inner, segment, ctx, depth):
                 return True
     return False
 
@@ -586,7 +687,7 @@ def stdin_code(segment):
     return []
 
 
-def shell_load(args, segment, text, depth):
+def shell_load(args, segment, ctx, depth):
     index, reads_stdin = 0, False
     while index < len(args):
         arg = args[index]
@@ -599,15 +700,15 @@ def shell_load(args, segment, text, depth):
         if not arg.startswith(('-', '+')):
             break
         if SHELL_CODE.fullmatch(arg):    # -c, -lc, -ec: the next word is the code
-            return index + 1 < len(args) and load_command(args[index + 1], depth + 1, text)
+            return index + 1 < len(args) and load_command(args[index + 1], depth + 1, ctx)
         reads_stdin = reads_stdin or bool(SHELL_STDIN.fullmatch(arg))
         index += 1
     operands = args[index:]
     if operands and not reads_stdin:
-        return program_load(operands[0])
+        return script_load(operands[0], 'shell', ctx, depth)
     if segment.inputs and not (segment.heredocs or segment.strings):
-        return any(program_load(name) for name in segment.inputs)
-    return any(load_command(code, depth + 1, text) for code in stdin_code(segment))
+        return any(script_load(name, 'shell', ctx, depth) for name in segment.inputs)
+    return any(load_command(code, depth + 1, ctx) for code in stdin_code(segment))
 
 
 def code_starts_load(code):
@@ -615,8 +716,9 @@ def code_starts_load(code):
                                          or CODE_TARGET.search(code)))
 
 
-def code_load(args, segment):
-    """Python/Node: a tools/ script, or inline code that visibly starts load."""
+def code_load(args, segment, ctx, depth):
+    """Python/Node: a tools/ script, a script that visibly starts load, or inline
+    code that does."""
     index = 0
     while index < len(args):
         arg = args[index]
@@ -635,7 +737,7 @@ def code_load(args, segment):
             break
     operands = args[index:]
     if operands and operands[0] != '-':
-        return program_load(operands[0])
+        return script_load(operands[0], 'code', ctx, depth)
     if segment.inputs and not (segment.heredocs or segment.strings):
-        return any(program_load(name) for name in segment.inputs)
+        return any(script_load(name, 'code', ctx, depth) for name in segment.inputs)
     return any(code_starts_load(code) for code in stdin_code(segment))

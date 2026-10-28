@@ -96,7 +96,8 @@ def main():
         if not isinstance(tool_input, dict) or not isinstance(tool_input.get('command'), str):
             raise ValueError('missing shell command')
         from fenster_lastpruefung import load_command
-        if not load_command(tool_input['command']):
+        cwd = event.get('cwd') if isinstance(event.get('cwd'), str) else None
+        if not load_command(tool_input['command'], cwd=cwd):
             return 0
         undecided = False
     except (ValueError, TypeError, RecursionError, ImportError):
