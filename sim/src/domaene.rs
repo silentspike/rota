@@ -100,7 +100,7 @@ impl MonotonieZertifikat {
     /// Aufrufer, der nur „abgelehnt" erfährt, kann nicht unterscheiden, ob der
     /// Bezug nicht passte oder Zutaten fehlten.
     pub fn traegt_fuer(&self, gefragt: MonotonicityDomain) -> Result<(), ZertifikatVerweigert> {
-        if self.direction == MonotonicDirection::Unknown {
+        if self.direction.ist_unbekannt() {
             return Err(ZertifikatVerweigert::KeinHinweis);
         }
         if self.domain != gefragt {
