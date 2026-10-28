@@ -38,6 +38,10 @@ const BOSS_SYSTEME: &[&str] = &[
     "bossHeal",
     "timelineLoopMs",
     "resistances",
+    // Kein Zusatz-System, sondern die harte Zeitgrenze aus dem Kopffeld
+    // `overpressureMs` — build.rs deklariert sie trotzdem als Signatur mit
+    // Semantik. Fehlte hier, bis der Fall in beide Richtungen prüfte (#892).
+    "overpressure",
 ];
 
 #[test]
