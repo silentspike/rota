@@ -278,6 +278,10 @@ export interface CombatSnapshot {
   readonly retortArmed: boolean;
   readonly shield: number;
   readonly shieldAbsorbed: number;
+  /** Wovon COAGULATIONs Nachlage die Hälfte gibt (#419). */
+  readonly shieldRefundBase: number;
+  /** Ob die liegende Schicht ihre Nachlage schon bekam (#419). */
+  readonly shieldRefundSpent: boolean;
   readonly shieldStacks: number;
   readonly stabilised: number;
   readonly synergyAvailable: number;
@@ -970,6 +974,8 @@ export function installDevTools(app: App): void {
         retortArmed: combat.retortArmed,
         shield: combat.shield,
         shieldAbsorbed: combat.shieldAbsorbed,
+        shieldRefundBase: combat.shieldRefundBase,
+        shieldRefundSpent: combat.shieldRefundSpent,
         shieldStacks: combat.shieldStacks,
         stabilised: combat.stabilised,
         synergyAvailable: combat.synergyAvailable,
