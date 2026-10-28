@@ -28,9 +28,11 @@
 //!
 //! # Was hier NICHT steht
 //!
-//! **Keine Engpassdiagnose.** Die Zeile „Engpass" sagt bis E15.3 (#934)
-//! ausdrücklich „keine Diagnose". Eine geratene Ursache wäre schlimmer als
-//! keine: Sie schickt den nächsten Umbau an die falsche Stelle.
+//! **Die Engpassdiagnose.** Die Zeile „Engpass" zeigt, was
+//! [`crate::engpass`] (E15.3, #934) aus derselben Momentaufnahme macht. Dieses
+//! Modul zählt dafür nur mit — Arbeit gegen Warten je Strang, die Versuche
+//! des Wegs „ein Kampf", die Kampfzähler aus [`crate::diagnostics`] —, es
+//! deutet nichts.
 //!
 //! **Keine Restzeit für eine offene Suche.** Das ist eine Zusicherung, keine
 //! Lücke — [`Arbeitsmenge::Offen`] kennt keine Restmenge, und eine Zahl dort wäre
@@ -53,7 +55,7 @@ pub use restzeit::{
     Rechner, Restanteil, Restkosten, Restzeit, Stufe, WIEDERHOLUNG_LOKAL,
 };
 pub use zaehlwerk::{
-    bestes, kandidat, menge, runde_ergaenzt, schlussmessung, strang, suchrunde, Anmeldung,
-    Arbeitsmenge, Bestes, Laufstand, Momentaufnahme, Strang, Strangzaehler, Weg, Zaehlwerk,
-    CACHE_ZEILE, WEGE_OHNE_LAUF,
+    bestes, kandidat, menge, reduktionsversuch, runde_ergaenzt, schlussmessung, strang, suchrunde,
+    Anmeldung, Arbeitsmenge, Bestes, Laufstand, Momentaufnahme, Strang, Strangzaehler, Weg,
+    Zaehlwerk, CACHE_ZEILE, WEGE_OHNE_LAUF,
 };
