@@ -42,12 +42,20 @@ dieses Plans gebaut. Und die Zeit gilt nur gegen ein **benanntes Referenzprofil*
 
 ```
 Referenzprofil "standard"
-  Rechner        Laptop + proxmox + gonet, alle erreichbar
+  Rechner        Laptop + node3 (Proxmox-Knoten ovh-pve1, Ryzen 7 9700X), beide erreichbar
   Profil         balanced — `reserved_physical_cores: 2` auf dem Laptop
                  (NICHT zwei SMT-Stränge: bei 8C/16T sind das 12 statt 14 Stränge)
   Datenstand     versionierter Endausbau-Datensatz
   Vertrag        versionierter CampaignRunContract
+  im Code        REFERENCE_PROFILE_STANDARD in sim/src/kampagne.rs (#914)
 ```
+
+> **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Bis dahin stand hier
+> „Laptop + proxmox + gonet". Zusatzrechner ist nur noch **node3**; dort entsteht mit #912 ein
+> eigener Simulations-Container (am 2026-10-28 existiert er noch nicht). gonet und 10.0.0.69
+> gehören nicht mehr zum Profil. Die Ressourcenvorgaben je Rechner stehen am Code-Eintrag oben,
+> nicht ein zweites Mal hier; der Speicher ist dort auf beiden Rechnern eine **Obergrenze**, keine
+> Reservierung — der Lauf belegt nur, was er gerade braucht.
 
 **Bei weniger Rechnern bleibt die Arbeit gleich — nur die ETA wächst.** Das ist der Zweck des
 eingefrorenen Arbeitsbudgets (E21.0): Ein Rechnerausfall darf das **Ergebnis** nicht ändern.

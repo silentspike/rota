@@ -49,7 +49,9 @@ pub struct Feasibility {
     pub optional_ms: Option<f64>,
     /// Ganzzahlig ermittelte Pflichtkosten in der eingefrorenen Währung.
     pub mandatory_work_units: WorkUnits,
-    /// Unverändert aus dem Laufvertrag übernommene Zielzeit.
+    /// Unverändert aus dem Laufvertrag übernommene Zielzeit, in ganzen
+    /// Millisekunden (eine Zielzeit mit Bruchteil wird abgelehnt, nicht
+    /// gerundet).
     pub target_ms: u64,
     /// Die Pflichtzeit überschreitet das ausdrücklich verlangte verbleibende
     /// Fristbudget. Ein späterer Runner muss `AnytimePartial` liefern.
@@ -253,15 +255,19 @@ pub fn preflight(
     work: &[WorkEstimate],
     hosts: &[CalibratedHost<'_>],
 ) -> Result<Feasibility, FeasibilityError> {
-    if contract.target_wall_time_ms == 0 {
+    let target_ms = whole_ms(contract.target_wall_time, "Zielzeit")?;
+    if target_ms == 0 {
         return Err(invalid("Zielzeit muss positiv sein"));
     }
     let remaining_deadline_ms = match contract.hard_deadline {
         None => None,
-        Some(DeadlinePolicy::ActiveRuntime { remaining_ms: 0 }) => {
-            return Err(invalid("ActiveRuntime-Frist ist bereits abgelaufen"));
+        Some(DeadlinePolicy::ActiveRuntime { remaining }) => {
+            let remaining_ms = whole_ms(remaining, "Restfrist")?;
+            if remaining_ms == 0 {
+                return Err(invalid("ActiveRuntime-Frist ist bereits abgelaufen"));
+            }
+            Some(remaining_ms)
         }
-        Some(DeadlinePolicy::ActiveRuntime { remaining_ms }) => Some(remaining_ms),
         Some(DeadlinePolicy::WallClockUtc { .. }) => {
             return Err(invalid("WallClockUtc wird ohne explizites aktuelles UTC nicht unterstützt; ActiveRuntime verwenden"));
         }
@@ -378,17 +384,33 @@ pub fn preflight(
     }
     let partial_requested =
         remaining_deadline_ms.is_some_and(|remaining| exceeds_time(mandatory_ms, remaining));
-    if exceeds_time(mandatory_ms, contract.target_wall_time_ms) && remaining_deadline_ms.is_none() {
+    if exceeds_time(mandatory_ms, target_ms) && remaining_deadline_ms.is_none() {
         return Err(FeasibilityError::TimeBudgetExceeded {
             required_ms: mandatory_ms,
-            target_ms: contract.target_wall_time_ms,
+            target_ms,
         });
     }
     Ok(Feasibility {
         mandatory_ms,
         optional_ms,
         mandatory_work_units: WorkUnits(mandatory_work),
-        target_ms: contract.target_wall_time_ms,
+        target_ms,
         partial_requested,
     })
+}
+
+/// Eine Vertragsdauer in ganzen Millisekunden — oder ein benannter Fehler.
+///
+/// Seit #914 sind Zielzeit und Restfrist `Duration`s, die Prüfung rechnet in
+/// Millisekunden. **Abrunden wäre nicht harmlos:** Bei 1000 ms + 1 ns gälte
+/// eine Pflichtzeit knapp über 1000 ms als Überschreitung, obwohl sie passt,
+/// und die Meldung nennte eine Zielzeit, die niemand angegeben hat.
+fn whole_ms(value: std::time::Duration, what: &str) -> Result<u64, FeasibilityError> {
+    if !value.subsec_nanos().is_multiple_of(1_000_000) {
+        return Err(invalid(format!(
+            "{what} muss in ganzen Millisekunden angegeben sein: {value:?}"
+        )));
+    }
+    u64::try_from(value.as_millis())
+        .map_err(|_| invalid(format!("{what} überschreitet u64 Millisekunden: {value:?}")))
 }
