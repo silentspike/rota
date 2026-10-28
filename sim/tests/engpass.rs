@@ -248,6 +248,37 @@ fn zeile_2_schweigt_wenn_auch_die_dritte_ebene_steigt() {
     assert!(befunde(&m, Some(&grundlage())).is_empty());
 }
 
+/// **Gemessen am 2026-10-28 auf dem Laptop** (AC6, Lage „Speicher"): `bench`
+/// auf vier Kernen, auf ihren Geschwistersträngen je 2 MiB Puffer. Die dritte
+/// Ebene hat in der Grundlage fast nichts zu tun — 2,27 Fehlgriffe je Kampf —,
+/// und 4 zusätzliche sind relativ +178 %. Von den 138 zusätzlichen Fehlgriffen
+/// der zweiten Ebene gingen aber nur diese 4 auch an der dritten vorbei: Der
+/// Zustand passt in L3, nicht in L2. Genau das sagt die Zeile.
+#[test]
+fn zeile_2_schlaegt_auch_bei_fast_leerer_dritter_ebene_an() {
+    let mut g = grundlage();
+    g.werte = Vergleichswerte {
+        ipc: Some(2.737_962),
+        zyklen_je_kampf: Some(45_064.12),
+        fehlspruenge_je_kampf: Some(95.98),
+        l2_je_kampf: Some(4.601_27),
+        l3_je_kampf: Some(2.271_78),
+        speicherwartezyklen_je_kampf: Some(2_539.013),
+        cpu_ns_je_kampf: Some(23_986.98),
+    };
+    let lage = mit_zaehlern(|z| {
+        z.ipc = Some(1.156_903);
+        z.zyklen_je_kampf = Some(106_917.66);
+        z.fehlspruenge_je_kampf = Some(104.25);
+        z.l1_je_kampf = Some(2_303.87);
+        z.l2_je_kampf = Some(142.399_3);
+        z.l3_je_kampf = Some(6.320_2);
+        z.speicherwartezyklen_je_kampf = Some(31_948.63);
+        z.speicher_wartezeit_anteil = Some(0.298_6);
+    });
+    assert_eq!(befunde(&lage, Some(&g)), [Regel::ZweiteEbene]);
+}
+
 #[test]
 fn zeile_2_braucht_speicherwartezeit_und_zyklen() {
     let g = zaehler_ruhig();
