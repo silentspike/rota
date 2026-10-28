@@ -265,6 +265,35 @@ class MutationEvidence(unittest.TestCase):
         self.assertEqual(self.tool.suite_nachweis(0, empty, 'rust')['status'], 'ERROR')
         self.assertEqual(self.tool.suite_nachweis(1, failed + empty, 'rust')['status'], 'FAIL')
 
+    def test_remote_stdout_stderr_can_append_the_next_target_to_a_summary(self):
+        # Real zero-test example line from the first full-run baseline.
+        output = (RUST_PASS.rstrip('\n')
+                  + '     Running unittests examples/suchguete.rs '
+                    '(target/debug/examples/suchguete-59b410dc0c687d9e)\n'
+                    'running 0 tests\n'
+                    'test result: ok. 0 passed; 0 failed; 0 ignored\n')
+        proof = self.tool.suite_nachweis(0, output, 'rust')
+        self.assertEqual(proof['status'], 'PASS')
+        self.assertEqual(proof['executed'], 2)
+        self.assertTrue(proof['complete_summary'])
+        aborted = output + '     Running tests/later.rs (target/debug/deps/later-1234)\n'
+        self.assertEqual(self.tool.suite_nachweis(1, aborted, 'rust')['status'], 'ERROR')
+
+    def test_ts_worker_errors_or_process_signals_invalidate_preceding_failed_cases(self):
+        for suffix in (
+            '\nErrors 1 error\n',
+            '\nVitest caught 1 unhandled error during the test run.\n',
+            '\nVitest found 2 errors not related to your test files.\n',
+        ):
+            with self.subTest(suffix=suffix):
+                proof = self.tool.suite_nachweis(1, TS_FAIL + suffix, 'ts')
+                self.assertEqual(proof['status'], 'ERROR')
+                self.assertFalse(proof['complete_summary'])
+                self.assertEqual(proof['executed'], 2)
+        for code in (-9, 137, 143):
+            self.assertEqual(self.tool.suite_nachweis(code, TS_FAIL, 'ts')['status'], 'ERROR')
+        self.assertEqual(self.tool.suite_nachweis(1, TS_FAIL, 'ts')['status'], 'FAIL')
+
 
 if __name__ == '__main__':
     unittest.main()
