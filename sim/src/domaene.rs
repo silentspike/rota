@@ -989,4 +989,46 @@ mod tests {
 
         println!("fehlende Zutaten: {:?}", z.bedarf.fehlend());
     }
+
+    /// **Ein Zertifikat ohne Bezug trägt für keinen Bezug — auch nicht für „ohne Bezug“.**
+    ///
+    /// `LocalMonotonicityHint::traegt_fuer` fängt genau das ausdrücklich ab:
+    /// Wer nach `Unspecified` fragt, darf einen Hinweis mit `Unspecified` nicht
+    /// dadurch tragen lassen, dass beide gleich sind. Das Zertifikat hier prüfte
+    /// nur `domain != gefragt` und trug mit allen Zutaten für die Frage „ohne
+    /// Bezug“ — gegen den Satz am Typ, ein Zertifikat ohne Bezug lasse sich gar
+    /// nicht erst hinschreiben. Gefunden bei #892, als `ist_unbekannt` den
+    /// Richtungsvergleich darüber ersetzte.
+    #[test]
+    fn ein_zertifikat_ohne_bezug_traegt_auch_nicht_fuer_ohne_bezug() {
+        let ohne_bezug = MonotonieZertifikat {
+            direction: MonotonicDirection::Increasing,
+            domain: MonotonicityDomain::Unspecified,
+            bedarf: ZertifikatsBedarf::VOLLSTAENDIG,
+            trace_region: TraceRegionBezug::StabilerTrace,
+            preconditions: &[],
+        };
+        for gefragt in [
+            MonotonicityDomain::Unspecified,
+            MonotonicityDomain::ExpectedDamageStableTrace,
+        ] {
+            assert_eq!(
+                ohne_bezug.traegt_fuer(gefragt),
+                Err(ZertifikatVerweigert::FalscherBezug {
+                    hinweis: MonotonicityDomain::Unspecified,
+                    gefragt,
+                }),
+                "ein Zertifikat ohne Bezug hat für {gefragt:?} nicht am Bezug abgelehnt"
+            );
+        }
+        // Der Gegenpol: Mit Bezug und denselben Zutaten trägt es für ihn.
+        let mit_bezug = MonotonieZertifikat {
+            domain: MonotonicityDomain::ExpectedDamageStableTrace,
+            ..ohne_bezug
+        };
+        assert_eq!(
+            mit_bezug.traegt_fuer(MonotonicityDomain::ExpectedDamageStableTrace),
+            Ok(())
+        );
+    }
 }
