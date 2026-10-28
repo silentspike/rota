@@ -22,7 +22,7 @@ endet mit Exit 2 und dem Grund, ohne dass etwas angelegt wurde:
      Checkout, nie der Arbeitsbaum (STREICH-MUTATION-ABNAHME.md).
   3. Das Ausgabeverzeichnis gibt es noch nicht — ein alter Nachweis darin
      sähe aus wie das Ergebnis dieses Laufs.
-  4. Auf /work sind mindestens 1500 MB frei.
+  4. Wo Ausgabe und Checkout landen, sind mindestens 1500 MB frei.
   5. `package-lock.json` des Standes gleicht dem der Quelle für node_modules;
      sonst wäre ein `npm ci` nötig, und das gehört nicht in dieses Werkzeug.
 
@@ -81,6 +81,20 @@ def fenster_inhaber():
     return fertig.returncode, inhaber, abgabe, fertig.stdout + fertig.stderr
 
 
+def platz(pfad):
+    """(freie MB, geprüfter Ort) auf dem Dateisystem, das `pfad` aufnehmen wird.
+
+    Geprüft wird der nächste vorhandene Vorfahr, nicht ein fester Ort: Ein
+    festes `/work` gab es auf dem CI-Läufer nicht (FileNotFoundError, lint
+    von PR #1160), und auf einer anderen Maschine wäre es das falsche
+    Dateisystem gewesen.
+    """
+    ort = pfad
+    while not ort.exists():
+        ort = ort.parent
+    return shutil.disk_usage(ort).free // (1 << 20), ort
+
+
 def abbruch(text):
     print(f"NICHT GESTARTET: {text}")
     return 2
@@ -129,9 +143,10 @@ def main():
                         f"{'probe' if args.probe else 'volllauf'}").resolve()
     if baum.exists():
         return abbruch(f"Checkout {baum} existiert bereits — erst `git worktree remove {baum}`")
-    frei_mb = shutil.disk_usage("/work").free // (1 << 20)
-    if frei_mb < MINDEST_FREI_MB:
-        return abbruch(f"nur {frei_mb} MB frei auf /work, verlangt {MINDEST_FREI_MB}")
+    plaetze = {platz(aus), platz(baum)}
+    for frei_mb, ort in sorted(plaetze, key=lambda eintrag: str(eintrag[1])):
+        if frei_mb < MINDEST_FREI_MB:
+            return abbruch(f"nur {frei_mb} MB frei unter {ort}, verlangt {MINDEST_FREI_MB}")
     quelle = pathlib.Path(args.node_modules_von)
     lock = subprocess.run(["git", "show", f"{commit}:package-lock.json"], cwd=WURZEL,
                           capture_output=True, check=False)
@@ -153,6 +168,8 @@ def main():
     print(f"Messfenster: {'frei (Probe)' if args.probe else f'{args.rolle} (zugeteilt, keine Abgabe)'}")
     print(f"Stand:       {commit}  ({args.stand})")
     print(f"Ausgabe:     {aus}")
+    for frei_mb, ort in sorted(plaetze, key=lambda eintrag: str(eintrag[1])):
+        print(f"Platz:       {frei_mb} MB frei unter {ort} (verlangt {MINDEST_FREI_MB})")
     print(f"Checkout:    git worktree add --detach {baum} {commit}")
     print(f"node_modules: cp -a --reflink=always {quelle / 'node_modules'} {baum / 'node_modules'}")
     print(f"Befehl:      cd {baum} && {shlex.join(huelle)} > {protokoll} 2>&1")
