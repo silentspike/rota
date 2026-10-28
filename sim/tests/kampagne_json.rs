@@ -26,7 +26,7 @@ static HOSTS: &[HostRequirement] = &[
     HostRequirement {
         name: "laptop",
         guaranteed_cpu_quota: Some(1.0),
-        guaranteed_memory_mib: 4096,
+        memory_limit_mib: 4096,
         cpu: CpuReservation {
             physical_cores: 8,
             threads_per_core: 2,
@@ -40,7 +40,7 @@ static HOSTS: &[HostRequirement] = &[
     HostRequirement {
         name: "best-effort",
         guaranteed_cpu_quota: None,
-        guaranteed_memory_mib: 8192,
+        memory_limit_mib: 8192,
         cpu: CpuReservation {
             physical_cores: 16,
             threads_per_core: 2,
@@ -140,6 +140,14 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     assert!(
         hosts[0].get("maxRttMs").is_none(),
         "Das Netz steht am Profil, nicht mehr am Rechner"
+    );
+    // Der Speicher ist eine Obergrenze und heißt im Text auch so. Ein Schlüssel
+    // „guaranteed…“ behauptete eine Reservierung, die es nicht gibt.
+    assert_eq!(hosts[0]["memoryLimitMib"], 4096);
+    assert_eq!(hosts[1]["memoryLimitMib"], 8192);
+    assert!(
+        hosts[0].get("guaranteedMemoryMib").is_none(),
+        "Der Text nennt den Speicher noch als zugesichert"
     );
 }
 

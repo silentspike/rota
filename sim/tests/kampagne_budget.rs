@@ -37,7 +37,7 @@ const LAPTOP: CpuReservation = CpuReservation {
 const REFERENZ_HOST: HostRequirement = HostRequirement {
     name: "laptop",
     guaranteed_cpu_quota: Some(1.0),
-    guaranteed_memory_mib: 4096,
+    memory_limit_mib: 4096,
     cpu: LAPTOP,
     gpu_duty_cycle: 0.0,
     thermal_throttling: false,
@@ -469,7 +469,7 @@ fn ac3_das_referenzprofil_nennt_mindestressourcen() {
 
     for h in profil.hosts {
         assert!(
-            h.guaranteed_memory_mib > 0,
+            h.memory_limit_mib > 0,
             "{}: kein Speicherbudget — dann sagt der Eintrag nur, dass es die \
              Maschine gibt.",
             h.name
@@ -519,7 +519,7 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
         (
             "memory",
             HostRequirement {
-                guaranteed_memory_mib: 8192,
+                memory_limit_mib: 8192,
                 ..REFERENZ_HOST
             },
         ),
@@ -757,7 +757,7 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
 
     for h in p.hosts {
         assert!(
-            h.guaranteed_memory_mib > 0,
+            h.memory_limit_mib > 0,
             "{}: kein Speicherbudget",
             h.name
         );
@@ -791,7 +791,11 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
     // allgemeinen Eigenschaften oben bestünde auch ein Profil mit erfundenen
     // Zahlen; erst diese Zeilen machen eine stille Änderung sichtbar.
     assert_eq!(laptop.guaranteed_cpu_quota, Some(12.0));
-    assert_eq!(laptop.guaranteed_memory_mib, 4096, "Vorgabe „unter 5 GB“");
+    // Speicher ist auf BEIDEN Rechnern eine Obergrenze, keine Reservierung:
+    // auf dem Laptop die Vorgabe „unter 5 GB“, auf node3 die Vorgabe des
+    // Auftraggebers vom 2026-10-28, dass der Container nur belegt, was er
+    // gerade braucht.
+    assert_eq!(laptop.memory_limit_mib, 4096, "Vorgabe „unter 5 GB“");
     assert_eq!(
         laptop.gpu_duty_cycle, 0.0,
         "kein GPU-Pfad, also keine Grafik"
@@ -811,7 +815,10 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
         },
         "16 Stränge, nichts reserviert: die Laptop-Grenze gilt auf den Nodes nicht"
     );
-    assert_eq!(node3.guaranteed_memory_mib, 4096, "Speicher hart 4096 MiB");
+    assert_eq!(
+        node3.memory_limit_mib, 4096,
+        "Speicher höchstens 4096 MiB, nichts reserviert"
+    );
     assert_eq!(node3.gpu_duty_cycle, 0.0);
 
     let netz = p
