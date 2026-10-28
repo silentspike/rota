@@ -277,6 +277,7 @@
       "minCastTimeMs": 1000
     },
     "affliction": {
+      "name": "Trial Taint",
       "atMs": 8000,
       "perStepMs": 1000,
       "damage": 30,

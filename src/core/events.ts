@@ -44,7 +44,53 @@ export const EV_RESULT_DEFEAT = 21;
 export const EV_RESULT_BEST_TIME = 22;
 export const EV_MENU_ENTER = 23;
 
-export const EVENT_COUNT = 24;
+/**
+ * Die Boss-Ankündigungen (GAME-DESIGN 11.5, Kanal 3; Issue #797) — **angehängt**,
+ * damit keine bestehende Nummer wandert.
+ *
+ * „Eigener Klang je Ereignisart": je Warnart ein Ereignis, gesendet, wenn eine
+ * Fähigkeit der Stufe 2 oder 3 in ihre letzten Sekunden eintritt. Dazu der
+ * gesprochene Countdown von Stufe 3, je Sekunde ein eigenes Ereignis — fünf
+ * Wörter sind fünf Aufnahmen.
+ *
+ * **Die Klänge dazu gibt es noch nicht** (Stand #797). Das Verzeichnis führt sie
+ * als vorläufige Einträge mit Datei und Prompt, aber ohne Auslöser — ein Auslöser
+ * ohne Datei verlangte einen Klang, den es nicht gibt. Bis dahin laufen die
+ * Ereignisse ins Leere; danach ist der Klang ein Datensatz und keine
+ * Code-Änderung (Leitplanke 6).
+ */
+export const EV_BOSS_WARNING_DEBUFF = 24;
+export const EV_BOSS_WARNING_DAMAGE = 25;
+export const EV_BOSS_WARNING_LETHAL = 26;
+export const EV_BOSS_WARNING_OPPORTUNITY = 27;
+export const EV_BOSS_COUNTDOWN_1 = 28;
+export const EV_BOSS_COUNTDOWN_2 = 29;
+export const EV_BOSS_COUNTDOWN_3 = 30;
+export const EV_BOSS_COUNTDOWN_4 = 31;
+export const EV_BOSS_COUNTDOWN_5 = 32;
+
+export const EVENT_COUNT = 33;
+
+/**
+ * Warnart → Ereignis. Die Reihenfolge ist die der Arten in
+ * `src/combat/boss/announcements.ts` (`KIND_DEBUFF` = 0 bis `KIND_OPPORTUNITY` = 3).
+ */
+export const EV_BOSS_WARNING_BY_KIND: readonly number[] = [
+  EV_BOSS_WARNING_DEBUFF,
+  EV_BOSS_WARNING_DAMAGE,
+  EV_BOSS_WARNING_LETHAL,
+  EV_BOSS_WARNING_OPPORTUNITY,
+];
+
+/** Countdown-Sekunde → Ereignis; Platz 0 ist leer, es gibt kein „null". */
+export const EV_BOSS_COUNTDOWN_BY_SECOND: readonly number[] = [
+  -1,
+  EV_BOSS_COUNTDOWN_1,
+  EV_BOSS_COUNTDOWN_2,
+  EV_BOSS_COUNTDOWN_3,
+  EV_BOSS_COUNTDOWN_4,
+  EV_BOSS_COUNTDOWN_5,
+];
 
 /**
  * Die Namen, unter denen das Verzeichnis die Ereignisse anspricht.
@@ -77,6 +123,15 @@ export const EVENT_NAMES: readonly string[] = [
   'result.defeat',
   'result.best-time',
   'menu.enter',
+  'boss.warning.debuff',
+  'boss.warning.damage',
+  'boss.warning.lethal',
+  'boss.warning.opportunity',
+  'boss.countdown.1',
+  'boss.countdown.2',
+  'boss.countdown.3',
+  'boss.countdown.4',
+  'boss.countdown.5',
 ];
 
 /**
