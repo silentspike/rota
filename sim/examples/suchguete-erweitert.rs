@@ -40,8 +40,9 @@ use rota_sim::balance::BalanceConfig;
 use rota_sim::data::boss_by_id;
 use rota_sim::factors::NEUTRAL;
 use rota_sim::rotation_search::{
-    all_candidates, exhaustive, greedy_opts, measure, Candidate, Measured, Origin,
+    all_candidates, boss_kandidaten, exhaustive, greedy_opts, measure, Candidate, Measured, Origin,
 };
+use rota_sim::SPELLS;
 
 /// Dieselben vier Bosse wie in `suchguete`.
 const BOSSE: [&str; 4] = ["boss-1-1", "boss-1-2", "boss-1-3", "boss-1-4"];
@@ -109,6 +110,36 @@ fn faelle() -> Vec<Fall> {
             }
         })
         .collect()
+}
+
+/// Der Raum, den `greedy` an diesem Boss **tatsächlich** durchsucht (#1088).
+///
+/// # Warum die Vergleichsverfahren nicht mehr den blanken Vorrat bekommen
+///
+/// Seit #1088 legt `greedy_zuege` an einem doom-Boss für jeden Zauber im
+/// Vorrat, der doom senkt, eine bedingte Zeile dazu ([`boss_kandidaten`]).
+/// Die Verfahren dieser Datei — erschöpfend, Beam, QD — bekamen weiter nur
+/// `fall.pool` und suchten damit in einem kleineren Raum als `greedy`. Die
+/// Zusicherung „Zug für Zug dasselbe Verfahren" unten brach daran in Fall 1
+/// (`boss-1-2`, Länge 3): 46 Messungen gegen greedys 52, denn die eine
+/// ergänzte `purge`-Zeile wurde in drei Runden an 1 + 2 + 3 Stellen gemessen
+/// und nie gewählt. Der Läufer endete dort mit Exit 101 und druckte seine
+/// Tabelle nie.
+///
+/// Belegt am Bau vor und nach #1088 (`65ade0e5` gegen `342022b7`, #1041):
+/// davor Exit 0 mit Tabelle, danach Exit 101 in Fall 1 — bei unveränderter
+/// Beispieldatei.
+///
+/// # Warum `greedy` und LNS weiter den blanken Vorrat bekommen
+///
+/// `greedy` ergänzt selbst. Bekäme es diesen Raum, legte es die doom-Zeile
+/// ein zweites Mal dazu; sie stünde doppelt zur Wahl und würde doppelt
+/// gemessen. Dass beide Räume gleich sind, prüft die Zusicherung in `main`
+/// an greedys eigener Meldung [`rota_sim::rotation_search::SearchResult::ergaenzt`].
+fn suchraum(config: &BalanceConfig, pool: &[Candidate]) -> Vec<Candidate> {
+    let mut raum = pool.to_vec();
+    raum.extend(boss_kandidaten(config, pool));
+    raum
 }
 
 /// Beam Search mit Breite `k` — **hängt nur an**.
@@ -487,31 +518,66 @@ fn main() {
     let mut b_lns = Bilanz::default();
     let mut b_qd = Bilanz::default();
     let mut nischen_gesamt = 0usize;
+    let mut messungen_erschoepfend = 0usize;
+    // Wie viele Faelle einen Raum ueber den Vorrat hinaus haben, und mit
+    // welchen Zaubern — die Zahl, die zeigt, dass `suchraum` hier ueberhaupt
+    // etwas aendert. Steht sie auf 0, ist `raum` in jedem Fall der Vorrat.
+    let mut faelle_ergaenzt = 0usize;
+    let mut namen_ergaenzt: Vec<String> = Vec::new();
 
     for fall in &faelle {
         let cfg = config(fall.boss);
-        let exakt = exhaustive(&cfg, &fall.pool, fall.max_len);
+        // Erschoepfend, Beam und QD suchen in greedys Raum, `greedy` und LNS
+        // bekommen den Vorrat und ergaenzen selbst — siehe `suchraum`.
+        let raum = suchraum(&cfg, &fall.pool);
+        let exakt = exhaustive(&cfg, &raum, fall.max_len);
         let optimum = exakt.best.mean;
+        messungen_erschoepfend += exakt.measured;
 
         let g = greedy_opts(&cfg, &fall.pool, fall.max_len, &[], false);
         b_greedy.buchen(fall.nummer, g.best.mean, optimum, g.measured);
         let p = greedy_opts(&cfg, &fall.pool, fall.max_len, &[], true);
         b_paare.buchen(fall.nummer, p.best.mean, optimum, p.measured);
 
+        // **Gleicher Raum, an greedys eigener Meldung geprueft.** `suchraum`
+        // rechnet die Ergaenzung nach; ob greedy dieselbe gebildet hat, sagt
+        // nur `g.ergaenzt`. Ergaenzt greedy eines Tages anders oder mehr, steht
+        // es hier mit beiden Listen — statt weiter unten als Differenz in den
+        // Messungen, die keinen Namen traegt.
+        let ergaenzt_hier: Vec<String> = raum[fall.pool.len()..]
+            .iter()
+            .map(|k| SPELLS[k.spell].id.to_string())
+            .collect();
+        assert_eq!(
+            g.ergaenzt, ergaenzt_hier,
+            "Fall {}: greedy ergaenzte {:?}, `suchraum` {:?} — dann suchen die Verfahren \
+             dieses Laeufers nicht in greedys Raum",
+            fall.nummer, g.ergaenzt, ergaenzt_hier
+        );
+        if !ergaenzt_hier.is_empty() {
+            faelle_ergaenzt += 1;
+            for name in ergaenzt_hier {
+                if !namen_ergaenzt.contains(&name) {
+                    namen_ergaenzt.push(name);
+                }
+            }
+        }
+
         for (i, &k) in BEAM_BREITEN.iter().enumerate() {
-            let (wert, m) = beam(&cfg, &fall.pool, fall.max_len, k);
+            let (wert, m) = beam(&cfg, &raum, fall.max_len, k);
             b_beam[i].buchen(fall.nummer, wert, optimum, m);
 
-            let (wo, mo) = beam_einfuegen(&cfg, &fall.pool, fall.max_len, k, false);
+            let (wo, mo) = beam_einfuegen(&cfg, &raum, fall.max_len, k, false);
             b_ein_ohne[i].buchen(fall.nummer, wo, optimum, mo);
-            let (wm, mm) = beam_einfuegen(&cfg, &fall.pool, fall.max_len, k, true);
+            let (wm, mm) = beam_einfuegen(&cfg, &raum, fall.max_len, k, true);
             b_ein_mit[i].buchen(fall.nummer, wm, optimum, mm);
 
             // **Die schaerfste Zusicherung, die dieser Laeufer hergibt.** Bei
             // k = 1 ist `beam_einfuegen` mit Abbruch nicht bloss „ungefaehr
             // wie" `greedy` ohne Paare, sondern Zug fuer Zug dasselbe
-            // Verfahren: gleicher Suchraum, gleiche Schwelle, gleicher
-            // Abbruch. Dann muessen Wert UND Messungszahl in JEDEM Fall
+            // Verfahren: gleicher Suchraum (`suchraum` — seit #1088 nicht
+            // mehr der blanke Vorrat), gleiche Schwelle, gleicher Abbruch.
+            // Dann muessen Wert UND Messungszahl in JEDEM Fall
             // uebereinstimmen — nicht nur die Summe unten in der Tabelle.
             //
             // Eine Summe kann sich ausgleichen; 60 einzelne Gleichheiten
@@ -540,7 +606,7 @@ fn main() {
         let (l, lm) = lns(&cfg, &fall.pool, fall.max_len);
         b_lns.buchen(fall.nummer, l, optimum, lm);
 
-        let (q, qm, nischen) = qd(&cfg, &fall.pool, fall.max_len);
+        let (q, qm, nischen) = qd(&cfg, &raum, fall.max_len);
         b_qd.buchen(fall.nummer, q, optimum, qm);
         nischen_gesamt += nischen;
     }
@@ -560,19 +626,21 @@ fn main() {
     }
     b_lns.zeile("LNS");
     b_qd.zeile("QD (Archiv)");
+    // Die Summe aus der Schleife, nicht ein zweiter Durchgang: Der fruehere
+    // rechnete hier noch einmal ueber `f.pool` und haette damit einen anderen
+    // Raum gezaehlt als die Zeile `optimum` oben.
     println!(
         "  {:<22} {:>2} / {FAELLE}  100.0 %      0.00 %     0.00 %   {:>8}   —",
-        "erschoepfend",
-        FAELLE,
-        faelle
-            .iter()
-            .map(|f| exhaustive(&config(f.boss), &f.pool, f.max_len).measured)
-            .sum::<usize>()
+        "erschoepfend", FAELLE, messungen_erschoepfend
     );
     println!();
     println!(
         "  QD-Archiv: {:.1} Nischen je Fall im Mittel",
         nischen_gesamt as f64 / FAELLE as f64
+    );
+    println!(
+        "  Suchraum ueber den Vorrat hinaus (#1088): {faelle_ergaenzt} von {FAELLE} Faellen, \
+         Zauber {namen_ergaenzt:?}"
     );
     println!();
     println!("  Regret-M ist das Mittel ueber die VERFEHLTEN Faelle, nicht ueber alle.");

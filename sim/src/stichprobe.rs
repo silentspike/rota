@@ -106,21 +106,64 @@ pub fn budget_am_haltepunkt(k: u32, alpha: f64) -> f64 {
 /// Die Wahrscheinlichkeit, bei `n` Versuchen mit Erfolgsrate `p` **höchstens**
 /// `k` Fehler zu sehen.
 ///
-/// Die Binomial-Verteilungsfunktion, aufsummiert. Sie wird über einen
-/// fortlaufenden Faktor gebildet statt über Fakultäten — `C(n,i)` läuft sonst
-/// schon bei dreistelligem `n` über.
+/// Die Binomial-Verteilungsfunktion, aufsummiert — **im Log-Raum** und über die
+/// **kürzere Flanke** der Verteilung.
+///
+/// # Warum im Log-Raum (Issue #915, AC3)
+///
+/// Die erste Fassung rechnete die Glieder direkt und begann mit `p^n`. Bei
+/// kleiner Erfolgsrate unterläuft dieser Startterm zu `0.0`, und alle weiteren
+/// Glieder entstehen als Vielfache davon — die ganze Summe blieb null. Genau
+/// das trifft die gespiegelte Obergrenze in [`gestaffelt`]: Dort ist die
+/// Erfolgsrate der Spiegelung die FEHLERrate, also klein. Gemessen
+/// (`tests/stichprobe_grenzen.rs`): Nach EINEM Fehler bei Versuch 600 meldete
+/// die Folge die Schwelle 0,999 bei 1024 Versuchen als sicher verfehlt, und
+/// die Obergrenze stand dort bei 0,517 statt bei 0,99999993.
+///
+/// Dazu kam `n as i32`: Ab `n = 2^31` kippte der Exponent ins Negative, ab
+/// `2^32` auf null. Die Stichprobe hat keine feste Obergrenze, also ist das
+/// kein theoretischer Rand.
+///
+/// Im Log-Raum gibt es weder das eine noch das andere: Der Startterm ist
+/// `n · ln p`, eine gewöhnliche negative Zahl, und `n` geht als `f64` ein.
+///
+/// # Warum über die kürzere Flanke
+///
+/// Summiert werden höchstens `min(k + 1, n - k)` Glieder. Liegt `k` in der
+/// oberen Hälfte, wird das Gegenereignis gerechnet — „mindestens `k + 1`
+/// Fehler" ist dasselbe wie „höchstens `n - k - 1` Erfolge" — und von eins
+/// abgezogen, über `exp_m1`, damit kleine Ergebnisse nicht in der Subtraktion
+/// verschwinden. Die gespiegelte Obergrenze nach einem Fehler kostet dadurch
+/// ein Glied statt `n`.
+///
+/// **Am Wert sieht man die Flanke kaum**: Die direkte Summe käme auf fast
+/// dieselbe Zahl, nur über bis zu `n` Glieder und mit deren Rundung —
+/// gemessen bei `n = 2^20, k = n - 1, p = 2^-60` relativ `5·10⁻⁸` daneben
+/// (Gegenprobe `if k < n`, Issue #915). Der Prüffall
+/// `summiert_wird_ueber_die_kuerzere_flanke` zählt deshalb die Glieder.
+///
+/// Die Laufzeit ist damit linear in `min(k, n - k)`, je Aufruf; [`untergrenze`]
+/// ruft die Funktion 200-mal.
 #[must_use]
 pub fn hoechstens_k_fehler(n: u64, k: u64, p: f64) -> f64 {
+    hoechstens_k_fehler_gezaehlt(n, k, p).0
+}
+
+/// [`hoechstens_k_fehler`], dazu die Zahl der summierten Glieder.
+///
+/// Die Zahl gibt es nur für den Prüffall zur Wahl der Flanke. Ohne Summe
+/// (Randfälle oben) ist sie null.
+fn hoechstens_k_fehler_gezaehlt(n: u64, k: u64, p: f64) -> (f64, u64) {
     if k >= n {
-        return 1.0;
+        return (1.0, 0);
     }
     if p >= 1.0 {
         // Bei sicherer Erfolgsrate gibt es null Fehler, also höchstens k.
-        return 1.0;
+        return (1.0, 0);
     }
     if p <= 0.0 {
         // Bei sicherem Fehlschlag sind es n Fehler — mehr als k.
-        return 0.0;
+        return (0.0, 0);
     }
     // **`p` ist die ERFOLGSrate.** Ein Fehler tritt mit `1 - p` ein, also ist
     // die Wahrscheinlichkeit für genau `i` Fehler `C(n,i)·(1−p)^i·p^(n−i)`.
@@ -129,15 +172,57 @@ pub fn hoechstens_k_fehler(n: u64, k: u64, p: f64) -> f64 {
     // für null Fehler) und lieferte bei `n = 1, k = 0, alpha = 0,01` den Wert
     // 0,99 statt 0,01 — die Gegenprobe gegen die geschlossene Formel hat es
     // gefangen, das Lesen nicht.
-    let fehlerrate = 1.0 - p;
-    // i = 0: p^n, danach jeweils mal (n−i+1)/i · (1−p)/p.
-    let mut term = p.powi(n as i32);
-    let mut summe = term;
-    for i in 1..=k {
-        term *= ((n - i + 1) as f64 / i as f64) * (fehlerrate / p);
-        summe += term;
+    //
+    // Beide Logarithmen werden aus `p` selbst gebildet: `ln(1 - p)` über
+    // `ln_1p(-p)`, damit eine kleine Erfolgsrate nicht erst in `1 - p` gerundet
+    // wird (festgehalten in `tests/stichprobe_grenzen.rs`,
+    // `eine_winzige_erfolgsrate_wird_nicht_erst_gerundet`). Beim Gegenereignis
+    // tauschen sie nur die Rollen.
+    let ln_erfolg = p.ln();
+    let ln_fehler = (-p).ln_1p();
+    if k < n - k {
+        let (ln, glieder) = ln_hoechstens(n, k, ln_erfolg, ln_fehler);
+        (ln.exp().min(1.0), glieder)
+    } else {
+        // `k < n` ist oben geprüft, also ist `n - k - 1` kein Unterlauf.
+        let (ln, glieder) = ln_hoechstens(n, n - k - 1, ln_fehler, ln_erfolg);
+        ((-ln.exp_m1()).clamp(0.0, 1.0), glieder)
     }
-    summe.min(1.0)
+}
+
+/// `ln` der Wahrscheinlichkeit für höchstens `k` Fehler in `n` Versuchen —
+/// gegeben als die beiden Logarithmen von Erfolgs- und Fehlerrate —, dazu die
+/// Zahl der summierten Glieder.
+///
+/// Die Glieder entstehen über denselben fortlaufenden Faktor wie vorher, nur
+/// addiert statt multipliziert: Glied `i` ist Glied `i - 1` plus
+/// `ln((n - i + 1) / i) + ln(Fehlerrate) - ln(Erfolgsrate)`. Fakultäten kommen
+/// nicht vor, `C(n,i)` liefe sonst schon bei dreistelligem `n` über.
+///
+/// Summiert wird als log-sum-exp mit laufendem Maximum: Jedes Glied wird
+/// relativ zum größten bisher gesehenen genommen, also bleibt jede einzelne
+/// Exponentialfunktion im Bereich bis eins, und die Summe läuft weder über noch
+/// unter.
+fn ln_hoechstens(n: u64, k: u64, ln_erfolg: f64, ln_fehler: f64) -> (f64, u64) {
+    let n_f = n as f64;
+    let schritt = ln_fehler - ln_erfolg;
+    // i = 0: alle n Versuche gelingen, ln(p^n) = n · ln p.
+    let mut glied = n_f * ln_erfolg;
+    let mut groesstes = glied;
+    let mut summe = 1.0f64;
+    let mut glieder = 1u64;
+    for i in 1..=k {
+        let i_f = i as f64;
+        glied += ((n_f - i_f + 1.0) / i_f).ln() + schritt;
+        if glied > groesstes {
+            summe = summe * (groesstes - glied).exp() + 1.0;
+            groesstes = glied;
+        } else {
+            summe += (glied - groesstes).exp();
+        }
+        glieder += 1;
+    }
+    (groesstes + summe.ln(), glieder)
 }
 
 /// Die einseitige untere Schranke für die Erfolgsrate bei `k` Fehlern in `n`
@@ -421,5 +506,28 @@ mod tests {
              der Vergleich oben nichts"
         );
         println!("konstantes Budget über 100 Haltepunkte: {summe} statt {alpha}");
+    }
+
+    /// **Summiert wird über die kürzere Flanke: höchstens `min(k + 1, n - k)`
+    /// Glieder.**
+    ///
+    /// Am Wert zeigt sich die Flanke nur als Rundung der langen Summe; gezählt
+    /// werden deshalb die Glieder. Der Fall, um den es geht, ist die
+    /// gespiegelte Obergrenze nach einem Fehler in [`gestaffelt`]: `k = n - 1`,
+    /// ein Glied statt `n`. Dazu beide Seiten der Mitte, an der die Flanke
+    /// wechselt.
+    #[test]
+    fn summiert_wird_ueber_die_kuerzere_flanke() {
+        let n = 1u64 << 20;
+        for k in [0, 1, 3, n / 2 - 1, n / 2, n - 4, n - 2, n - 1] {
+            let (_, glieder) = hoechstens_k_fehler_gezaehlt(n, k, 0.5);
+            assert_eq!(
+                glieder,
+                (k + 1).min(n - k),
+                "n = {n}, k = {k}: {glieder} Glieder summiert"
+            );
+        }
+        let (_, gespiegelt) = hoechstens_k_fehler_gezaehlt(n, n - 1, 0.5);
+        println!("n = 2^20, k = n - 1: {gespiegelt} Glied statt {n}");
     }
 }

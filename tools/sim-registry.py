@@ -148,6 +148,17 @@ def validate(registry, plan, assignments=None):
     for entry in entries:
         if entry.get('phase') is not None and entry['phase'] not in phase_ids:
             errors.append(f'{entry["id"]}: unknown phase {entry["phase"]}')
+    # Plan 4.0: phases follow prerequisites. 'fortlaufend' runs alongside every phase, so it has no rank.
+    rank = {phase['id']: index for index, phase in enumerate(registry.get('phases', []))
+            if phase['id'] != 'fortlaufend'}
+    for entry in entries:
+        phase = entry.get('phase')
+        if phase not in rank:
+            continue
+        for dep in entry.get('depends_on', []):
+            dep_phase = indexed.get(dep, {}).get('phase')
+            if dep_phase in rank and rank[dep_phase] > rank[phase]:
+                errors.append(f'{entry["id"]}: phase {phase} precedes prerequisite {dep} in phase {dep_phase}')
     assigned_files = {}
     for ident, worker in (assignments or {}).items():
         if ident not in indexed:

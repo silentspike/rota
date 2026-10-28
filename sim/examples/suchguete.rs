@@ -40,7 +40,10 @@
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::boss_by_id;
 use rota_sim::factors::NEUTRAL;
-use rota_sim::rotation_search::{all_candidates, exhaustive, greedy_opts, Candidate};
+use rota_sim::rotation_search::{
+    all_candidates, boss_kandidaten, exhaustive, greedy_opts, Candidate,
+};
+use rota_sim::SPELLS;
 
 /// Die Bosse, über die die Fälle streuen.
 ///
@@ -136,6 +139,27 @@ fn faelle() -> Vec<Fall> {
         .collect()
 }
 
+/// Der Raum, den `greedy` an diesem Boss **tatsächlich** durchsucht (#1088).
+///
+/// Seit #1088 legt `greedy_zuege` an einem doom-Boss für jeden Zauber im
+/// Vorrat, der doom senkt, eine bedingte Zeile dazu ([`boss_kandidaten`]).
+/// Der Bezugspunkt muss denselben Raum absuchen. Sonst ist „Optimum" das
+/// eines kleineren Raums, und ein `greedy`, das mit der ergänzten Zeile
+/// darüber hinauskäme, würde hier als Verfehlen gebucht.
+///
+/// Gemessen am 2026-10-28 (#1041): Das betrifft 3 der 60 Fälle (`boss-1-2`,
+/// `purge`), und in keinem ändert die Zeile das Optimum — geändert hat sich
+/// nur die Messungszahl der erschöpfenden Suche. In `suchguete-erweitert`
+/// brach derselbe Unterschied eine Zusicherung; dort steht der Beleg.
+///
+/// `greedy` selbst bekommt weiter den Vorrat: Es ergänzt selbst, und mit
+/// diesem Raum stünde die Zeile doppelt zur Wahl.
+fn suchraum(config: &BalanceConfig, pool: &[Candidate]) -> Vec<Candidate> {
+    let mut raum = pool.to_vec();
+    raum.extend(boss_kandidaten(config, pool));
+    raum
+}
+
 /// Was ein Verfahren über alle Fälle geleistet hat.
 #[derive(Default)]
 struct Bilanz {
@@ -210,14 +234,40 @@ fn main() {
     let mut mit_paaren = Bilanz::default();
     let mut erschoepfend = Bilanz::default();
     let mut verfehlt: Vec<(usize, &'static str, usize, usize, f64, f64)> = Vec::new();
+    // Die Zahl, die zeigt, dass `suchraum` hier ueberhaupt etwas aendert.
+    let mut faelle_ergaenzt = 0usize;
+    let mut namen_ergaenzt: Vec<String> = Vec::new();
 
     for fall in &liste {
         let cfg = config(fall.boss);
-        let exakt = exhaustive(&cfg, &fall.pool, fall.max_len);
+        // Der Bezugspunkt sucht in greedys Raum, `greedy` bekommt den Vorrat
+        // und ergaenzt selbst — siehe `suchraum`.
+        let raum = suchraum(&cfg, &fall.pool);
+        let exakt = exhaustive(&cfg, &raum, fall.max_len);
         let optimum = exakt.best.mean;
 
         let ohne = greedy_opts(&cfg, &fall.pool, fall.max_len, &[], false);
         let mit = greedy_opts(&cfg, &fall.pool, fall.max_len, &[], true);
+
+        // Gleicher Raum, an greedys eigener Meldung geprueft statt angenommen.
+        let ergaenzt_hier: Vec<String> = raum[fall.pool.len()..]
+            .iter()
+            .map(|k| SPELLS[k.spell].id.to_string())
+            .collect();
+        assert_eq!(
+            ohne.ergaenzt, ergaenzt_hier,
+            "Fall {}: greedy ergaenzte {:?}, `suchraum` {:?} — dann sucht der Bezugspunkt \
+             nicht in greedys Raum",
+            fall.nummer, ohne.ergaenzt, ergaenzt_hier
+        );
+        if !ergaenzt_hier.is_empty() {
+            faelle_ergaenzt += 1;
+            for name in ergaenzt_hier {
+                if !namen_ergaenzt.contains(&name) {
+                    namen_ergaenzt.push(name);
+                }
+            }
+        }
 
         erschoepfend.buchen(fall.nummer, optimum, optimum, exakt.measured);
         ohne_paare.buchen(fall.nummer, ohne.best.mean, optimum, ohne.measured);
@@ -244,6 +294,11 @@ fn main() {
     ohne_paare.zeile("greedy ohne Paare", FAELLE);
     mit_paaren.zeile("greedy mit Paaren", FAELLE);
     erschoepfend.zeile("erschoepfend", FAELLE);
+    println!();
+    println!(
+        "  Suchraum ueber den Vorrat hinaus (#1088): {faelle_ergaenzt} von {FAELLE} Faellen, \
+         Zauber {namen_ergaenzt:?}"
+    );
     println!();
     println!("  Regret-M ist das Mittel ueber die VERFEHLTEN Faelle, nicht ueber alle —");
     println!("  sonst verduennen die Treffer die Zahl und sie sinkt, je besser das");

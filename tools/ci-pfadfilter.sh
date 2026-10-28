@@ -52,6 +52,8 @@ STANDARD=(
   .cargo-remote.toml
   tools/step1-check.py
   tools/groessen-hebel.py
+  tools/rust-pin.py
+  tools/wirkung-baubruch-gegenprobe.py
   .github/workflows/ci.yml
   .github/workflows/nightly.yml
   .github/workflows/meta.yml
