@@ -23,6 +23,12 @@ Auswertungen zählt der Strang, der sie angestoßen hat, einmal je Lauf. Die
 Zeile, der Strom, die Zeile „Kaempfe gerechnet" jedes Befehls und die
 Durchsatzzahlen der Messumgebung lesen alle dasselbe Zählwerk.
 
+Der Bericht einer Suche nennt zwei Zahlen, die verschiedene Dinge zählen:
+„Messungen" sind die Züge, die die Suche gegeneinander gehalten hat
+(`SearchResult::measured`); „Auswertungen" sind alle abgeschlossenen
+Auswertungen aus dem Zählwerk, also zusätzlich die Startliste und die
+gefundene Liste. Die Anzeige und der Strom zeigen die Auswertungen.
+
 `rota-sim` führte bis #933 einen eigenen Zähler. Er zählte die **angeforderten**
 Kämpfe; ohne Würfel rechnet ein Lauf aber genau einen (#908). `bench` hat
 deshalb bis #933 die angeforderte Zahl durch die Zeit eines einzigen Kampfes

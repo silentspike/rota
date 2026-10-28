@@ -1057,6 +1057,8 @@ pub fn greedy_zuege(
         crate::fortschritt::bestes(best.mean);
     };
 
+    // Die Messung der gefundenen Liste zählt zur letzten Runde (#933).
+    crate::fortschritt::schlussmessung();
     SearchResult {
         best: measure(config, "gefunden", &chosen),
         chosen,
@@ -1086,7 +1088,9 @@ pub fn greedy_zuege(
 /// Sicher kostet die Runde ihre Einzel- und Paarzüge; die Dreiergruppen
 /// kommen nur, wenn kein Einzelzug trägt, und melden sich dann selbst
 /// ([`crate::fortschritt::runde_ergaenzt`]). Beide Grenzen tragen eins mehr:
-/// die Messung der gefundenen Liste nach der letzten Runde.
+/// die Messung der gefundenen Liste nach der letzten Runde. In den Plan der
+/// Runde kommt sie erst, wenn feststeht, dass es die letzte war
+/// ([`crate::fortschritt::schlussmessung`]).
 fn melde_runde(
     runde: u64,
     pool: &[Candidate],
