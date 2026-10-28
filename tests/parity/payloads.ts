@@ -48,6 +48,7 @@ import {
 } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
+import { driveRotation } from '../../src/devtools/reference-run.js';
 export { productionPhasesPayload, PRODUCTION_PHASES_NAME } from './phase-bindings-production.js';
 import {
   POOL_CATALYSIS,
@@ -3818,6 +3819,220 @@ export function sublimePayload(): Record<string, unknown> {
       /** Wie oft der Merker stand — null hieße, er wird nie gesetzt. */
       merkerTakte: merker.reduce((a, b) => a + b, 0),
     },
+  };
+}
+
+export const GCD_FREI_NAME = 'gcd-freier-wurf';
+
+/** Die Leiste dieser Aufzeichnung — VOR der Funktion (Issue #405). */
+const GCD_FREI_BINDINGS = [
+  { slot: 0, spellId: 'quench' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'kindle' },
+  { slot: 3, spellId: 'sublime' },
+] as const;
+
+/**
+ * Eine Zeile der Prioritätenliste, **zweimal an derselben Stelle geschrieben**:
+ * als Text für den Simulator (`bedingung`, Sprache aus `sim/src/apl`) und als
+ * Funktion für diese Seite (`gilt`). Getrennt in zwei Dateien liefen sie
+ * auseinander, ohne dass es jemand sähe — dieselbe Lage wie bei `aplGood` und
+ * `step1-good.apl` (`sim/tests/apl_paritaets_luecke.rs`).
+ */
+interface GcdFreiZeile {
+  readonly spellId: string;
+  /** Leer heißt „ohne Bedingung". */
+  readonly bedingung: string;
+  readonly gilt: (combat: Combat, timeMs: number) => boolean;
+}
+
+const OHNE_BEDINGUNG = (): boolean => true;
+
+function smoulderRest(combat: Combat, timeMs: number): number {
+  return combat.dotRemainingMs(combat.indexOf('smoulder'), timeMs);
+}
+
+/**
+ * Die Läufe dieser Aufzeichnung, je 30 s an `first-crucible` — wie die
+ * `gcd`-Proben aus `sim/examples/e1027-operator-measure.rs`, damit die Zahlen
+ * des Berichts `docs/APL-STRICT-COMPARISON-2026-10-24.md` hier nachzulesen sind.
+ */
+const GCD_FREI_LAEUFE: readonly { name: string; zeilen: readonly GcdFreiZeile[] }[] = [
+  {
+    // QUENCH vor dem Füller, ohne jede zeitabhängige Bedingung. Hier warf der
+    // Simulator den Füller erst bei 2000 statt bei 10 (#1027).
+    name: 'quench-fueller',
+    zeilen: [
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // Die strikte Nachlegezeile der Suche neben QUENCH: QUENCH fällt auf das
+    // GCD-Ende, an dem SMOULDER genau auf 1500 steht. `< 1500` ist dort falsch
+    // und wird einen Takt später wahr — die Lage, in der sich 14 der 15
+    // verschobenen Suchen des Berichts trennen.
+    name: 'quench-nachlegen-strikt',
+    zeilen: [
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains < 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) < 1500,
+      },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // Dieselbe Lage, aber genau getroffen: QUENCH fällt auf das GCD-Ende bei
+    // 10500, an dem SMOULDER (gewirkt bei 0) genau auf 1500 steht. `< 1500`
+    // ist dort falsch und einen Takt später wahr, ohne dass dazwischen ein
+    // Ereignis liegt. `time >= 10500` setzt nur den Zeitpunkt.
+    name: 'quench-auf-der-schwelle',
+    zeilen: [
+      {
+        spellId: 'quench',
+        bedingung: 'time >= 10500',
+        gilt: (_combat, timeMs) => timeMs >= 10500,
+      },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains < 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) < 1500,
+      },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // Ohne Füller: Zwischen den Würfen wird gewartet, und QUENCH fällt mitten
+    // in diese Wartezeit. Hier hängt der Leerlauf an beidem — am Weckruf der
+    // Nachlegezeile und an der Entscheidung nach dem freien Wurf.
+    name: 'quench-ohne-fueller',
+    zeilen: [
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains <= 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) <= 1500,
+      },
+    ],
+  },
+  {
+    // Der Wurf, den SUBLIME befreit, löst keine Wartezeit aus — danach ist die
+    // Lage dieselbe wie nach QUENCH, nur über einen anderen Weg.
+    name: 'sublime-befreit',
+    zeilen: [
+      { spellId: 'sublime', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains <= 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) <= 1500,
+      },
+    ],
+  },
+  {
+    // Die Gegenprobe OHNE freien Wurf: nur Warten auf die Uhr. Sie trennt den
+    // Leerlauf vom freien Wurf — zählt der Simulator hier falsch, liegt es am
+    // Zählen selbst.
+    name: 'warten-auf-die-uhr',
+    zeilen: [
+      {
+        spellId: 'kindle',
+        bedingung: 'time >= 5000',
+        gilt: (_combat, timeMs) => timeMs >= 5000,
+      },
+    ],
+  },
+];
+
+/**
+ * Was nach einem Wurf ohne Wartezeit geschieht (Issue #1027).
+ *
+ * Gefahren wird die Schleife von `runReference` selbst
+ * ({@link driveRotation}): eine Entscheidung je Takt, nur bei bereiter
+ * Wartezeit. Die Aufzeichnung hält deshalb zweierlei fest — die Drücke, die
+ * die Rust-Seite wie jede andere Aufzeichnung abspielt, und **wann die Liste
+ * entschieden hat**, samt Leerlauf. Gegen das Zweite fährt
+ * `sim/tests/parity_gcd_freier_wurf.rs` dieselbe Liste durch den Simulator.
+ */
+export function gcdFreiPayload(): Record<string, unknown> {
+  const boss = bossById('first-crucible');
+  if (boss === undefined) throw new Error('Der Boss first-crucible fehlt.');
+  const ticks = 3000; // 30 s
+
+  const runs = GCD_FREI_LAEUFE.map(({ name, zeilen }) => {
+    const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+    const regeln = zeilen.map((zeile) => {
+      const index = combat.indexOf(zeile.spellId);
+      if (index < 0) throw new Error(`Den Zauber ${zeile.spellId} gibt es nicht.`);
+      return { index, gilt: zeile.gilt };
+    });
+    const presses: RecordedPress[] = [];
+    const press = pressRecorder(combat, GCD_FREI_BINDINGS, presses);
+
+    const ergebnisDerListe = driveRotation(
+      combat,
+      // Dieselbe Regel wie `Apl::decide`: die erste Zeile, deren Zauber bereit
+      // ist und deren Bedingung gilt.
+      (timeMs) => {
+        for (const regel of regeln) {
+          if (combat.isReady(regel.index, timeMs) && regel.gilt(combat, timeMs)) return regel.index;
+        }
+        return -1;
+      },
+      ticks * TICK_MS,
+      false,
+      (spell, timeMs) => {
+        press(spell, timeMs / TICK_MS, timeMs);
+      },
+    );
+    // **Ein Sieg verschöbe die Läufe gegeneinander:** Die Schleife rechnet
+    // ohne Abbruch weiter, `replayRecording` bricht beim Sieg ab. Die Läufe
+    // sind so gewählt, dass keiner den Boss legt — und das steht hier als
+    // Bedingung, nicht als Annahme.
+    if (ergebnisDerListe.killedAtMs >= 0) {
+      throw new Error(`Der Lauf ${name} legt den Boss bei ${ergebnisDerListe.killedAtMs} ms.`);
+    }
+
+    const ergebnis = replayRecording(
+      { name, seed: 0, ticks, presses, bindings: GCD_FREI_BINDINGS },
+      { checksumPerTick: true, boss },
+    );
+
+    return {
+      name,
+      apl: zeilen
+        .map((z) => (z.bedingung === '' ? z.spellId : `${z.spellId} if ${z.bedingung}`))
+        .join('\n'),
+      presses: presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+      expected: {
+        damage: ergebnis.damage,
+        killedAtMs: ergebnis.killedAtMs,
+        accepted: ergebnis.accepted,
+        rejected: ergebnis.rejected,
+        casts: ergebnis.casts,
+        /**
+         * **Aus der Schleife, nicht aus dem Abspielen.** `replayRecording`
+         * kennt keinen Leerlauf — es spielt Drücke ab, statt zu entscheiden.
+         */
+        idleMs: ergebnisDerListe.idleMs,
+        finalChecksum: ergebnis.finalChecksum,
+        sequenceChecksum: ergebnis.sequenceChecksum,
+      },
+      checksums: ergebnis.checksums,
+    };
+  });
+
+  return {
+    schema: SCHEMA,
+    name: GCD_FREI_NAME,
+    bossId: boss.id,
+    seed: 0,
+    ticks,
+    tickMs: TICK_MS,
+    bindings: GCD_FREI_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    runs,
   };
 }
 

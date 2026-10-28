@@ -160,6 +160,62 @@ export interface ReferenceOptions {
   readonly worn?: WornValues;
 }
 
+/** Was die Schleife unter einer Prioritätenliste ausser dem Kampf selbst hinterlässt. */
+export interface DriveOutcome {
+  /** Kampfzeit des Sieges in ms, oder -1, wenn der Boss überlebt hat. */
+  readonly killedAtMs: number;
+  /** Je Takt, in dem gewirkt werden durfte und die Liste nichts wählte, 10 ms. */
+  readonly idleMs: number;
+}
+
+/**
+ * Die Schleife hinter {@link runReference}, für eine beliebige Prioritätenliste
+ * (Issue #1027).
+ *
+ * **Eine Entscheidung je Takt, und nur, wenn die globale Wartezeit bereit ist.**
+ * Daraus folgt, was nach einem Wurf ohne Wartezeit geschieht (QUENCH, oder der
+ * Wurf, den SUBLIME befreit): Die Wartezeit bleibt bereit, also entscheidet die
+ * Liste im nächsten Takt erneut — nicht im selben und nicht erst beim nächsten
+ * Ereignis. Der Simulator muss das bitgleich nachbilden; geprüft wird es an
+ * `tests/parity/recordings/gcd-freier-wurf.json`.
+ *
+ * **Eine eigene Funktion, damit die Aufzeichnung DIESE Schleife fährt** und
+ * keinen Nachbau. Bis #1027 stand sie nur in `runReference`, fest verdrahtet mit
+ * den vier Rotationen aus Schritt 1 — eine Aufzeichnung mit QUENCH hätte sie
+ * abschreiben müssen, und eine Abschrift ist genau die zweite Quelle, die
+ * plausibel antwortet und nichts belegt.
+ *
+ * @param choose Der gewählte Zauber-Index, oder -1 für warten.
+ * @param cast Wirkt den gewählten Zauber; die Aufzeichnung schreibt hier mit.
+ */
+export function driveRotation(
+  combat: Combat,
+  choose: (timeMs: number) => number,
+  durationMs: number,
+  stopOnKill: boolean,
+  cast: (spell: SpellIndex, timeMs: number) => void,
+): DriveOutcome {
+  let killedAtMs = -1;
+  let idleMs = 0;
+  let timeMs = 0;
+
+  while (timeMs < durationMs) {
+    combat.stepPassive(timeMs);
+    if (killedAtMs < 0 && combat.damageDealt >= combat.boss.hp) {
+      killedAtMs = timeMs;
+      if (stopOnKill) break;
+    }
+    if (combat.gcd.isReady(timeMs)) {
+      const choice = choose(timeMs);
+      if (choice === IDLE) idleMs += TICK_MS;
+      else cast(alsSpellIndex(choice), timeMs);
+    }
+    timeMs += TICK_MS;
+  }
+
+  return { killedAtMs, idleMs };
+}
+
 /** Eine Runde nach fester Prioritätenliste durchrechnen. */
 /**
  * Die gültigen Schlüssel — **abgeleitet, nicht gepflegt** (Issue #338).
@@ -231,23 +287,15 @@ export function runReference(
   const durationMs = options.durationMs ?? combat.boss.overpressureMs;
   const stopOnKill = options.stopOnKill !== false;
 
-  let killedAtMs = -1;
-  let idleMs = 0;
-  let timeMs = 0;
-
-  while (timeMs < durationMs) {
-    combat.stepPassive(timeMs);
-    if (killedAtMs < 0 && combat.damageDealt >= combat.boss.hp) {
-      killedAtMs = timeMs;
-      if (stopOnKill) break;
-    }
-    if (combat.gcd.isReady(timeMs)) {
-      const choice = apl(combat, index, timeMs);
-      if (choice === IDLE) idleMs += TICK_MS;
-      else combat.cast(alsSpellIndex(choice), timeMs);
-    }
-    timeMs += TICK_MS;
-  }
+  const { killedAtMs, idleMs } = driveRotation(
+    combat,
+    (timeMs) => apl(combat, index, timeMs),
+    durationMs,
+    stopOnKill,
+    (spell, timeMs) => {
+      combat.cast(spell, timeMs);
+    },
+  );
 
   const casts: Record<string, number> = {};
   const damageBySpell: Record<string, number> = {};
