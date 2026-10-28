@@ -797,66 +797,20 @@ impl Profil {
     }
 }
 
-/// Die Referenzwerte aus Issue #912, gegen die AC1 prüft.
-///
-/// ```text
-///   Laptop  Ryzen 9 5900HS   210 094 Kämpfe/s   Load 1,96 — gedrückt
-///   gonet   Core i7-3930K    121 689            Load 2,75, kein AVX2/FMA
-///   proxmox Core i5-1235U    221 688            Load 0,73, AVX2+FMA+VNNI
-/// ```
-///
-/// **Sie sind mit `orch-verteilung` erhoben und sie gelten.**
-///
-/// # Warum sie gelten, obwohl dasselbe Programm heute Millionen meldet
-///
-/// Am 2026-08-22 meldet `orch-verteilung` auf gonet **9 861 417** Kämpfe je
-/// Sekunde. Das ist keine schnellere Hardware und keine veraltete Referenz,
-/// sondern eine kaputte Rate: Zähler aus der angeforderten Menge, Nenner aus
-/// der Dauer eines einzigen Laufs.
-///
-/// Die Zeitachse entscheidet, welche der beiden Zahlen falsch ist:
-///
-/// ```text
-///   b2244dc6  2026-08-18  orch-verteilung mit "KAEMPFE JE SEKUNDE"
-///   7af79720  2026-08-19  die Reduktion aus #908
-/// ```
-///
-/// **Das Werkzeug ist einen Tag älter als die Reduktion.** Seine Referenzwerte
-/// stammen aus der Zeit davor und sind echte Durchsatzzahlen über 200 000
-/// gerechnete Kämpfe. Die Zahl von heute ist die kaputte.
-///
-/// Eine Kalibrierung, die sie treffen will, muss deshalb mit echtem Zufall
-/// messen — dann greift die Reduktion nicht, und es wird gegen denselben
-/// Bestand gemessen wie damals. Dass proxmox auf 0,4 Prozent trifft, ist der
-/// Beleg: Zwei verschiedene Welten träfen sich nicht auf drei Stellen.
-#[must_use]
-pub fn referenz_fights_per_s(host: &str) -> Option<f64> {
-    match host {
-        h if h.contains("gonet") => Some(121_689.0),
-        h if h.contains("proxmox") => Some(221_688.0),
-        // **Der Laptop heißt `linux.fritz.box`** — gemessen am 2026-08-22,
-        // nicht geraten. Der erste Anlauf dieser Funktion prüfte auf „laptop",
-        // „tuxedo" und „rota" und fand nichts; AC1 stand daraufhin als „nicht
-        // prüfbar" da, obwohl die Referenz existiert und der Rechner der
-        // wichtigste der drei ist.
-        //
-        // Ein Hostname ist eine Ablesung wie jede andere.
-        h if h.contains("linux.fritz.box") || h.contains("laptop") => Some(210_094.0),
-        _ => None,
-    }
-}
-
-/// Wie weit die gemessene Rate von der Referenz abweicht, als Anteil.
-#[must_use]
-pub fn abweichung_von_referenz(host: &str, gemessen: f64) -> Option<f64> {
-    let r = referenz_fights_per_s(host)?;
-    if r <= 0.0 {
-        return None;
-    }
-    Some((gemessen - r) / r)
-}
-
 /// Was AC1 verlangt: höchstens zehn Prozent Abweichung.
+///
+/// # Wogegen — und warum nicht mehr gegen eine Tabelle
+///
+/// Bis zum 28.10. stand hier eine Funktion mit drei Referenzwerten aus #912,
+/// nach Hostname: 210 094 für den Laptop, 121 689 für gonet, 221 688 für
+/// proxmox. Das waren **Momentanwerte unter drei verschiedenen Lasten** vom
+/// 16.08., und ein 10-Prozent-Kriterium gegen einen Momentanwert ist nur durch
+/// Lastglück erfüllbar (#912, AC1, Umformulierung vom 22.08.). Dazu traf der
+/// Name auf keinem der zwei Zielrechner mehr: Der Laptop heißt seit einem
+/// Neustart `localhost.localdomain`, der Container auf node3 `rota-sim`.
+///
+/// Verglichen wird deshalb mit [`ac1_vergleich`] gegen eine Referenz, die im
+/// selben Lauf auf derselben Maschine gemessen wird.
 pub const AC1_TOLERANZ: f64 = 0.10;
 
 /// Was der Vergleich aus AC1 über eine Kalibrierung sagt.
@@ -912,12 +866,35 @@ pub fn ac1_vergleich(
     referenz_vorher: f64,
     referenz_nachher: f64,
 ) -> Ac1Vergleich {
-    let _ = (kalibrierung, referenz_vorher, referenz_nachher);
+    let rate = |x: f64| x.is_finite() && x > 0.0;
+    if !rate(kalibrierung.rate_per_s) || !rate(referenz_vorher) || !rate(referenz_nachher) {
+        return Ac1Vergleich {
+            referenz: f64::NAN,
+            abweichung: f64::NAN,
+            spanne: f64::NAN,
+            urteil: Ac1Urteil::Ungueltig,
+        };
+    }
+    // **Das Mittel beider Läufe, nicht einer.** Der eine davor sieht die
+    // Maschine vor der Kalibrierung, der danach die Maschine danach; die
+    // Kalibrierung liegt dazwischen.
+    let referenz = (referenz_vorher + referenz_nachher) / 2.0;
+    let abweichung = (kalibrierung.rate_per_s - referenz) / referenz;
+    let spanne = (referenz_nachher - referenz_vorher).abs() / referenz;
+    let urteil = if !kalibrierung.reason.brauchbar() {
+        Ac1Urteil::KeineKalibrierung
+    } else if spanne > AC1_TOLERANZ {
+        Ac1Urteil::LastGewechselt
+    } else if abweichung.abs() <= AC1_TOLERANZ {
+        Ac1Urteil::Erfuellt
+    } else {
+        Ac1Urteil::NichtErfuellt
+    };
     Ac1Vergleich {
-        referenz: f64::NAN,
-        abweichung: f64::NAN,
-        spanne: f64::NAN,
-        urteil: Ac1Urteil::Ungueltig,
+        referenz,
+        abweichung,
+        spanne,
+        urteil,
     }
 }
 
@@ -1475,28 +1452,6 @@ mod tests {
         let trend = [1000.0, 1000.0, 2000.0, 2000.0];
         let d = takt_drift(&trend).expect("genug Werte");
         assert!((d - 1.0).abs() < 1e-9, "Trend falsch gerechnet: {d}");
-    }
-
-    #[test]
-    fn referenz_kennt_die_drei_rechner_und_sonst_niemanden() {
-        assert_eq!(referenz_fights_per_s("gonet"), Some(121_689.0));
-        assert_eq!(referenz_fights_per_s("proxmox"), Some(221_688.0));
-        // **Ein unbekannter Rechner bekommt `None`, keine Null.** Eine Null
-        // ergäbe eine Abweichung von minus hundert Prozent und damit einen
-        // Befund, wo gar keine Referenz existiert.
-        assert_eq!(referenz_fights_per_s("linux.fritz.box"), Some(210_094.0));
-        assert_eq!(referenz_fights_per_s("irgendwas"), None);
-        assert_eq!(abweichung_von_referenz("irgendwas", 1000.0), None);
-    }
-
-    #[test]
-    fn abweichung_ist_gegen_die_referenz_gerechnet() {
-        let a = abweichung_von_referenz("gonet", 121_689.0).expect("gonet ist bekannt");
-        assert!(a.abs() < 1e-9, "Gleichstand ergibt {a} statt 0");
-        let hoch = abweichung_von_referenz("gonet", 121_689.0 * 1.2).expect("bekannt");
-        assert!((hoch - 0.2).abs() < 1e-9, "{hoch}");
-        let runter = abweichung_von_referenz("gonet", 121_689.0 * 0.8).expect("bekannt");
-        assert!((runter + 0.2).abs() < 1e-9, "{runter}");
     }
 
     #[test]
