@@ -36,6 +36,7 @@ import {
 import type { RunSummary } from '../core/summary.js';
 import { OUTCOME_NAMES, PHASE_COUNTDOWN, PHASE_FIGHTING, PHASE_NAMES } from '../core/phases.js';
 import { slotRect, sweepHandAngle, type Rect } from '../render/spellbar.js';
+import { KIND_IDS, highlighted } from '../combat/boss/announcements.js';
 import { STAT_ADDITIVE, STAT_MULTIPLICATIVE } from '../gear/format.js';
 import { compareItems } from '../loot/compare.js';
 import { allocationProblem } from '../progression/talents.js';
@@ -262,11 +263,19 @@ export interface CombatSnapshot {
   readonly level: number;
   readonly nextCastDoubles: boolean;
   readonly nextCastFreeGcd: boolean;
+  readonly nextAfflictionTickAtMs: number;
+  readonly nextDoomStepAtMs: number;
+  readonly nextEnergyStepAtMs: number;
+  readonly nextStackStepAtMs: number;
+  readonly pendingTimelineDelayMs: number;
   readonly phaseHoldPercent: number;
   readonly playerDamage: number;
   readonly playerDead: boolean;
   readonly playerHp: number;
+  readonly playerVesselMax: number;
+  readonly raceEndsAtFightMs: number;
   readonly raceOpen: boolean;
+  readonly raceStarted: boolean;
   readonly raceProgress: number;
   readonly raceWon: boolean;
   readonly reflectPercent: number;
@@ -332,6 +341,30 @@ export interface HudSnapshot {
   readonly drawPasses: number;
   readonly frames: number;
   readonly slots: HudSlotSnapshot[];
+}
+
+/** Eine Boss-Ankündigung, wie sie im Bild steht (Issue #797). */
+export interface AnnouncementSnapshot {
+  readonly name: string;
+  readonly tier: number;
+  /** `debuff` · `damage` · `lethal` · `opportunity` (`KIND_IDS`). */
+  readonly kind: string;
+  readonly casting: boolean;
+  readonly dueAtMs: number;
+  readonly sinceMs: number;
+  readonly remainingMs: number;
+  /** In ihren letzten Sekunden hervorgehoben (Stufe 2 und 3). */
+  readonly highlighted: boolean;
+}
+
+/** Die Boss-Ankündigungen eines Bildes (Issue #797). */
+export interface AnnouncementsSnapshot {
+  readonly fightElapsedMs: number;
+  readonly list: AnnouncementSnapshot[];
+  /** Stufe 3: Auslenkung des Ruckelns in Entwurfs-Pixeln. */
+  readonly shakeOffsetPx: number;
+  /** Stufe 3: Deckkraft des Blitzes, 0 bis 0,12. */
+  readonly flashAlpha: number;
 }
 
 /** Zustand der Trefferwucht (GAME-DESIGN 9). */
@@ -420,6 +453,11 @@ export interface DevTools {
   combat(): CombatSnapshot;
   /** Lage und Zeitanzeigen der Zauberleiste, in Geräte-Pixeln. */
   hud(): HudSnapshot;
+  /**
+   * Die Boss-Ankündigungen, wie sie gerade im Bild stehen (GAME-DESIGN 11.5,
+   * Issue #797) — in der Reihenfolge der Dringlichkeit, mit Stufe und Art.
+   */
+  announcements(): AnnouncementsSnapshot;
   /**
    * Einen **Prüfgegenstand** auf dem Vorbereitungs-Bildschirm anzeigen
    * (Issue E6-1, AC4).
@@ -958,11 +996,19 @@ export function installDevTools(app: App): void {
         level: combat.level,
         nextCastDoubles: combat.nextCastDoubles,
         nextCastFreeGcd: combat.nextCastFreeGcd,
+        nextAfflictionTickAtMs: combat.nextAfflictionTickAtMs,
+        nextDoomStepAtMs: combat.nextDoomStepAtMs,
+        nextEnergyStepAtMs: combat.nextEnergyStepAtMs,
+        nextStackStepAtMs: combat.nextStackStepAtMs,
+        pendingTimelineDelayMs: combat.pendingTimelineDelayMs,
         phaseHoldPercent: combat.phaseHoldPercent,
         playerDamage: combat.playerDamage,
         playerDead: combat.playerDead,
         playerHp: combat.playerHp,
+        playerVesselMax: combat.playerVesselMax,
+        raceEndsAtFightMs: combat.raceEndsAtFightMs,
         raceOpen: combat.raceOpen,
+        raceStarted: combat.raceStarted,
         raceProgress: combat.raceProgress,
         raceWon: combat.raceWon,
         reflectPercent: combat.reflectPercent,
@@ -1039,6 +1085,31 @@ export function installDevTools(app: App): void {
         drawPasses: surface.drawPasses,
         frames: app.loop.frameCount,
         slots,
+      };
+    },
+    announcements: () => {
+      // Der Stand des letzten Bildes — dieselbe Klasse, die gezeichnet hat.
+      const renderer = app.hud.announcements;
+      const ann = renderer.announcer;
+      const list: AnnouncementSnapshot[] = [];
+      for (let rank = 0; rank < ann.count; rank++) {
+        const a = ann.at(rank);
+        list.push({
+          name: a.name,
+          tier: a.tier,
+          kind: KIND_IDS[a.kind] ?? '?',
+          casting: a.casting,
+          dueAtMs: a.dueAtMs,
+          sinceMs: a.sinceMs,
+          remainingMs: a.remainingMs,
+          highlighted: highlighted(a),
+        });
+      }
+      return {
+        fightElapsedMs: app.session.fightElapsedMs(app.loop.timeMs + app.loop.alpha * TICK_MS),
+        list,
+        shakeOffsetPx: renderer.shakeOffset(),
+        flashAlpha: renderer.flashAlpha(),
       };
     },
     impact: () => {
