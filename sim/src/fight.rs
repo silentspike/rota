@@ -1868,6 +1868,14 @@ impl Fight {
         self.convert_buffs.reset();
         self.cap_buffs.reset();
         self.factors.buffs = crate::factors::NEUTRAL.buffs;
+        // **Die Verwundbarkeit aus den Zersetzungs-Stapeln ebenso** (#419).
+        // `reset` leert die Stapel weiter unten, der Faktor stand danach noch
+        // auf dem letzten Stand — gemessen 1.24 nach fuenf Stapeln, frisch
+        // 1.0. Der Waechter fuer die Schluesseltalente hat es gefunden, weil
+        // sein Lauf ROT wirft; `cooldown-precision` (kindle, smoulder, pyre,
+        // quench) legt keinen einzigen Stapel. Das Spiel setzt den
+        // Faktor in `Combat.reset` auf 1 (`setDamageFactor('vulnerability', 1)`).
+        self.factors.vulnerability = crate::factors::NEUTRAL.vulnerability;
         // **Der Anteil des SPIELERS am Ring-Verlust** (Issue #349). Er stand
         // bis zum 2026-08-05 nicht hier — gefunden feldgenau ueber
         // `record_fields`, das die Pruefsumme mit ihren Namen aufzeichnet:
@@ -1897,6 +1905,13 @@ impl Fight {
         self.shield_expires_at = None;
         self.shield_stacks = 0;
         self.shield_absorbed = 0;
+        // **Der Zustand der Schluesseltalente endet mit dem Kampf** (#419,
+        // #418 AC6). Gemessen vor diesen Zeilen: Eine Umwandlungs-Schicht
+        // (TEMPER), die im zweiten Durchgang bricht, legte 495 nach — die
+        // halbe CRUST des ersten. Ein frischer `Fight` legt nichts nach.
+        // `decay_echo_until` raeumt `reset` schon weiter unten.
+        self.shield_last_amount = 0;
+        self.shield_refund_used = false;
         self.healed = 0;
         // **Auch die laufende Heilung endet mit der Runde.** Ohne diese Zeilen
         // liefe ein POULTICE aus der vorigen Runde in die naechste hinein und
@@ -5477,6 +5492,21 @@ impl Fight {
         // Der ZAEHLER `reflected` steht hier NICHT — er ist kumulativ und hat
         // eine eigene Leitung ins Ergebnis, genau wie `converted`.
         h = mix_named_int(h, "reflectPercent", self.reflect_percent as i32);
+        // **Der Zustand der Schluesseltalente** (#419, #418 AC5) — angehaengt,
+        // und NUR bei verteiltem Talent. Dieselbe Folge und dieselben Namen wie
+        // in `src/core/checksum.ts`; die Begruendung steht dort.
+        //
+        // Ohne Nachlauf steht hier 0, im Spiel `NOT_ACTIVE` (-1) — der feste
+        // Wert -1 auf beiden Seiten, wie bei `castLandsAt`.
+        if self.decay_echo {
+            for &bis in &self.decay_echo_until {
+                h = mix_named_int(h, "decayEchoUntil", if bis == 0 { -1 } else { bis as i32 });
+            }
+        }
+        if self.shield_refund {
+            h = mix_named_int(h, "shieldRefundUsed", i32::from(self.shield_refund_used));
+            h = mix_named_int(h, "shieldLastAmount", self.shield_last_amount as i32);
+        }
         h
     }
 

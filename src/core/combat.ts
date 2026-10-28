@@ -1975,6 +1975,26 @@ export class Combat {
     return this.shieldStacksValue;
   }
 
+  /**
+   * Ob die liegende Schicht ihre Nachlage schon bekam — und wovon die Nachlage
+   * die Hälfte gibt (COAGULATIONs Schlüsseltalent, #419). Für die Prüfsumme.
+   */
+  get shieldRefundSpent(): boolean {
+    return this.shieldRefundUsed;
+  }
+
+  get shieldRefundBase(): number {
+    return this.shieldLastAmount;
+  }
+
+  /**
+   * Bis wann ein erloschener Brand nachläuft (PUTREFACTIONs Schlüsseltalent,
+   * #419), in Kampfzeit. `NOT_ACTIVE` heißt: kein Nachlauf. Für die Prüfsumme.
+   */
+  decayEchoUntil(index: number): number {
+    return this.decayEchoUntilMs[index] ?? NOT_ACTIVE;
+  }
+
   /** Wie viel Schaden die Schutzschicht insgesamt aufgefangen hat. */
   /** ANGEZEIGT seit #294: "Shield absorbed" im aufgeklappten Bereich. */
   get shieldAbsorbed(): number {
@@ -5886,6 +5906,15 @@ export class Combat {
     this.shieldExpiresAtMs = -1;
     this.shieldStacksValue = 0;
     this.shieldAbsorbedValue = 0;
+    // **Der Zustand der Schlüsseltalente endet mit dem Kampf** (#419, #418
+    // AC6). Gemessen vor diesen Zeilen: Eine Umwandlungs-Schicht (TEMPER), die
+    // im zweiten Versuch bricht, legte 495 nach — die halbe CRUST des ersten
+    // Versuchs. Frisch gebaut legt sie nichts nach. Der Endpunkt des Nachlaufs
+    // gehört dazu, auch wenn ihn der erste Tick des nächsten Brands
+    // überschreibt: Wer umskillt, erbt ihn sonst aus einem Kampf ohne Talent.
+    this.shieldLastAmount = 0;
+    this.shieldRefundUsed = false;
+    this.decayEchoUntilMs.fill(NOT_ACTIVE);
     this.healedValue = 0;
     // **Auch die laufende Heilung endet mit der Runde** (POULTICE, Issue #481).
     // Ohne diese vier Zeilen liefe ein POULTICE aus der vorigen Runde in die
