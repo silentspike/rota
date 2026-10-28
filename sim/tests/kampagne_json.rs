@@ -151,6 +151,82 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     );
 }
 
+/// **AC3** — im Profil „standard" rechnet nur node3, der Laptop koordiniert.
+///
+/// Entscheidung des Auftraggebers vom 2026-10-28 auf die Frage, ob der Laptop
+/// weiter mitrechnet oder nur koordiniert: „Nur koordinieren". Bis dahin
+/// rechnete er mit zwölf Strängen mit (Betriebsprofil `balanced`).
+///
+/// Der Fall liest den **Text**, weil ein Leser des Profils die Rolle dort finden
+/// muss. Ein Koordinator, der nur an fehlenden oder leeren Zahlen zu erkennen
+/// wäre, sähe für einen Leser, der `null` als „best effort" liest, wie ein
+/// rechnender Rechner ohne Zusicherung aus.
+#[test]
+fn ac3_im_profil_standard_rechnet_nur_node3_der_laptop_koordiniert() {
+    let standard = CampaignDefinition {
+        reference_profile: REFERENCE_PROFILE_STANDARD,
+        ..kampagne()
+    };
+    let v: serde_json::Value =
+        serde_json::from_str(&standard.to_json().expect("gültig")).expect("JSON");
+    let hosts = v["referenceProfile"]["hosts"]
+        .as_array()
+        .expect("hosts ist keine Liste");
+    assert_eq!(hosts.len(), 2, "{hosts:?}");
+
+    let laptop = &hosts[0];
+    assert_eq!(laptop["name"], "laptop");
+    assert_eq!(laptop["role"], "coordinator", "{laptop}");
+    assert_eq!(
+        laptop["computeThreads"], 0,
+        "Der Koordinator rechnet mit: {laptop}"
+    );
+    // Keine CPU-Quote für Rechenarbeit — auch keine leere. Ein `null` an dieser
+    // Stelle hieße „best effort", also: rechnet ohne Zusicherung.
+    for feld in [
+        "guaranteedCpuQuota",
+        "totalThreads",
+        "physicalCores",
+        "threadsPerCore",
+        "reservedPhysicalCores",
+        "gpuDutyCycle",
+    ] {
+        assert!(
+            laptop.get(feld).is_none(),
+            "Der Koordinator führt {feld}: {laptop}"
+        );
+    }
+    assert_eq!(laptop["memoryLimitMib"], 4096);
+    assert_eq!(laptop["thermalThrottling"], false);
+
+    // GEGENPROBE im selben Text: Der rechnende Rechner trägt seine Angaben
+    // weiter. Ohne sie wäre der Fall auch grün, wenn `to_json` die
+    // Rechenangaben für JEDEN Rechner wegließe.
+    let node3 = &hosts[1];
+    assert_eq!(node3["name"], "node3");
+    assert_eq!(node3["role"], "compute", "{node3}");
+    assert_eq!(node3["computeThreads"], 16);
+    assert_eq!(node3["totalThreads"], 16);
+    assert_eq!(node3["reservedPhysicalCores"], 0);
+    assert!(
+        node3["guaranteedCpuQuota"].is_null(),
+        "node3 ist best effort: {node3}"
+    );
+
+    let straenge: u64 = hosts
+        .iter()
+        .map(|h| {
+            h["computeThreads"]
+                .as_u64()
+                .expect("computeThreads ist keine Zahl")
+        })
+        .sum();
+    assert_eq!(
+        straenge, 16,
+        "Im Profil rechnen mehr als die Stränge von node3"
+    );
+}
+
 /// **Ein fehlender Wert wird `null`, nicht `0`.**
 ///
 /// Drei Aussagen, die im JSON auseinandergehalten werden müssen:
