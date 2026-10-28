@@ -1154,7 +1154,10 @@ was sie nach der Behebung in `fight.rs` kostet und bringt:
   **Nach der Behebung in `fight.rs` ist keine dieser Mutationen nachgefahren** (M, M2, MT, MC, MF,
   MBC); neu gefahren sind nur MW und MI, die Gegenproben der Behebung selbst.
 - **Die Messungen laufen auf dem Zweig über der Basis `23d7c13f`**, nicht über dem inzwischen
-  weitergelaufenen `main` (`b087f63f`). Den Zusammenführungsstand prüft die CI.
+  weitergelaufenen `main` (`b087f63f`). Auf einer lokalen, nicht eingecheckten Zusammenführung mit
+  `b087f63f` sind nur die Prüffälle gefahren: 210 Suiten, 1347 bestanden, 0 rot, 7 ignoriert (Job
+  `93268dc1e959ae87204ee720`), die Vergleichsdateien unverändert nach dem Export, `tests/parity` 154
+  bestanden. Die A/B-Messung selbst ist dort nicht gefahren.
 
 ## Rohdaten
 
