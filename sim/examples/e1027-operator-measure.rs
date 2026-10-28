@@ -20,6 +20,7 @@
 //! $M pfadkreuz pfad-a.jsonl pfad-b.jsonl > pfadkreuz-a.jsonl
 //! $M pfadvergleich pfad-a.jsonl pfad-b.jsonl pfadkreuz-a.jsonl pfadkreuz-b.jsonl
 //! $M nachbarn a.jsonl kreuz-a.jsonl kreuz-b.jsonl
+//! $M spiel tests/parity/recordings/gcd-freier-wurf.json   # Nachbau gegen das Spiel
 //! ```
 //!
 //! `pfad` braucht die Messung DIESES Baus (A mit dem A-Bau, B mit dem B-Bau),
@@ -43,9 +44,10 @@
 //! | `search_le` | dieselbe Suche, die Nachlege-Kandidaten mit `<=` statt `<` |
 //!
 //! Die Unterbefehle schreiben eigene Arten: `kreuz` (feste Listen), `pfad` (der
-//! Weg jeder Suche, Schritt für Schritt) und `pfadkreuz` (die erste Gabelung
-//! zweier Wege, samt Takt-Referenz); `vergleich`, `pfadvergleich` und
-//! `nachbarn` geben je eine Zusammenfassung aus.
+//! Weg jeder Suche, Schritt für Schritt), `pfadkreuz` (die erste Gabelung
+//! zweier Wege, samt Takt-Referenz) und `spiel` (die Listen einer Aufzeichnung
+//! des Spiels, ereignisgesteuert und mit Takt-Referenz); `vergleich`,
+//! `pfadvergleich` und `nachbarn` geben je eine Zusammenfassung aus.
 //!
 //! **Keine Laufzeiten in der Ausgabe.** Zwei Läufe derselben Fassung müssen
 //! bytegleich sein; das ist die Determinismus-Probe, und eine Uhrzeit im
@@ -64,6 +66,10 @@
 //! in A und B bei `t`, und `time < 0` weckt in keiner. `vergleich` prüft das
 //! nach, statt es zu glauben — die Referenzwürfe müssen unter beiden Fassungen
 //! dieselben sein.
+//!
+//! **Sie bleibt ein Nachbau.** Ob sie das Spiel trifft, prüft `spiel` gegen eine
+//! Aufzeichnung aus der Schleife des Spiels selbst (#1027): sechs Listen, Würfe,
+//! Schaden und Leerlauf je Lauf.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -175,16 +181,21 @@ fn protokoll_hash(fight: &Fight) -> String {
 
 /// Alles, was ein Kampf an Ergebnis hinterlässt — der Fingerabdruck.
 ///
-/// **Ohne `idle_ms`, und das ist gemessen, nicht vorsichtig.** `fight.rs`
-/// zählt beim Warten die Spanne bis zum nächsten BEREITS eingereihten Ereignis;
-/// der Weckruf der Entscheidung wird erst danach eingereiht. Jeder Weckruf vor
-/// diesem Ereignis zählt die Spanne doppelt. Gemessen am 2026-10-24 an den
-/// `gcd`-Datensätzen (`first-crucible`, 30 s): Die Takt-Referenz zu
-/// `smoulder if dot.smoulder.remains < 1500` meldet 1 846 410 ms Leerlauf
-/// (`idle_ms_reference` von `smoulder/strikt`), und schon Fassung A meldet bei
-/// `searing if dot.searing.remains < 1500` 30 000 ms bei fünf gewirkten GCDs
-/// (`idle_ms` von `searing/strikt`). Eine Änderung NUR an dieser Zahl ist
-/// deshalb keine verschobene Rotation; sie steht getrennt im Datensatz.
+/// **Ohne `idle_ms`.** Bis #1027 zählte `fight.rs` beim Warten die Spanne bis
+/// zum nächsten BEREITS eingereihten Ereignis und reihte den Weckruf der
+/// Entscheidung erst danach ein; jeder Weckruf vor diesem Ereignis zählte die
+/// Spanne doppelt. Gemessen am 2026-10-24 an den `gcd`-Datensätzen
+/// (`first-crucible`, 30 s): Die Takt-Referenz zu
+/// `smoulder if dot.smoulder.remains < 1500` meldete 1 846 410 ms Leerlauf
+/// (`idle_ms_reference` von `smoulder/strikt`), Fassung A bei
+/// `searing if dot.searing.remains < 1500` 30 000 ms bei fünf gewirkten GCDs.
+///
+/// Seit der Behebung zählt der Wert bis zur nächsten Entscheidung und trifft
+/// die Schleife des Spiels (`spiel`, `tests/parity_gcd_freier_wurf.rs`). Er
+/// bleibt trotzdem außerhalb des Fingerabdrucks, damit die Kennzahlen dieses
+/// Programms über die Behebung hinweg dieselbe Frage beantworten: Hat sich die
+/// Rotation verschoben? Eine Änderung NUR am Leerlauf ist keine verschobene
+/// Rotation; sie steht getrennt im Datensatz.
 fn ergebnis(fight: &Fight, result: &RunResult) -> Json {
     assert!(!fight.log().overflowed(), "Kampfprotokoll übergelaufen");
     let je_zauber = |werte: &[u32]| -> Vec<Json> {
@@ -669,8 +680,7 @@ fn gcd_proben() {
         ];
         for (variante, text, frei) in varianten {
             let probe = liste("gcd", &text);
-            // `idle_ms` steht neben dem Ergebnis, nicht darin (siehe `ergebnis`):
-            // In der Takt-Referenz zählt es jede Spanne vielfach.
+            // `idle_ms` steht neben dem Ergebnis, nicht darin (siehe `ergebnis`).
             let messen = |apl: &Apl| -> (Json, u32) {
                 let mut fight = kampf(ziel, Some(GCD_PROBE_MS));
                 let result = fight.run_apl(apl);
@@ -2071,6 +2081,102 @@ fn nachbarn(pfad_messung: &str, kreuz_a: &str, kreuz_b: &str) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// spiel: die Takt-Referenz gegen die Schleife des Spiels
+// ---------------------------------------------------------------------------
+
+/// Alle Würfe eines Kampfes als (Zeitpunkt, Zauber).
+fn alle_wuerfe(fight: &Fight) -> Vec<(u32, usize)> {
+    assert!(!fight.log().overflowed(), "Kampfprotokoll übergelaufen");
+    fight
+        .log()
+        .entries()
+        .iter()
+        .filter(|e| e.kind == LogKind::Cast)
+        .map(|e| (e.time, usize::from(e.spell)))
+        .collect()
+}
+
+/// Der erste Wurf, an dem zwei Reihen auseinandergehen, mit beiden Einträgen.
+fn erster_unterschied(spiel: &[(u32, usize)], lauf: &[(u32, usize)]) -> Json {
+    let als_json = |eintrag: Option<&(u32, usize)>| {
+        eintrag.map_or(Json::Null, |&(t, s)| json!([t, SPELLS[s].id]))
+    };
+    (0..spiel.len().max(lauf.len()))
+        .find(|&i| spiel.get(i) != lauf.get(i))
+        .map_or(
+            Json::Null,
+            |i| json!({"index": i, "game": als_json(spiel.get(i)), "run": als_json(lauf.get(i))}),
+        )
+}
+
+/// **Der Nachbau gegen das Original** (#1027).
+///
+/// Die Takt-Referenz bildet ein Spiel nach, das an jedem Takt entscheidet — sie
+/// ist ein Nachbau, und ein Nachbau antwortet plausibel aus einer zweiten
+/// Quelle. `tests/parity/recordings/gcd-freier-wurf.json` stammt aus der
+/// Schleife des Spiels selbst (`driveRotation` in
+/// `src/devtools/reference-run.ts`). Hier laufen dieselben Listen einmal
+/// ereignisgesteuert und einmal mit Takt-Referenz, und beide Wurfreihen samt
+/// Schaden und Leerlauf werden gegen die des Spiels gehalten.
+fn spiel(pfad: &str) {
+    let text = fs::read_to_string(pfad).unwrap_or_else(|e| panic!("{pfad} nicht lesbar: {e}"));
+    let aufzeichnung: Json = serde_json::from_str(&text).expect("Aufzeichnung ist kein JSON");
+    let ziel = boss(aufzeichnung["bossId"].as_str().expect("bossId fehlt"));
+    let takte = u32::try_from(aufzeichnung["ticks"].as_u64().expect("ticks fehlen"))
+        .expect("ticks zu gross");
+    let dauer = takte * TICK_MS;
+    let leiste: BTreeMap<u64, usize> = aufzeichnung["bindings"]
+        .as_array()
+        .expect("bindings fehlen")
+        .iter()
+        .map(|b| {
+            (
+                b["slot"].as_u64().expect("slot fehlt"),
+                zauber(b["spellId"].as_str().expect("spellId fehlt")),
+            )
+        })
+        .collect();
+    let laeufe = aufzeichnung["runs"].as_array().expect("runs fehlen");
+    assert!(!laeufe.is_empty(), "Die Aufzeichnung trägt keinen Lauf");
+    for lauf in laeufe {
+        let name = lauf["name"].as_str().expect("name fehlt");
+        let apl = liste(name, lauf["apl"].as_str().expect("apl fehlt"));
+        let im_spiel: Vec<(u32, usize)> = lauf["presses"]
+            .as_array()
+            .expect("presses fehlen")
+            .iter()
+            .map(|p| {
+                let tick =
+                    u32::try_from(p["tick"].as_u64().expect("tick fehlt")).expect("tick zu gross");
+                (
+                    tick * TICK_MS,
+                    leiste[&p["slot"].as_u64().expect("slot fehlt")],
+                )
+            })
+            .collect();
+        let messen = |apl: &Apl| -> (Vec<(u32, usize)>, u32, u32) {
+            let mut fight = kampf(ziel, Some(dauer));
+            let result = fight.run_apl(apl);
+            (alle_wuerfe(&fight), result.damage, result.idle_ms)
+        };
+        let (ereignis, schaden, leerlauf) = messen(&apl);
+        let (referenz, schaden_ref, leerlauf_ref) = messen(&mit_takt_referenz(&apl, 0, dauer));
+        ausgeben(&json!({
+            "kind": "spiel",
+            "id": name,
+            "apl": lauf["apl"],
+            "casts": im_spiel.len(),
+            "event_matches_game": ereignis == im_spiel,
+            "reference_matches_game": referenz == im_spiel,
+            "event_first_divergence": erster_unterschied(&im_spiel, &ereignis),
+            "reference_first_divergence": erster_unterschied(&im_spiel, &referenz),
+            "damage": {"game": lauf["expected"]["damage"], "event": schaden, "reference": schaden_ref},
+            "idle_ms": {"game": lauf["expected"]["idleMs"], "event": leerlauf, "reference": leerlauf_ref},
+        }));
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args
@@ -2091,11 +2197,12 @@ fn main() {
         ["pfadkreuz", a, b] => pfadkreuz(a, b),
         ["pfadvergleich", a, b, ka, kb] => pfadvergleich(a, b, ka, kb),
         ["nachbarn", messung, ka, kb] => nachbarn(messung, ka, kb),
+        ["spiel", aufzeichnung] => spiel(aufzeichnung),
         _ => panic!(
             "Aufruf: e1027-operator-measure [proben | kreuz A B | vergleich A B [KREUZ-A KREUZ-B] \
              | pfad A | pfadkreuz PFAD-A PFAD-B \
              | pfadvergleich PFAD-A PFAD-B PFADKREUZ-A PFADKREUZ-B \
-             | nachbarn A KREUZ-A KREUZ-B]"
+             | nachbarn A KREUZ-A KREUZ-B | spiel AUFZEICHNUNG]"
         ),
     }
 }
