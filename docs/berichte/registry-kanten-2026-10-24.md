@@ -9,10 +9,11 @@ affects: [docs/sim-issues.json, docs/SIM-ARCHITEKTUR-PLAN.md]
 
 # Geprüfte Abhängigkeitskanten in der Simulator-Registry (#891)
 
-**Stand 2026-10-24, Basis `origin/main` b087f63f.** Maßgeblich für die Abhängigkeiten bleibt
-`docs/sim-issues.json` (Feld `depends_on`). Die drei Tabellen in `docs/SIM-ARCHITEKTUR-PLAN.md`
-erzeugt `python3 tools/sim-registry.py --write` daraus. Dieser Bericht hält fest, woher die
-neuen Kanten kommen und welche vorgeschlagenen Kanten mit Absicht fehlen.
+**Stand 2026-10-28 (Kanten 2026-10-24), Basis `origin/main` b087f63f.** Maßgeblich für die
+Abhängigkeiten bleibt `docs/sim-issues.json` (Felder `depends_on` und `phase`). Die drei Tabellen
+in `docs/SIM-ARCHITEKTUR-PLAN.md` erzeugt `python3 tools/sim-registry.py --write` daraus. Dieser
+Bericht hält fest, woher die neuen Kanten kommen, welche vorgeschlagenen Kanten mit Absicht
+fehlen und welche fünf Pakete deshalb in eine spätere Phase umziehen.
 
 ## Herkunft
 
@@ -230,11 +231,16 @@ Die Prüfer haben deshalb E11.4c → E11.4 und E11.4c → E11.4b als falsch beur
 Kontextsatz widersprechen, und E11.4c → E17.0 als unbelegt. E11.4c bleibt in diesem Stand ohne
 Voraussetzung. Den Widerspruch löst der Orchestrator im Issue #919, nicht diese Änderung.
 
-## Befund: Phasenfolge
+## Phasenfolge — behoben
 
-Der Plan sagt im Abschnitt „4.0 Die eine Reihenfolge“: „Eine Reihenfolge, die ihren eigenen
-Voraussetzungen widerspricht, ist schlimmer als keine.“ In der Basis zeigt keine Kante auf ein
-Paket einer späteren Phase. Mit den 80 Kanten tun es acht:
+**Die Regel.** Der Plan sagt im Abschnitt „4.0 Die eine Reihenfolge“: „Alle Reihenfolge-Aussagen
+dieses Plans stehen **hier**“ (Z. 690). Die Korrektur vom 2026-08-15 (Z. 693–697) hält fest, dass
+die Vorfassung ihre eigene Abhängigkeitstabelle verletzte, und schließt: „Eine Reihenfolge, die
+ihren eigenen Voraussetzungen widerspricht, ist schlimmer als keine.“ Gleichsinnig Z. 732–733:
+„die Voraussetzung ist der Grund für die Phase.“ Die Phasen folgen also den Voraussetzungen.
+
+**Der Befund.** In der Basis zeigt keine Kante auf ein Paket einer späteren Phase. Mit den 80
+Kanten (Stand 2ac637ca) tun es acht:
 
 | Paket (Phase) | Voraussetzung (Phase) | Art        |
 | ------------- | --------------------- | ---------- |
@@ -247,29 +253,124 @@ Paket einer späteren Phase. Mit den 80 Kanten tun es acht:
 | E21.7 (F)     | E11.5b (G)            | belegt     |
 | E21.7 (F)     | E21.0 (G)             | fehlend    |
 
-Rang der Phasen wie in `phases` der Registry (A0 bis Z), „fortlaufend“ ausgenommen.
-`tools/sim-registry.py` prüft die Phasenfolge nicht, deshalb bleibt `--check` grün. Diese
-Änderung verschiebt keine Phase. Ob Pakete umziehen oder die Phasengrenzen anders gezogen
-werden, entscheidet der Orchestrator.
+Rang der Phasen wie in `phases` der Registry (A0 bis Z); „fortlaufend“ und Pakete ohne Phase
+sind an beiden Enden ausgenommen. Geprüft sind damit 181 Kanten (Basis: 107).
+
+**Die Behebung.** Fünf Pakete ziehen in die späteste Phase ihrer Voraussetzungen:
+
+| Paket  | vorher | jetzt | ausschlaggebende Voraussetzung  |
+| ------ | ------ | ----- | ------------------------------- |
+| E11.1b | C      | D     | E11.4d (D)                      |
+| E11.4f | E      | G     | E11.5b (G)                      |
+| E17.2  | F      | G     | E11.5a (G)                      |
+| E18.1  | E      | G     | E11.5b und E12.0 (G), E15.5 (F) |
+| E21.7  | F      | G     | E11.5b und E21.0 (G)            |
+
+Das ist der kleinste Fixpunkt, wenn Phasen nur nach hinten rücken: Nach dieser einen Runde zeigt
+keine Kante mehr nach vorn, auch keine von einem Paket, das auf ein verschobenes zeigt. Danach
+0 Verstöße. Kontrolle: Eine eingebaute Kante E20.0 (A0b) → E11.7 (H) wird als einziger Verstoß
+gefunden. Richtung und Umfang gibt die Soll-Fassung des Orchestrators vor. Ob stattdessen
+Voraussetzungen nach vorn rücken könnten, ist nicht gerechnet.
+
+**Die Werkzeugprüfung.** `validate()` in `tools/sim-registry.py` lehnt jetzt jede Kante ab, deren
+Voraussetzung in einer späteren Phase liegt, mit Meldungen wie
+`E18.1: phase E precedes prerequisite E11.5b in phase G`. Auf Registry und Plan von 2ac637ca
+meldet `--check` genau die acht Kanten der Tabelle oben und endet mit rc 1. Der neue Prüffall
+`test_ac2_prerequisite_in_later_phase_is_rejected_by_cli` verlangt die Ablehnung einer Kante auf
+ein Paket späterer Phase. Die Gegenseite deckt
+`test_prerequisite_in_same_or_earlier_phase_or_without_rank_is_accepted_by_cli` ab: Gleiche und
+frühere Phase, „fortlaufend“ und Pakete ohne Phase werden an beiden Enden angenommen.
+
+## Offen für den Orchestrator
+
+Diese Änderung entscheidet die folgenden Punkte nicht. Die Fundstellen stammen aus den
+Prüferurteilen. Am 2026-10-28 habe ich sie am Issue-Text (`gh issue view`) und am Plan
+nachgelesen.
+
+**E13.0 → E15.1: eine Grafikzeile ohne Grafik-Backend.** Eingetragen (abgeleitet), weil #971 AC3
+„Videospeicher- und Übergabepuffer-Budget werden eingehalten / die maximale
+Stapel-Reaktionszeit der Drosselung wird eingehalten“ verlangt (Z. 83–84). Regler, Budget und
+Stapelgrenze baut E15.1: #932 „Zu bauen: ein Regler-Modul“ (Z. 80), Budgetposten `gpu_staging`
+(Z. 95). #932 AC1 führt eine eigene Zeile „Grafikeinheit | Stapelgröße senken, im Grenzfall das
+Backend abmelden | ein Stapel“ (Z. 107). Das Grafik-Backend baut aber erst E13.0 (Phase H), E15.1
+liegt in F. Und E11.0c-core hängt an E15.1, die Pflichtmessung „darf nicht daran hängen, dass
+eine Grafikeinheit ihren Gewinnpunkt erreicht“ (#907 Z. 7–8). Offen ist, wie E15.1 seine
+Grafikzeile belegt, solange es kein Grafik-Backend gibt.
+
+**E15.4 und E11.4e: dieselben fünf Regeln an zwei Stellen.** #935 (E15.4) AC7: „Die
+Fortschrittsschleife hat eigene Zeilen … geänderte Fallrate, Beutetabelle, Aufwertregel,
+Freischaltbedingung, Anlege-Strategie“ (Z. 151–152). #922 (E11.4e) hat dieselben fünf im eigenen
+Umfang: In scope „Die eigenen Invalidierungsregeln dieser Schleife“ (Z. 68) und AC5 mit derselben
+Liste (Z. 118–124). Eingetragen ist E15.4 → E11.4e (abgeleitet); laut Urteil lassen sich die
+Zeilen nur mit Fortschrittsergebnissen prüfen. Offen ist, wer die fünf Regeln baut, #922 oder
+#935.
+
+**E15.4 → E11.5: Wer speichert die Pareto-Front je Nische?** Nicht eingetragen (falsch, keine
+Startvoraussetzung). #935 AC6: „Je Nische wird eine zielfunktions-unabhängige Pareto-Front
+gespeichert, nicht EINE Elite“ (Z. 146–147). Der Plan führt die „Lage in der Pareto-Front der
+Nische“ unter E19 (Z. 3584), und #923 (E11.5) hat das Nischenarchiv im Umfang (Z. 49 „Das
+Nischenarchiv **nur** als Archiv, nicht als Suchtreiber“, AC5 Z. 92). Offen ist, welches Paket
+die Front speichert.
+
+**#919 widerspricht sich selbst.** Der Kontext sagt: „Es hat keine Vorbedingung innerhalb dieses
+Epics“ (Z. 4). AC1 verlangt aber „Prüfpunkte“ (Z. 86), die #917 (E11.4) im selben Epic baut
+(In scope Z. 67). AC3 leitet die Kandidatenzahl „aus der laufenden Kostenschätzung“ ab (Z. 106),
+und den Typ `CostEstimate` baut #918 (E11.4b) im selben Epic (AC6 Z. 144–147). AC4 enthält `manifest_hash` (Z. 113), für das
+kein Paket als Hersteller genannt ist. Einzelheiten im Abschnitt „Befund #919“. Solange der
+Kontextsatz steht, bleibt E11.4c ohne Voraussetzung.
+
+**Nicht beauftragt, beim Nachrechnen gefunden: Meilensteine gegen Kanten.** Laut #891 Z. 87 ist
+der Meilenstein am Issue „die verbindliche Angabe“ dafür, was im ersten Meilenstein steht.
+14 Kanten zeigen von einem Paket in „Sim-Kern“ auf eines in „Sim-Endausbau“, in der Basis
+waren es 8. Sechs davon kommen mit den 80 Kanten dazu:
+
+| Paket (Issue) | Voraussetzung (Issue) | Art        |
+| ------------- | --------------------- | ---------- |
+| E11.1b (#915) | E11.4d (#920)         | belegt     |
+| E12.1 (#940)  | E11.3a (#916)         | belegt     |
+| E12.6 (#946)  | E11.5 (#923)          | abgeleitet |
+| E12.6 (#946)  | E11.4e (#922)         | abgeleitet |
+| E12.8 (#948)  | E21.3 (#953)          | abgeleitet |
+| E12.8 (#948)  | E17.0 (#973)          | abgeleitet |
+
+Schon in der Basis: E12.2 → E11.3a, E12.6 → E11.5d, E12.8 → E12.2b, E12.3, E12.4, E12.5 und
+E12.7 sowie E20.2 (#969, geschlossen) → E11.4d. Damit hat jedes der fünf offenen Issues in
+„Sim-Kern“ (#915, #940, #941, #946, #948) eine direkte Voraussetzung in „Sim-Endausbau“.
+Gemessen am 2026-10-28 über `gh issue list --state all` (377 Issues), Paket und Issue über
+`dependency_note` zugeordnet. Rang: „Sim-Kern“ vor „Sim-Endausbau“, Issues ohne Meilenstein
+ausgenommen. `tools/sim-registry.py` prüft Meilensteine nicht, denn sie stehen nicht in der
+Registry.
 
 ## Prüfung
 
-Gemessen am 2026-10-24 im Worktree dieses Zweigs, Basis b087f63f:
+Gemessen am 2026-10-28 im Worktree dieses Zweigs, Basis b087f63f:
 
-- `python3 tools/sim-registry.py --check`: rc 0, keine ERROR-Zeile.
-- `python3 -B -m unittest -v tests.tools.test_sim_registry`: 15 Tests, alle ok. Darunter die
-  Fälle, in denen absichtlich kaputte Fassungen abgelehnt werden müssen (doppelte Kennung,
-  unbekannte Abhängigkeit, Kreis, Tabellendrift).
-- `depends_on` je Eintrag gegen die Soll-Fassung des Orchestrators: 89 von 89 gleich, als
-  Menge und in der Reihenfolge. Alle übrigen Felder: 89 von 89 gleich der Basis. 30 Einträge
-  geändert, 80 Kanten hinzu, eine entfernt (E13.0 → E14).
+- `python3 -B tools/sim-registry.py --check`: rc 0, keine ERROR-Zeile.
+- `python3 -B tools/python-check.py --tests` (der Befehl des `lint`-Jobs): 116 Tests, OK.
+  Darunter 17 in `tests/tools/test_sim_registry.py`, davon 2 neu.
+- Ohne die neue Prüfung (Bedingung durch `if False:` ersetzt) scheitert genau
+  `test_ac2_prerequisite_in_later_phase_is_rejected_by_cli`, mit rc 0 statt 1. Mit `>=` statt
+  `>` gibt es 9 Fehlschläge, darunter alle sechs Teilfälle der Gegenseite und
+  `test_actual_registry_and_tables_pass_…`. Wird „fortlaufend“ mitgerankt, sind es ebenfalls 9,
+  darunter `test_actual_registry_and_tables_pass_…`, weil vier Kanten auf E11.4e und E21.6
+  zeigen. Danach zurückgenommen, sha256 gleich dem Stand vor der ersten Mutation.
+- Gegenprobe an echten Daten: Werkzeug und Tests dieses Stands in einer Wegwerfkopie, mit
+  Registry und Plan von 2ac637ca (80 Kanten, Phasen der Basis). Dort scheitert
+  `test_actual_registry_and_tables_pass_and_list_missing_task_ids`, mit genau den acht Kanten
+  aus „Phasenfolge — behoben“. Mit Registry und Plan von b087f63f laufen alle 17 Fälle grün.
+- Je Eintrag gegen die Soll-Fassung des Orchestrators: `depends_on` 89 von 89 und `phase` 89
+  von 89 gleich. Alle übrigen Felder: 89 von 89 gleich der Basis. 30 Einträge geändert, 80
+  Kanten hinzu, eine entfernt (E13.0 → E14), fünf Phasen verschoben.
 - `docs/SIM-ARCHITEKTUR-PLAN.md`: außerhalb der Marker `<!-- sim-registry:…:start/end -->`
-  byte-gleich mit der Basis. Geändert ist nur die Abhängigkeitstabelle (80 Zeilen, weil die
-  Spalte breiter wurde); Phasen- und Epic-Tabelle sind unverändert.
-- Beide Abgleiche liefen mit Skripten außerhalb des Repositorys. Jedes schlägt bei einer
+  byte-gleich mit der Basis, 6550 Zeilen wie zuvor. Geändert sind die Abhängigkeitstabelle (80
+  Zeilen) und die Phasentabelle (alle 15 Zeilen, weil die Spalte der Arbeitspakete von 182 auf
+  215 Zeichen wuchs). Die Epic-Tabelle ist unverändert.
+- Die Abgleiche liefen mit Skripten außerhalb des Repositorys. Jedes schlägt bei einer
   absichtlich eingebauten Abweichung an.
 
 **Nicht geprüft:** Die Prüferurteile selbst habe ich nicht erneut gegen die Quellen gelesen; die
 Kanten stehen so, wie sie beurteilt wurden. Nachgelesen am Issue-Text oder nachgerechnet sind
-nur die Angaben in den Abschnitten „Sonderfall E13.0 und das Epic E14“, „Befund #919“ und
-„Befund: Phasenfolge“ sowie die Erreichbarkeits- und Phasenangaben in den Begründungen.
+nur die Angaben in den Abschnitten „Sonderfall E13.0 und das Epic E14“, „Befund #919“,
+„Phasenfolge — behoben“ und „Offen für den Orchestrator“ sowie die Erreichbarkeits- und
+Phasenangaben in den Begründungen. Ob die Begründungstexte der Phasen ihre neuen Mitglieder
+tragen, etwa E11.1b in „D — Kernel und Zustand“, ist nicht geprüft; die Texte sind unverändert.
