@@ -36,7 +36,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat, alsSpellIndex, isCastAccepted } from '../../src/core/combat.js';
+import { Combat, NOT_ACTIVE, alsSpellIndex, isCastAccepted } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -6063,6 +6063,219 @@ export function kontrollPreisTalentPayload(): Record<string, unknown> {
       bindCasts: combat.castCount(bind),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Die Schlüsseltalente mit Zustand (#419, #418 AC4)
+// ---------------------------------------------------------------------------
+
+export const SCHLUESSEL_NACHLAUF_NAME = 'schluessel-nachlauf';
+export const SCHLUESSEL_NACHLAGE_NAME = 'schluessel-nachlage';
+
+/** Eine feste Runde mit Verteilung — was beide Aufzeichnungen unterscheidet. */
+interface SchluesselRunde {
+  readonly name: string;
+  readonly bossId: string;
+  readonly ticks: number;
+  readonly talents: Readonly<Record<string, number>>;
+  /** Die Verteilung, wie der Simulator sie bekommt (er kennt die Talent-Daten nicht). */
+  readonly talentPermille: Readonly<Record<string, number>>;
+  /** Die Schlüsseltalente als Kennung — der Simulator bekommt sie als Schalter. */
+  readonly keystones: readonly string[];
+  readonly bindings: readonly { slot: number; spellId: string }[];
+  /** Takt -> Zauber-Kennung. Fest, kein Entscheid am Zustand. */
+  readonly plan: ReadonlyMap<number, string>;
+}
+
+/**
+ * Spielt eine Schlüssel-Runde und schreibt sie aus.
+ *
+ * **Feste Drücke**, wie bei `kontrolle-preis-talent`: Eine Runde, die am
+ * Zustand entschiede, drückte mit falscher Rechnung anders als mit richtiger —
+ * dann verglichen sich zwei verschiedene Runden. Ein abgewiesener Druck bricht
+ * deshalb ab, statt still zu fehlen.
+ *
+ * `beobachte` läuft nach jedem Takt und sammelt, was die Aufzeichnung über
+ * sich selbst zusichert — die Zahlen, die belegen, dass die Runde das Talent
+ * überhaupt berührt.
+ */
+function schluesselRunde(
+  runde: SchluesselRunde,
+  beobachte: (combat: Combat, tick: number) => void,
+): { combat: Combat; presses: { tick: number; slot: number }[]; checksums: number[] } {
+  const boss = bossById(runde.bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${runde.bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  // **VOR dem ersten Takt** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(runde.talents);
+  for (const kennung of runde.keystones) {
+    if (!combat.hasKeystone(kennung)) {
+      throw new Error(`${runde.name}: die Verteilung schaltet ${kennung} nicht frei.`);
+    }
+  }
+  const slots = slotMap(combat, runde.bindings);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+
+  for (let tick = 0; tick < runde.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    const id = runde.plan.get(tick);
+    if (id !== undefined) {
+      const zauber = alsSpellIndex(combat.indexOf(id));
+      const ergebnis = combat.cast(zauber, timeMs).result;
+      if (!isCastAccepted(ergebnis)) {
+        throw new Error(
+          `${runde.name}: der Druck in Takt ${String(tick)} (${id}) wurde abgewiesen ` +
+            `(Ergebnis ${String(ergebnis)}) — die feste Folge passt nicht mehr zu den Daten.`,
+        );
+      }
+      presses.push({ tick, slot: slotFor(slots, zauber, combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    beobachte(combat, tick);
+  }
+  return { combat, presses, checksums };
+}
+
+function schluesselDatei(
+  runde: SchluesselRunde,
+  lauf: ReturnType<typeof schluesselRunde>,
+  expected: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    schema: SCHEMA,
+    name: runde.name,
+    bossId: runde.bossId,
+    ticks: runde.ticks,
+    tickMs: TICK_MS,
+    talents: runde.talents,
+    talentPermille: runde.talentPermille,
+    keystones: runde.keystones,
+    bindings: runde.bindings.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: lauf.presses,
+    // **Mit Talent gemessen** — die Folge, die der Gleichlauf-Wächter (#236)
+    // sonst nur ohne Talent sieht (`doom-stacks`). Die Felder der
+    // Schlüsseltalente stehen nur hier, und ihre Namen müssen auf beiden
+    // Seiten wörtlich dieselben sein.
+    fieldOrder: recordFieldOrder(() => {
+      combatChecksum(lauf.combat, (runde.ticks - 1) * TICK_MS);
+    }),
+    checksums: lauf.checksums,
+    expected,
+  };
+}
+
+/**
+ * PUTREFACTIONs Schlüsseltalent `decay-echo` in einer Runde, die jeden Zweig
+ * des Nachlaufs fährt (#419, #418 AC4).
+ *
+ * ```text
+ *      0 ms  ROT          Brand bis 4000, Stapel 1..4, Endpunkt 16 000
+ *   5000 ms               Brand aus, der Nachlauf legt weiter
+ *   8000 ms  NECROSIS     verzehrt alle Stapel -> der Nachlauf endet beim
+ *                         nächsten Tick, weil keiner mehr liegt
+ *  15 000 ms  ROT          neuer Brand, neuer Endpunkt
+ *  20 000 ms               Brand aus, zweiter Nachlauf
+ *  32 000 ms               der Nachlauf endet, weil seine Frist vorbei ist
+ * ```
+ *
+ * Damit endet der Endpunkt auf BEIDEN Wegen, die `imDecayEcho` kennt — das
+ * steht unten als Zusicherung in der Datei (`echoEnds`).
+ *
+ * Gegen den Ersten Schmelztiegel: Er schlägt nicht zu, also wirkt der
+ * Schutz-Weg der Verteilung (`putrefaction-duration`) auf nichts, und die
+ * Runde misst allein den Nachlauf.
+ */
+export function schluesselNachlaufPayload(): Record<string, unknown> {
+  const runde: SchluesselRunde = {
+    name: SCHLUESSEL_NACHLAUF_NAME,
+    bossId: 'first-crucible',
+    ticks: 4000,
+    talents: { 'putrefaction-trunk': 1, 'putrefaction-duration': 1, 'putrefaction-keystone': 1 },
+    talentPermille: { damage: 20, decayWard: 120 },
+    keystones: ['decay-echo'],
+    bindings: [
+      { slot: 0, spellId: 'rot' },
+      { slot: 1, spellId: 'necrosis' },
+    ],
+    plan: new Map([
+      [0, 'rot'],
+      [800, 'necrosis'],
+      [1500, 'rot'],
+    ]),
+  };
+  const echoEnds: number[] = [];
+  let vorher = NOT_ACTIVE;
+  let rot = -1;
+  const lauf = schluesselRunde(runde, (combat, tick) => {
+    if (rot < 0) rot = combat.indexOf('rot');
+    const jetzt = combat.decayEchoUntil(rot);
+    if (vorher !== NOT_ACTIVE && jetzt === NOT_ACTIVE) echoEnds.push(tick);
+    vorher = jetzt;
+  });
+  const combat = lauf.combat;
+  return schluesselDatei(runde, lauf, {
+    // **Die Zusicherung, dass die Runde den Nachlauf fährt**: der Takt, in dem
+    // der Endpunkt jeweils fällt — einmal mangels Stapel, einmal nach Frist.
+    echoEnds,
+    decayStacks: combat.decayStacks,
+    damageDealt: combat.damageDealt,
+    rotCasts: combat.castCount(alsSpellIndex(rot)),
+    rotTicks: combat.dotTickCount(rot),
+    necrosisCasts: combat.castCount(alsSpellIndex(combat.indexOf('necrosis'))),
+  });
+}
+
+/**
+ * COAGULATIONs Schlüsseltalent `shield-refund` in einer Runde, die jeden
+ * Zustand des Merkers fährt (#419, #418 AC4).
+ *
+ * ```text
+ *      0 ms  CRUST        Schicht 990, Merker frei
+ *   5000 ms               Schlag bricht sie -> Nachlage 495, Merker verbraucht
+ *  12 000 ms               Schlag bricht die Nachlage -> NICHTS kommt nach
+ *  13 000 ms  CRUST        neue Schicht, der Merker ist wieder frei
+ *  19 000 ms               Schlag bricht sie -> zweite Nachlage
+ *  24 000 ms               ein kleiner Schlag, die Nachlage fängt ihn auf
+ * ```
+ *
+ * Gegen `test-onslaught`: Seine Zauber treffen mit 2000 erst nach ihrer
+ * Wirkzeit (3000 + 2000, 10 000 + 2000, 17 000 + 2000), der Schlag bei
+ * 24 000 ms mit 500. Der Spieler überlebt die Runde.
+ */
+export function schluesselNachlagePayload(): Record<string, unknown> {
+  const runde: SchluesselRunde = {
+    name: SCHLUESSEL_NACHLAGE_NAME,
+    bossId: 'test-onslaught',
+    ticks: 2500,
+    talents: { 'coagulation-trunk': 1, 'coagulation-thicker': 1, 'coagulation-keystone': 1 },
+    talentPermille: { damage: 20, shieldAmount: 100 },
+    keystones: ['shield-refund'],
+    bindings: [{ slot: 0, spellId: 'crust' }],
+    plan: new Map([
+      [0, 'crust'],
+      [1300, 'crust'],
+    ]),
+  };
+  const refunds: number[] = [];
+  let vorher = false;
+  const lauf = schluesselRunde(runde, (combat, tick) => {
+    if (!vorher && combat.shieldRefundSpent) refunds.push(tick);
+    vorher = combat.shieldRefundSpent;
+  });
+  const combat = lauf.combat;
+  return schluesselDatei(runde, lauf, {
+    // **Die Zusicherung, dass die Runde den Merker fährt**: die Takte, in
+    // denen eine Nachlage fiel. Zwei Schilde, zwei Nachlagen — und keine bei
+    // 12 000 ms, wo die Nachlage selbst bricht.
+    refunds,
+    shield: combat.shield,
+    shieldAbsorbed: combat.shieldAbsorbed,
+    damageTaken: combat.damageTaken,
+    playerHp: combat.playerHp,
+    crustCasts: combat.castCount(alsSpellIndex(combat.indexOf('crust'))),
+  });
 }
 
 export function synergyPayload(): Record<string, unknown> {
