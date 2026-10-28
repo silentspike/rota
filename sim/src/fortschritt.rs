@@ -35,6 +35,9 @@
 //! **Keine Restzeit für eine offene Suche.** Das ist eine Zusicherung, keine
 //! Lücke — [`Arbeitsmenge::Offen`] kennt keine Restmenge, und eine Zahl dort wäre
 //! erfunden. Angezeigt wird stattdessen, seit wann das Beste unverändert ist.
+//!
+//! Bedienung, Feldbeschreibung des Stroms und die gemessene Treffsicherheit der
+//! Restzeit stehen in `docs/FORTSCHRITT.md`.
 
 mod anzeige;
 mod anzeigestrang;

@@ -22,6 +22,24 @@
 //! Streuung und Abschnittszahl. Heute rechnet jeder Weg in Kämpfen, also in
 //! `ScalarFullFight`; ein späterer Weg in einer anderen Einheit bekommt seine
 //! eigene Art, und ein Rechner ohne diese Art ist für ihn nicht zulässig.
+//!
+//! # Was die Rechnung NICHT enthält — gemessen am 2026-10-28
+//!
+//! **Die Nacharbeit einer Auswertung nach ihrem letzten Kampf** (Sortieren der
+//! Stichprobe, Statistik über sechs Reihen). In einem Lauf aus vielen kleinen
+//! Auswertungen steckt sie in der gemessenen Rate, weil die Arbeitsstränge
+//! währenddessen warten. Bei einer einzigen großen fehlt sie: Mit
+//! `bench --fights 3000000` über vier Stränge stand die Meldung mit allen
+//! Kämpfen 0,61 s vor dem Ende, und die 16 von 89 Meldungen, deren Spanne die
+//! tatsächliche Restzeit nicht einschloss, lagen alle in den letzten vier
+//! Sekunden — alle zu kurz geschätzt.
+//!
+//! **Teurer werdende Kämpfe einer Suche**, soweit das Fenster sie noch nicht
+//! gesehen hat. Der Trend erfasst, was sich in den letzten 30 Sekunden schon
+//! verschoben hat; spätere Runden mit längeren Rotationen kann er nicht
+//! vorhersehen. Bei einer Suche über vier Stränge lagen 13 von 21 Meldungen
+//! in ihrer Spanne, die acht übrigen alle zu kurz und alle in den ersten
+//! zwei Sekunden nach der ersten Restzeit.
 
 use super::fenster::Raten;
 use super::zaehlwerk::{Momentaufnahme, Weg};

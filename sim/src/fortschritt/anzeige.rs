@@ -338,7 +338,7 @@ impl Anzeige {
                 hms(*oben_s)
             ),
             Restzeit::Plateau => "keine — offene Suche bis Konvergenz (siehe Bestes)".to_owned(),
-            Restzeit::Unbestimmt(grund) => format!("noch keine — {grund}"),
+            Restzeit::Unbestimmt(grund) => format!("noch keine: {grund}"),
             Restzeit::Fertig => "fertig".to_owned(),
         }
     }
