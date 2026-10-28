@@ -207,7 +207,11 @@ fn raten_ohne_gueltigen_messbeleg_werden_zurueckgewiesen() {
     for value in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         bad.push(rate(value));
     }
-    for spread in [-0.1, 0.03, f64::NAN, f64::INFINITY] {
+    // `0.03` stand hier bis zum 28.10. als „Streuung an der Schwelle". Seitdem
+    // hängt die Schwelle an der Unsicherheit des Mittels (#912): An ihr liegt
+    // bei acht Abschnitten eine Streuung von `0.03 * sqrt(7)`.
+    let an_der_schwelle = 0.03 * 7f64.sqrt();
+    for spread in [-0.1, an_der_schwelle, f64::NAN, f64::INFINITY] {
         bad.push(RateModel {
             spread,
             ..rate(100.0)
