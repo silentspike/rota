@@ -24,18 +24,62 @@ use crate::fortschritt::{Momentaufnahme, Weg};
 /// Nanosekunden.
 ///
 /// **Was als Warten zählt.** Ein Abschnitt ist eine Auswertung, die
-/// [`crate::balance`] über mehrere Stränge verteilt. Ein Strang arbeitet von
-/// seinem Start bis zum Ende seines Pakets und wartet von da bis zum Ende
-/// des langsamsten. Ein Strang des Laufs, der in diesem Abschnitt **kein**
-/// Paket bekam, wartet den ganzen Abschnitt — das ist der Fall „zu wenige
+/// [`crate::balance`] über mehrere Stränge verteilt. Ein Strang arbeitet so
+/// lange, wie sein Paket CPU-Zeit kostet, und wartet von da bis zum Ende des
+/// langsamsten. Ein Strang des Laufs, der in diesem Abschnitt **kein** Paket
+/// bekam, wartet den ganzen Abschnitt — das ist der Fall „zu wenige
 /// Pakete". Die Zeit, bis ein Strang überhaupt gestartet ist, zählt bei
-/// keinem: Sie ist Aufwand des Startens, nicht Warten auf Arbeit.
+/// keinem: Sie ist Aufwand des Startens, nicht Warten auf Arbeit. Die
+/// Rechnung steht in [`abschnitt`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Strangzeit {
     /// Gerechnet.
     pub arbeit_ns: u64,
     /// Fertig und auf die anderen gewartet.
     pub warten_ns: u64,
+}
+
+/// Ein Paket eines parallelen Abschnitts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Paketzeit {
+    /// Wann sein Strang begann, in Nanosekunden nach dem ersten Strang des
+    /// Abschnitts — an der Wanduhr.
+    pub beginn_ns: u64,
+    /// Was es an CPU-Zeit kostete (`CLOCK_THREAD_CPUTIME_ID`) — oder, wenn
+    /// die nicht lesbar war, seine Dauer an der Wanduhr.
+    pub arbeit_ns: u64,
+}
+
+/// Arbeit gegen Warten je Strang für einen parallelen Abschnitt (#934).
+///
+/// `pakete` in der Reihenfolge der Bereiche, `straenge` die Stränge des
+/// Laufs. Ein Strang wäre fertig bei `beginn + arbeit`; der Abschnitt bei
+/// dem spätesten solchen Zeitpunkt. Jeder Strang wartet von seinem auf
+/// diesen — ein Strang ohne Paket ab Beginn des Abschnitts.
+///
+/// **Gemessen wird die Arbeit in CPU-Zeit, nicht an der Wanduhr.** Verdrängt
+/// Fremdlast einen Strang, verlängert das seine Wanduhr, nicht seine Arbeit;
+/// an der Wanduhr sähen dann alle anderen „wartend" aus, und die Zeile
+/// „Pakete zu groß" schlüge auf einen belegten Kern an. Den meldet PSI.
+#[must_use]
+pub fn abschnitt(pakete: &[Paketzeit], straenge: usize) -> Vec<Strangzeit> {
+    let ende = pakete
+        .iter()
+        .map(|p| p.beginn_ns.saturating_add(p.arbeit_ns))
+        .max()
+        .unwrap_or(0);
+    (0..straenge.max(pakete.len()))
+        .map(|nummer| match pakete.get(nummer) {
+            Some(p) => Strangzeit {
+                arbeit_ns: p.arbeit_ns,
+                warten_ns: ende.saturating_sub(p.beginn_ns.saturating_add(p.arbeit_ns)),
+            },
+            None => Strangzeit {
+                arbeit_ns: 0,
+                warten_ns: ende,
+            },
+        })
+        .collect()
 }
 
 /// Die Zähler aus [`crate::diagnostics`], so weit sie die Regeltabelle

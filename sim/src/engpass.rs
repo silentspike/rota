@@ -59,12 +59,14 @@ pub use kernklasse::{
     Adapter, Ereignis, Kernklasse, Prozessor, Quelle, Rolle, RUHENDE_KERNKLASSEN,
 };
 pub use messwerte::{
-    Ablauftreffer, Druck, Kampfzaehlung, Messwerte, Netzwerte, Rohstand, Schlangenbelegung,
-    Strangzeit, Wegtreffer, Zaehlerlage, Zaehlerwerte,
+    abschnitt, Ablauftreffer, Druck, Kampfzaehlung, Messwerte, Netzwerte, Paketzeit, Rohstand,
+    Schlangenbelegung, Strangzeit, Wegtreffer, Zaehlerlage, Zaehlerwerte,
 };
 pub use regeln::{
     diagnose, Befund, Diagnose, Regel, ABLAUF_TREFFER_ANTEIL, DRITTE_EBENE_ANTEIL, DURCHSATZ_MINUS,
     FEHLSPRUENGE_PLUS, NETZ_WARTEN_ANTEIL, SCHLANGE_BELEGUNG_ANTEIL, SPEICHER_WARTEZEIT_PLUS,
     STRANG_WARTEN_ANTEIL, ZYKLEN_JE_EREIGNIS_PLUS,
 };
-pub use zaehler::{prozess_cpu_ns, Gruppenstand, Leistungszaehler, Sperre, Zaehlerstand};
+pub use zaehler::{
+    prozess_cpu_ns, strang_cpu_ns, Gruppenstand, Leistungszaehler, Sperre, Zaehlerstand,
+};

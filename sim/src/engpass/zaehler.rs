@@ -251,7 +251,21 @@ fn paranoid() -> Option<i32> {
 /// als die Wanduhr, die unter Fremdlast jede Rechnung länger aussehen lässt.
 #[must_use]
 pub fn prozess_cpu_ns() -> Option<u64> {
-    system::prozess_cpu_ns()
+    system::cpu_ns(system::PROZESSUHR)
+}
+
+/// Die CPU-Zeit des laufenden Strangs in Nanosekunden
+/// (`CLOCK_THREAD_CPUTIME_ID`).
+///
+/// **Die Arbeit eines Pakets** (#934): Ein Strang, den Fremdlast für eine
+/// Zeitscheibe verdrängt, braucht an der Wanduhr länger, ohne mehr zu
+/// rechnen — und die übrigen warten auf ihn. Das ist kein zu großes Paket,
+/// sondern ein belegter Kern, und den meldet schon PSI. Gemessen am
+/// 2026-10-28 auf dem Laptop bei PSI cpu 6–8 %: 1 000 Kämpfe je Strang und
+/// Abschnitt, an der Wanduhr 18 % „Warten".
+#[must_use]
+pub fn strang_cpu_ns() -> Option<u64> {
+    system::cpu_ns(system::STRANGUHR)
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -282,7 +296,9 @@ mod system {
     /// `PERF_FLAG_FD_CLOEXEC`: Ein gestartetes Programm erbt die Datei nicht.
     const FD_CLOEXEC: c_long = 8;
     /// `CLOCK_PROCESS_CPUTIME_ID`.
-    const PROZESSUHR: c_int = 2;
+    pub(super) const PROZESSUHR: c_int = 2;
+    /// `CLOCK_THREAD_CPUTIME_ID`.
+    pub(super) const STRANGUHR: c_int = 3;
     /// `pid` 0: der aufrufende Strang.
     const DIESER_STRANG: c_long = 0;
     /// `cpu` -1: auf jedem Kern, auf dem der Strang läuft.
@@ -351,13 +367,13 @@ mod system {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
-    pub(super) fn prozess_cpu_ns() -> Option<u64> {
+    pub(super) fn cpu_ns(uhr: c_int) -> Option<u64> {
         let mut zeit = Zeitpunkt {
             sekunden: 0,
             nanosekunden: 0,
         };
         // SAFETY: `zeit` ist ein gültiger, beschreibbarer `struct timespec`.
-        let rc = unsafe { clock_gettime(PROZESSUHR, &raw mut zeit) };
+        let rc = unsafe { clock_gettime(uhr, &raw mut zeit) };
         if rc != 0 {
             return None;
         }
@@ -385,7 +401,10 @@ mod system {
         ))
     }
 
-    pub(super) fn prozess_cpu_ns() -> Option<u64> {
+    pub(super) const PROZESSUHR: i32 = 2;
+    pub(super) const STRANGUHR: i32 = 3;
+
+    pub(super) fn cpu_ns(_uhr: i32) -> Option<u64> {
         None
     }
 }
