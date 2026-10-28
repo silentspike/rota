@@ -1,5 +1,5 @@
 {
-  "_comment": "ARBEITSNAME (Issue #574). Der vierte und letzte Boss der zweiten Instanz: DER ABSCHLUSS, der alles gleichzeitig verlangt.\n\nSIGNATUR: Ein Fenster von fuenf Sekunden ab der zwoelften, in dem 1400 Schaden fallen muessen — und wer den Sealing Chant durchlaesst, verliert 1600 Fortschritt statt 800. Beides zusammen: Wer im Fenster unterbricht, verfehlt die Schwelle; wer die Schwelle schafft, laesst den Zauber durch. Getragen von: race (threshold) zusammen mit bossHeal (amount).\n\nDER UNTERSCHIED ZU boss-1-4 ist die KOLLISION. Dort lagen Rennen und Wirkzauber auseinander (14000 gegen 30000), und beide waren einzeln zu bedienen. Hier ueberlappen sie, und der Spieler muss entscheiden, was er aufgibt.\n\nDAZU affliction ALS BEGLEITER, nicht als Traeger: Es zehrt waehrenddessen weiter und nimmt dem Spieler den dritten Leisten-Platz, mit dem er beides haette loesen koennen.\n\nDIE ZAHLEN SIND GEMESSEN. Vier Lebenspunkt-Staende, immer dasselbe Muster:\n\n  hp 5000 | roh: Ueberdruck 60000ms | unterbrechen: SIEG 54040ms (Restzeit 10 %)\n  hp 4400 | roh: Ueberdruck        | unterbrechen: SIEG 46540ms\n  hp 3800 | roh: Ueberdruck        | unterbrechen: SIEG 43540ms\n  hp 3200 | roh: Ueberdruck        | unterbrechen: SIEG 34530ms\n\nWer nicht unterbricht, gewinnt bei KEINER dieser Zahlen — der Boss heilt sich 5372 zurueck und faellt nie. Wer unterbricht, verhindert die Heilung vollstaendig (0 statt 5372) und behaelt 4072 von 5000 Lebenspunkten.\n\n5000 ist die hoechste Zahl, bei der es noch geht. Die Restzeit von 10 % liegt unter der 40-Prozent-Grenze aus AC2, und die Robustheit nach unten ist belegt: Selbst bei 3200 gewinnt die rohe Rotation nicht.",
+  "_comment": "ARBEITSNAME (Issue #574). Der vierte und letzte Boss der zweiten Instanz: DER ABSCHLUSS, der alles gleichzeitig verlangt.\n\nSIGNATUR: Ein Fenster von fuenf Sekunden ab der zwoelften, in dem 1400 Schaden fallen muessen — und wer den Sealing Chant durchlaesst, verliert 1600 Fortschritt statt 800. Beides zusammen: Wer im Fenster unterbricht, verfehlt die Schwelle; wer die Schwelle schafft, laesst den Zauber durch. Getragen von: race (threshold) zusammen mit bossHeal (amount).\n\nDER UNTERSCHIED ZU boss-1-4 ist die KOLLISION. Dort lagen Rennen und Wirkzauber auseinander (14000 gegen 30000), und beide waren einzeln zu bedienen. Hier ueberlappen sie, und der Spieler muss entscheiden, was er aufgibt.\n\nDAZU affliction ALS BEGLEITER, nicht als Traeger: Es zehrt waehrenddessen weiter und nimmt dem Spieler den dritten Leisten-Platz, mit dem er beides haette loesen koennen.\n\nDIE ZAHLEN SIND GEMESSEN. Vier Lebenspunkt-Staende, immer dasselbe Muster:\n\n  hp 5000 | roh: Ueberdruck 60000ms | unterbrechen: SIEG 54040ms (Restzeit 10 %)\n  hp 4400 | roh: Ueberdruck        | unterbrechen: SIEG 46540ms\n  hp 3800 | roh: Ueberdruck        | unterbrechen: SIEG 43540ms\n  hp 3200 | roh: Ueberdruck        | unterbrechen: SIEG 34530ms\n\nWer nicht unterbricht, gewinnt bei KEINER dieser Zahlen — der Boss heilt sich 5372 zurueck und faellt nie. Wer unterbricht, verhindert die Heilung vollstaendig (0 statt 5372) und behaelt 4072 von 5000 Lebenspunkten.\n\n5000 ist die hoechste Zahl, bei der es noch geht. Die Restzeit von 10 % liegt unter der 40-Prozent-Grenze aus AC2, und die Robustheit nach unten ist belegt: Selbst bei 3200 gewinnt die rohe Rotation nicht.\n\nARBEITSNAMEN (Issue #797): \"Fracture Seal\" (race), \"Hairline Rot\" (affliction). Name und Thema gehoeren dem Auftraggeber; die Umbenennung ist eine Zeile. Die Ankuendigung im Kampf nennt jede Faehigkeit beim Namen (GAME-DESIGN 11.5), deshalb brauchen auch Wettrennen und Schwaechung einen.",
   "schema": 1,
   "id": "boss-2-4",
   "name": "Instance Two, Fourth",
@@ -9,6 +9,7 @@
   "phases": [],
   "energy": null,
   "race": {
+    "name": "Fracture Seal",
     "atMs": 12000,
     "windowMs": 5000,
     "threshold": 1400
@@ -17,6 +18,7 @@
     "amount": 1600
   },
   "affliction": {
+    "name": "Hairline Rot",
     "atMs": 20000,
     "perStepMs": 1500,
     "damage": 40,
