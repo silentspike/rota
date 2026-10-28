@@ -732,9 +732,8 @@ impl Bounds {
 
     /// Ob gar keine Grenze bekannt ist — [`Bounds::UNKNOWN`].
     ///
-    /// Die Bedingung des konservativen Rückfalls in `kernel-choice` und
-    /// `action-bound` beim Wirken (DW3, Epic #892). Ein halb offener Bereich ist
-    /// eine Teilangabe und fällt dort nicht zurück.
+    /// Nicht die Bedingung des DW3-Rückfalls (Epic #892): Der greift bei jedem
+    /// Bereich, der nicht [`Bounds::ist_eng`] ist, auch einem halb offenen.
     pub const fn ist_unbekannt(self) -> bool {
         self.min.is_none() && self.max.is_none()
     }
