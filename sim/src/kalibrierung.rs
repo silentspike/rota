@@ -967,6 +967,54 @@ pub fn ac1_vergleich(
     }
 }
 
+/// Ein verschränkter Lauf: Kalibrier- und Referenzabschnitte abwechselnd,
+/// gleich lang, auf denselben Kernen (#912, AC1).
+#[derive(Debug, Clone, Copy)]
+pub struct Verschraenkt {
+    /// Die Rate über die Kalibrierabschnitte.
+    pub kalibrierung: RateModel,
+    /// Die Rate über die Referenzabschnitte.
+    pub referenz: RateModel,
+}
+
+impl Verschraenkt {
+    /// Der Vergleich aus AC1: Mittel der Kalibrierabschnitte gegen Mittel der
+    /// Referenzabschnitte.
+    #[must_use]
+    pub fn ac1(&self) -> Ac1Vergleich {
+        Ac1Vergleich {
+            referenz: f64::NAN,
+            abweichung: f64::NAN,
+            spanne: f64::NAN,
+            urteil: Ac1Urteil::Ungueltig,
+        }
+    }
+}
+
+/// Fährt Kalibrierung und Referenz **verschränkt**: ein Abschnitt der einen,
+/// ein Abschnitt der anderen, bis beide Mittel sicher genug sind.
+pub fn kalibriere_verschraenkt<A, B>(kalibrierung: A, referenz: B) -> Verschraenkt
+where
+    A: FnMut() -> f64,
+    B: FnMut() -> f64,
+{
+    let _ = (kalibrierung, referenz);
+    let leer = RateModel {
+        rate_per_s: 0.0,
+        spread: f64::INFINITY,
+        samples: 0,
+        duration_ms: 0,
+        reason: Abbruchgrund::Hoechstdauer,
+        measured_at: jetzt(),
+        psi_cpu: None,
+        takt_drift: None,
+    };
+    Verschraenkt {
+        kalibrierung: leer,
+        referenz: leer,
+    }
+}
+
 /// Wo Profile liegen.
 ///
 /// `ROTA_PROFILVERZEICHNIS` schlägt alles; sonst `$XDG_CACHE_HOME/rota-sim`,
@@ -1743,5 +1791,153 @@ mod tests {
                 "kalibriert {k}, vorher {a}, nachher {b}"
             );
         }
+    }
+
+    // --------------------------------------------- AC1: verschränkte Referenz
+
+    fn verschraenkt(kalibriert: f64, referenz: f64) -> Verschraenkt {
+        Verschraenkt {
+            kalibrierung: rate(kalibriert),
+            referenz: rate(referenz),
+        }
+    }
+
+    #[test]
+    fn verschraenkt_ac1_trifft_innerhalb_der_toleranz_und_nicht_darueber() {
+        for (kalibriert, erwartet) in [
+            (100.0, Ac1Urteil::Erfuellt),
+            (105.0, Ac1Urteil::Erfuellt),
+            (90.5, Ac1Urteil::Erfuellt),
+            (109.5, Ac1Urteil::Erfuellt),
+            (89.0, Ac1Urteil::NichtErfuellt),
+            (111.0, Ac1Urteil::NichtErfuellt),
+            (50.0, Ac1Urteil::NichtErfuellt),
+        ] {
+            let v = verschraenkt(kalibriert, 100.0).ac1();
+            assert_eq!(v.urteil, erwartet, "kalibriert {kalibriert}");
+            assert!(
+                (v.referenz - 100.0).abs() < 1e-12,
+                "Referenz {}",
+                v.referenz
+            );
+            assert!(
+                (v.abweichung - (kalibriert - 100.0) / 100.0).abs() < 1e-12,
+                "Abweichung {} bei {kalibriert}",
+                v.abweichung
+            );
+        }
+    }
+
+    #[test]
+    fn verschraenkt_ac1_verlangt_kalibrierung_und_referenz() {
+        // Beide Reihen müssen stabil sein: ein genaues Mittel gegen ein
+        // ungenaues ist kein Vergleich. Die Abweichung steht trotzdem da.
+        for (kal, refz) in [
+            (Abbruchgrund::Hoechstdauer, Abbruchgrund::Stabil),
+            (Abbruchgrund::Stabil, Abbruchgrund::Hoechstdauer),
+            (Abbruchgrund::Drosselung, Abbruchgrund::Drosselung),
+        ] {
+            let mut v = verschraenkt(100.0, 100.0);
+            v.kalibrierung.reason = kal;
+            v.referenz.reason = refz;
+            let a = v.ac1();
+            assert_eq!(a.urteil, Ac1Urteil::KeineKalibrierung, "{kal:?} {refz:?}");
+            assert!(a.abweichung.abs() < 1e-12, "Abweichung {}", a.abweichung);
+        }
+        // Gegenprobe: beide stabil ist erfüllt.
+        assert_eq!(verschraenkt(100.0, 100.0).ac1().urteil, Ac1Urteil::Erfuellt);
+    }
+
+    #[test]
+    fn verschraenkt_ac1_ohne_rate_ist_ungueltig() {
+        for (k, r) in [
+            (0.0, 100.0),
+            (100.0, 0.0),
+            (100.0, f64::NAN),
+            (f64::INFINITY, 100.0),
+            (100.0, -5.0),
+        ] {
+            assert_eq!(
+                verschraenkt(k, r).ac1().urteil,
+                Ac1Urteil::Ungueltig,
+                "kalibriert {k}, Referenz {r}"
+            );
+        }
+    }
+
+    #[test]
+    fn verschraenkt_wechselt_kalibrierung_und_referenz_ab() {
+        // ABAB…, vom ersten Aufwärmabschnitt an, und jede Reihe gleich lang.
+        let folge = std::cell::RefCell::new(Vec::<char>::new());
+        let v = kalibriere_verschraenkt(
+            || {
+                folge.borrow_mut().push('A');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            || {
+                folge.borrow_mut().push('B');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+        );
+        // Derselbe Ausweg wie bei `kalibriere_haelt_die_mindestdauer_ein`:
+        // Fremdlast vor der Messung bricht ab, bevor gerechnet wird.
+        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
+            assert!(folge.borrow().is_empty(), "gerechnet trotz Druck-Abbruch");
+            return;
+        }
+        let folge = folge.into_inner();
+        assert!(
+            folge.len() >= 2 * ABSCHNITTE_MIN,
+            "nur {} Aufrufe",
+            folge.len()
+        );
+        assert_eq!(folge[0], 'A', "die Kalibrierung beginnt nicht");
+        assert!(
+            folge.windows(2).all(|w| w[0] != w[1]),
+            "nicht abwechselnd: {}",
+            folge.iter().collect::<String>()
+        );
+        assert_eq!(folge.last(), Some(&'B'), "endet mitten im Paar");
+        assert_eq!(
+            v.kalibrierung.samples, v.referenz.samples,
+            "verschieden viele Abschnitte"
+        );
+        assert!(v.kalibrierung.samples >= ABSCHNITTE_MIN);
+    }
+
+    #[test]
+    fn verschraenkt_hebt_eine_drift_auf() {
+        // **Der Grund für die Verschränkung** (P1 auf node3, 28.10.): Die
+        // Referenz davor und danach lag 10,7 % auseinander. Hier wird dieselbe
+        // Arbeit während des Laufs stetig langsamer — wie eine Maschine, deren
+        // Last steigt. Verschränkt sehen beide Reihen dieselbe Drift, und ihre
+        // Mittel treffen sich; nacheinander gemessen lägen sie um die Drift
+        // auseinander.
+        let start = Instant::now();
+        let arbeit = || {
+            let faktor = 1.0 + start.elapsed().as_secs_f64() / 5.0;
+            std::thread::sleep(Duration::from_secs_f64(0.010 * faktor));
+            1.0
+        };
+        let v = kalibriere_verschraenkt(arbeit, arbeit);
+        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
+            return;
+        }
+        // Positive Kontrolle: Die Drift ist im Lauf angekommen — die
+        // Abschnitte streuen weit. Ohne sie prüfte der Fall gleiche Arbeit
+        // unter gleichen Bedingungen und könnte nicht scheitern.
+        assert!(
+            v.kalibrierung.spread > 0.10,
+            "keine Drift im Lauf, Streuung {}",
+            v.kalibrierung.spread
+        );
+        let a = v.ac1();
+        assert!(
+            a.abweichung.abs() < 0.03,
+            "verschränkte Mittel liegen auseinander: Abweichung {}",
+            a.abweichung
+        );
     }
 }
