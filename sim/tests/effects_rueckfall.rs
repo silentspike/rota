@@ -64,6 +64,9 @@
 //! Übersetzungsfehler und steht in `tools/wirkung-baubruch-gegenprobe.py`, das
 //! der sim-Job bei jeder Änderung fährt.
 
+#[macro_use]
+mod wirkungsanker;
+
 use rota_sim::data::EFFECT_NODES;
 use rota_sim::effects::passes::{anzahl_analysen, beispielknoten, REGISTRY};
 use rota_sim::effects::registry::{
@@ -75,47 +78,19 @@ use rota_sim::effects::{
     StackingSemantics, StateMask, Target, TimingSemantics, Trigger, ZertifikatVerweigert,
     ZertifikatsBedarf,
 };
+use wirkungsanker::{
+    jede_zufallsquelle, jeder_ausloeser, jeder_baustein, jeder_bezug, jeder_hinweis,
+    jedes_stapelverhalten, jedes_zeitverhalten, jedes_ziel,
+};
 
 /// Alle Bausteine, für die Messung der Leser unten.
 ///
-/// Der `match` hat keinen Auffangzweig: Ein neuer Baustein lässt diese Datei
-/// nicht übersetzen, bis er hier eingeordnet ist — und wer ihn einordnet, sieht
-/// die Liste direkt darüber. Dass er dann auch IN der Liste steht, prüft
-/// nichts. Der Anker zwingt nur zum Hinsehen.
+/// Bis #892 stand hier eine Liste mit einem erschöpfenden `match` daneben. Der
+/// zwang zum Hinsehen, prüfte aber nicht, dass die Liste vollständig ist: Ein
+/// gestrichener Eintrag blieb grün. [`wirkungsanker::jeder_baustein`] baut Liste
+/// und Anker aus denselben Namen.
 fn bausteine() -> Vec<EffectOp> {
-    let liste = vec![
-        EffectOp::DealDamage,
-        EffectOp::ApplyDot,
-        EffectOp::ApplyBuff,
-        EffectOp::ModifyResource,
-        EffectOp::ReduceCooldown,
-        EffectOp::ResetCooldown,
-        EffectOp::FreeNextGcd,
-        EffectOp::Heal,
-        EffectOp::Shield,
-        EffectOp::ConvertDamage,
-        EffectOp::ChangeBossState,
-        EffectOp::ChangePhase,
-        EffectOp::CustomSignature(SignatureId("prueffall/rueckfall")),
-    ];
-    for op in &liste {
-        match op {
-            EffectOp::DealDamage
-            | EffectOp::ApplyDot
-            | EffectOp::ApplyBuff
-            | EffectOp::ModifyResource
-            | EffectOp::ReduceCooldown
-            | EffectOp::ResetCooldown
-            | EffectOp::FreeNextGcd
-            | EffectOp::Heal
-            | EffectOp::Shield
-            | EffectOp::ConvertDamage
-            | EffectOp::ChangeBossState
-            | EffectOp::ChangePhase
-            | EffectOp::CustomSignature(_) => {}
-        }
-    }
-    liste
+    jeder_baustein()
 }
 
 /// Eine Bossregel mit vollständiger Semantik.
@@ -207,10 +182,15 @@ fn genau_eine_angabe_fehlt(mut knoten: EffectNode, feld: &str, setzen: impl Fn(&
 
 /// Je Bedingung von `hat_luecke` ein Fall an der Signatur (DW3) und einer am
 /// Baustein (MAP2). Eine neue Bedingung gehört hier dazu; ein neues Feld zwingt
-/// zum Hinsehen ([`jedes_feld_des_knotens_ist_hier_eingeordnet`]), eine neue
-/// Bedingung an einem alten Feld nicht.
+/// zum Hinsehen ([`jedes_feld_des_knotens_ist_hier_eingeordnet`]). Dass die
+/// Liste auch eine neue Bedingung an einem alten Feld bemerkt, misst seit #892
+/// [`jede_lueckenbedingung_steht_in_je_bedingung_und_nur_sie`].
 macro_rules! je_bedingung {
     ($($name:ident: $feld:literal, |$k:ident| $setzen:expr;)+) => {
+        /// Die Felder, deren Unbekannt-Wert hier je zwei Fälle hat — für
+        /// [`jede_lueckenbedingung_steht_in_je_bedingung_und_nur_sie`].
+        const BEDINGUNGEN: &[&str] = &[$($feld),+];
+
         /// DW3 aus #892: eine Bossregel, der genau eine Angabe fehlt.
         mod an_der_signatur {
             use super::*;
@@ -276,6 +256,112 @@ fn jedes_feld_des_knotens_ist_hier_eingeordnet() {
         monotonicity: _,
         numeric_bounds: _,
     } = beispielknoten(EffectOp::DealDamage);
+}
+
+/// Setzt ein Feld des Knotens auf einen Wert.
+type Setzer = Box<dyn Fn(&mut EffectNode)>;
+
+/// Jeder Wert jedes Feldes, die Unbekannt-Werte eingeschlossen.
+///
+/// Die Aufzählungen kommen aus [`wirkungsanker`], die übrigen Felder tragen ihre
+/// Unbekannt-Form und Gegenwerte. Ein `ControlFlowEffect` mit nur gesetztem
+/// `unknown` steht bewusst nicht dabei: Er wäre ein zweiter Unbekannt-Wert
+/// desselben Feldes, und die Zählung unten verlangt genau einen.
+fn jeder_wert_je_feld() -> Vec<(&'static str, Vec<Setzer>)> {
+    felder! {
+        trigger: jeder_ausloeser(),
+        target: jedes_ziel(),
+        reads: [
+            StateMask::UNKNOWN,
+            StateMask::EMPTY,
+            StateMask::RESOURCE,
+            StateMask::BOSS_HP.union(StateMask::PLAYER_HP),
+        ],
+        writes: [
+            StateMask::UNKNOWN,
+            StateMask::EMPTY,
+            StateMask::RESOURCE,
+            StateMask::BOSS_HP.union(StateMask::PLAYER_HP),
+        ],
+        timing: jedes_zeitverhalten(),
+        stacking: jedes_stapelverhalten(),
+        randomness: jede_zufallsquelle(),
+        monotonicity: jeder_hinweis(),
+        numeric_bounds: [
+            Bounds::UNKNOWN,
+            Bounds::exact(0, 1),
+            Bounds {
+                min: Some(0),
+                max: None,
+            },
+            Bounds {
+                min: None,
+                max: Some(0),
+            },
+        ],
+        control_flow_effect: [
+            ControlFlowEffect::UNKNOWN,
+            ControlFlowEffect::NONE,
+            ControlFlowEffect {
+                branches_on_damage: true,
+                ..ControlFlowEffect::NONE
+            },
+            ControlFlowEffect {
+                branches_on_hp: true,
+                ..ControlFlowEffect::NONE
+            },
+            ControlFlowEffect {
+                branches_on_victory: true,
+                ..ControlFlowEffect::NONE
+            },
+        ],
+    }
+}
+
+/// Die Gegenrichtung zu `je_bedingung!`, gemessen statt aufgezählt.
+///
+/// Je Feld: Wie viele seiner Werte lösen am vollständigen Knoten eine Lücke
+/// aus? Für jedes Feld aus `je_bedingung!` genau einer — sein Unbekannt-Wert —,
+/// für jedes andere keiner. Bis #892 bemerkte die Liste eine gestrichene
+/// Bedingung (dann wird ihr Fall rot), aber keine neue: Eine Lückenbedingung an
+/// `monotonicity` oder ein zweiter Lücken-Wert an `trigger` ließen alle Fälle
+/// grün. Nicht gemessen wird eine Bedingung, die erst aus zwei Feldern zusammen
+/// entsteht.
+#[test]
+fn jede_lueckenbedingung_steht_in_je_bedingung_und_nur_sie() {
+    let basis = beispielknoten(EffectOp::DealDamage);
+    assert!(
+        !basis.hat_luecke(),
+        "Der Ausgangsknoten hat schon eine Lücke."
+    );
+    let mut gemessen: Vec<(&str, usize)> = Vec::new();
+    for (feld, werte) in jeder_wert_je_feld() {
+        let luecken = werte
+            .iter()
+            .filter(|setzen| {
+                let mut knoten = basis;
+                setzen(&mut knoten);
+                knoten.hat_luecke()
+            })
+            .count();
+        gemessen.push((feld, luecken));
+    }
+    for bedingung in BEDINGUNGEN {
+        assert!(
+            gemessen.iter().any(|(feld, _)| feld == bedingung),
+            "`{bedingung}` steht in je_bedingung!, ist aber kein Feld des Knotens."
+        );
+    }
+    let erwartet: Vec<(&str, usize)> = gemessen
+        .iter()
+        .map(|&(feld, _)| (feld, usize::from(BEDINGUNGEN.contains(&feld))))
+        .collect();
+    assert_eq!(
+        gemessen, erwartet,
+        "Je Feld die Zahl der Werte, die eine Lücke auslösen (links gemessen, rechts nach \
+         je_bedingung!). Steht links mehr, hat hat_luecke eine Bedingung, die hier keinen Fall \
+         hat; steht links weniger, prüft je_bedingung! eine, die es nicht mehr gibt."
+    );
 }
 
 // ------------------------------------------- Weg b: Wertebereich und Monotonie
@@ -506,15 +592,9 @@ fn ohne_monotonie_hinweis_faellt_die_monotonie_analyse_zurueck() {
 #[test]
 fn ein_hinweis_ohne_richtung_oder_bezug_traegt_fuer_keinen_bezug() {
     // Alle Bezüge, auch „ohne Bezug“ selbst: Ein Hinweis ohne Bezug darf nicht
-    // dadurch tragen, dass jemand nach „ohne Bezug“ fragt.
-    for gefragt in [
-        MonotonicityDomain::ExpectedDamageStableTrace,
-        MonotonicityDomain::VictoryOutcome,
-        MonotonicityDomain::TimeToVictoryAcrossPhase,
-        MonotonicityDomain::HpPredicate,
-        MonotonicityDomain::SpellDiversity,
-        MonotonicityDomain::Unspecified,
-    ] {
+    // dadurch tragen, dass jemand nach „ohne Bezug“ fragt. Seit #892 aus dem
+    // Anker, nicht aufgezählt: Ein neuer Bezug ist ohne Zutun dabei.
+    for gefragt in jeder_bezug() {
         let ohne_bezug = LocalMonotonicityHint {
             direction: MonotonicDirection::Increasing,
             domain: MonotonicityDomain::Unspecified,
