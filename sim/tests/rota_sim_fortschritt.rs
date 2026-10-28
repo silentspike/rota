@@ -198,6 +198,117 @@ fn die_schranken_der_suche_halten_in_jeder_meldung() {
     );
 }
 
+/// **Eine Runde überschreitet ihren Plan nie** — in keiner Meldung.
+///
+/// Befund des Orchestrators auf 2361f2c1: Die end-Meldung zeigte `round_done
+/// 361` gegen `round_planned 360`. Die Messung der gefundenen Liste nach der
+/// letzten Runde stand in beiden Grenzen der Menge, aber nicht im Rundenplan,
+/// und wurde trotzdem der letzten Runde zugerechnet.
+#[test]
+fn in_jeder_meldung_liegt_die_runde_in_ihrem_plan() {
+    let pfad = stromdatei("rundenplan");
+    let (code, _stdout, stderr) = rufe(&[
+        "run",
+        "--boss",
+        "boss-1-1",
+        "--iterations",
+        "20",
+        "--max-len",
+        "4",
+        "--jsonl",
+        pfad.to_str().expect("Pfad"),
+    ]);
+    assert_eq!(code, 0, "{stderr}");
+    let alle = meldungen(&pfad);
+    let mut mit_runde = 0;
+    for m in &alle {
+        let c = &m["metrics"]["candidates"];
+        let (Some(erledigt), Some(geplant)) = (c["round_done"].as_u64(), c["round_planned"].as_u64())
+        else {
+            continue;
+        };
+        assert!(
+            erledigt <= geplant,
+            "Meldung {} ({}): Runde {} hat {erledigt} von {geplant} geplanten Auswertungen",
+            m["host_sequence"],
+            m["event"],
+            m["metrics"]["round"]
+        );
+        mit_runde += 1;
+    }
+    assert!(
+        ende(&alle)["metrics"]["round"].as_u64().is_some(),
+        "Zusicherung: die end-Meldung trägt eine Runde"
+    );
+    assert!(mit_runde > 0, "keine Meldung mit Runde — der Fall prüfte nichts");
+}
+
+/// Die Zahl hinter der Zeilenmarke `marke` im Textbericht.
+fn zahl_hinter(text: &str, marke: &str) -> u64 {
+    text.lines()
+        .find(|z| z.split_whitespace().next() == Some(marke))
+        .and_then(|z| z.split_whitespace().nth(1))
+        .and_then(|z| z.parse().ok())
+        .unwrap_or_else(|| panic!("keine Zeile '{marke}' mit Zahl in:\n{text}"))
+}
+
+/// **Messungen der Suche und Auswertungen sind zwei Größen, und der Bericht
+/// nennt beide.**
+///
+/// Befund des Orchestrators: „Messungen 1615" im Bericht gegen 1617 in der
+/// Anzeige und in „Kaempfe gerechnet". Die zwei sind die Start- und die
+/// Fundliste: `SearchResult::measured` zählt die Züge der Suche, das Zählwerk
+/// jede abgeschlossene Auswertung. Ohne Würfel kostet jede Auswertung genau
+/// einen Kampf — daher stimmen Auswertungen, Strom und Kampfzeile überein.
+#[test]
+fn bericht_nennt_messungen_und_auswertungen_getrennt() {
+    let pfad = stromdatei("auswertungen");
+    let (code, stdout, stderr) = rufe(&[
+        "run",
+        "--boss",
+        "boss-1-1",
+        "--iterations",
+        "20",
+        "--max-len",
+        "3",
+        "--jsonl",
+        pfad.to_str().expect("Pfad"),
+    ]);
+    assert_eq!(code, 0, "{stderr}");
+    let alle = meldungen(&pfad);
+    let strom = ende(&alle)["metrics"]["candidates"]["done"]
+        .as_u64()
+        .expect("Zahl");
+    let messungen = zahl_hinter(&stdout, "Messungen");
+    let auswertungen = zahl_hinter(&stdout, "Auswertungen");
+    assert_eq!(
+        auswertungen, strom,
+        "Bericht und Strom nennen verschiedene Auswertungszahlen"
+    );
+    assert_eq!(
+        auswertungen,
+        messungen + 2,
+        "Auswertungen sind die Messungen der Suche plus Start- und Fundliste"
+    );
+    assert_eq!(kampfzeile(&stdout), auswertungen, "ohne Würfel ein Kampf je Auswertung");
+
+    // Dieselbe Beziehung im JSON-Bericht.
+    let (code, json, stderr) = rufe(&[
+        "run",
+        "--boss",
+        "boss-1-1",
+        "--iterations",
+        "20",
+        "--max-len",
+        "3",
+        "--json",
+    ]);
+    assert_eq!(code, 0, "{stderr}");
+    let wert: serde_json::Value = serde_json::from_str(json.trim()).expect("JSON");
+    let gemessen = wert["measured"].as_u64().expect("measured");
+    assert_eq!(wert["evaluations"].as_u64(), Some(gemessen + 2), "{wert}");
+}
+
 /// **Der gestaffelte Lauf meldet seinen Weg und seine Kämpfe.**
 #[test]
 fn gestaffelt_meldet_den_gestaffelten_weg() {

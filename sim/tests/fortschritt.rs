@@ -226,14 +226,31 @@ fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
         greedy(&konfiguration(4, 1, 0), &all_candidates(), 3)
     });
     let mut gesehen: Vec<(Option<u64>, Arbeitsmenge)> = Vec::new();
+    let mut ueber_plan = Vec::new();
+    // Eine Runde liegt in ihrem Plan, solange sie läuft — und auch danach.
+    let im_plan = |m: &Momentaufnahme| {
+        m.stand.runde.is_none()
+            || m.kandidaten_gesamt() - m.stand.runde_ab_kandidaten <= m.stand.runde_geplant
+    };
     while !suche.is_finished() {
         let m = werk.momentaufnahme();
         gesehen.push((m.stand.runde, m.stand.menge));
+        if !im_plan(&m) {
+            ueber_plan.push(m.stand);
+        }
         std::thread::sleep(Duration::from_micros(500));
     }
     let ergebnis = suche.join().expect("die Suche lief durch");
     let ende = werk.momentaufnahme();
     let gesamt = ende.kandidaten_gesamt();
+    assert!(
+        im_plan(&ende),
+        "nach der Suche: {} Auswertungen in Runde {:?}, geplant {}",
+        gesamt - ende.stand.runde_ab_kandidaten,
+        ende.stand.runde,
+        ende.stand.runde_geplant
+    );
+    assert!(ueber_plan.is_empty(), "während der Suche über dem Plan: {ueber_plan:?}");
     assert_eq!(
         gesamt,
         ergebnis.measured as u64 + 2,
