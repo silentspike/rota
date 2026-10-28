@@ -7,6 +7,11 @@ not even input it could not split (#1049 point 2). Only while another session
 holds the window, or while the switch is unreadable, is the visible command
 classified; the classifier (fenster_lastpruefung.py) is imported only then, so
 ordinary Bash calls do not pay for compiling it.
+
+The place of the window decides which load counts (rota-fenster --ort): in a
+node3 window only the build service (`cargo remote`, `cargo-remote-fmt`), which
+runs on that node; in a Laptop window, or with an old switch without a place,
+only local load. Undecidable input is reported in both.
 """
 
 import json
@@ -15,6 +20,7 @@ import re
 import sys
 
 UNREADABLE = 'unreadable'
+PLACES = ('laptop', 'node3')   # rota-fenster --ort; a switch without a place is a Laptop window
 NO_PERMISSION = ' Keine Sperre; die Warnung erteilt keine Ausführungsberechtigung.'
 
 
@@ -39,9 +45,11 @@ def read_switch():
             stand = json.load(source)
         if not isinstance(stand, dict) or not {'inhaber', 'abgabe'} <= stand.keys():
             raise ValueError('missing switch fields')
-        for key in ['inhaber', 'abgabe', 'zweck', 'seit', 'kennung']:
+        for key in ['inhaber', 'abgabe', 'zweck', 'seit', 'kennung', 'ort']:
             if stand.get(key) is not None and not isinstance(stand[key], str):
                 raise ValueError('invalid switch field type')
+        if stand.get('ort') is not None and stand['ort'] not in PLACES:
+            raise ValueError('unknown place')
         if held(stand) and not (stand.get('zweck') and stand.get('seit')):
             raise ValueError('held window lacks purpose or timestamp')
     except (OSError, ValueError, RecursionError):
@@ -91,15 +99,24 @@ def main():
         return 0
     if stand != UNREADABLE and event and own_session(stand, event):
         return 0
+    place = 'laptop' if stand == UNREADABLE else stand.get('ort') or 'laptop'
     try:
         tool_input = event.get('tool_input') if event else None
         if not isinstance(tool_input, dict) or not isinstance(tool_input.get('command'), str):
             raise ValueError('missing shell command')
-        from fenster_lastpruefung import load_command
+        from fenster_lastpruefung import BAU, LOKAL, analyse
         cwd = event.get('cwd') if isinstance(event.get('cwd'), str) else None
-        if not load_command(tool_input['command'], cwd=cwd):
+        kinds, error = analyse(tool_input['command'], cwd=cwd)
+        # On node3 the build service shares the CPU with the measurement; there
+        # only `cargo remote` disturbs. On the Laptop only local load does. An
+        # unreadable switch could be either (rota#1049, decision of 28.10.).
+        wanted = {LOKAL, BAU} if stand == UNREADABLE else {BAU} if place == 'node3' else {LOKAL}
+        if kinds & wanted:
+            undecided = False
+        elif error:
+            undecided = True     # the undecided part could be the wanted kind
+        else:
             return 0
-        undecided = False
     except (ValueError, TypeError, RecursionError, ImportError):
         undecided = True
     if stand == UNREADABLE:
@@ -110,9 +127,12 @@ def main():
         return 0
     else:
         purpose = ' '.join(stand['zweck'].split())[:150]
-        warning = (f"[MESSFENSTER] {stand['inhaber']} misst seit {stand['seit']}. Zweck: {purpose}. "
+        where = 'auf node3' if place == 'node3' else 'auf dem Laptop'
+        target = 'den Bau-Dienst auf node3' if place == 'node3' else 'die gemeinsame Maschine'
+        warning = (f"[MESSFENSTER] {stand['inhaber']} misst seit {stand['seit']} {where}. "
+                   f"Zweck: {purpose}. "
                    + ('Hook-Eingabe nicht auswertbar; Lastprüfung UNBEKANNT.' if undecided else
-                      'Dieser Befehl kann die gemeinsame Maschine belasten.') + NO_PERMISSION)
+                      f'Dieser Befehl kann {target} belasten.') + NO_PERMISSION)
     # Exit 0 + additionalContext reaches the model without granting or
     # denying the call; systemMessage also makes it visible to the user.
     print(json.dumps({'systemMessage': warning, 'hookSpecificOutput': {
