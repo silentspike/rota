@@ -3,7 +3,7 @@ id: ROTA-GAME-DESIGN
 status: Stable
 ssot: true
 refs:
-  docs: [WORKER-GUIDE, VERIFICATION, STEP1-SPEC, suno-sfx, ASSETS]
+  docs: [WORKER-GUIDE, VERIFICATION, STEP1-SPEC, ASSETS]
 ---
 
 # ROTA — Game Design (SSOT der Umsetzung)
@@ -2023,7 +2023,8 @@ hunderten Wiederholungen zur Qual wird.
 | **Tonhöhen-Streuung** | Wenige Prozent, zufällig, bei jeder Wiedergabe. Verhindert den Maschinengewehr-Effekt. Bei tonalen Klängen je Klang begrenzen                                                      |
 | **Zwei Sound-Typen**  | **One-Shot** (feste Länge) und **Sustained** — letztere **dreiteilig**: Ansatz (One-Shot) → Körper (Loop) → Ausklang (One-Shot), weil der Effekt abgebrochen werden kann           |
 
-**Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT [`suno-sfx.md`](suno-sfx.md).
+**Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT `suno/suno-sfx.md` im privaten
+Werkzeug-Repo `silentspike/rota-werkzeuge`.
 
 #### Was die Klang-Produktion kostet (gemessen, 2026-07-28)
 

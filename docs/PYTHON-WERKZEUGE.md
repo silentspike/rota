@@ -12,6 +12,12 @@ ausgeführte Werkzeuge erhalten die Syntaxprüfung. Keine der genannten Dateien
 wird als veraltet entfernt: Die manuelle Asset-Produktion und die langen
 Messläufe sind weiterhin benannte Aufgaben.
 
+Die beiden Werkzeuge der Klangerzeugung, `suno_api.py` und
+`sound-manifest-to-suno.py`, standen bis 2026-10-28 in dieser Liste. Sie sind
+nicht entfernt, sondern ins private Werkzeug-Repo `silentspike/rota-werkzeuge`
+umgezogen (`suno/`), weil rota öffentlich werden soll. Dort prüft
+`tests/test_suno_pfade.py` ihre Pfadauflösung, ohne Suno zu erreichen.
+
 `python3 -B tools/sim-registry.py --check` prüft im selben `lint`-Job zusätzlich
 die Planungsregistry und ihre erzeugten Tabellen (#895). Ihre Verhaltenstests
 werden durch dieselbe `tests/tools/`-Discovery ausgeführt.
@@ -43,8 +49,6 @@ werden durch dieselbe `tests/tools/`-Discovery ausgeführt.
 | `tools/sfx-distinct.py`                | bewusst ungeprüft   | Benötigt NumPy, Audiowerkzeuge und ausgewählte Klänge; separate technische und hörbare Abnahme.                                                                                                                                                                                                              |
 | `tools/sfx-verify.py`                  | bewusst ungeprüft   | Benötigt Audiowerkzeuge und erzeugte Klänge; Syntaxgrün sagt nichts über Pegel oder Klangqualität.                                                                                                                                                                                                           |
 | `tools/sfx_limits.py`                  | bewusst ungeprüft   | Grenzwertbibliothek der Audio-Produktion; Verhaltensprüfung gehört zu deren gesonderter Teststrecke.                                                                                                                                                                                                         |
-| `tools/sound-manifest-to-suno.py`      | bewusst ungeprüft   | Erzeugt Produktionsaufträge für den Klangdienst; dieser Ablauf wird in der Audio-Produktion geprüft.                                                                                                                                                                                                         |
-| `tools/suno_api.py`                    | bewusst ungeprüft   | Bezahlter externer Dienst und private Zugangsdaten; niemals durch CI ausführen.                                                                                                                                                                                                                              |
 | `tools/analyse/bauzeit.py`             | bewusst ungeprüft   | Analyse privater historischer Sitzungsprotokolle; die benötigten Protokolle gehören nicht in CI.                                                                                                                                                                                                             |
 
 ## Die drei Gegenproben

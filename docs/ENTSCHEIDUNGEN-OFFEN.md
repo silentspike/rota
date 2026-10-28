@@ -144,6 +144,9 @@ bereits mit; ich hatte den Vorgang von Hand nachgebaut, statt ihn aufzurufen.
 geprüft (Länge exakt, −16 bis −20 LUFS, keine Anfangsstille, 120 von 120 Paaren unterscheidbar),
 ästhetisch nicht — das kann ich nicht.
 
+Das `tools/suno_api.py` im ursprünglichen Text liegt seit 2026-10-28 als `suno/suno_api.py` im
+privaten Werkzeug-Repo `silentspike/rota-werkzeuge`.
+
 <details>
 <summary>Der ursprüngliche Text, zur Nachvollziehbarkeit</summary>
 
