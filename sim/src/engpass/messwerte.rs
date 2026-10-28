@@ -41,11 +41,16 @@ pub struct Strangzeit {
 
 /// Arbeit gegen Warten je Strang für einen parallelen Abschnitt (#934).
 ///
-/// `arbeit_ns` je Paket in der Reihenfolge der Bereiche — die CPU-Zeit
-/// seines Strangs (`CLOCK_THREAD_CPUTIME_ID`), oder ohne lesbare Uhr seine
-/// Dauer an der Wanduhr. `straenge` sind die Stränge des Laufs. Der
-/// Abschnitt dauert so lange wie sein teuerstes Paket; jeder Strang wartet
-/// den Rest, ein Strang ohne Paket den ganzen Abschnitt.
+/// `arbeit_ns` je Strang, der teilnahm — seine CPU-Zeit
+/// (`CLOCK_THREAD_CPUTIME_ID`), oder ohne lesbare Uhr seine Dauer an der
+/// Wanduhr. `straenge` sind die Stränge des Laufs. Der Abschnitt dauert so
+/// lange wie der Strang mit der meisten Arbeit; jeder andere wartet den Rest,
+/// ein Strang ohne Paket den ganzen Abschnitt.
+///
+/// **Je Strang, nicht je festem Bereich** (Entscheidung des Orchestrators vom
+/// 2026-10-28): Seit #912 entnimmt `balance::run` dynamisch, ein Strang
+/// rechnet so viele Happen, wie er schafft. Die Lage „zu wenige Pakete"
+/// bleibt: Gibt es weniger Happen als Stränge, bekommen die übrigen nichts.
 ///
 /// **Beides an der eigenen Arbeit gemessen, nicht an der Wanduhr** — aus
 /// zwei Messungen vom 2026-10-28 auf dem Laptop:
