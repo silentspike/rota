@@ -701,6 +701,44 @@ pub fn erster_todesfeld_widerspruch(samples: &[Sample]) -> Option<u32> {
         .map(|s| s.seed)
 }
 
+/// Welchen Weg ein Lauf mit dieser Konfiguration nimmt (#933).
+///
+/// **Dieselbe Entscheidung wie in [`run`], nicht ihr Nachbau:** Beide rufen
+/// [`weg_von`]. Die Anzeige braucht den Weg, bevor der erste Kampf läuft — für
+/// die Kosten einer Auswertung —, und ein zweites Mal hingeschrieben liefe die
+/// Bedingung beim nächsten Umbau auseinander.
+#[must_use]
+pub fn auswertungsweg(config: &BalanceConfig) -> crate::fortschritt::Weg {
+    weg_von(config, true)
+}
+
+/// Der Weg einer Auswertung: ein Kampf, wenn die Reduktion erlaubt ist und
+/// nirgends gewürfelt wird — sonst die feste Stichprobe.
+fn weg_von(config: &BalanceConfig, reduktion: bool) -> crate::fortschritt::Weg {
+    if reduktion
+        && crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn)
+    {
+        crate::fortschritt::Weg::EinKampf
+    } else {
+        crate::fortschritt::Weg::Stichprobe
+    }
+}
+
+/// Rechnet jeden Durchgang als eigenen Kampf, ohne die Reduktion aus #908.
+///
+/// **Für Durchsatzmessungen.** Ohne Würfel rechnet [`run`] einen Kampf und
+/// vervielfacht ihn; eine Messung, die „Kämpfe je Sekunde" meldet, teilte dann
+/// die angeforderte Zahl durch die Zeit eines einzigen. Genau so hat
+/// `rota-sim bench` bis #933 gemessen — und `orch-verteilung` vor ihm, siehe
+/// [`crate::kalibrierung::referenz_fights_per_s`].
+///
+/// Das Ergebnis ist bitgleich mit dem von [`run`]; `tests/fortschritt.rs`
+/// hält das fest.
+#[must_use]
+pub fn run_vollstaendig(config: &BalanceConfig, apl: &Apl) -> BalanceResult {
+    run_with_control(config, apl, false, None)
+}
+
 /// Rechnet einen Balance-Lauf.
 ///
 /// # Panics
@@ -740,12 +778,10 @@ fn run_with_control(
 ) -> BalanceResult {
     let threads = config.threads.max(1);
     let iterations = config.iterations;
+    let weg = weg_von(config, reduktion);
 
     let mut casts_total = [0u32; crate::data::SPELL_COUNT];
-    let mut samples: Vec<Sample> = if reduktion
-        && iterations > 1
-        && crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn)
-    {
+    let mut samples: Vec<Sample> = if weg == crate::fortschritt::Weg::EinKampf && iterations > 1 {
         // **Ein Durchgang statt fuenfzig bis zweihundert** (Issue #908, AC1).
         //
         // Die Bedingung ist abgeleitet, nicht `purity == 0`: Sobald irgendetwas
@@ -802,11 +838,20 @@ fn run_with_control(
             }
         }
 
+        // Die Arbeitsstränge erben das Zählwerk des Leitstrangs (#933), jeder
+        // auf dem Platz seines Bereichs — sonst sähe ein mehrsträngiger Lauf
+        // nur die Kämpfe des Leitstrangs, und das sind keine.
+        let leitstrang = crate::fortschritt::strang();
         thread::scope(|scope| {
             let handles: Vec<_> = ranges
                 .iter()
-                .map(|&(offset, len)| {
-                    scope.spawn(move || run_range(config, apl, offset, len, control))
+                .enumerate()
+                .map(|(nummer, &(offset, len))| {
+                    let arbeiter = leitstrang.as_ref().map(|s| s.arbeiter(nummer));
+                    scope.spawn(move || {
+                        let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
+                        run_range(config, apl, offset, len, control)
+                    })
                 })
                 .collect();
             let mut all = Vec::with_capacity(iterations as usize);
@@ -854,7 +899,7 @@ fn run_with_control(
     // enthalten. `samples` kommt bereits in dieser Reihenfolge.
     let death_values = todeszeiten(&samples);
 
-    BalanceResult {
+    let ergebnis = BalanceResult {
         apl_name: apl.name.clone(),
         iterations,
         base_seed: config.base_seed,
@@ -878,7 +923,15 @@ fn run_with_control(
         deaths: samples.iter().filter(|s| s.died).count(),
         casts: casts_total.to_vec(),
         samples,
-    }
+    };
+
+    // Eine Auswertung ist fertig (#933), wenn ihr Ergebnis vorliegt — also
+    // NACH Sortieren und Statistik, nicht nach dem letzten Kampf. Gemessen am
+    // 2026-10-28: Bei `bench --fights 3000000` stand die erste Meldung mit allen
+    // Kämpfen 0,61 s vor dem Ende des Laufs. Gezählt im Strang, der die
+    // Auswertung angestoßen hat, einmal je Lauf und nicht je Kampf.
+    crate::fortschritt::kandidat(weg, u64::from(iterations));
+    ergebnis
 }
 
 /// Rechnet `len` Durchgänge ab `offset`, alle in einem Strang.
@@ -907,11 +960,17 @@ fn run_range(
     // Pfad in [`run`] — nicht der Beleg, dass die Ableitung richtig gerechnet
     // hat, sondern der, dass ihre Voraussetzung wirklich galt.
     let mut wuerfe = 0u32;
+    // Einmal je Bereich geholt, nicht je Kampf (#933): Im Kampf selbst bleibt
+    // es bei einer Erhöhung auf der eigenen Cache-Zeile.
+    let strang = crate::fortschritt::strang();
     for index in 0..len {
         let _permit = control.map(crate::drosselung::RuntimeControl::acquire);
         let seed = config.base_seed.wrapping_add(offset + index);
         fight.reset(seed);
         let result = fight.run_apl(apl);
+        if let Some(s) = &strang {
+            s.kampf();
+        }
         wuerfe += result.random_draws;
         for (i, n) in result.casts.iter().enumerate() {
             casts[i] += *n;
@@ -1237,6 +1296,7 @@ pub fn run_gestaffelt(
     let mut siege = 0u64;
     let mut wuerfe = 0u64;
     let mut schaden = 0u64;
+    let strang = crate::fortschritt::strang();
     let mut versuch = |i: u64| -> bool {
         // `pruefe` hat `budget <= STARTWERTE` sichergestellt, also passt jeder
         // Index in ein `u32`.
@@ -1244,6 +1304,9 @@ pub fn run_gestaffelt(
         let seed = config.base_seed.wrapping_add(index);
         fight.reset(seed);
         let result = fight.run_apl(apl);
+        if let Some(s) = &strang {
+            s.kampf();
+        }
         let sieg = Outcome::of(&probe_aus(&fight, seed, &result), bedingung).is_win();
         kaempfe += 1;
         siege += u64::from(sieg);
@@ -1281,6 +1344,14 @@ pub fn run_gestaffelt(
              die abgeleitete Quellenmaske passt nicht zum Lauf"
         );
     }
+
+    crate::fortschritt::kandidat(
+        match wahl {
+            Durchgangswahl::EinDurchgang => crate::fortschritt::Weg::EinKampf,
+            Durchgangswahl::Gestaffelt => crate::fortschritt::Weg::Gestaffelt,
+        },
+        kaempfe,
+    );
 
     Ok(GestaffelterLauf {
         wahl,

@@ -85,6 +85,7 @@ pub mod effects;
 pub mod event;
 pub mod factors;
 pub mod fight;
+pub mod fortschritt;
 pub mod gear;
 // Issue #118: die Balance-Messung der Ausruestung.
 pub mod gear_balance;
