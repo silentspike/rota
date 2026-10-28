@@ -859,6 +859,68 @@ pub fn abweichung_von_referenz(host: &str, gemessen: f64) -> Option<f64> {
 /// Was AC1 verlangt: höchstens zehn Prozent Abweichung.
 pub const AC1_TOLERANZ: f64 = 0.10;
 
+/// Was der Vergleich aus AC1 über eine Kalibrierung sagt.
+///
+/// # Warum fünf Zustände und nicht zwei
+///
+/// AC1 fragt, ob die Kalibrierung die **gleichzeitig auf derselben Maschine**
+/// erhobene Referenz trifft — gleiche Konfiguration, gleicher Zeitraum,
+/// gleiche Last. Zwei der drei Bedingungen lassen sich am Lauf selbst
+/// nachprüfen, und wo sie nicht gelten, ist „erfüllt" wie „nicht erfüllt"
+/// eine Behauptung über etwas, das nicht gemessen wurde.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ac1Urteil {
+    /// Die Kalibrierung trifft die Referenz innerhalb von [`AC1_TOLERANZ`].
+    Erfuellt,
+    /// Sie verfehlt sie.
+    NichtErfuellt,
+    /// Die Referenzläufe davor und danach liegen selbst weiter als
+    /// [`AC1_TOLERANZ`] auseinander. Die Last hat sich im Messfenster
+    /// geändert; „gleiche Last" galt nicht, und der Vergleich sagt nichts.
+    LastGewechselt,
+    /// Die Rate ist keine Kalibrierung — ihr Abbruchgrund ist nicht
+    /// [`Abbruchgrund::Stabil`], sie wird nicht abgelegt und verteilt nichts.
+    /// Was nicht gilt, kann nicht repräsentativ sein.
+    KeineKalibrierung,
+    /// Eine der drei Zahlen ist keine Rate.
+    Ungueltig,
+}
+
+/// Der Vergleich aus AC1 mit allen Zahlen, aus denen das Urteil entsteht.
+///
+/// Die Zahlen stehen auch dann da, wenn das Urteil keines ist: Wer einen
+/// Lauf mit wechselnder Last verwirft, will trotzdem sehen, wie weit er
+/// gelegen hätte.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ac1Vergleich {
+    /// Mittel der zwei Referenzläufe.
+    pub referenz: f64,
+    /// `(kalibriert - referenz) / referenz`.
+    pub abweichung: f64,
+    /// `|nachher - vorher| / referenz` — wie weit sich die Maschine während
+    /// des Messfensters bewegt hat.
+    pub spanne: f64,
+    /// Das Urteil.
+    pub urteil: Ac1Urteil,
+}
+
+/// Hält eine Kalibrierung gegen die Referenz, die **vor und nach** ihr auf
+/// derselben Maschine gemessen wurde.
+#[must_use]
+pub fn ac1_vergleich(
+    kalibrierung: &RateModel,
+    referenz_vorher: f64,
+    referenz_nachher: f64,
+) -> Ac1Vergleich {
+    let _ = (kalibrierung, referenz_vorher, referenz_nachher);
+    Ac1Vergleich {
+        referenz: f64::NAN,
+        abweichung: f64::NAN,
+        spanne: f64::NAN,
+        urteil: Ac1Urteil::Ungueltig,
+    }
+}
+
 /// Wo Profile liegen.
 ///
 /// `ROTA_PROFILVERZEICHNIS` schlägt alles; sonst `$XDG_CACHE_HOME/rota-sim`,
@@ -1466,5 +1528,94 @@ mod tests {
             taktregime: "t".to_owned(),
         };
         assert_ne!(profildatei(&mk("aaa")), profildatei(&mk("bbb")));
+    }
+
+    // ------------------------------------------------------------------ AC1
+
+    #[test]
+    fn ac1_trifft_innerhalb_der_toleranz_und_nicht_darueber() {
+        for (kalibriert, erwartet) in [
+            (100.0, Ac1Urteil::Erfuellt),
+            (105.0, Ac1Urteil::Erfuellt),
+            (90.5, Ac1Urteil::Erfuellt),
+            (109.5, Ac1Urteil::Erfuellt),
+            (89.0, Ac1Urteil::NichtErfuellt),
+            (111.0, Ac1Urteil::NichtErfuellt),
+            (50.0, Ac1Urteil::NichtErfuellt),
+        ] {
+            let v = ac1_vergleich(&rate(kalibriert), 100.0, 100.0);
+            assert_eq!(v.urteil, erwartet, "kalibriert {kalibriert}");
+            assert!(
+                (v.abweichung - (kalibriert - 100.0) / 100.0).abs() < 1e-12,
+                "Abweichung {} bei {kalibriert}",
+                v.abweichung
+            );
+        }
+    }
+
+    #[test]
+    fn ac1_misst_gegen_das_mittel_beider_referenzen() {
+        // 96 und 104 mitteln auf 100. Gegen 100 liegt 109 innerhalb der
+        // Toleranz, gegen 96 allein (+13,5 %) nicht: Der Fall wird rot, wenn
+        // nur eine der zwei Referenzen zählt.
+        let v = ac1_vergleich(&rate(109.0), 96.0, 104.0);
+        assert!(
+            (v.referenz - 100.0).abs() < 1e-12,
+            "Referenz {}",
+            v.referenz
+        );
+        assert!((v.spanne - 0.08).abs() < 1e-12, "Spanne {}", v.spanne);
+        assert_eq!(v.urteil, Ac1Urteil::Erfuellt);
+        // Spiegelbildlich: 91 gegen 104 allein wären -12,5 %.
+        let v = ac1_vergleich(&rate(91.0), 96.0, 104.0);
+        assert_eq!(v.urteil, Ac1Urteil::Erfuellt);
+    }
+
+    #[test]
+    fn ac1_meldet_wechselnde_last_statt_eines_urteils() {
+        // Die Kalibrierung liegt am Mittel (107,5), aber die Maschine hat
+        // sich im Fenster um 14 Prozent bewegt — „gleiche Last" galt nicht.
+        let v = ac1_vergleich(&rate(107.0), 100.0, 115.0);
+        assert_eq!(v.urteil, Ac1Urteil::LastGewechselt);
+        // Die Zahlen stehen trotzdem da.
+        assert!(v.abweichung.abs() < 0.01, "Abweichung {}", v.abweichung);
+        // Und die Gegenprobe: neun Prozent Bewegung sind noch dieselbe Last.
+        // Ohne sie prüfte der Fall oben nur, dass jede Spanne verwirft.
+        let v = ac1_vergleich(&rate(104.5), 100.0, 109.0);
+        assert_eq!(v.urteil, Ac1Urteil::Erfuellt);
+    }
+
+    #[test]
+    fn ac1_verlangt_eine_kalibrierung() {
+        // Eine Rate, die an der Höchstdauer endete, trifft die Referenz hier
+        // genau — und ist trotzdem keine Kalibrierung, weil sie nirgends
+        // abgelegt wird.
+        let mut r = rate(100.0);
+        r.reason = Abbruchgrund::Hoechstdauer;
+        let v = ac1_vergleich(&r, 100.0, 100.0);
+        assert_eq!(v.urteil, Ac1Urteil::KeineKalibrierung);
+        assert!(v.abweichung.abs() < 1e-12, "Abweichung {}", v.abweichung);
+        // Gegenprobe: dieselbe Rate mit `Stabil` ist erfüllt.
+        assert_eq!(
+            ac1_vergleich(&rate(100.0), 100.0, 100.0).urteil,
+            Ac1Urteil::Erfuellt
+        );
+    }
+
+    #[test]
+    fn ac1_ohne_rate_ist_ungueltig() {
+        for (k, a, b) in [
+            (0.0, 100.0, 100.0),
+            (100.0, 0.0, 100.0),
+            (100.0, 100.0, f64::NAN),
+            (f64::INFINITY, 100.0, 100.0),
+            (100.0, -5.0, 100.0),
+        ] {
+            assert_eq!(
+                ac1_vergleich(&rate(k), a, b).urteil,
+                Ac1Urteil::Ungueltig,
+                "kalibriert {k}, vorher {a}, nachher {b}"
+            );
+        }
     }
 }
