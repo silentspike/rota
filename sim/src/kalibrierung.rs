@@ -198,6 +198,17 @@ impl RateModel {
         }
         (self.rate_per_s - erwartet).abs() / erwartet > NEUERHEBUNG_AB
     }
+
+    /// Relative Unsicherheit des Mittelwerts — die Größe, gegen die
+    /// [`STREUUNG_MAX`] gehalten wird.
+    ///
+    /// Aus `spread` und `samples` abgeleitet statt gespeichert: Beide stehen
+    /// schon im Profil, und eine dritte Zahl, die aus zweien folgt, könnte
+    /// ihnen widersprechen.
+    #[must_use]
+    pub fn unsicherheit(&self) -> f64 {
+        self.spread
+    }
 }
 
 /// Welche Art von Arbeit gemessen wird.
@@ -373,6 +384,32 @@ pub fn streuung(raten: &[f64]) -> f64 {
     }
     let varianz = raten.iter().map(|r| (r - mittel).powi(2)).sum::<f64>() / n;
     varianz.sqrt() / mittel
+}
+
+/// Relative Unsicherheit des Mittelwerts einer Reihe von Raten:
+/// Standardfehler durch Mittelwert.
+#[must_use]
+pub fn relative_unsicherheit(raten: &[f64]) -> f64 {
+    streuung(raten)
+}
+
+/// Ob ein adaptiver Lauf nach `gelaufen` aufhören darf, und warum.
+///
+/// `None` heißt: weitermessen. Alle `reihen` müssen die Bedingung erfüllen —
+/// beim verschränkten Lauf die Kalibrierung UND die Referenz.
+#[must_use]
+pub fn urteil_nach(gelaufen: Duration, reihen: &[&[f64]]) -> Option<Abbruchgrund> {
+    let stabil = !reihen.is_empty()
+        && reihen
+            .iter()
+            .all(|r| r.len() >= ABSCHNITTE_MIN && streuung(r) < STREUUNG_MAX);
+    if gelaufen >= MINDESTDAUER && stabil {
+        return Some(Abbruchgrund::Stabil);
+    }
+    if gelaufen >= HOECHSTDAUER {
+        return Some(Abbruchgrund::Hoechstdauer);
+    }
+    None
 }
 
 /// Fährt einen adaptiven Kalibrierlauf.
@@ -1483,6 +1520,106 @@ mod tests {
             taktregime: "t".to_owned(),
         };
         assert_ne!(profildatei(&mk("aaa")), profildatei(&mk("bbb")));
+    }
+
+    // ------------------------------------- AC2: Abbruch über den Standardfehler
+
+    /// `k`-mal das Paar 90/110: Mittel 100, Streuung der Abschnitte 10 %.
+    fn breit(k: usize) -> Vec<f64> {
+        (0..k).flat_map(|_| [90.0, 110.0]).collect()
+    }
+
+    #[test]
+    fn relative_unsicherheit_faellt_mit_der_wurzel_der_anzahl() {
+        // Die Streuung der Abschnitte bleibt bei 10 %, gleich wie lang man
+        // misst. Die Unsicherheit des Mittels fällt mit 1/sqrt(n-1) — genau der
+        // Unterschied, um den es in der Abbruchregel geht.
+        for (k, erwartet) in [(2usize, 0.1 / 3f64.sqrt()), (50, 0.1 / 99f64.sqrt())] {
+            let r = breit(k);
+            assert!(
+                (streuung(&r) - 0.1).abs() < 1e-12,
+                "Streuung {} bei n {}",
+                streuung(&r),
+                r.len()
+            );
+            let u = relative_unsicherheit(&r);
+            assert!(
+                (u - erwartet).abs() < 1e-12,
+                "Unsicherheit {u} statt {erwartet} bei n {}",
+                r.len()
+            );
+        }
+    }
+
+    #[test]
+    fn relative_unsicherheit_ist_unendlich_ohne_genug_werte() {
+        assert!(relative_unsicherheit(&[100.0]).is_infinite());
+        assert!(relative_unsicherheit(&[]).is_infinite());
+        assert!(relative_unsicherheit(&[0.0, 0.0, 0.0]).is_infinite());
+    }
+
+    #[test]
+    fn rate_model_leitet_die_unsicherheit_aus_streuung_und_anzahl_ab() {
+        let mut r = rate(100.0);
+        r.spread = 0.10;
+        r.samples = 101;
+        assert!(
+            (r.unsicherheit() - 0.01).abs() < 1e-12,
+            "Unsicherheit {}",
+            r.unsicherheit()
+        );
+        // Ein einziger Abschnitt hat keine Unsicherheit, die man kennt.
+        r.samples = 1;
+        assert!(
+            r.unsicherheit().is_infinite(),
+            "Unsicherheit {}",
+            r.unsicherheit()
+        );
+    }
+
+    #[test]
+    fn urteil_nach_haelt_eine_breite_aber_lange_reihe_fuer_stabil() {
+        // **Der Fall von node3** (2026-10-28): Abschnitte streuen um 10 %, das
+        // Mittel aus 400 davon ist auf ein halbes Prozent bekannt. Die alte
+        // Regel hätte bis zur Höchstdauer gemessen und verworfen.
+        let r = breit(200);
+        assert_eq!(urteil_nach(MINDESTDAUER, &[&r]), Some(Abbruchgrund::Stabil));
+        // Vor der Mindestdauer nicht, so sicher das Mittel auch ist.
+        assert_eq!(
+            urteil_nach(MINDESTDAUER - Duration::from_millis(1), &[&r]),
+            None
+        );
+    }
+
+    #[test]
+    fn urteil_nach_meldet_hoechstdauer_wenn_das_mittel_unsicher_bleibt() {
+        // Vier Abschnitte 50/150: Unsicherheit 0,5/sqrt(3) = 29 %.
+        let r = [50.0, 150.0, 50.0, 150.0];
+        assert_eq!(urteil_nach(Duration::from_secs(10), &[&r]), None);
+        assert_eq!(
+            urteil_nach(HOECHSTDAUER, &[&r]),
+            Some(Abbruchgrund::Hoechstdauer)
+        );
+        // Und zu wenige Abschnitte zählen nicht, auch wenn sie gleich sind.
+        let drei = [100.0, 100.0, 100.0];
+        assert_eq!(urteil_nach(Duration::from_secs(10), &[&drei]), None);
+    }
+
+    #[test]
+    fn urteil_nach_verlangt_jede_reihe() {
+        // Beim verschränkten Lauf müssen Kalibrierung UND Referenz sicher
+        // sein: Ein genaues Mittel gegen ein ungenaues ist kein Vergleich.
+        let sicher = breit(200);
+        let unsicher = [50.0, 150.0, 50.0, 150.0];
+        assert_eq!(
+            urteil_nach(Duration::from_secs(10), &[&sicher, &unsicher]),
+            None
+        );
+        assert_eq!(
+            urteil_nach(Duration::from_secs(10), &[&sicher, &sicher]),
+            Some(Abbruchgrund::Stabil)
+        );
+        assert_eq!(urteil_nach(Duration::from_secs(10), &[]), None);
     }
 
     // ------------------------------------------------------------------ AC1
