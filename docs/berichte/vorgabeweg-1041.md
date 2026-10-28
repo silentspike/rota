@@ -19,6 +19,9 @@ refs:
 (`linux-gnu-bookworm`, Rust 1.98.1), gefahren auf dem Laptop: zuerst der
 deterministische Teil (Worker-1), danach im Messfenster die beiden Zeitläufe
 `orch-verteilung` und `messumgebung` (Abschnitt „Zeitläufe im Messfenster").
+Am 2026-10-28 kam die Behebung von `suchguete-erweitert` dazu, gemessen auf
+`main` = `b087f63fe88056d70f223c3eeb857a3c7f6526d5` (Abschnitt „Die Behebung
+von `suchguete-erweitert`").
 
 ## Das Ergebnis
 
@@ -55,9 +58,12 @@ deterministische Teil (Worker-1), danach im Messfenster die beiden Zeitläufe
 > der neunzehn Beispiele inhaltlich nicht bewegt.** Das liegt an der Bauart der
 > Suche, nicht am Zufall — siehe „Warum sich nichts bewegt".
 
-Ein Nebenbefund wiegt schwerer als die Zahlen hier: **`suchguete-erweitert`
-liefert im Bestand gar kein Ergebnis** — Exit 101 in Fall 1 von 60, in A und B
-gleich. Siehe „Befunde am Rand".
+Ein Nebenbefund wog schwerer als die Zahlen hier: **`suchguete-erweitert`
+lieferte im Bestand gar kein Ergebnis** — Exit 101 in Fall 1 von 60, in A und B
+gleich. **Die Ursache ist #1088, am Bau vor und nach dem Merge belegt, und die
+Behebung steht in diesem PR:** Seither läuft der Läufer in A und B mit Exit 0
+durch alle 60 Fälle, druckt seine Tabelle, und A und B sind bitgleich. Siehe
+„Die Behebung von `suchguete-erweitert`".
 
 ## Die Fassungen
 
@@ -219,6 +225,11 @@ Entscheidungen durch eine Gruppe.
 | `e1-1085-doom-suche` (Zusatz) | —                                                       | 0 / 0      | bitgleich, 77 Zeilen                               | 4 · 0 · 0    |
 | `e1-1088-suchraum` (Zusatz)   | —                                                       | 0 / 0      | nur die Zeitspalte `Dauer` anders                  | 2 · 0 · 0    |
 
+Die Zeilen `suchguete` und `suchguete-erweitert` zeigen den Stand **vor** der
+Behebung in diesem PR. Danach laufen beide in A und B mit Exit 0 und bitgleich
+(`suchguete-erweitert` 69 Zeilen, Spur A′ 408 · 0 · 0; `suchguete` 35 Zeilen,
+120 · 0 · 0), siehe „Die Behebung von `suchguete-erweitert`".
+
 Die vollständigen Bosslisten: Prüfstein-509 nach `docs/berichte/pruefstein-509.md`
 (`first-crucible,test-onslaught,test-metronome,test-gatekeeper,test-resistant`),
 e607 nach `docs/berichte/e607-zauberkasten.md` (`boss-1-1` bis `boss-4-4` und
@@ -370,8 +381,9 @@ Prüffällen**: dieser und `ac5_die_suche_waehlt_fixation_wenn_der_schlag_unabwe
 
 ## Befunde am Rand
 
-**1. `suchguete-erweitert` liefert im Bestand kein Ergebnis.** Es bricht in Fall 1
-von 60 an seiner eigenen Zusicherung ab, in A und B gleich:
+**1. `suchguete-erweitert` lieferte im Bestand kein Ergebnis — behoben in diesem
+PR.** Es brach in Fall 1 von 60 an seiner eigenen Zusicherung ab, in A und B
+gleich:
 
 ```text
 thread 'main' panicked at sim/examples/suchguete-erweitert.rs:530:17:
@@ -380,21 +392,18 @@ die beiden verschiedene Wege zum selben Ergebnis, und die Zerlegung unten rechne
 die es nicht gibt
 ```
 
-Folgen: Die Ergebnistabelle wird nie gedruckt; eine Zahl, die sich bewegen
-könnte, gibt es im Bestand nicht. Erreicht werden vor dem Abbruch Z. 496 und 498
+Folgen: Die Ergebnistabelle wurde nie gedruckt; eine Zahl, die sich bewegen
+könnte, gab es im Bestand nicht. Erreicht wurden vor dem Abbruch Z. 496 und 498
 (Fall 0 und 1) und Z. 274 (`lns`, Fall 0) — **Z. 294 nie**: `lns` bricht ab,
 wenn die Startliste höchstens zwei Zeilen hat, und Fall 0 liefert zwei. Die
 Tabelle „Alle fünf Verfahren" in `SIM-MESSUNGEN.md` (Messung 7) nennt ihren
 Läufer nicht, trägt aber dieselbe Zusicherungszeile, die dieser Lauf vor dem
-Abbruch druckt (`beam k=30 3480 in 156 Messungen`) — sie lässt sich auf `main`
-nicht nachfahren.
+Abbruch druckt (`beam k=30 3480 in 156 Messungen`).
 
-Vermutete Ursache, **nicht gemessen**: #1088. Fall 1 läuft an `boss-1-2`, einem
-doom-Boss; seit #1088 ergänzt `greedy_zuege` dort eine `purge`-Zeile, die
-`beam_einfuegen` nicht kennt. Die Differenz 52 − 46 = 6 passt rechnerisch zu
-genau einer zusätzlichen, nie gewählten Zeile über drei Runden bei `max_len` 3
-(1 + 2 + 3). Den Stand vor #1088 habe ich nicht gebaut. Dafür gehört ein eigenes
-Issue her; dieser Bericht ändert das Beispiel nicht.
+Die Ursache ist **#1088, gemessen**: Der Bau vor dem Merge von #1088 läuft mit
+Exit 0 durch, der Bau des Merges bricht in Fall 1 mit denselben 46 gegen 52 ab
+— bei unveränderter Beispieldatei. Ursache, Behebung und das A/B danach stehen
+im Abschnitt „Die Behebung von `suchguete-erweitert`".
 
 **2. „mit Paaren" heißt seit #797 „mit Paaren und Dreiergruppen".** Die Zeilen
 „mit Paaren" in `pruefstein-558` und „greedy mit Paaren" in `suchguete` und
@@ -422,6 +431,174 @@ gleich; die Ursachen habe ich nicht untersucht.
 **5. Die Prozentspalte von `tools/last-protokoll.sh` ist ein Lebensdurchschnitt,
 keine Momentanlast** (Abschnitt „Lastprotokoll"). Ein frisch gestarteter Prozess
 steht dort mit Werten über 100 %, ein dauerhaft laufender mit einem festen Wert.
+
+## Die Behebung von `suchguete-erweitert`
+
+Gemessen am 2026-10-28. Der Zweig trägt dafür `main` = `b087f63f` per
+Merge-Commit `51e7b55c`; seit der Basis `23d7c13f` der übrigen Messungen hat
+#1133 `sim/src/balance.rs` geändert, das jede Messung des Beispiels benutzt.
+
+### Ursache: #1088, am Bau belegt
+
+| Stand      | Inhalt                                     | Bau-Job                    | Lauf     | Ergebnis                                   |
+| ---------- | ------------------------------------------ | -------------------------- | -------- | ------------------------------------------ |
+| `65ade0e5` | `main` unmittelbar vor dem Merge von #1088 | `5aebda4d5cfab83f1aca3c5c` | Exit 0   | Tabelle gedruckt, 68 Zeilen, alle 60 Fälle |
+| `342022b7` | Merge von #1088 (PR #1093)                 | `81e5b99265f256f929072c3b` | Exit 101 | Fall 1: 46 Messungen gegen greedys 52      |
+| `b087f63f` | `main` heute, ohne Behebung                | `c3c406286d95d72ec206542c` | Exit 101 | Fall 1: 46 Messungen gegen greedys 52      |
+
+Die Beispieldatei ist in allen drei Ständen dieselbe
+(`git diff --quiet 65ade0e5 342022b7 -- sim/examples/suchguete-erweitert.rs`
+und dasselbe von `342022b7` bis `b087f63f`: Exit 0). Der Merge `342022b7`
+ändert gegenüber `65ade0e5` genau drei Dateien: `sim/src/rotation_search.rs`,
+das neue Beispiel `e1-1088-suchraum` und den neuen Prüffall `sucher_doom`.
+Damit ist die Vermutung aus der ersten Fassung dieses Berichts bestätigt.
+
+Die zwei alten Stände entstanden in einem Wegwerfbaum unter `/work/tmp`
+(`git archive` von `Cargo.toml`, `Cargo.lock`, `sim`, `data`, `tests/parity`),
+mit der heutigen `.cargo-remote.toml` und `rust-toolchain.toml` (1.98.1), denn
+`65ade0e5` trägt noch den Eintrag des alten Bau-Dienstes. Gebaut wurde nur
+`--example suchguete-erweitert`, gefahren lokal. **Ein Stolperstein, gemessen:**
+Der zweite Bau im selben Baum meldete `Finished … in 0.03s` und lieferte das
+Binary des ersten bitgleich zurück (sha256 `1ea5b891…`). Vermutlich, weil
+`git archive` die Dateizeiten auf die Commit-Zeit setzt; nach `touch` aller
+Quellen baute derselbe Befehl neu (`275e8cea…`). Gezählt ist nur dieser Bau.
+
+### Der Mechanismus
+
+Seit #1088 legt `greedy_zuege` an einem doom-Boss für jeden Zauber im Vorrat,
+der doom senkt, eine bedingte Zeile dazu (`boss_kandidaten`,
+`Origin::DoomClear`). Die übrigen Verfahren des Läufers bekamen weiter den
+blanken Vorrat. In Fall 1 (`boss-1-2`, 9 Kandidaten, Länge 3) ist das genau
+eine `purge`-Zeile, gemessen in drei Runden und nie gewählt:
+
+```text
+greedy ohne Paare             10 + 2·9 + 3·8 = 52   Abbruch NoImprovement nach 2 Zeilen
+beam-einfuegen k=1, Abbruch    9 + 2·8 + 3·7 = 46   (blanker Vorrat)
+```
+
+Eine Analyse-Fassung (nie committet, Job `dcff124b6981bf1268b42063`) hat alle
+60 Fälle nachgerechnet:
+
+- Ergänzt wird in **3 von 60** Fällen: 1, 33 und 45, alle an `boss-1-2`, je
+  `purge`.
+- `greedy` hat die Zeile in keinem davon gewählt, mit und ohne Paare.
+- In **0 von 60** Fällen ändert sie das Optimum der erschöpfenden Suche.
+- `beam_einfuegen` mit k = 1 und Abbruch weicht auf dem blanken Vorrat in genau
+  diesen drei Fällen von greedys Messungszahl ab (46, 46, 70 gegen 52, 52, 80),
+  auf Vorrat plus Ergänzung in keinem.
+
+### Die Behebung: im Beispiel, nicht in der Bibliothek
+
+`greedy` tut, was #1088 festlegt und `sucher_doom` prüft. Falsch war die
+Annahme des Läufers, alle Verfahren suchten im übergebenen Vorrat. Deshalb liegt
+die Behebung in den zwei Beispielen; `sim/src` bleibt unberührt.
+
+- **`suchguete-erweitert`** (Commit `63087140`): Erschöpfend, Beam, Beam mit
+  Einfügen und QD suchen in `suchraum` = Vorrat plus `boss_kandidaten`. `greedy`
+  und LNS bekommen weiter den Vorrat, weil `greedy` selbst ergänzt und die Zeile
+  sonst doppelt zur Wahl stünde. Eine neue Zusicherung vergleicht je Fall
+  greedys eigene Meldung `SearchResult::ergaenzt` mit der nachgerechneten
+  Ergänzung, und die Ausgabe nennt, in wie vielen Fällen der Raum über den
+  Vorrat hinausgeht. Die Summe der erschöpfenden Messungen kommt aus der
+  Schleife; der zweite Durchgang am Ende lief noch über den Vorrat.
+- **`suchguete`** (Commit `06d9e027`): derselbe Unterschied, nur ohne Abbruch.
+  Der Bezugspunkt lief über den Vorrat, `greedy` über Vorrat plus Ergänzung.
+  Das änderte kein Optimum, aber die Messungszahl des Bezugspunkts (62328 statt
+  65049); ein `greedy`, das mit der Zeile über das Optimum hinauskäme, würde als
+  Verfehlen gebucht. Jetzt sucht auch dort der Bezugspunkt in `suchraum`, mit
+  derselben Zusicherung. Sonst bleibt die Ausgabe gleich: Treffer, Regret und
+  die Liste der zehn Verfehler sind dieselben wie vor der Behebung.
+
+**Gegenproben**, beide nie committet:
+
+| Fassung | Änderung                                                   | `suchguete`                                                     | `suchguete-erweitert`                   |
+| ------- | ---------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
+| M1      | `suchraum` ohne Ergänzung                                  | Exit 101, Fall 1: ``greedy ergaenzte ["purge"], `suchraum` []`` | Exit 101, Fall 1, dieselbe Meldung      |
+| M2      | wie M1, alle Zusicherungen als `debug_assert`, Release-Bau | —                                                               | Exit 0, Tabelle über den blanken Vorrat |
+
+Bau-Jobs: M1 `ef91d2265a9bdbb49dd66e5e` (danach per `git checkout`
+zurückgebaut, `sha256sum -c` alle `OK`), M2 `fb87246766b382a5e629720e` (eine
+ungetrackte Kopie des Beispiels, danach gelöscht). M1 zeigt, dass die
+neue Zusicherung greift und die Ursache benennt, bevor die alte
+Messungs-Zusicherung nur ihre Folge meldet. M2 ordnet die Zahlen unten zu.
+
+### A und B nach der Behebung
+
+Bauten aus der Worktree-Wurzel, Kopf `06d9e027`: A
+`2d1902abf73e325d3b90169e`, B `ef0854be9b07c3c9bb789b3c` (dieselbe Zeile wie
+oben, sha256 von `rotation_search.rs` wieder `6f27bbe2…`), Spur-Fassung A′
+`dd3d4fe85fe807f0425fe3c8`. Nach B und nach A′ zurückgebaut: `sha256sum -c`
+über `rotation_search.rs`, beide Beispiele, `Cargo.lock` und
+`.cargo-remote.toml` gegen den Stand nach dem Commit, alle `OK`;
+`git status --porcelain` leer.
+
+| Lauf                  | Exit A / B | Vergleich A ↔ B                   | Spur A′     |
+| --------------------- | ---------- | --------------------------------- | ----------- |
+| `suchguete-erweitert` | 0 / 0      | bitgleich, 69 Zeilen, stderr leer | 408 · 0 · 0 |
+| `suchguete`           | 0 / 0      | bitgleich, 35 Zeilen, stderr leer | 120 · 0 · 0 |
+
+stdout A′ = A ist in beiden bitgleich. **Keine Gruppe wird in diesen zwei
+Läufern je geprüft**, deshalb kann B dort nichts bewegen:
+
+| Klasse                                                  | `suchguete-erweitert` | `suchguete` |
+| ------------------------------------------------------- | --------------------: | ----------: |
+| ohne Gruppen-Schalter (`greedy_opts(…, false)`)         |                    60 |          60 |
+| Abbruch an der Längengrenze (`LengthLimit`)             |                   230 |          17 |
+| `NoImprovement`, keine drei Plätze mehr frei            |                    82 |          25 |
+| `NoImprovement`, Platz frei, aber keine Gruppe gebildet |                    36 |          18 |
+| Gruppen geprüft                                         |                 **0** |       **0** |
+
+Von den 348 Aufrufen mit Gruppen in `suchguete-erweitert` sind 228
+LNS-Nachfüllungen mit vorgegebener Startliste — die Stelle Z. 294 des alten
+Stands, die vor der Behebung nie erreicht wurde.
+
+**Die Tabelle, die es vorher nicht gab** (A = B):
+
+```text
+Verfahren               Treffer   Quote   Regret-M  Regret-Max   Messungen   schlechtester
+greedy ohne Paare      48 / 60   80.0 %     31.58 %   100.00 %       1792   Fall 22
+greedy mit Paaren      50 / 60   83.3 %     15.03 %    56.52 %       1914   Fall 31
+beam k=1               34 / 60   56.7 %     23.83 %    69.83 %       1306   Fall 38
+beam k=3               44 / 60   73.3 %     20.30 %    67.19 %       3012   Fall 38
+beam k=10              51 / 60   85.0 %     15.76 %    47.83 %       8107   Fall 31
+beam-einf. k=1         50 / 60   83.3 %     16.69 %    56.52 %       2746   Fall 31
+beam-einf. k=3         53 / 60   88.3 %     17.32 %    56.52 %       7332   Fall 31
+beam-einf. k=10        54 / 60   90.0 %     18.10 %    47.83 %      21631   Fall 31
+beam-einf.+stop k=1    48 / 60   80.0 %     31.58 %   100.00 %       1792   Fall 22
+beam-einf.+stop k=3    51 / 60   85.0 %     39.51 %   100.00 %       3817   Fall 22
+beam-einf.+stop k=10   52 / 60   86.7 %     43.37 %   100.00 %       7165   Fall 22
+LNS                    55 / 60   91.7 %     21.74 %    56.52 %      10135   Fall 31
+QD (Archiv)            41 / 60   68.3 %     20.98 %    69.83 %       6420   Fall 38
+erschoepfend           60 / 60  100.0 %      0.00 %     0.00 %      65049   —
+
+QD-Archiv: 10.0 Nischen je Fall im Mittel
+Suchraum ueber den Vorrat hinaus (#1088): 3 von 60 Faellen, Zauber ["purge"]
+```
+
+Die festen Sätze am Ende der Ausgabe („Regret-Max 100 %, immer Fall 22",
+„56,5 %", „dort steht Fall 31", „nicht nur zwei Faelle") stimmen mit dieser
+Tabelle überein.
+
+**Gegen Messung 7 in `SIM-MESSUNGEN.md`:** Der Bau `65ade0e5` gibt jede Zahl
+der beiden Tabellen dort wieder, dazu `beam k=1` mit 34 von 60 und 9,9 Nischen.
+Auf `main` mit Behebung sind Treffer, Quote und Regret-Max in allen 14 Zeilen
+dieselben. Anders sind:
+
+| Größe                                              |   Messung 7, `65ade0e5` | `main` mit Behebung | woher                                        |
+| -------------------------------------------------- | ----------------------: | ------------------: | -------------------------------------------- |
+| Messungen `greedy` ohne / mit Paaren               |             1770 / 1892 |         1792 / 1914 | #1088: `greedy` misst die ergänzte Zeile mit |
+| Messungen LNS                                      |                    9969 |               10135 | #1088, ebenso                                |
+| Messungen Beam, Beam mit Einfügen, QD, erschöpfend | z. B. 62328 erschöpfend |   65049 erschöpfend | Behebung: Vorrat plus Ergänzung              |
+| Regret-M `beam k=1`                                |                 22,70 % |             23,83 % | Behebung                                     |
+| Regret-M QD                                        |                 21,27 % |             20,98 % | Behebung                                     |
+| QD-Nischen je Fall                                 |                     9,9 |                10,0 | Behebung                                     |
+
+Zugeordnet mit M2, dem blanken Vorrat auf `main`: M2 weicht von `65ade0e5` nur
+in den Messungszahlen von `greedy` und LNS ab (dazu die neue Zeile `Suchraum …`
+mit 0 von 60). Die Behebung weicht von M2 nur in den Zeilen der Verfahren ab,
+die jetzt in `suchraum` suchen — Beam, Beam mit Einfügen, QD, erschöpfend —, in
+der Nischenzahl und in der Zeile `Suchraum …`. `SIM-MESSUNGEN.md` trägt den
+Stand vom 2026-08-14 und bleibt unverändert.
 
 ## Zeitläufe im Messfenster
 
@@ -635,11 +812,54 @@ zu 46–61 % belegt, bei PSI memory bis 36,4. Die Vorabprüfung des Laufs um
 - `python3` aus `/work/tmp/plan-v3` sechsmal zwischen 10:41:41 und 10:58:59,
   `piper` und `python3` aus `/work/rota` um 10:41.
 - der `cron`-Schub um 11:00:00 (siehe oben).
+- **`git worktree add` samt Reflink-Kopie von `node_modules`** (Orchestrator-Agent,
+  Worktree `orch-891-registry`) um 10:57:30–10:57:42 — während des Laufs A3 von
+  `messumgebung` (Treiber-Log 10:55:46–10:58:44). Nachgetragen am 2026-10-28;
+  das 30-s-Protokoll hat ihn nicht, weil er zwischen zwei Zeilen fiel (10:57:27,
+  10:57:58). Einordnung unten.
 - `powerprofilesctl` als root in 23 von 71 Zeilen. Ob es dabei etwas umgestellt
   hat, ist mangels Journal nicht lesbar; das Profil stand bei jeder Ablesung auf
   `performance`.
 - dauerhaft: `firefox` mit Inhaltsprozess, ein `python3` aus
   `/datastore/refinanzioso/…` und ein `python` aus `/work/sysproblems/temps`.
+
+**Der `git worktree add` um 10:57:30 und der Lauf A3.** Die Zeiten stehen auch
+im Dateisystem: Verwaltungsdateien und ausgecheckter Baum von
+`orch-891-registry` sind 10:57:30,55–10:57:30,95 entstanden, `node_modules`
+(5776 Einträge) 10:57:40,78–10:57:41,86 (Geburtszeiten, `stat -c %w` und
+`find -printf %B@`). Welche Lasten das traf, folgt aus den Fortschrittszeilen
+auf stderr: Jede Kampflast dauert 22,0 s (2 s Aufwärmen, dann vier Abschnitte
+zu 5 s), ab Laufbeginn 10:55:46,14; die Summe aller acht Lastdauern trifft die
+Wandzeit des Laufs (178,12 s) bis auf 0,3 s. Das Fenster lag damit in zwei
+Lasten:
+
+- `Boss mit HP-Phase` (10:57:14–10:57:36): Ende von Abschnitt 3 und ganz
+  Abschnitt 4,
+- `Ueberleben und Unterbrechen` (10:57:36–10:57:58): Aufwärmen und knapp vier
+  der fünf Sekunden von Abschnitt 1; die Kopie von `node_modules` fiel ganz
+  hinein.
+
+| Größe                          | `Boss mit HP-Phase`                               | `Ueberleben und Unterbrechen`                        |
+| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------- |
+| Rate A3 gegen die vier A-Läufe | 55934, der höchste (43009–55934)                  | 13487, im Band (12891–13977)                         |
+| Streuung innerhalb von A3      | 4,18 %, die kleinste aller Lasten in allen Läufen | 19,51 %, im Bereich der anderen Läufe (6,81–22,32 %) |
+| B gegen A3 (Hauptpaar)         | +2,08 %, A,A 20,12 %                              | **+2,05 %, A,A 0,83 %** — eine der vier auffälligen  |
+| B2 gegen A4 (Nachprüfung)      | +2,47 %                                           | −0,30 %                                              |
+
+Im 10-s-Takt liegen die zwei Zeilen im Fenster (10:57:31, 10:57:41) mit 22,5
+und 25,5 % auf den Kernen 0–7 und 16,6 und 17,2 % auf 8–15 im Bereich des
+übrigen Abschnitts (17,2–28,5 % und 12,1–24,0 %). PSI cpu stieg auf 0,18
+(10:57:41) und 0,79 (10:57:51) — der Höchstwert von A3 in der Tabelle
+„Lastprotokoll" fällt damit direkt hinter den Vorgang.
+
+**Einordnung: Am Urteil ändert das nichts — A und B bleiben nicht
+unterscheidbar.** Für `Ueberleben und Unterbrechen` ist der Vorgang eine zweite
+mögliche Ursache des auffälligen Abstands im Hauptpaar, denn er traf A3, den
+Bezugslauf von B. Ob er A3 dort gedrückt hat, trennen diese Daten nicht: A3
+liegt im Band der vier A-Läufe, seine Streuung im Bereich der anderen Läufe, und
+die Nachprüfung (B2 gegen A4) wiederholt den Abstand nicht. Bei `Boss mit
+HP-Phase` zeigt sich keine Spur; A3 ist dort der schnellste und ruhigste
+A-Lauf.
 
 **Die Prozentspalte von `last-protokoll.sh` ist kein Lastwert.** Sie kommt aus
 `ps -o pcpu`, und das ist der Lebensdurchschnitt eines Prozesses (CPU-Zeit
@@ -697,7 +917,14 @@ Beispiel, und gehört nicht zum Gegenstand dieses Issues. Nicht gefahren.
   aus dem Code abgeleitet und durch die gleichen Ausgaben gestützt, aber nicht
   eigens gezählt.
 - **Welches Gruppenglied fehlte**, wo Platz war und keine Gruppe entstand.
-- **`suchguete-erweitert` jenseits von Fall 1** und die Ursache seines Abbruchs.
+- **Die Ursache ist auf den Merge von #1088 eingegrenzt**, nicht auf einen
+  einzelnen Commit in dessen Zweig. Der Merge ändert außer
+  `sim/src/rotation_search.rs` nur zwei neue Dateien, die das Beispiel nicht
+  benutzt.
+- **Die alten Stände sind mit Rust 1.98.1 gebaut**, nicht mit dem Compiler von
+  damals; `65ade0e5` pinnt keinen.
+- **Die CI fährt die zwei Läufer nicht**, sie baut sie nur (als Testziele ohne
+  Prüffall). Exit 0 und die Tabelle sind lokal gemessen, nicht in der CI.
 - **Die Prüffälle liefen im Debug-, die Beispiele im Release-Profil.** Beide
   Profile rechnen deterministisch; ein Profilvergleich war nicht Gegenstand.
 
@@ -738,6 +965,18 @@ taskset -c 0-7 ./target/release/examples/messumgebung      # ein Lauf je Abschni
 # Spur der Suchaufrufe, mit dem Bau der Spur-Fassung A′ (deterministisch, kein Zeitlauf)
 ./target/release/examples/orch-verteilung 2>&1 >/dev/null | grep SPUR1041
 ./target/release/examples/messumgebung --trace 2>&1 >/dev/null | grep SPUR1041
+
+# Ursache des Abbruchs von suchguete-erweitert: alte Stände in einem Wegwerfbaum
+git archive <stand> Cargo.toml Cargo.lock sim data tests/parity | tar -x -C <baum>
+cp .cargo-remote.toml rust-toolchain.toml <baum>/
+find <baum>/sim <baum>/data <baum>/tests -type f -exec touch {} +   # sonst bleibt das alte Binary
+(cd <baum> && cargo remote -c --no-copy-lock -- build --release --example suchguete-erweitert)
+<baum>/target/release/examples/suchguete-erweitert   # 65ade0e5: Exit 0, 342022b7: Exit 101
+
+# A/B nach der Behebung, aus der Worktree-Wurzel, je Fassung
+cargo remote -c --no-copy-lock -- build --release --example suchguete --example suchguete-erweitert
+./target/release/examples/suchguete-erweitert
+./target/release/examples/suchguete
 ```
 
 Verglichen wird mit `cmp` je stdout und stderr, dazu der Exit-Code jedes Laufs.
