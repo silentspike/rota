@@ -2873,6 +2873,14 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 
 ## 22. Noch nicht ausgeplant
 
+> **Der Vorbehalt dieses Kapitels ist am 2026-10-28 aufgehoben.** Auf die Frage, was für die Punkte
+> unten gilt, hat der Auftraggeber geantwortet: „Nicht game design, du musst den plan den du
+> erstellt hast als refernz nehmen". Die Punkte brauchen damit keine eigene Planungsrunde mehr: Der
+> Orchestrator arbeitet sie nach seinem Plan aus und baut sie im Issue, das sie braucht. Namen und
+> Themen stehen als Arbeitsnamen da und sind als solche gekennzeichnet, damit der Auftraggeber sie
+> ändern kann. Der Satz „Nicht selbst entscheiden — fragen" unten gilt nicht mehr; er bleibt als
+> Herkunft stehen.
+
 Diese Punkte sind **beschlossen**, aber die Ausarbeitung fehlt. Jeder braucht vor seinem Epic eine
 eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen.**
 
