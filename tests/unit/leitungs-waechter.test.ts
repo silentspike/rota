@@ -134,6 +134,16 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   // er feuert. Die Boss-Ankündigung (#797) zählt damit auf den echten Zeitpunkt;
   // dass der Eintrag später feuert, steht im Protokoll (`bossTimelineFired`).
   pendingTimelineDelayMs: 'Zwischenstand der Zeitleiste, beim Feuern verbraucht',
+  // Die Zeitpunkte der übrigen Bausteine, für die Ankündigungen (#797, L4) —
+  // Uhrzeit-Felder des Kampfes, in Kampfzeit umgerechnet. Was zu diesen Zeiten
+  // geschieht (Anstieg, Treffer, Schritt, Fenster), steht in der Prüfsumme und
+  // im Protokoll; der Zeitpunkt selbst ist eine Vorschau, kein Ergebnis.
+  nextEnergyStepAtMs: 'Vorschau auf den nächsten Schritt, kein Ergebnis',
+  nextDoomStepAtMs: 'Vorschau auf den nächsten Schritt, kein Ergebnis',
+  nextStackStepAtMs: 'Vorschau auf den nächsten Schritt, kein Ergebnis',
+  nextAfflictionTickAtMs: 'Vorschau auf den nächsten Schritt, kein Ergebnis',
+  raceStarted: 'Zwischenstand — ob das Fenster offen war, sagt raceWon/damageLostToRace',
+  raceEndsAtFightMs: 'Vorschau auf das Ende des offenen Fensters, kein Ergebnis',
 
   // ---- OFFENE BEFUNDE: kumulative Zähler ohne Leitung ---------------------
   //

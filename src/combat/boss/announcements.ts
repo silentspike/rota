@@ -30,12 +30,30 @@
  * eine falsche Auskunft. Ist die Phase erreicht, ist er sicher — Phasen laufen
  * nur vorwärts.
  *
+ * # Die übrigen Bausteine (L4, Entscheidung vom 28.10.)
+ *
+ * Neben der Zeitleiste kündigt sich an, was der Boss sonst zu festen Zeiten tut,
+ * nach der Zuordnung im Masterplan (A.5b, „Vier Warn-Arten"):
+ *
+ * | Baustein | Name aus | Art | Stufe | zählt auf |
+ * | --- | --- | --- | --- | --- |
+ * | Schwächung (`affliction`) | `affliction.name` | Schwächung auf dir | nach dem Schaden je Schritt | ihr Eintreten, danach den nächsten Schritt |
+ * | Stapel (`stacks`) | `stacks.name` | Schwächung auf dir | nach dem nächsten Treffer | den nächsten Treffer |
+ * | Wettrennen (`race`) | `race.name` | Gelegenheit | 1 — es trifft nicht | den Beginn, danach das späteste Ende |
+ * | Zähler (`doom`) | `doom.name` | Jetzt handeln oder sterben | 3 | die Schwelle |
+ * | Energieleiste (`energy`) | `onTrigger.name` | wie ein Schlag | nach dem Schaden | den Auslöser |
+ *
+ * Auch hier wird gelesen, nicht nachgebaut: Die Schritte stehen im Kampf
+ * (`nextDoomStepAtMs` und die übrigen Zugänge); hier steht nur, wie viele
+ * Schritte bis zur Schwelle fehlen.
+ *
  * # Nichts entsteht im Takt
  *
  * `update` läuft je Bild und je Takt. Die Plätze werden einmal je Boss angelegt
  * (GAME-DESIGN 18.2), danach nur noch beschrieben.
  */
 import { afterWard, type Combat } from '../../core/combat.js';
+import { stackDamage } from '../../core/damage.js';
 import type { BossDef, TimelineEntryDef } from '../../core/data.js';
 
 // ------------------------------------------------------------- Die vier Arten
@@ -89,46 +107,49 @@ export interface PlayerFrame {
 }
 
 /**
- * Tötet dieser Eintrag aus vollem Leben, wenn er landet?
+ * Stufe und Warnart eines Treffers — **aus dem Schaden abgeleitet**, ohne
+ * eigenes Feld (Entscheidung des Orchestrators vom 28.10. zu L1–L3).
  *
- * Über `afterWard` — dieselbe Funktion, mit der `hitPlayer` rechnet. Die
- * Zersetzungs-Minderung (DECAY) zählt nicht: Sie ist ein Zustand des Augenblicks,
- * die Einstufung eine Eigenschaft der Fähigkeit.
- */
-export function isLethal(entry: TimelineEntryDef, player: PlayerFrame): boolean {
-  return afterWard(entry.damage, player.gearWardPermille, 0) >= player.vesselMax;
-}
-
-/**
- * Stufe und Warnart eines Zeitleisten-Eintrags — **aus den Mechanikdaten
- * abgeleitet**, ohne eigenes Feld.
- *
- * | Folge, wenn man ihn ignoriert | Mechanik | Stufe | Art |
- * | --- | --- | --- | --- |
- * | Tod aus vollem Leben | gleich welche | 3 | Jetzt handeln oder sterben |
- * | überlebbarer Schaden | `interruptibleCast` | 2 | Allgemeiner Schaden |
- * | überlebbarer Schaden | `strike` | 1 | Allgemeiner Schaden |
+ * | Schaden nach WARD, gegen die vollen Leben | Stufe | Art |
+ * | --- | --- | --- |
+ * | mindestens alles — tötet aus vollem Leben | 3 | Jetzt handeln oder sterben |
+ * | mindestens die Hälfte — „trifft hart" | 2 | die Art bei überlebbarer Folge |
+ * | darunter | 1 | die Art bei überlebbarer Folge |
  *
  * **Die Art folgt aus der FOLGE, die Stufe aus der SCHWERE.** „Unterbrechbar" ist
- * eine Markierung (11.6) und keine Art: Ein Zauber, dessen Treffer man überlebt,
- * ist allgemeiner Schaden, ob man ihn unterbricht oder aushält.
+ * eine Markierung (11.6) und keine Art; ein überlebbarer Zauber ist allgemeiner
+ * Schaden, ob man ihn unterbricht oder aushält.
  *
- * **Warum der unterbrechbare Zauber Stufe 2 bekommt** — „Fähigkeiten, die hart
- * treffen": Gemessen an allen 20 Spiel-Bossen ist er in jedem, der einen trägt,
- * der schwerste Eintrag der Zeitleiste (10× schwerer als jeder Schlag, 1× der
- * einzige Eintrag). Eine Schadensschwelle wäre eine neue Zahl, die das Design
- * nicht nennt. `tests/unit/boss-announcements.test.ts` prüft die Messung an den
- * Daten: Kommt ein Boss, bei dem ein Schlag schwerer trifft als sein Zauber,
- * wird der Fall rot und die Regel gehört neu entschieden.
+ * **Schaden, nicht Mechanik.** Der erste Entwurf gab jedem unterbrechbaren Zauber
+ * Stufe 2; verworfen, weil ein Boss eine Datendatei ist und ein künftiger
+ * schwacher Zauber nicht von selbst „hart" sein soll.
+ *
+ * Über `afterWard` — dieselbe Funktion, mit der `hitPlayer` rechnet. Die
+ * Zersetzungs-Minderung (DECAY) zählt nicht: Sie ist ein Zustand des
+ * Augenblicks, die Einstufung eine Eigenschaft der Fähigkeit.
+ *
+ * Gibt ein vorab angelegtes Objekt zurück — die Einstufung läuft auch im Takt.
  */
-export function classifyEntry(entry: TimelineEntryDef, player: PlayerFrame): Classification {
-  if (isLethal(entry, player)) return LETHAL;
-  return entry.mechanic === 'interruptibleCast' ? HIGHLIGHT_DAMAGE : BAR_DAMAGE;
+export function classifyDamage(
+  damage: number,
+  player: PlayerFrame,
+  survivableKind: number,
+): Classification {
+  const angekommen = afterWard(damage, player.gearWardPermille, 0);
+  if (angekommen >= player.vesselMax) return CLASSES[TIER_LETHAL]![KIND_LETHAL]!;
+  const tier = angekommen * 2 >= player.vesselMax ? TIER_HIGHLIGHT : TIER_BAR;
+  return CLASSES[tier]![survivableKind]!;
 }
 
-const LETHAL: Classification = { tier: TIER_LETHAL, kind: KIND_LETHAL };
-const HIGHLIGHT_DAMAGE: Classification = { tier: TIER_HIGHLIGHT, kind: KIND_DAMAGE };
-const BAR_DAMAGE: Classification = { tier: TIER_BAR, kind: KIND_DAMAGE };
+/** Ein Zeitleisten-Eintrag: überlebbar ist er Allgemeiner Schaden. */
+export function classifyEntry(entry: TimelineEntryDef, player: PlayerFrame): Classification {
+  return classifyDamage(entry.damage, player, KIND_DAMAGE);
+}
+
+/** Alle Paare aus Stufe und Art, einmal angelegt. */
+const CLASSES: readonly (readonly Classification[])[] = [0, 1, 2, 3].map((tier) =>
+  [KIND_DEBUFF, KIND_DAMAGE, KIND_LETHAL, KIND_OPPORTUNITY].map((kind) => ({ tier, kind })),
+);
 
 // --------------------------------------------------------- Die Ankündigungen
 
@@ -140,7 +161,10 @@ export interface Announcement {
   kind: number;
   /** Steht eine Wiederholung an? Nur dann erscheint sie. */
   active: boolean;
-  /** Läuft der Zauber gerade? Dann zählt sie auf seinen Treffer. */
+  /**
+   * Läuft sie gerade — der Zauber wirkt, die Schwächung liegt, das Fenster ist
+   * offen? Dann zählt sie auf seinen Treffer, ihren nächsten Schritt, sein Ende.
+   */
   casting: boolean;
   /** Kampfzeit, auf die heruntergezählt wird. */
   dueAtMs: number;
@@ -148,7 +172,7 @@ export interface Announcement {
   sinceMs: number;
   /** `dueAtMs` minus jetzt. */
   remainingMs: number;
-  /** Platz in `boss.timeline` des Eintrags, auf den gezählt wird. */
+  /** Platz in `boss.timeline` des Eintrags, auf den gezählt wird; `-1` bei den übrigen Bausteinen. */
   entryIndex: number;
   /** Welcher Eintrag das ist — ändert er sich, beginnt der Balken neu. */
   target: number;
@@ -192,6 +216,21 @@ export function highlighted(a: Announcement): boolean {
   return a.tier >= TIER_HIGHLIGHT && a.remainingMs > 0 && inFinalWindow(a);
 }
 
+/**
+ * Klingt sie, wenn sie in ihre letzten Sekunden tritt (Kanal 3)?
+ *
+ * | | klingt |
+ * | --- | --- |
+ * | Stufe 2 und 3 | ja — „Klang in den letzten Sekunden", „eigener Klang" |
+ * | Schwächung auf dir, Gelegenheit, auch auf Stufe 1 | ja — „eigene Farbe und eigener Klang", „muss sich klar abheben" |
+ * | Allgemeiner Schaden auf Stufe 1 | nein — „ruhigere Ankündigung" |
+ * | was gerade läuft | nein — der Klang kam vor dem Eintreten; je Schritt einer liegenden Schwächung wäre er Lärm |
+ */
+export function warnsAudibly(a: Announcement): boolean {
+  if (a.casting || a.remainingMs <= 0 || !inFinalWindow(a)) return false;
+  return a.tier >= TIER_HIGHLIGHT || a.kind === KIND_DEBUFF || a.kind === KIND_OPPORTUNITY;
+}
+
 /** Die Sekunde, die der Countdown zeigt: aufgerundet wie jeder Countdown. */
 export function countdownSecond(remainingMs: number): number {
   return remainingMs <= 0 ? 0 : Math.ceil(remainingMs / 1000);
@@ -232,7 +271,15 @@ export class BossAnnouncer {
   private boss: BossDef | null = null;
   private vesselMax = -1;
   private gearWard = -1;
+  /** Woran „tödlich" und „hart" gemessen werden — beim Aufbau festgehalten. */
+  private player: PlayerFrame = { vesselMax: 0, gearWardPermille: 0 };
   private slots: Announcement[] = [];
+  /** Plätze der übrigen Bausteine in `slots`, `-1`, wenn der Boss ihn nicht trägt. */
+  private slotEnergy = -1;
+  private slotDoom = -1;
+  private slotStacks = -1;
+  private slotAffliction = -1;
+  private slotRace = -1;
   /** `boss.timeline`-Platz → Fähigkeit (Platz in `slots`). */
   private abilityOfEntry = new Int32Array(0);
   private tierOfEntry = new Int8Array(0);
@@ -286,6 +333,22 @@ export class BossAnnouncer {
       this.tierOfEntry[i] = c.tier;
       this.kindOfEntry[i] = c.kind;
     }
+    this.player = player;
+    // Die übrigen Bausteine, je einer, hinter der Zeitleiste — eigene Plätze,
+    // auch wenn ein Name einem Zeitleisten-Eintrag gliche: Sie zählen auf
+    // verschiedene Dinge.
+    const dazu = (name: string): number => namen.push(name) - 1;
+    const energy = boss.energy;
+    this.slotEnergy =
+      energy !== null && energy.perStepMs > 0 && energy.amount > 0
+        ? dazu(energy.onTrigger.name)
+        : -1;
+    const doom = boss.doom;
+    this.slotDoom = doom !== null && doom.perStepMs > 0 && doom.amount > 0 ? dazu(doom.name) : -1;
+    this.slotStacks =
+      boss.stacks !== null && boss.stacks.perStepMs > 0 ? dazu(boss.stacks.name) : -1;
+    this.slotAffliction = boss.affliction !== null ? dazu(boss.affliction.name) : -1;
+    this.slotRace = boss.race !== null ? dazu(boss.race.name) : -1;
     this.slots = namen.map(slot);
     this.found = new Uint8Array(namen.length);
     this.order = new Int32Array(namen.length);
@@ -356,6 +419,9 @@ export class BossAnnouncer {
       }
     }
 
+    // 3. Die übrigen Bausteine.
+    this.planMechanics(combat, boss, nowMs);
+
     // Rangfolge: Einfügen in eine vorab angelegte Liste — wenige Einträge,
     // kein Speicher.
     let n = 0;
@@ -377,6 +443,103 @@ export class BossAnnouncer {
     this.countValue = n;
   }
 
+  /**
+   * Zähler, Stapel, Schwächung, Wettrennen und Energieleiste (L4).
+   *
+   * **Bis zur Schwelle wird gezählt, nicht geschätzt.** Zähler und Energieleiste
+   * steigen je Schritt um einen festen Betrag; wie viele Schritte fehlen, folgt
+   * aus dem Stand. Senkt der Spieler den Zähler, rückt die Ankündigung im selben
+   * Bild nach hinten — der Stand ist ein anderer, die Rechnung dieselbe.
+   */
+  private planMechanics(combat: Combat, boss: BossDef, nowMs: number): void {
+    const player = this.player;
+    const energy = boss.energy;
+    if (this.slotEnergy >= 0 && energy !== null) {
+      const fehlt = energy.threshold - combat.bossEnergy;
+      const schritte = fehlt <= 0 ? 1 : Math.ceil(fehlt / energy.amount);
+      const faellig = combat.nextEnergyStepAtMs + (schritte - 1) * energy.perStepMs;
+      const c = classifyDamage(energy.onTrigger.damage, player, KIND_DAMAGE);
+      const n = combat.bossEnergyTriggers;
+      this.setze(this.slotEnergy, n, n, faellig, false, nowMs, c.tier, c.kind, -1);
+    }
+
+    const doom = boss.doom;
+    if (this.slotDoom >= 0 && doom !== null && !combat.playerDead) {
+      const fehlt = doom.threshold - combat.doom;
+      const schritte = fehlt <= 0 ? 1 : Math.ceil(fehlt / doom.amount);
+      const faellig = combat.nextDoomStepAtMs + (schritte - 1) * doom.perStepMs;
+      // Die Schwelle tötet — das ist die Mechanik (11.2, Baustein 2), kein Schaden,
+      // den WARD mindert. Stufe 3 nach der Entscheidung zu L4.
+      this.setze(
+        this.slotDoom,
+        faellig,
+        faellig,
+        faellig,
+        false,
+        nowMs,
+        TIER_LETHAL,
+        KIND_LETHAL,
+        -1,
+      );
+    }
+
+    const stacks = boss.stacks;
+    if (this.slotStacks >= 0 && stacks !== null) {
+      const faellig = combat.nextStackStepAtMs;
+      const naechster =
+        combat.bossStacks < stacks.maxStacks ? combat.bossStacks + 1 : stacks.maxStacks;
+      const c = classifyDamage(stackDamage(stacks, naechster), player, KIND_DEBUFF);
+      this.setze(this.slotStacks, faellig, faellig, faellig, false, nowMs, c.tier, c.kind, -1);
+    }
+
+    const aff = boss.affliction;
+    if (this.slotAffliction >= 0 && aff !== null) {
+      const c = classifyDamage(aff.damage, player, KIND_DEBUFF);
+      if (combat.afflicted) {
+        // Sie liegt: Gezählt wird auf den nächsten Schritt, und die Zeile zeigt,
+        // dass sie läuft. Ein Klang je Schritt wäre Lärm — er kam vor dem Eintreten.
+        const faellig = combat.nextAfflictionTickAtMs;
+        this.setze(this.slotAffliction, faellig, faellig, faellig, true, nowMs, c.tier, c.kind, -1);
+      } else if (combat.afflictionsCleared === 0 && nowMs < aff.atMs) {
+        // Sie greift genau einmal; einmal entfernt, kommt sie nicht wieder.
+        this.setze(
+          this.slotAffliction,
+          aff.atMs,
+          aff.atMs,
+          aff.atMs,
+          false,
+          nowMs,
+          c.tier,
+          c.kind,
+          -1,
+        );
+      }
+    }
+
+    const race = boss.race;
+    if (this.slotRace >= 0 && race !== null) {
+      // Das Wettrennen trifft nicht; es ist eine Gelegenheit, und seine Stufe ist
+      // die eines Schadens von null.
+      const c = classifyDamage(0, player, KIND_OPPORTUNITY);
+      if (combat.raceOpen) {
+        const ende = combat.raceEndsAtFightMs;
+        this.setze(this.slotRace, ende, ende, ende, true, nowMs, c.tier, c.kind, -1);
+      } else if (!combat.raceStarted) {
+        this.setze(
+          this.slotRace,
+          race.atMs,
+          race.atMs,
+          race.atMs,
+          false,
+          nowMs,
+          c.tier,
+          c.kind,
+          -1,
+        );
+      }
+    }
+  }
+
   private place(
     a: number,
     platz: number,
@@ -386,14 +549,38 @@ export class BossAnnouncer {
     casting: boolean,
     beginntMs: number,
   ): void {
+    this.setze(
+      a,
+      ziel,
+      occurrence,
+      dueAtMs,
+      casting,
+      beginntMs,
+      this.tierOfEntry[platz] as number,
+      this.kindOfEntry[platz] as number,
+      platz,
+    );
+  }
+
+  private setze(
+    a: number,
+    ziel: number,
+    occurrence: number,
+    dueAtMs: number,
+    casting: boolean,
+    beginntMs: number,
+    tier: number,
+    kind: number,
+    platz: number,
+  ): void {
     const ann = this.slots[a] as Announcement;
     this.found[a] = 1;
     ann.occurrence = occurrence;
     ann.casting = casting;
     ann.dueAtMs = dueAtMs;
     ann.entryIndex = platz;
-    ann.tier = this.tierOfEntry[platz] as number;
-    ann.kind = this.kindOfEntry[platz] as number;
+    ann.tier = tier;
+    ann.kind = kind;
     if (ann.target !== ziel) {
       // Die volle Abklingzeit beginnt dort, wo die vorige Wiederholung endete —
       // beim ersten Mal mit dem Kampf.

@@ -1479,6 +1479,41 @@ export class Combat {
     return this.vesselMax;
   }
 
+  // Die Zeitpunkte der übrigen Bausteine, für die Ankündigungen (GAME-DESIGN
+  // 11.5, Issue #797) — in KAMPFZEIT, nicht in Uhrzeit wie die Felder dahinter.
+  // Wer die zwei mischt, kündigt um die Vorbereitungszeit versetzt an. Nur
+  // lesend; `-1`, wenn der Baustein fehlt oder nichts ansteht.
+
+  /** Nächster Schritt der Energieleiste. */
+  get nextEnergyStepAtMs(): number {
+    return this.boss.energy === null ? -1 : this.nextEnergyAtMs - this.fightStartedAtMs;
+  }
+
+  /** Nächster Anstieg des Zählers, der bei der Schwelle tötet. */
+  get nextDoomStepAtMs(): number {
+    return this.boss.doom === null ? -1 : this.nextDoomAtMs - this.fightStartedAtMs;
+  }
+
+  /** Nächster Treffer des exponentiellen Stapels. */
+  get nextStackStepAtMs(): number {
+    return this.boss.stacks === null ? -1 : this.nextStackAtMs - this.fightStartedAtMs;
+  }
+
+  /** Nächster Schritt der liegenden Schwächung; `-1`, solange keine liegt. */
+  get nextAfflictionTickAtMs(): number {
+    return this.afflictedValue ? this.nextAfflictionAtMs - this.fightStartedAtMs : -1;
+  }
+
+  /** Hat das Wettrennen schon begonnen? Es beginnt genau einmal. */
+  get raceStarted(): boolean {
+    return this.raceDone;
+  }
+
+  /** Wann das offene Fenster spätestens schließt; `-1`, wenn keins offen ist. */
+  get raceEndsAtFightMs(): number {
+    return this.raceEndsAtMs >= 0 ? this.raceEndsAtMs - this.fightStartedAtMs : -1;
+  }
+
   /** Verbleibende Lebenspunkte des Spielers. */
   /** Die Stufe, mit der dieser Kampf rechnet (Issue #289). */
   get level(): number {

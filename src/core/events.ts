@@ -53,9 +53,11 @@ export const EV_MENU_ENTER = 23;
  * gesprochene Countdown von Stufe 3, je Sekunde ein eigenes Ereignis — fünf
  * Wörter sind fünf Aufnahmen.
  *
- * **Die Klänge dazu gibt es noch nicht** (Verzeichnis, Stand #797): Die Ereignisse
- * laufen, bis eine Datei im Verzeichnis an ihnen hängt, ins Leere. Dann ist der
- * Klang ein Datensatz und keine Code-Änderung (Leitplanke 6).
+ * **Die Klänge dazu gibt es noch nicht** (Stand #797). Das Verzeichnis führt sie
+ * als vorläufige Einträge mit Datei und Prompt, aber ohne Auslöser — ein Auslöser
+ * ohne Datei verlangte einen Klang, den es nicht gibt. Bis dahin laufen die
+ * Ereignisse ins Leere; danach ist der Klang ein Datensatz und keine
+ * Code-Änderung (Leitplanke 6).
  */
 export const EV_BOSS_WARNING_DEBUFF = 24;
 export const EV_BOSS_WARNING_DAMAGE = 25;

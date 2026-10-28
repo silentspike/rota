@@ -59,11 +59,15 @@ export const LIST_RIGHT = DESIGN_WIDTH - 90;
 export const LIST_TOP = 96;
 export const ROW_HEIGHT = 58;
 /**
- * Höchstens so viele Zeilen. Der größte Boss trägt heute vier Fähigkeiten
- * (`test-collision`, `orch-maxload`); sechs lassen Luft und enden bei 444,
- * weit über den Instrumenten bei 660.
+ * Höchstens so viele Zeilen — und zwar so viele, wie der Platz bis zu den
+ * Instrumenten (660) trägt: Die neunte Zeile hat ihren Balken bei 572 bis 580.
+ *
+ * Gezählt über alle Bossdateien (Zeitleisten-Namen plus Bausteine, Stand #797):
+ * höchstens fünf in einem Spiel-Boss (`boss-5-4`), neun im Messwerkzeug
+ * `orch-maxload`. Kommt mehr, fällt das am wenigsten Dringliche weg — die Liste
+ * ist nach Dringlichkeit sortiert.
  */
-export const MAX_ROWS = 6;
+export const MAX_ROWS = 9;
 const BAR_TOP_OFFSET = 12;
 const BAR_HEIGHT = 8;
 const SYMBOL_SIZE = 14;

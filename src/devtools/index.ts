@@ -263,13 +263,19 @@ export interface CombatSnapshot {
   readonly level: number;
   readonly nextCastDoubles: boolean;
   readonly nextCastFreeGcd: boolean;
+  readonly nextAfflictionTickAtMs: number;
+  readonly nextDoomStepAtMs: number;
+  readonly nextEnergyStepAtMs: number;
+  readonly nextStackStepAtMs: number;
   readonly pendingTimelineDelayMs: number;
   readonly phaseHoldPercent: number;
   readonly playerDamage: number;
   readonly playerDead: boolean;
   readonly playerHp: number;
   readonly playerVesselMax: number;
+  readonly raceEndsAtFightMs: number;
   readonly raceOpen: boolean;
+  readonly raceStarted: boolean;
   readonly raceProgress: number;
   readonly raceWon: boolean;
   readonly reflectPercent: number;
@@ -986,13 +992,19 @@ export function installDevTools(app: App): void {
         level: combat.level,
         nextCastDoubles: combat.nextCastDoubles,
         nextCastFreeGcd: combat.nextCastFreeGcd,
+        nextAfflictionTickAtMs: combat.nextAfflictionTickAtMs,
+        nextDoomStepAtMs: combat.nextDoomStepAtMs,
+        nextEnergyStepAtMs: combat.nextEnergyStepAtMs,
+        nextStackStepAtMs: combat.nextStackStepAtMs,
         pendingTimelineDelayMs: combat.pendingTimelineDelayMs,
         phaseHoldPercent: combat.phaseHoldPercent,
         playerDamage: combat.playerDamage,
         playerDead: combat.playerDead,
         playerHp: combat.playerHp,
         playerVesselMax: combat.playerVesselMax,
+        raceEndsAtFightMs: combat.raceEndsAtFightMs,
         raceOpen: combat.raceOpen,
+        raceStarted: combat.raceStarted,
         raceProgress: combat.raceProgress,
         raceWon: combat.raceWon,
         reflectPercent: combat.reflectPercent,
