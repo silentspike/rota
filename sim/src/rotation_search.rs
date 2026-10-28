@@ -861,6 +861,8 @@ pub fn greedy_zuege(
     // vorgegebene Liste stehen, und ein Name, der das Gegenteil behauptet,
     // schickt den naechsten Leser auf die falsche Faehrte.
     let mut best = measure(config, "start", &chosen);
+    crate::fortschritt::bestes(best.mean);
+    let mut runde = 0u64;
     let stop = loop {
         if chosen.len() >= max_len {
             break Stop::LengthLimit;
@@ -868,6 +870,8 @@ pub fn greedy_zuege(
         if offen.is_empty() {
             break Stop::PoolExhausted;
         }
+        runde += 1;
+        melde_runde(runde, pool, &offen, chosen.len(), max_len, zuege);
         // (Stelle im Pool, Einfuegeposition, Messung)
         let mut bester_zug: Option<(usize, usize, Measured)> = None;
         for (pos, &kandidat) in offen.iter().enumerate() {
@@ -933,6 +937,9 @@ pub fn greedy_zuege(
         if !einzeln_traegt && zuege.tripel && chosen.len() + 3 <= max_len {
             let gruppen = tripel_zuege(pool, &offen);
             tripel_geprueft += gruppen.len();
+            // Die Dreiergruppen stehen erst jetzt fest — sie gehören zu dieser
+            // Runde und heben deren Untergrenze (#933).
+            crate::fortschritt::runde_ergaenzt((gruppen.len() * (chosen.len() + 1)) as u64);
             // **Die Namen folgen der Ordnung aus [`tripel_zuege`]**, nicht der
             // Reihenfolge, in der die Glieder gedacht wurden: erst der
             // Unterbrecher, dann die Zeile darum, dann der Erzeuger. Sie hiessen
@@ -1009,6 +1016,7 @@ pub fn greedy_zuege(
                     offen.remove(*pos);
                 }
                 best = gemessen;
+                crate::fortschritt::bestes(best.mean);
                 continue;
             }
 
@@ -1030,6 +1038,7 @@ pub fn greedy_zuege(
             offen.remove(hoch);
             offen.remove(tief);
             best = gemessen;
+            crate::fortschritt::bestes(best.mean);
             continue;
         }
 
@@ -1045,6 +1054,7 @@ pub fn greedy_zuege(
         chosen.insert(stelle, pool[offen[pos]].clone());
         offen.remove(pos);
         best = gemessen;
+        crate::fortschritt::bestes(best.mean);
     };
 
     SearchResult {
@@ -1067,8 +1077,67 @@ pub fn greedy_zuege(
     }
 }
 
+/// Meldet den Beginn einer Suchrunde an den Fortschritt (#933).
+///
+/// **Nur mit angemeldetem Zählwerk.** Ohne Anmeldung rechnet die Suche hier
+/// keine Paar- und Tripelzahlen zusätzlich aus — ein Lauf ohne Anzeige zahlt
+/// einen Vergleich, sonst nichts.
+///
+/// Sicher kostet die Runde ihre Einzel- und Paarzüge; die Dreiergruppen
+/// kommen nur, wenn kein Einzelzug trägt, und melden sich dann selbst
+/// ([`crate::fortschritt::runde_ergaenzt`]). Beide Grenzen tragen eins mehr:
+/// die Messung der gefundenen Liste nach der letzten Runde.
+fn melde_runde(
+    runde: u64,
+    pool: &[Candidate],
+    offen: &[usize],
+    gewaehlt: usize,
+    max_len: usize,
+    zuege: Zuege,
+) {
+    if crate::fortschritt::strang().is_none() {
+        return;
+    }
+    let paare = if zuege.paare {
+        paar_zuege(pool, offen).len()
+    } else {
+        0
+    };
+    let tripel = if zuege.tripel {
+        tripel_zuege(pool, offen).len()
+    } else {
+        0
+    };
+    let paare_jetzt = if gewaehlt + 2 <= max_len { paare } else { 0 };
+    let geplant = ((offen.len() + paare_jetzt) * (gewaehlt + 1)) as u64;
+    let hoechstens = restmessungen_hoechstens(gewaehlt, offen.len(), max_len, paare, tripel);
+    crate::fortschritt::suchrunde(runde, geplant, geplant + 1, hoechstens + 1);
+}
+
 /// Wie viele Messungen die gierige Suche ab einem Rundenbeginn höchstens noch
-/// kostet (#933).
+/// kostet (#933) — diese Runde eingeschlossen, ohne die abschließende Messung
+/// der gefundenen Liste.
+///
+/// # Warum eine Schranke und keine Zahl
+///
+/// Die Suche endet, sobald keine Zeile mehr messbar trägt; wann das ist, steht
+/// erst nach der Messung fest. Fest steht nur, was sie **höchstens** tun kann,
+/// und das folgt aus [`greedy_zuege`] selbst, Runde `j` ab jetzt:
+///
+/// ```text
+///   Länge           gewaehlt + j  ≤  c_j  ≤  min(gewaehlt + 3j, max_len − 1)
+///                   (jede Runde fügt eine bis drei Zeilen an; eine Runde
+///                    beginnt nur unter der Längengrenze)
+///   offen           m_j ≤ offen − j
+///   Paare, Tripel   ≤ die Zahl von jetzt — sie entstehen nur aus offenen Zeilen
+///   Messungen       (m_j + Paare + Tripel) · (c_j + 1)
+///   Runden          höchstens min(max_len − gewaehlt, offen)
+/// ```
+///
+/// Paare zählen nur, solange `c_j + 2 ≤ max_len` noch möglich ist, Tripel bei
+/// `c_j + 3`. Die Schranke ist grob — sie nimmt in jeder Runde die längste
+/// mögliche Liste an —, aber sie hält: `tests/fortschritt.rs` prüft sie an
+/// jeder beobachteten Runde einer echten Suche.
 #[must_use]
 pub fn restmessungen_hoechstens(
     gewaehlt: usize,
@@ -1077,7 +1146,24 @@ pub fn restmessungen_hoechstens(
     paare: usize,
     tripel: usize,
 ) -> u64 {
-    todo!("#933 {gewaehlt} {offen} {max_len} {paare} {tripel}")
+    if gewaehlt >= max_len {
+        return 0;
+    }
+    let runden = (max_len - gewaehlt).min(offen);
+    let mut summe = 0u64;
+    for j in 0..runden {
+        let laenge_hoechstens = (gewaehlt + 3 * j).min(max_len - 1);
+        let laenge_mindestens = gewaehlt + j;
+        let mut zuege = (offen - j) as u64;
+        if laenge_mindestens + 2 <= max_len {
+            zuege += paare as u64;
+        }
+        if laenge_mindestens + 3 <= max_len {
+            zuege += tripel as u64;
+        }
+        summe += zuege * (laenge_hoechstens as u64 + 1);
+    }
+    summe
 }
 
 /// Die Paare, die einzeln verlieren und zusammen tragen (Issue #558, AC2).

@@ -125,10 +125,25 @@ fn progress_schreibt_auf_den_fehlerkanal_und_laesst_den_bericht_stehen() {
     let (code, mit, stderr_mit) = rufe(&mit_anzeige);
     assert_eq!(code, 0, "{stderr_mit}");
 
-    let ohne: serde_json::Value = serde_json::from_str(ohne.trim()).expect("JSON");
-    let mit: serde_json::Value = serde_json::from_str(mit.trim()).expect("JSON");
+    // Verglichen wird ALLES außer der Wanduhr. Ein einzelnes Feld genügte
+    // nicht: Die Suche gibt kein `result` aus, und zwei fehlende Felder wären
+    // gleich, ohne dass etwas verglichen wurde.
+    let ohne_uhr = |text: &str| {
+        let mut wert: serde_json::Value = serde_json::from_str(text.trim()).expect("JSON");
+        let objekt = wert.as_object_mut().expect("ein JSON-Objekt");
+        assert!(
+            objekt.remove("elapsedMs").is_some(),
+            "keine Wanduhr im Bericht"
+        );
+        assert!(
+            objekt.contains_key("measured"),
+            "Zusicherung: ein Suchbericht"
+        );
+        wert
+    };
     assert_eq!(
-        ohne["result"], mit["result"],
+        ohne_uhr(&ohne),
+        ohne_uhr(&mit),
         "mit --progress kam ein anderes Ergebnis heraus"
     );
     for angabe in ["Kandidaten", "Durchsatz", "Restzeit", "Engpass", "Bestes"] {
@@ -177,7 +192,10 @@ fn die_schranken_der_suche_halten_in_jeder_meldung() {
             geprueft += 1;
         }
     }
-    assert!(geprueft > 0, "keine Meldung mit Schranken — der Fall prüfte nichts");
+    assert!(
+        geprueft > 0,
+        "keine Meldung mit Schranken — der Fall prüfte nichts"
+    );
 }
 
 /// **Der gestaffelte Lauf meldet seinen Weg und seine Kämpfe.**
@@ -216,7 +234,8 @@ fn gestaffelt_meldet_den_gestaffelten_weg() {
 /// **Mit Steuerdatei steht die Drosselung im Strom.**
 #[test]
 fn mit_steuerdatei_steht_die_drosselung_im_strom() {
-    let steuerung = std::env::temp_dir().join(format!("rota-933-{}-steuer.json", std::process::id()));
+    let steuerung =
+        std::env::temp_dir().join(format!("rota-933-{}-steuer.json", std::process::id()));
     std::fs::write(
         &steuerung,
         "{\"cpu_threads\":1,\"cpu_percent\":100,\"paused\":false}",

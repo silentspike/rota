@@ -16,7 +16,7 @@ use rota_sim::balance::{
 use rota_sim::fortschritt::{
     ablauf, format_ganzzahl, restzeit, restzeit_aus, strang, utc_iso8601, Anzeigestrang,
     Arbeitsmenge, Ausgabe, Bestes, Ereignis, Fenster, Kampfzahl, Kostenbild, Laufbeschreibung,
-    Laufstand, Momentaufnahme, Rechner, Restanteil, Restkosten, Restzeit, Stufe, Strangzaehler,
+    Laufstand, Momentaufnahme, Rechner, Restanteil, Restkosten, Restzeit, Strangzaehler, Stufe,
     Weg, Zaehlwerk, ANZEIGETAKT, CACHE_ZEILE, FENSTER, WEGE_OHNE_LAUF,
 };
 use rota_sim::gear::WornValues;
@@ -59,6 +59,7 @@ fn rechner(id: &str, straenge: usize, je_strang: f64, streuung: f64) -> Rechner 
         id: id.to_owned(),
         straenge,
         raten: vec![(Arbeitsart::ScalarFullFight, rate(je_strang, streuung))],
+        trend: 0.0,
     }
 }
 
@@ -132,7 +133,11 @@ fn ein_reduzierter_lauf_zaehlt_einen_kampf_und_zwanzig_durchgaenge() {
     let m = werk.momentaufnahme();
     assert_eq!(m.kaempfe, 1, "gerechnet wird EIN Kampf, nicht zwanzig");
     assert_eq!(m.durchgaenge, 20, "geliefert werden zwanzig Durchgänge");
-    assert_eq!(m.kandidaten, [1, 0, 0], "eine Auswertung auf dem Weg 'ein Kampf'");
+    assert_eq!(
+        m.kandidaten,
+        [1, 0, 0],
+        "eine Auswertung auf dem Weg 'ein Kampf'"
+    );
 }
 
 #[test]
@@ -194,7 +199,10 @@ fn der_gestaffelte_lauf_zaehlt_seine_kaempfe() {
 #[test]
 fn ohne_anmeldung_zaehlt_nichts_und_das_ergebnis_bleibt_bitgleich() {
     let config = konfiguration(20, 2, 500);
-    assert!(strang().is_none(), "ein frischer Prüfstrang ist nicht angemeldet");
+    assert!(
+        strang().is_none(),
+        "ein frischer Prüfstrang ist nicht angemeldet"
+    );
     let ohne = run(&config, &gute_liste());
     let werk = Zaehlwerk::neu(2);
     let mit = {
@@ -264,9 +272,14 @@ fn die_obergrenze_der_suche_rechnet_runde_fuer_runde() {
     assert_eq!(restmessungen_hoechstens(0, 3, 2, 0, 0), 3 + 2 * 2);
     // Längengrenze schon erreicht: nichts mehr.
     assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 5), 0);
-    // Paare zählen nur, solange zwei Zeilen passen.
+    // Paare zählen nur, solange zwei Zeilen passen: Runde eins mit einer
+    // Stelle (2 + 7), Runde zwei mit einer offenen Zeile an zwei Stellen.
     assert_eq!(restmessungen_hoechstens(0, 2, 1, 7, 0), 2);
-    assert_eq!(restmessungen_hoechstens(0, 2, 2, 7, 0), 2 + 7 + 1 * 2);
+    let zweite_runde = 2;
+    assert_eq!(
+        restmessungen_hoechstens(0, 2, 2, 7, 0),
+        2 + 7 + zweite_runde
+    );
 }
 
 // ---------------------------------------------------------------- AC4
@@ -274,7 +287,12 @@ fn die_obergrenze_der_suche_rechnet_runde_fuer_runde() {
 fn gleichmaessig(fenster: &mut Fenster, bis_s: f64, ab_s: f64, rate: f64, mut kaempfe: f64) -> f64 {
     let mut t = ab_s;
     while t <= bis_s + 1e-9 {
-        fenster.aufnehmen(probe(t, kaempfe.round() as u64, [0, 0, 0], Laufstand::default()));
+        fenster.aufnehmen(probe(
+            t,
+            kaempfe.round() as u64,
+            [0, 0, 0],
+            Laufstand::default(),
+        ));
         t += 0.25;
         kaempfe += rate * 0.25;
     }
@@ -411,7 +429,10 @@ fn ac6_verschieden_schnelle_rechner_teilen_nach_leistung() {
     // beide nach genau einer Sekunde fertig.
     let a = ablauf(
         &[kaempfe_stufe(4, 1)],
-        &[rechner("schnell", 1, 3.0, 0.0), rechner("langsam", 1, 1.0, 0.0)],
+        &[
+            rechner("schnell", 1, 3.0, 0.0),
+            rechner("langsam", 1, 1.0, 0.0),
+        ],
     )
     .expect("Ablauf");
     assert!(nah(a.dauer_s, 1.0), "{}", a.dauer_s);
@@ -435,6 +456,7 @@ fn ac6_ein_rechner_ohne_die_arbeitsart_bekommt_keine_aufgabe() {
         id: "laptop".to_owned(),
         straenge: 2,
         raten: vec![(Arbeitsart::AvxFullFight, rate(100.0, 0.0))],
+        trend: 0.0,
     };
     let a = ablauf(&[avx], &[gonet, laptop]).expect("Ablauf");
     assert!(
@@ -552,7 +574,10 @@ fn ac7_ohne_streuung_und_bei_exakter_menge_ist_die_spanne_null() {
         None,
         0.0,
     );
-    let Restzeit::Spanne { unten_s, oben_s, .. } = r else {
+    let Restzeit::Spanne {
+        unten_s, oben_s, ..
+    } = r
+    else {
         panic!("{r:?}")
     };
     assert!(nah(unten_s, 1.0) && nah(oben_s, 1.0), "{unten_s}..{oben_s}");
@@ -578,7 +603,10 @@ fn ac7_die_ratenstreuung_geht_auf_einem_rechner_voll_ein() {
     assert!(nah(m, 10.0), "{m}");
     // Ein Rechner: seine Stränge drosseln gemeinsam, nichts mittelt sich weg.
     assert!(nah(h.sigma_rate_s, 0.1 * 10.0), "σ {}", h.sigma_rate_s);
-    let Restzeit::Spanne { unten_s, oben_s, .. } = r else {
+    let Restzeit::Spanne {
+        unten_s, oben_s, ..
+    } = r
+    else {
         unreachable!()
     };
     assert!(nah(unten_s, 9.0) && nah(oben_s, 11.0));
@@ -629,8 +657,71 @@ fn ac7_wiederholungen_verschieben_die_mitte_und_weiten_die_spanne() {
     assert!(nah(mitte(&mit), mitte(&ohne) / 0.9));
     let h = herleitung_von(&mit);
     assert!(h.sigma_wiederholung_s > 0.0);
-    assert!(nah(h.sigma_wiederholung_s, mitte(&mit) * (0.1f64 / 100.0).sqrt()));
+    assert!(nah(
+        h.sigma_wiederholung_s,
+        mitte(&mit) * (0.1f64 / 100.0).sqrt()
+    ));
     assert!(nah(herleitung_von(&ohne).sigma_wiederholung_s, 0.0));
+}
+
+#[test]
+fn ac7_ein_trend_der_rate_weitet_die_spanne() {
+    // Der Fall aus der Messung vom 2026-10-28: Die Rate wandert, weil spätere
+    // Kämpfe teurer werden. Ohne den Term lag die obere Grenze unter der
+    // tatsächlichen Restzeit.
+    let mut wandernd = rechner("a", 10, 100.0, 0.1);
+    wandernd.trend = 0.2;
+    let r = restzeit(
+        &[exakt(Weg::Stichprobe, 1000, 10)],
+        0,
+        &[wandernd],
+        None,
+        0.0,
+    );
+    let h = herleitung_von(&r);
+    assert!(nah(h.kosten_trend, 0.2));
+    assert!(
+        nah(h.sigma_kosten_s, 0.2 * 10.0),
+        "σ_kosten {}",
+        h.sigma_kosten_s
+    );
+    let Restzeit::Spanne {
+        unten_s, oben_s, ..
+    } = r
+    else {
+        unreachable!()
+    };
+    // σ_rate 1,0 und σ_kosten 2,0 addieren sich: beide gehören zur Rate.
+    assert!(
+        nah(unten_s, 7.0) && nah(oben_s, 13.0),
+        "{unten_s}..{oben_s}"
+    );
+}
+
+#[test]
+fn der_trend_ist_die_verschiebung_zwischen_den_fensterhaelften() {
+    let mut fenster = Fenster::neu(FENSTER);
+    let mut kaempfe = 0u64;
+    let mut t = 0.0;
+    // Vier Sekunden mit 1000, vier mit 800 Kämpfen je Sekunde.
+    for sekunde in 0..8u32 {
+        let je_viertel = if sekunde < 4 { 250 } else { 200 };
+        for _ in 0..4 {
+            fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0], Laufstand::default()));
+            t += 0.25;
+            kaempfe += je_viertel;
+        }
+    }
+    fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0], Laufstand::default()));
+    let trend = fenster.strangtrend().expect("acht Abschnitte");
+    assert!(nah(trend, 0.2), "Trend {trend}");
+    // Und ohne Wandern kein Trend — sonst weitete der Term jede Spanne.
+    assert!(nah(
+        fenster_mit(Laufstand::default())
+            .strangtrend()
+            .expect("Trend"),
+        0.0
+    ));
 }
 
 #[test]
@@ -657,7 +748,10 @@ fn ac7_eine_obere_schranke_gibt_eine_spanne_ohne_mitte() {
         panic!("{r:?}")
     };
     assert_eq!(mitte_s, None, "eine Obergrenze hat keine Mitte");
-    assert!(nah(unten_s, 1.0) && nah(oben_s, 10.0), "{unten_s}..{oben_s}");
+    assert!(
+        nah(unten_s, 1.0) && nah(oben_s, 10.0),
+        "{unten_s}..{oben_s}"
+    );
     assert_eq!(
         herleitung.restkosten,
         Restkosten::Spanne {
@@ -775,7 +869,13 @@ fn ac3_eine_bekannte_menge_zeigt_eine_restzeit() {
     };
     let a = anzeige_zu(stand);
     assert!(
-        matches!(a.restzeit, Restzeit::Spanne { mitte_s: Some(_), .. }),
+        matches!(
+            a.restzeit,
+            Restzeit::Spanne {
+                mitte_s: Some(_),
+                ..
+            }
+        ),
         "{:?}",
         a.restzeit
     );
@@ -806,7 +906,10 @@ fn ac3_die_gierige_suche_zeigt_eine_obergrenze() {
     let j = json(&a.jsonl("pruef-1", "pruefrechner"));
     let eta = &j["metrics"]["eta"];
     assert_eq!(eta["kind"], "estimate");
-    assert!(eta["mid_s"].is_null(), "eine Obergrenze hat keine Mitte: {eta}");
+    assert!(
+        eta["mid_s"].is_null(),
+        "eine Obergrenze hat keine Mitte: {eta}"
+    );
     assert!(eta["low_s"].as_f64().expect("Zahl") < eta["high_s"].as_f64().expect("Zahl"));
 }
 
@@ -863,7 +966,12 @@ fn ac2_beide_durchsatzzahlen_stehen_nebeneinander_und_laufen_auseinander() {
     let mut fenster = Fenster::neu(FENSTER);
     for i in 0..=32u64 {
         let n = i * 25;
-        fenster.aufnehmen(probe(i as f64 * 0.25, n * 50, [0, n, 0], Laufstand::default()));
+        fenster.aufnehmen(probe(
+            i as f64 * 0.25,
+            n * 50,
+            [0, n, 0],
+            Laufstand::default(),
+        ));
     }
     let kosten = Kostenbild {
         weg: Weg::Stichprobe,
@@ -1022,7 +1130,11 @@ fn der_anzeigestrang_meldet_im_viertelsekundentakt() {
 
     let text = String::from_utf8(strom.0.lock().expect("Sperre").clone()).expect("UTF-8");
     let meldungen: Vec<serde_json::Value> = text.lines().map(json).collect();
-    assert!(meldungen.len() >= 5, "{} Meldungen:\n{text}", meldungen.len());
+    assert!(
+        meldungen.len() >= 5,
+        "{} Meldungen:\n{text}",
+        meldungen.len()
+    );
     assert_eq!(meldungen[0]["event"], "start");
     assert_eq!(meldungen.last().expect("eine")["event"], "end");
     for (i, m) in meldungen.iter().enumerate() {

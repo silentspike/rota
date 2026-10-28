@@ -51,6 +51,5 @@ pub use restzeit::{
 };
 pub use zaehlwerk::{
     bestes, kandidat, menge, runde_ergaenzt, strang, suchrunde, Anmeldung, Arbeitsmenge, Bestes,
-    Laufstand, Momentaufnahme, Strang, Strangzaehler, Weg, Zaehlwerk, CACHE_ZEILE,
-    WEGE_OHNE_LAUF,
+    Laufstand, Momentaufnahme, Strang, Strangzaehler, Weg, Zaehlwerk, CACHE_ZEILE, WEGE_OHNE_LAUF,
 };

@@ -1436,7 +1436,10 @@ fn mission_json(m: Mission) -> String {
 
 /// Rusts Debug-Escapes (`\\0`, `\\u{...}`) sind kein JSON. Nur die
 /// vorgeschriebenen Steuerzeichen werden maskiert; Unicode bleibt UTF-8.
-fn json_string(value: &str) -> String {
+///
+/// Crate-weit sichtbar, weil der Fortschrittsstrom aus #933 dieselben Zeichen
+/// schreibt — ein zweiter Maskierer liefe irgendwann auseinander.
+pub(crate) fn json_string(value: &str) -> String {
     let mut out = String::from("\"");
     for ch in value.chars() {
         match ch {
@@ -1452,7 +1455,7 @@ fn json_string(value: &str) -> String {
     out
 }
 
-fn json_number(value: f64, field: &'static str) -> Result<String, JsonError> {
+pub(crate) fn json_number(value: f64, field: &'static str) -> Result<String, JsonError> {
     if !value.is_finite() {
         return Err(JsonError::NonFinite { field });
     }
