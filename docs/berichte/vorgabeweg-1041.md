@@ -65,6 +65,13 @@ Behebung steht in diesem PR:** Seither läuft der Läufer in A und B mit Exit 0
 durch alle 60 Fälle, druckt seine Tabelle, und A und B sind bitgleich. Siehe
 „Die Behebung von `suchguete-erweitert`".
 
+**Auf dem Stand, der gemergt würde (`b087f63f` plus Behebung), gilt das Ergebnis
+weiter:** 24 der 27 Läufe geben in A und B Zeichen für Zeichen dieselbe Ausgabe
+wie am 24.10. Im seither neu geschriebenen `ac3-umgebaute-wege-419` bewegt sich
+eine Zahl derselben Art — 15780 gegen 15729 Messungen bei gleichem Schaden und
+gleicher Liste —, und auch dort entscheidet keine Gruppe. Siehe „Nachmessung auf
+dem Stand, der gemergt würde".
+
 ## Die Fassungen
 
 | Fassung | Inhalt                                                         | sha256 von `sim/src/rotation_search.rs`                            |
@@ -228,7 +235,9 @@ Entscheidungen durch eine Gruppe.
 Die Zeilen `suchguete` und `suchguete-erweitert` zeigen den Stand **vor** der
 Behebung in diesem PR. Danach laufen beide in A und B mit Exit 0 und bitgleich
 (`suchguete-erweitert` 69 Zeilen, Spur A′ 408 · 0 · 0; `suchguete` 35 Zeilen,
-120 · 0 · 0), siehe „Die Behebung von `suchguete-erweitert`".
+120 · 0 · 0), siehe „Die Behebung von `suchguete-erweitert`". Alle 27 Läufe auf
+dem Stand, der gemergt würde, stehen im Abschnitt „Nachmessung auf dem Stand,
+der gemergt würde".
 
 Die vollständigen Bosslisten: Prüfstein-509 nach `docs/berichte/pruefstein-509.md`
 (`first-crucible,test-onslaught,test-metronome,test-gatekeeper,test-resistant`),
@@ -599,6 +608,70 @@ mit 0 von 60). Die Behebung weicht von M2 nur in den Zeilen der Verfahren ab,
 die jetzt in `suchraum` suchen — Beam, Beam mit Einfügen, QD, erschöpfend —, in
 der Nischenzahl und in der Zeile `Suchraum …`. `SIM-MESSUNGEN.md` trägt den
 Stand vom 2026-08-14 und bleibt unverändert.
+
+## Nachmessung auf dem Stand, der gemergt würde
+
+Gemessen am 2026-10-28 von 11:27 bis 11:58 auf dem Kopf `52ae05a7` (Code wie
+`06d9e027`: `main` `b087f63f` plus Behebung). **Anlass:** Seit `23d7c13f` hat
+`main` das Beispiel `ac3-umgebaute-wege-419` neu geschrieben (#1134, Commits
+`e41032e0` und `3001e83a`) und `sim/src/balance.rs`, `stichprobe.rs` und
+`verteilung.rs` geändert (#1133); `rotation_search.rs` ist unverändert (sha256
+`6e93744a…`). Ob die Läufe vom 24.10. für diesen Stand noch gelten, war damit
+offen. Die Zeitläufe sind nicht wiederholt.
+
+**Bau und Ablauf.** Alle Beispiele je Fassung: A `b1b09466f7e0afaa4edd9edc`, B
+`5aed38b3e2b56e577b60b7ea`, A′ `856b8a899cd404b806b031b3`. Nach B und nach A′
+zurückgebaut, `sha256sum -c` alle `OK`, `git status --porcelain` leer. Die
+Bauten sind reproduzierbar: `suchguete` und `suchguete-erweitert` daraus sind
+bitgleich zu denen im Abschnitt davor (A `aa0a36aa…` und `2cc8e7d6…`, B
+`58a47de4…` und `0706455c…`, A′ `c79f64b8…`). Gefahren wurden dieselben 27
+Aufrufe mit denselben Schaltern und Arbeitsverzeichnissen wie am 24.10., A auf
+den Kernen 0–7 und B auf 8–15 gleichzeitig, A′ ab 11:30 auf 0–15. Jeder der
+drei Treiber meldet `gestartet=27 beendet=27`, jeder Lauf endet mit Exit 0.
+
+| Vergleich                                                             | Läufe | welche                                                                                                                      |
+| --------------------------------------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------- |
+| A gegen B bitgleich                                                   |    21 | alle übrigen                                                                                                                |
+| A gegen B nur in der Zeitspalte `Dauer` anders                        |     1 | `e1-1088-suchraum`                                                                                                          |
+| A gegen B nur in Messzahlen anders                                    |     5 | `rotation-search` Prüfstein-509 Länge 12 (mit und ohne Nachlauf), e607 Länge 12, `pruefstein-558`, `ac3-umgebaute-wege-419` |
+| A heute = A vom 24.10. und B heute = B vom 24.10. (stdout und stderr) |    24 | alle außer den drei nächsten                                                                                                |
+| anders als am 24.10., in A und B                                      |     3 | `ac3-umgebaute-wege-419` (neu geschrieben), `suchguete` und `suchguete-erweitert` (Behebung)                                |
+
+**Für 24 der 27 Läufe sind A und B Zeichen für Zeichen die Ausgaben vom
+24.10.** (die Zeitspalte von `e1-1088-suchraum` ausgeklammert). Alles, was
+dieser Bericht über sie sagt, gilt damit auch auf diesem Stand — auch die vier
+Läufe mit bewegter Messzahl, mit denselben Werten.
+
+**Neu bewegt hat sich eine Zahl in `ac3-umgebaute-wege-419`**, Abschnitt „ohne
+Zeilengrenze", Schritt 1 (freie Suche an `boss-1-1`, 60 s, 20 Durchgänge ab
+Startwert 5, ohne Talente):
+
+```text
+A   Schaden 16711, 16 Zeilen, 15 Zauber, Abbruch NoImprovement nach 15780 Messungen
+B   Schaden 16711, 16 Zeilen, 15 Zauber, Abbruch NoImprovement nach 15729 Messungen
+```
+
+Die Rotationszeile darunter ist in A und B dieselbe, ebenso die übrigen 2702
+Zeilen der Ausgabe. Die Differenz +51 ist eine verlorene Gruppenrunde: Die Spur
+zählt für diese Suche `tripel_geprueft = 3` und `tripel_entschied = 0`, und
+3 Gruppen × 17 Einfügestellen bei 16 Zeilen ergeben genau 51 — eine andere
+Aufteilung der drei Gruppen auf Runden ergibt 51 nicht. **Besser oder anders?
+Weder noch:** dieselbe Liste, derselbe Wert, mehr Messungen. Möglich wird es
+hier, weil die neue Fassung des Beispiels eine Suche ohne Längengrenze fährt; an
+den Grenzen 5, 8 und 12 endet ihre freie Suche an der Längengrenze.
+
+**Die Spur auf diesem Stand:** 3200 Suchaufrufe in den 27 Läufen, 3070 davon mit
+Gruppen-Schalter, 122 mit Gruppenprüfung (370 Gruppen), **0 Entscheidungen durch
+eine Gruppe, 0 eingefügte Gruppen**; stdout A′ = A in allen 27 Läufen (die
+Zeitspalte von `e1-1088-suchraum` ausgeklammert). Ohne `ac3-umgebaute-wege-419`
+und `suchguete-erweitert` sind es dieselben 2656 Aufrufe, 86 Prüfungen und 258
+Gruppen wie am 24.10. Neu sind `ac3-umgebaute-wege-419` mit 136 Aufrufen, 36
+davon mit Gruppenprüfung (112 Gruppen; am 24.10. 10 und 0), und
+`suchguete-erweitert` mit 408 Aufrufen ohne Prüfung (am 24.10. 5 bis zum
+Abbruch). In `ac3-umgebaute-wege-419` liegen 35 der 36 geprüften Aufrufe in
+Schritt 2 (Suchen mit vorgegebener Startliste); dort druckt das Beispiel keine
+Zahl gemessener Listen (`… nach N Messungen` steht nur viermal in der Ausgabe,
+je einmal in Schritt 1), deshalb bleiben sie unsichtbar.
 
 ## Zeitläufe im Messfenster
 
