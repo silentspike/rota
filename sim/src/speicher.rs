@@ -1318,7 +1318,9 @@ impl Zielfunktion {
 pub struct Kandidat<'a> {
     /// Die Prioritaetenliste.
     pub apl: &'a Apl,
-    /// Boss, Laufvertrag des Kampfs, Ausruestung, Talente.
+    /// Boss, Durchgaenge und Startwert, Kampfregeln, Ausruestung, Talente —
+    /// wie es in den Schluessel eingeht, steht bei
+    /// [`ErgebnisSchluessel::fuer_lauf`].
     pub config: BalanceConfig,
     /// Was der Kandidat an den Daten aendert (Stufe 7) — das weiss nur sein
     /// Erzeuger.

@@ -1102,8 +1102,8 @@ impl CandidateMeasurement {
     /// # Wofuer es das gibt
     ///
     /// Ein Zielwechsel soll KEINEN Kampf kosten. Dann muss das Urteil aus dem
-    /// liegen, was der Speicher haelt — und der haelt keine Einzelergebnisse,
-    /// nur ihre Kennzahlen. Ohne diese Funktion liesse sich ein gespeichertes
+    /// entstehen, was der Speicher haelt — und der haelt keine
+    /// Einzelergebnisse, nur ihre Kennzahlen. Ohne diese Funktion liesse sich ein gespeichertes
     /// Ergebnis nicht neu bewerten, und jeder Zielwechsel liefe doch wieder
     /// ueber [`crate::balance::run`].
     ///
