@@ -21,7 +21,9 @@ use rota_sim::fortschritt::{
 };
 use rota_sim::gear::WornValues;
 use rota_sim::kalibrierung::{Abbruchgrund, Arbeitsart, RateModel};
-use rota_sim::rotation_search::{all_candidates, greedy, restmessungen_hoechstens};
+use rota_sim::rotation_search::{
+    all_candidates, greedy, restmessungen_hoechstens, tripel_messungen,
+};
 
 const GOOD: &str = include_str!("../apl/step1-good.apl");
 
@@ -81,6 +83,7 @@ fn probe(sekunden: f64, kaempfe: u64, kandidaten: [u64; 3], stand: Laufstand) ->
         kandidaten,
         kaempfe_je_strang: vec![kaempfe],
         stand,
+        engpass: rota_sim::engpass::Rohstand::default(),
     }
 }
 
@@ -219,11 +222,44 @@ fn ohne_anmeldung_zaehlt_nichts_und_das_ergebnis_bleibt_bitgleich() {
 
 #[test]
 fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
+    let _ = suche_haelt_ihre_schranken(konfiguration(4, 1, 0), 3);
+}
+
+/// Dieselbe Prüfung an einer Suche, die Dreiergruppen verdrängen lässt und die
+/// eine Runde an der Längengrenze fährt (#1027): die #797-AC5-Suche
+/// (`test-lethal-strike`, Gewicht 1, Grenze 10).
+///
+/// **Die Zusicherung vorweg:** Ohne geprüfte Gruppe sähe dieser Fall nur, was
+/// der Fall darüber schon sieht.
+#[test]
+fn die_obergrenze_haelt_auch_mit_verdraengenden_dreiergruppen() {
+    let config = BalanceConfig {
+        boss: rota_sim::data::boss_by_id("test-lethal-strike").expect("den Boss gibt es"),
+        stop_on_kill: false,
+        prevented_weight: 1.0,
+        ..BalanceConfig::default()
+    };
+    let ergebnis = suche_haelt_ihre_schranken(config, 10);
+    assert!(
+        ergebnis.tripel_geprueft > 0 && ergebnis.chosen.len() == 10,
+        "Zusicherung: keine Gruppe geprüft oder Liste nicht voll ({} Gruppen, Länge {}) — der \
+         Fall sähe die Verdrängung nicht",
+        ergebnis.tripel_geprueft,
+        ergebnis.chosen.len()
+    );
+}
+
+/// Fährt `greedy` in einem eigenen Strang, beobachtet die Meldungen und prüft:
+/// jede Runde in ihrem Plan, jede beobachtete Schranke um die tatsächliche Zahl.
+fn suche_haelt_ihre_schranken(
+    config: BalanceConfig,
+    max_len: usize,
+) -> rota_sim::rotation_search::SearchResult {
     let werk = Zaehlwerk::neu(1);
     let suchend = Arc::clone(&werk);
     let suche = std::thread::spawn(move || {
         let _anmeldung = suchend.anmelden();
-        greedy(&konfiguration(4, 1, 0), &all_candidates(), 3)
+        greedy(&config, &all_candidates(), max_len)
     });
     let mut gesehen: Vec<(Option<u64>, Arbeitsmenge)> = Vec::new();
     let mut ueber_plan = Vec::new();
@@ -254,10 +290,15 @@ fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
         ueber_plan.is_empty(),
         "während der Suche über dem Plan: {ueber_plan:?}"
     );
+    // Mit Gewicht auf Verhindertes misst die Suche vorweg einmal die leere
+    // Liste als Bezugspunkt (`greedy_zuege`, #814); das Zählwerk zählt sie
+    // mit, `measured` nicht. Gefunden beim Bau des Falls darunter: 8802 gegen
+    // 8801 — mit Gewicht 0, wie im Fall darüber, gibt es sie nicht.
+    let bezugspunkt = u64::from(config.prevented_weight > 0.0);
     assert_eq!(
         gesamt,
-        ergebnis.measured as u64 + 2,
-        "gezählt wird jede Messung, auch Start- und Fundliste"
+        ergebnis.measured as u64 + 2 + bezugspunkt,
+        "gezählt wird jede Messung, auch Start- und Fundliste und der Bezugspunkt"
     );
     assert!(ende.stand.bestes.is_some(), "kein bestes Ergebnis gemeldet");
     let mut runden: Vec<u64> = gesehen.iter().filter_map(|(r, _)| *r).collect();
@@ -282,6 +323,7 @@ fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
         }
     }
     assert!(geprueft > 0, "keine einzige Schranke beobachtet");
+    ergebnis
 }
 
 #[test]
@@ -290,8 +332,11 @@ fn die_obergrenze_der_suche_rechnet_runde_fuer_runde() {
     assert_eq!(restmessungen_hoechstens(0, 3, 1, 0, 0), 3);
     // Zwei Runden: 3·1 + (2)·min(0+3,1)+1 = 3 + 2·2.
     assert_eq!(restmessungen_hoechstens(0, 3, 2, 0, 0), 3 + 2 * 2);
-    // Längengrenze schon erreicht: nichts mehr.
-    assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 5), 0);
+    // Längengrenze schon erreicht: ohne Dreiergruppen nichts mehr …
+    assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 0), 0);
+    // … mit ihnen genau die eine Runde an der Grenze (#1027): je Gruppe drei
+    // von vier Zeilen verdrängt (4 Arten), an zwei Stellen — 5 · 4 · 2.
+    assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 5), 5 * 4 * 2);
     // Paare zählen nur, solange zwei Zeilen passen: Runde eins mit einer
     // Stelle (2 + 7), Runde zwei mit einer offenen Zeile an zwei Stellen.
     assert_eq!(restmessungen_hoechstens(0, 2, 1, 7, 0), 2);
@@ -300,6 +345,21 @@ fn die_obergrenze_der_suche_rechnet_runde_fuer_runde() {
         restmessungen_hoechstens(0, 2, 2, 7, 0),
         2 + 7 + zweite_runde
     );
+}
+
+/// Was eine Dreiergruppe je Runde kostet (#1027): ohne fehlenden Platz jede
+/// Stelle, mit fehlendem Platz jede Art, ihn freizumachen, mal die Stellen der
+/// verbliebenen Liste. Bei Grenze 10 ist das die Rechnung der #797-AC5-Suche.
+#[test]
+fn eine_dreiergruppe_kostet_je_art_platz_zu_schaffen() {
+    // Platz genug: Länge 7, drei frei — die acht Stellen von vor #1027.
+    assert_eq!(tripel_messungen(7, 10), 8);
+    // Eine Zeile fehlt: 8 Arten, je 8 Stellen.
+    assert_eq!(tripel_messungen(8, 10), 8 * 8);
+    // Zwei fehlen: 36 Arten, je 8 Stellen.
+    assert_eq!(tripel_messungen(9, 10), 36 * 8);
+    // An der Grenze drei: 120 Arten, je 8 Stellen.
+    assert_eq!(tripel_messungen(10, 10), 120 * 8);
 }
 
 // ---------------------------------------------------------------- AC4
@@ -1084,8 +1144,75 @@ fn utc_zeitstempel_stimmen_mit_bekannten_daten() {
     );
 }
 
+/// **Eine Druckspitze mitten im Fenster zählt, auch wenn die letzte Probe
+/// ruhig ist** (#934). Gemessen am 2026-10-28: Eine Grundlage bestand den
+/// Riegel mit PSI cpu 2,36 % am Ende, während `avg60` noch bei 10 stand.
 #[test]
-fn engpass_sagt_keine_diagnose() {
+fn engpass_liest_den_hoechsten_druck_im_fenster() {
+    use rota_sim::engpass::{Erhebung, Kernklasse, Schluessel, Strangzeit};
+    let mut b = beschreibung(EIN_KAMPF);
+    b.engpass = Some(Arc::new(Erhebung::ohne_zaehler(
+        Schluessel {
+            rechner: "pruefrechner".to_owned(),
+            kernklasse: Kernklasse::Zen3,
+            lastprofil: "greedy boss=boss-1-1".to_owned(),
+        },
+        None,
+        "Prüffall ohne Zähler",
+    )));
+    let mut fenster = Fenster::neu(FENSTER);
+    for i in 0..=32u64 {
+        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], plateau_stand());
+        p.engpass.straenge = vec![
+            Strangzeit {
+                arbeit_ns: i * 600,
+                warten_ns: i * 400,
+            };
+            4
+        ];
+        p.engpass.druck.cpu = Some(if i == 16 { 18.4 } else { 0.4 });
+        fenster.aufnehmen(p);
+    }
+    let a = b
+        .anzeige(&fenster, Ereignis::Fortschritt, 7, Duration::ZERO)
+        .expect("Anzeige");
+    let bild = a.engpass.as_ref().expect("Bild");
+    assert_eq!(bild.messwerte.druck.cpu, Some(18.4));
+    assert!(
+        bild.diagnose.befunde.is_empty(),
+        "{:?}",
+        bild.diagnose.befunde
+    );
+    let grund = bild
+        .diagnose
+        .ungeprueft
+        .iter()
+        .find(|(r, _)| *r == rota_sim::engpass::Regel::StraengeWarten)
+        .map(|(_, g)| g.as_str())
+        .expect("ungeprüft");
+    assert!(grund.contains("bis 18,40 % im Fenster"), "{grund}");
+    // Zeile und Strom sagen es auch — nicht nur die Liste der ungeprüften.
+    let zeile = a
+        .zeilen()
+        .into_iter()
+        .find(|z| z.trim_start().starts_with("Engpass"))
+        .expect("eine Zeile 'Engpass'");
+    assert!(
+        zeile.contains("Zeitdiagnose ausgesetzt: PSI cpu 18,40 %"),
+        "{zeile}"
+    );
+    let j = json(&a.jsonl("pruef-1", "pruefrechner"));
+    assert_eq!(
+        j["metrics"]["bottleneck"]["time_diagnosis_suspended"],
+        "PSI cpu 18,40 %"
+    );
+}
+
+/// Ohne Erhebung sagt die Zeile, dass nichts erhoben wird — nicht nur, dass
+/// nichts gefunden wurde (#934). Ein Wächter, der nichts prüfen kann, darf
+/// nicht aussehen wie einer, der nichts gefunden hat.
+#[test]
+fn engpass_ohne_erhebung_sagt_dass_nichts_erhoben_wird() {
     let a = anzeige_zu(plateau_stand());
     let zeile = a
         .zeilen()
@@ -1093,9 +1220,70 @@ fn engpass_sagt_keine_diagnose() {
         .find(|z| z.trim_start().starts_with("Engpass"))
         .expect("eine Zeile 'Engpass'");
     assert!(zeile.contains("keine Diagnose"), "{zeile}");
-    assert!(zeile.contains("#934"), "{zeile}");
+    assert!(zeile.contains("erhebt keine Messwerte"), "{zeile}");
     let j = json(&a.jsonl("pruef-1", "pruefrechner"));
+    assert_eq!(j["metrics"]["bottleneck"]["state"], "not_collected");
     assert!(j["metrics"]["bottleneck"]["diagnosis"].is_null());
+}
+
+/// **Das Feld „Engpass" aus #933 ist gefüllt** (#934, AC5): ein Satz mit
+/// Diagnose und nächstem Schritt, in der Zeile wie im Strom — aus derselben
+/// Momentaufnahme und über dasselbe Fenster wie die gleitende Rate.
+#[test]
+fn engpass_mit_erhebung_steht_als_satz_in_zeile_und_strom() {
+    use rota_sim::engpass::{Erhebung, Kernklasse, Schluessel, Strangzeit};
+    let mut b = beschreibung(EIN_KAMPF);
+    b.engpass = Some(Arc::new(Erhebung::ohne_zaehler(
+        Schluessel {
+            rechner: "pruefrechner".to_owned(),
+            kernklasse: Kernklasse::Zen3,
+            lastprofil: "greedy boss=boss-1-1".to_owned(),
+        },
+        None,
+        "Prüffall ohne Zähler",
+    )));
+    // Acht Sekunden, in denen vier Stränge 40 % ihrer Zeit warten.
+    let mut fenster = Fenster::neu(FENSTER);
+    for i in 0..=32u64 {
+        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], plateau_stand());
+        p.engpass.straenge = vec![
+            Strangzeit {
+                arbeit_ns: i * 600,
+                warten_ns: i * 400,
+            };
+            4
+        ];
+        // Eine ruhige Maschine: Unter Fremdlast prüft die Zeile nicht.
+        p.engpass.druck.cpu = Some(0.4);
+        fenster.aufnehmen(p);
+    }
+    let a = b
+        .anzeige(&fenster, Ereignis::Fortschritt, 7, Duration::ZERO)
+        .expect("Anzeige");
+    let text = a.zeilen().join("\n");
+    assert!(
+        text.contains("  Engpass      Pakete zu groß oder zu wenige: Stränge warten 40,0 %"),
+        "{text}"
+    );
+    assert!(
+        text.contains("nächster Schritt: Paketlänge senken"),
+        "{text}"
+    );
+    assert!(
+        text.contains("ohne Zähler (Prüffall ohne Zähler)"),
+        "{text}"
+    );
+    let j = json(&a.jsonl("pruef-1", "pruefrechner"));
+    let e = &j["metrics"]["bottleneck"];
+    assert_eq!(e["state"], "diagnosis");
+    assert_eq!(e["diagnosis"], "Pakete zu groß oder zu wenige");
+    assert_eq!(e["findings"][0]["rule"], "threads_waiting");
+    assert_eq!(
+        e["sentence"].as_str().expect("Satz"),
+        a.engpass.as_ref().expect("Bild").diagnose.satz()
+    );
+    assert!((e["measured"]["wait_share"].as_f64().expect("Zahl") - 0.4).abs() < 1e-12);
+    assert_eq!(e["measured"]["window_s"].as_f64(), Some(8.0));
 }
 
 #[test]
