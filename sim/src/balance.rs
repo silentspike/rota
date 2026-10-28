@@ -955,6 +955,29 @@ fn run_with_control(
     ergebnis
 }
 
+/// Was ein durchgehender Lauf in seinem Fenster gerechnet hat (#912, Weg b).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Strommessung {
+    /// Kämpfe, die bis zum Fensterende fertig wurden — abgelesen am Zählwerk.
+    pub kaempfe: u64,
+    /// Vom Losschicken der Helfer bis zur Ablesung.
+    pub fenster: Duration,
+    /// Kämpfe, die nach der Ablesung noch fertig wurden, bevor die Helfer
+    /// anhielten. Höchstens einer je Helfer.
+    pub nachlauf: u64,
+}
+
+/// Rechnet ohne Sperre je Paket, bis `dauer` um ist (#912, Weg b).
+#[must_use]
+pub fn strom(config: &BalanceConfig, apl: &Apl, dauer: Duration) -> Strommessung {
+    let _ = (config, apl, dauer);
+    Strommessung {
+        kaempfe: 0,
+        fenster: Duration::ZERO,
+        nachlauf: 0,
+    }
+}
+
 /// Was ein Teilnehmer eines parallelen Laufs gerechnet hat: die Kämpfe mit
 /// ihren Cast- und Würfelzahlen, Beginn und Ende an der Wanduhr mit der
 /// CPU-Zeit seines Strangs, und — falls eingeschaltet — seine Kampfzähler.

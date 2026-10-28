@@ -5,7 +5,9 @@
 //! selbst sicherten, stehen deshalb hier als eigene Fälle.
 
 use rota_sim::apl::{parse, Apl, AplName};
-use rota_sim::balance::{run, run_vollstaendig, BalanceConfig};
+use std::time::{Duration, Instant};
+
+use rota_sim::balance::{run, run_vollstaendig, strom, BalanceConfig};
 use rota_sim::gear::WornValues;
 
 const GOOD: &str = include_str!("../apl/step1-good.apl");
@@ -168,4 +170,41 @@ fn ein_helfer_traegt_keine_zaehlung_in_den_naechsten_lauf() {
         diagnostics::reset();
     }
     assert_eq!(gezaehlt, [40, 40], "Kaempfe je Lauf: {gezaehlt:?}");
+}
+
+/// **Ein durchgehender Lauf zählt bis zum Fensterende und hält dann an**
+/// (#912, Weg b). Kalibriert wird so, wie die echte Arbeit läuft: lange,
+/// ohne Sperre je Paket. Gemessen am 28.10. auf node3: Unter 8 Fremdsträngen
+/// kostete die Sperre je 20k-Paket 10–13 ms, und kein Paket-Verfahren kam
+/// unter 10 % an die Arbeit am Stück heran.
+#[test]
+fn ein_strom_zaehlt_bis_zum_fensterende_und_haelt_dann_an() {
+    let liste = gute_liste();
+    let config = konfiguration(20_000, 4, 5);
+    let m = strom(&config, &liste, Duration::from_millis(200));
+    assert!(
+        m.fenster >= Duration::from_millis(200) && m.fenster < Duration::from_millis(300),
+        "Fenster {:?} statt rund 200 ms",
+        m.fenster
+    );
+    assert!(m.kaempfe >= 100, "nur {} Kaempfe in 200 ms", m.kaempfe);
+    assert!(
+        m.nachlauf <= 4,
+        "nach dem Fensterende liefen noch {} Kaempfe — mehr als einer je Helfer",
+        m.nachlauf
+    );
+
+    // Positive Kontrolle gegen dieselbe Arbeit am Stück: Die Rate des Stroms
+    // liegt in derselben Größenordnung. Eng ist das nicht — eng prüft AC1 auf
+    // node3; hier geht es darum, dass der Strom überhaupt Kämpfe rechnet und
+    // nicht etwas anderes zählt.
+    let t = Instant::now();
+    let _ = run_vollstaendig(&konfiguration(4000, 4, 5), &liste);
+    let stueck = 4000.0 / t.elapsed().as_secs_f64();
+    #[allow(clippy::cast_precision_loss)]
+    let rate = m.kaempfe as f64 / m.fenster.as_secs_f64();
+    assert!(
+        rate > stueck / 3.0 && rate < stueck * 3.0,
+        "Strom {rate:.0}/s gegen am Stueck {stueck:.0}/s"
+    );
 }
