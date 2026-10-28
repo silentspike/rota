@@ -1450,17 +1450,29 @@ impl Fight {
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
+            let mut gewartet = false;
             if self.gcd_ready_at <= now {
                 match decider.decide(self) {
-                    Some(index) => self.cast(index),
-                    None => {
-                        // Gewartet, obwohl gewirkt werden durfte. Die Referenz
-                        // zaehlt dafuer je leerem Takt 10 ms; hier ist es
-                        // dieselbe Spanne am Stueck, bis das naechste Ereignis
-                        // den Zustand aendern kann.
-                        let next = self.queue.peek_time().unwrap_or(self.duration_ms);
-                        self.idle_ms += next.min(self.duration_ms) - now;
+                    Some(index) => {
+                        self.cast(index);
+                        // **Nach einem Wurf ohne Wartezeit entscheidet die Liste
+                        // im naechsten Takt neu** (#1027) — QUENCH, oder der
+                        // Wurf, den SUBLIME befreit. Das Spiel entscheidet je
+                        // Takt einmal, solange die Wartezeit bereit ist
+                        // (`driveRotation` in `src/devtools/reference-run.ts`);
+                        // hier stand danach keine GCD-Wiedervorlage in der
+                        // Schlange, und die naechste Entscheidung fiel erst am
+                        // naechsten eingereihten Ereignis. An `first-crucible`
+                        // kam der Fueller nach QUENCH so bei 2000 statt bei 10
+                        // (`tests/parity_gcd_freier_wurf.rs`).
+                        if self.gcd_ready_at <= now {
+                            let naechster_takt = snap_up(now + TICK_MS);
+                            if naechster_takt < self.duration_ms {
+                                self.queue.push(naechster_takt, EventKind::Wakeup);
+                            }
+                        }
                     }
+                    None => gewartet = true,
                 }
             }
 
@@ -1478,6 +1490,23 @@ impl Fight {
             }
 
             self.schedule_decision_wakeup(decider, now);
+
+            // Gewartet, obwohl gewirkt werden durfte. Das Spiel zaehlt dafuer
+            // je leerem Takt 10 ms; hier ist es dieselbe Spanne am Stueck, bis
+            // zur **naechsten Entscheidung**.
+            //
+            // **Erst nach dem Weckruf gemessen** (#1027). Hier stand die
+            // Spanne bis zum naechsten BEREITS eingereihten Ereignis, gemessen
+            // vor `schedule_decision_wakeup`. Lag der Weckruf davor, entschied
+            // der Kampf dort erneut, wartete wieder und zaehlte bis zum selben
+            // Ereignis noch einmal: `kindle if time >= 5000` ergab 6000 statt
+            // 5000 ms (`tests/entscheidung_nach_gcd_freiem_wurf.rs`), die
+            // Takt-Referenz aus `examples/e1027-operator-measure.rs` mit einem
+            // Weckruf an jedem Takt 1.846.410 ms in 30 s.
+            if gewartet {
+                let next = self.queue.peek_time().unwrap_or(self.duration_ms);
+                self.idle_ms += next.min(self.duration_ms) - now;
+            }
         }
 
         // Der Diagnosepfad (#896). **Hier und nicht am Anfang:** Gezaehlt wird,

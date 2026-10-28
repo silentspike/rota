@@ -147,6 +147,8 @@ import {
   AETHER_NAME,
   sublimePayload,
   SUBLIME_NAME,
+  gcdFreiPayload,
+  GCD_FREI_NAME,
   condensePayload,
   CONDENSE_NAME,
   retortPayload,
@@ -532,6 +534,17 @@ console.log(
   `  SUBLIME-Merker  ${sublime.expected.sublimeCasts} Wuerfe, ` +
     `${sublime.expected.merkerTakte} Merker-Takte, Schaden ${sublime.expected.damageDealt}`,
 );
+
+// Nach einem Wurf ohne Wartezeit entscheidet die Liste im naechsten Takt (#1027).
+const gcdFrei = gcdFreiPayload();
+const gcdFreiPath = join(here, 'recordings', `${GCD_FREI_NAME}.json`);
+writeFileSync(gcdFreiPath, serialize(gcdFrei), 'utf8');
+console.log(`geschrieben: ${gcdFreiPath}`);
+for (const lauf of gcdFrei.runs) {
+  console.log(
+    `  ${lauf.name.padEnd(24)} Schaden ${lauf.expected.damage}, Leerlauf ${lauf.expected.idleMs} ms`,
+  );
+}
 
 const condense = condensePayload();
 const condensePath = join(here, 'recordings', `${CONDENSE_NAME}.json`);
