@@ -979,18 +979,15 @@ fn abschnitt_eintragen(
     zeiten: &[(Instant, Instant, Option<u64>)],
     threads: usize,
 ) {
-    let Some(erster) = zeiten.iter().map(|(b, _, _)| *b).min() else {
+    if zeiten.is_empty() {
         return;
-    };
+    }
     let ns = |d: std::time::Duration| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX);
-    let pakete: Vec<crate::engpass::Paketzeit> = zeiten
+    let arbeit: Vec<u64> = zeiten
         .iter()
-        .map(|&(beginn, ende, cpu)| crate::engpass::Paketzeit {
-            beginn_ns: ns(beginn - erster),
-            arbeit_ns: cpu.unwrap_or_else(|| ns(ende - beginn)),
-        })
+        .map(|&(beginn, ende, cpu)| cpu.unwrap_or_else(|| ns(ende - beginn)))
         .collect();
-    for (nummer, zeit) in crate::engpass::abschnitt(&pakete, threads)
+    for (nummer, zeit) in crate::engpass::abschnitt(&arbeit, threads)
         .into_iter()
         .enumerate()
     {

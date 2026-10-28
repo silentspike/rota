@@ -59,7 +59,7 @@ pub use kernklasse::{
     Adapter, Ereignis, Kernklasse, Prozessor, Quelle, Rolle, RUHENDE_KERNKLASSEN,
 };
 pub use messwerte::{
-    abschnitt, Ablauftreffer, Druck, Kampfzaehlung, Messwerte, Netzwerte, Paketzeit, Rohstand,
+    abschnitt, Ablauftreffer, Druck, Kampfzaehlung, Messwerte, Netzwerte, Rohstand,
     Schlangenbelegung, Strangzeit, Wegtreffer, Zaehlerlage, Zaehlerwerte,
 };
 pub use regeln::{
