@@ -277,13 +277,17 @@ class FensterHookTests(unittest.TestCase):
     # B4: help and version forms start no build, test or format run -- also with
     # a subcommand. Cargo Remote v2 uses -h for --sync-hidden, which still builds.
     def test_help_and_version_forms_are_quiet(self):
+        # `cargo-remote-fmt -h` is help: its format mode parses with argparse's
+        # own -h before any remote action (measured 28.10.: usage, exit 0, no
+        # job). Only `cargo remote` maps -h to --sync-hidden. This list said
+        # the opposite until the review of 24.10. found it.
         for command in ['cargo remote --help', 'cargo remote --version', 'cargo test --help',
                         'cargo help build', 'cargo --version', 'npx prettier --help',
                         'npx vitest --version', 'npm run lint --help', 'rustc -V',
-                        'cargo-remote-fmt --help']:
+                        'cargo-remote-fmt --help', 'cargo-remote-fmt -h']:
             with self.subTest(command=command):
                 self.assertIsNone(self.call(command))
-        for command in ['cargo remote -h -- build', 'cargo-remote-fmt -h', 'npm run lint -- --help',
+        for command in ['cargo remote -h -- build', 'npm run lint -- --help',
                         'cargo test -- --help', 'npx tsx tools/x.ts --help', 'yarn lint --help']:
             with self.subTest(command=command):
                 self.report(command, 'belasten')
@@ -308,6 +312,49 @@ class FensterHookTests(unittest.TestCase):
         for command in ['cat run.sh | bash', "echo 'npm run lint' | sh"]:
             with self.subTest(command=command):
                 self.report(command, 'UNBEKANNT')
+
+    # Findings of the review of 24.10. (f-lastwarnung-hook-3): each of these
+    # stayed quiet in a foreign window.
+    def test_flock_is_unwrapped_like_the_other_wrappers(self):
+        for command in ['flock -w 900 /work/tmp/rota-ts-schwer.lock npx vitest run x.test.ts --maxWorkers=1',
+                        'flock -w 900 /work/tmp/rota-ts-schwer.lock npm run lint',
+                        'flock --timeout 60 /work/tmp/x.lock cargo remote -- test',
+                        'flock /work/tmp/x.lock -c "npm run lint"', 'flock -x -n /work/tmp/x.lock npx tsc']:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+        for command in ['flock 9', 'flock -u 9', 'flock /work/tmp/x.lock -c "git status"']:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
+
+    def test_load_tools_are_recognised_by_path_and_as_script_operands(self):
+        for command in ['bash ~/bin/cargo-remote-fmt --check', 'sh /home/jan/bin/cargo-remote-fmt',
+                        'node_modules/.bin/tsc --noEmit', './node_modules/.bin/eslint .',
+                        'node_modules/.bin/vite build', 'npx --no-install tsc -p .',
+                        'node node_modules/vitest/vitest.mjs run']:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+
+    def test_scripts_are_classified_by_what_they_run(self):
+        (self.base / 'laeuft.sh').write_text('#!/bin/sh\nnpx vitest run\n')
+        (self.base / 'still.sh').write_text('#!/bin/sh\necho fertig\n')
+        (self.base / 'probe.py').write_text("import subprocess\nsubprocess.run(['npm', 'run', 'lint'])\n")
+        (self.base / 'leise.py').write_text("print('npm run lint')\n")
+        for command in [
+            # written and run in the same call: the file does not exist yet
+            "cat > /work/tmp/never-written.sh <<'EOF'\nnpx vitest run\nEOF\nbash /work/tmp/never-written.sh",
+            "tee /work/tmp/never-written-2.sh > /dev/null <<'EOF'\nnpm run lint\nEOF\n"
+            "sh /work/tmp/never-written-2.sh",
+            # written earlier (by another tool) and run now
+            'bash laeuft.sh', f'sh "{self.base}/laeuft.sh"', 'python3 probe.py', 'source laeuft.sh',
+        ]:
+            with self.subTest(command=command):
+                self.report(command, 'belasten')
+        for command in ['bash still.sh', 'python3 leise.py',
+                        "cat > /work/tmp/never-written-3.sh <<'EOF'\necho hi\nEOF\nbash /work/tmp/never-written-3.sh"]:
+            with self.subTest(command=command):
+                self.assertIsNone(self.call(command))
+        # A script that is neither visible nor readable is not known to be quiet.
+        self.report('bash gibt-es-nicht.sh', 'UNBEKANNT')
 
     def test_configured_command_loads_classifier_next_to_hook_only_when_needed(self):
         scripts = self.base / 'project with spaces' / 'tools'
