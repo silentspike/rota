@@ -659,54 +659,6 @@ fn modell(
     }
 }
 
-/// Fährt einen Lauf mit **fester** Dauer — nur für die Kontrollprobe.
-///
-/// # Warum es diese Funktion gibt, obwohl das Issue feste Dauern verbietet
-///
-/// #912 verlangt eine Kontrollprobe: „Ein absichtlich auf zwei Sekunden
-/// verkürzter Lauf muss eine sichtbar größere Streuung zeigen als der
-/// adaptive." Ohne diesen Vergleich ist **nicht belegt, dass die Adaptivität
-/// etwas bringt** — sie wäre eine Behauptung mit Code daneben.
-///
-/// Die Funktion ist deshalb ausdrücklich als Kontrolle benannt und liefert ein
-/// [`RateModel`] mit [`Abbruchgrund::Hoechstdauer`]: Ihre Zahl darf nirgends
-/// als Kalibrierung durchgehen.
-pub fn kontrolllauf_feste_dauer<F>(mut arbeit: F, dauer: Duration) -> RateModel
-where
-    F: FnMut() -> f64,
-{
-    let start = Instant::now();
-    let mut abschnitte: Vec<Abschnitt> = Vec::new();
-    while start.elapsed() < dauer {
-        let t0 = Instant::now();
-        let einheiten = arbeit();
-        abschnitte.push(Abschnitt {
-            einheiten,
-            dauer: t0.elapsed(),
-            // Der Kontrolllauf braucht den Takt nicht — er prüft nichts, er
-            // vergleicht nur seine Streuung mit der des adaptiven Laufs.
-            takt_mhz: None,
-        });
-    }
-    let raten: Vec<f64> = abschnitte.iter().map(|a| a.rate()).collect();
-    #[allow(clippy::cast_precision_loss)]
-    let mittel = if raten.is_empty() {
-        0.0
-    } else {
-        raten.iter().sum::<f64>() / raten.len() as f64
-    };
-    RateModel {
-        rate_per_s: mittel,
-        spread: streuung(&raten),
-        samples: raten.len(),
-        duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
-        reason: Abbruchgrund::Hoechstdauer,
-        measured_at: jetzt(),
-        psi_cpu: psi_some_avg10("/proc/pressure/cpu"),
-        takt_drift: None,
-    }
-}
-
 /// Der Schlüssel, unter dem ein Profil gilt.
 ///
 /// # Warum vier Größen und nicht nur der Rechnername
@@ -1014,7 +966,23 @@ impl Verschraenkt {
 /// BEIDE Reihen `Stabil` sagt oder die Höchstdauer erreicht ist. Drosselung und
 /// zu kleine Pakete brechen ab wie dort. Beide Raten tragen denselben
 /// Abbruchgrund und dieselbe Dauer — sie sind ein Lauf.
-pub fn kalibriere_verschraenkt<A, B>(mut kalibrierung: A, mut referenz: B) -> Verschraenkt
+pub fn kalibriere_verschraenkt<A, B>(kalibrierung: A, referenz: B) -> Verschraenkt
+where
+    A: FnMut() -> f64,
+    B: FnMut() -> f64,
+{
+    verschraenkt_lauf(kalibrierung, referenz, None)
+}
+
+/// Der verschränkte Lauf: adaptiv (`feste_dauer` `None`) oder fest.
+///
+/// **Ein Lauf für beide**, damit die Kontrollprobe und die Kalibrierung sich
+/// in genau einer Sache unterscheiden — wann aufgehört wird.
+fn verschraenkt_lauf<A, B>(
+    mut kalibrierung: A,
+    mut referenz: B,
+    feste_dauer: Option<Duration>,
+) -> Verschraenkt
 where
     A: FnMut() -> f64,
     B: FnMut() -> f64,
@@ -1046,6 +1014,13 @@ where
         ka.push(abschnitt_messen(&mut kalibrierung, &kerne));
         re.push(abschnitt_messen(&mut referenz, &kerne));
         let gelaufen = start.elapsed();
+        if let Some(dauer) = feste_dauer {
+            if gelaufen >= dauer {
+                grund = Abbruchgrund::FesteDauer;
+                break;
+            }
+            continue;
+        }
         if ka.len() < ABSCHNITTE_MIN {
             continue;
         }
@@ -1081,13 +1056,17 @@ where
 
 /// Fährt Kalibrierung und Referenz verschränkt, aber **fest** `dauer` lang —
 /// die verkürzte Messung der Kontrollprobe zu AC2.
+///
+/// Dieselbe Vorprüfung, dasselbe Aufwärmen, dieselbe Abwechslung wie
+/// [`kalibriere_verschraenkt`]; aufgehört wird nach `dauer` (am Ende des
+/// laufenden Paars). Beide Raten tragen [`Abbruchgrund::FesteDauer`] und gelten
+/// nie als Kalibrierung.
 pub fn verschraenkt_feste_dauer<A, B>(kalibrierung: A, referenz: B, dauer: Duration) -> Verschraenkt
 where
     A: FnMut() -> f64,
     B: FnMut() -> f64,
 {
-    let _ = dauer;
-    kalibriere_verschraenkt(kalibrierung, referenz)
+    verschraenkt_lauf(kalibrierung, referenz, Some(dauer))
 }
 
 /// Die Kontrollprobe zu AC2: Welche der zwei Messungen liegt näher an ihrer
@@ -1104,10 +1083,28 @@ pub struct Genauigkeitsprobe {
 
 /// Hält die adaptive und die verkürzte Messung je gegen ihre eigene
 /// verschränkte Referenz. `None`, wenn eine der vier Zahlen keine Rate ist.
+///
+/// # Warum Genauigkeit und nicht Streuung
+///
+/// Bis zum 28.10. fragte die Probe, ob die verkürzte Messung STÄRKER streut.
+/// Unter Drift tut sie das nicht — sie sieht ruhiger aus, weil sie weniger
+/// sieht: node3 fest 12,21 % gegen adaptiv 12,98 %, Laptop 3,93 % gegen
+/// 14,29 % (beide am 28.10.), gonet ebenso in PR #1111. Was eine längere
+/// Messung bringen soll, ist eine Rate, die die echte Arbeit trifft; das misst
+/// der Abstand zur Referenz.
 #[must_use]
 pub fn genauigkeitsprobe(adaptiv: &Verschraenkt, fest: &Verschraenkt) -> Option<Genauigkeitsprobe> {
-    let _ = (adaptiv, fest);
-    None
+    let fehler = |v: &Verschraenkt| {
+        let (k, r) = (v.kalibrierung.rate_per_s, v.referenz.rate_per_s);
+        (k.is_finite() && k > 0.0 && r.is_finite() && r > 0.0).then(|| (k / r - 1.0).abs())
+    };
+    let fehler_adaptiv = fehler(adaptiv)?;
+    let fehler_fest = fehler(fest)?;
+    Some(Genauigkeitsprobe {
+        fehler_adaptiv,
+        fehler_fest,
+        adaptiv_genauer: fehler_adaptiv < fehler_fest,
+    })
 }
 
 /// Wo Profile liegen.

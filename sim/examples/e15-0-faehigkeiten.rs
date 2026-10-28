@@ -49,10 +49,11 @@
 //!
 //! # `--kontrolle`
 //!
-//! Fährt zusätzlich einen Lauf mit **fester** Dauer von zwei Sekunden und
-//! stellt seine Streuung neben die des adaptiven. #912 verlangt diesen
-//! Vergleich ausdrücklich: Ohne ihn ist nicht belegt, dass die Adaptivität
-//! etwas bringt.
+//! Fährt zusätzlich den verschränkten Lauf mit **fester** Dauer von zwei
+//! Sekunden und fragt, ob die adaptive Messung näher an ihrer Referenz liegt
+//! als die verkürzte (`kalibrierung::genauigkeitsprobe`). #912 verlangt diese
+//! Kontrolle: Ohne sie ist nicht belegt, dass die Adaptivität etwas bringt.
+//! Braucht die volle Erhebung des Vollkampfs, also einen Lauf ohne Profil.
 //!
 //! # Warum das Programm nicht schreibt, was es misst
 //!
@@ -72,10 +73,10 @@ use rota_sim::gear::WornValues;
 use rota_sim::gear_balance;
 use rota_sim::hostcaps::{drucksignale, erlaubte_kerne, kernvorraete, psi_some_avg10, HostCaps};
 use rota_sim::kalibrierung::{
-    bestaetigungslauf, erheben_mit, gespeicherte_rate, kalibriere, kalibriere_verschraenkt,
-    kontrolllauf_feste_dauer, profildatei, profilverzeichnis, schluessel_erheben, Ac1Urteil,
-    Arbeitsart, Bestaetigung, Erhebung, HostPerfVector, Lauf, Profil, RateModel, Verschraenkt,
-    AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
+    bestaetigungslauf, erheben_mit, genauigkeitsprobe, gespeicherte_rate, kalibriere,
+    kalibriere_verschraenkt, profildatei, profilverzeichnis, schluessel_erheben,
+    verschraenkt_feste_dauer, Ac1Urteil, Arbeitsart, Bestaetigung, Erhebung, HostPerfVector, Lauf,
+    Profil, RateModel, Verschraenkt, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
 };
 use rota_sim::rotation_search::{all_candidates, greedy};
 use rota_sim::verteilung::{verteilung_ueber, Treffer};
@@ -565,62 +566,57 @@ fn main() {
     println!();
 
     // -------------------------------------------------- Kontrollprobe zu AC2
+    //
+    // **Genauigkeit, nicht Streuung** (Entscheidung des Orchestrators vom
+    // 28.10.): Eine auf zwei Sekunden verkürzte Messung sieht unter Drift
+    // ruhiger aus, weil sie weniger sieht. Gefragt wird deshalb, welche der
+    // zwei näher an ihrer verschränkten Referenz liegt — beide verschränkt,
+    // mit denselben Blöcken und Läufen am Stück.
     if kontrolle {
-        println!("== Kontrollprobe AC2: feste zwei Sekunden gegen adaptiv ==");
-    }
-    if let (true, Some(scalar_full_fight)) = (kontrolle, ac1_lauf.map(|v| v.kalibrierung)) {
-        let cfg_k = config(threads, KAEMPFE_JE_PAKET);
-        let fest = kontrolllauf_feste_dauer(
-            || {
-                #[allow(clippy::cast_precision_loss)]
-                {
-                    balance::run(&cfg_k, &apl).damage.count as f64
+        println!("== Kontrollprobe AC2: verschraenkt fest 2 s gegen verschraenkt adaptiv ==");
+        match ac1_lauf {
+            None => println!(
+                "  Nicht moeglich: keine volle Erhebung des Vollkampfs in diesem Lauf\n\
+                 \x20 (Profil bestaetigt). Ohne Profil fahren."
+            ),
+            Some(adaptiv) => {
+                let fest = verschraenkt_feste_dauer(
+                    || kalibrierblock(&cfg_voll, &apl),
+                    || referenzblock(&cfg_stueck, &apl),
+                    Duration::from_secs(2),
+                );
+                for (name, v) in [("adaptiv", &adaptiv), ("fest 2 s", &fest)] {
+                    println!(
+                        "  {name:<9} Kalibrierung {:>12.1}  Referenz {:>12.1}  Streuung {:>6.2} / {:>6.2} %  \
+                         {:>3} Paare  {:>6} ms  {:?}",
+                        v.kalibrierung.rate_per_s,
+                        v.referenz.rate_per_s,
+                        v.kalibrierung.spread * 100.0,
+                        v.referenz.spread * 100.0,
+                        v.kalibrierung.samples,
+                        v.kalibrierung.duration_ms,
+                        v.kalibrierung.reason
+                    );
                 }
-            },
-            Duration::from_secs(2),
-        );
-        println!(
-            "  fest   {:>12.1} Kaempfe/s   Streuung {:>6.2} %  {:>2} Abschnitte  {:>5} ms",
-            fest.rate_per_s,
-            fest.spread * 100.0,
-            fest.samples,
-            fest.duration_ms
-        );
-        println!(
-            "  adaptiv{:>12.1} Kaempfe/s   Streuung {:>6.2} %  {:>2} Abschnitte  {:>5} ms",
-            scalar_full_fight.rate_per_s,
-            scalar_full_fight.spread * 100.0,
-            scalar_full_fight.samples,
-            scalar_full_fight.duration_ms
-        );
-        println!();
-        let unterschied = (fest.rate_per_s - scalar_full_fight.rate_per_s)
-            / scalar_full_fight.rate_per_s.max(1e-9)
-            * 100.0;
-        println!("  Unterschied der RATEN: {unterschied:+.1} %");
-        println!();
-        if fest.spread > scalar_full_fight.spread {
-            println!(
-                "  DIE ADAPTIVITAET BRINGT ETWAS: der feste Lauf streut um Faktor {:.2} staerker.",
-                fest.spread / scalar_full_fight.spread.max(1e-9)
-            );
-        } else {
-            println!(
-                "  DER FESTE LAUF STREUT WENIGER — UND DAS IST DER BEFUND, NICHT DAS GEGENTEIL.\n\
-                 \x20\n\
-                 \x20 Eine kurze Messung sieht ruhiger aus, weil sie WENIGER SIEHT. Zwei Sekunden\n\
-                 \x20 erfassen einen Ausschnitt, in dem die Maschine zufaellig gleichmaessig lief;\n\
-                 \x20 dreissig Sekunden erfassen die Unruhe, die es wirklich gibt.\n\
-                 \x20\n\
-                 \x20 Die kleine Streuung des festen Laufs ist also KEINE Guete, sondern ihr\n\
-                 \x20 Schein — und die Raten unterscheiden sich um die Zahl oben. Wer nach zwei\n\
-                 \x20 Sekunden aufhoert, bekommt eine Zahl mit einem Fehlerbalken, der zu klein\n\
-                 \x20 ist, und verteilt die Arbeit dauerhaft danach.\n\
-                 \x20\n\
-                 \x20 Das Issue hat den umgekehrten Ausgang erwartet. Gemessen ist dieser, und er\n\
-                 \x20 traegt dieselbe Folgerung staerker: nicht 'kurz streut mehr', sondern 'kurz\n\
-                 \x20 kann gar nicht wissen, ob es streut'."
-            );
+                match genauigkeitsprobe(&adaptiv, &fest) {
+                    None => println!("  NICHT BEURTEILBAR — eine der vier Zahlen ist keine Rate."),
+                    Some(p) => {
+                        println!(
+                            "  Abstand zur eigenen Referenz: adaptiv {:.2} %, fest 2 s {:.2} %",
+                            p.fehler_adaptiv * 100.0,
+                            p.fehler_fest * 100.0
+                        );
+                        if p.adaptiv_genauer {
+                            println!("  DIE ADAPTIVITAET BRINGT ETWAS: die adaptive Messung liegt naeher.");
+                        } else {
+                            println!(
+                                "  BEFUND GEGEN DIE ADAPTIVITAET: die verkuerzte Messung liegt nicht\n\
+                                 \x20 weiter weg. Die Zahlen oben sind der Beleg."
+                            );
+                        }
+                    }
+                }
+            }
         }
         println!();
     }
