@@ -97,6 +97,31 @@ class StreichVolllauf(unittest.TestCase):
             self.assertIn(part, free.stdout)
         self.assertFalse((self.temp / 'probe').exists())
 
+    def test_the_checkout_lies_where_rota_fenster_attributes_its_processes(self):
+        # rota-fenster knows a role only as a directory under
+        # /work/rota-worktrees (its _kennungen()) and matches
+        # `rota-worktrees/<name>/` in a process line. The probe of 2026-10-28
+        # ran under /work/tmp, and the window was assigned in the middle of it.
+        self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
+        result = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
+                               '--aus', str(self.temp / 'lauf'))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-volllauf ',
+                      result.stdout)
+        self.window(*FREE)
+        probe = self.run_tool('--rolle', 'w3-streich', '--probe', 'clearsDoom', '--stand', 'HEAD',
+                              '--trocken', '--aus', str(self.temp / 'probe'))
+        self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-probe ',
+                      probe.stdout)
+
+    def test_an_existing_checkout_directory_refuses(self):
+        self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
+        (self.temp / 'baum').mkdir()
+        result = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
+                               '--aus', str(self.temp / 'lauf'), '--baum', str(self.temp / 'baum'))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Checkout', result.stdout)
+
     def test_an_existing_output_directory_refuses(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
         target = self.temp / 'lauf'
