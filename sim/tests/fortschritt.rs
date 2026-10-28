@@ -404,7 +404,7 @@ fn ac6_zehn_rechner_machen_eine_kette_nicht_schneller() {
         .map(|i| rechner(&format!("r{i}"), 1, 1000.0, 0.0))
         .collect();
     let verteilt = ablauf(&kette, &zehn).expect("Ablauf");
-    assert!(nah(einer.dauer_s, 1.0), "{}", einer.dauer_s);
+    assert!(nah(einer.dauer_s, 1.0), "Dauer {} s", einer.dauer_s);
     assert!(
         nah(verteilt.dauer_s, 1.0),
         "zehn Rechner verkürzen eine Kette aus 1000 Sammelpunkten: {}",
@@ -418,8 +418,8 @@ fn ac6_zehn_rechner_machen_eine_kette_nicht_schneller() {
 fn ac6_eine_parallele_stufe_endet_mit_ihrem_langsamsten_strang() {
     // Fünf Kämpfe über vier Stränge: Einer rechnet zwei.
     let a = ablauf(&[kaempfe_stufe(5, 10)], &[rechner("a", 4, 100.0, 0.0)]).expect("Ablauf");
-    assert!(nah(a.dauer_s, 10.0 * 2.0 / 100.0), "{}", a.dauer_s);
-    assert!(nah(a.naiv_s, 10.0 * 5.0 / 400.0), "{}", a.naiv_s);
+    assert!(nah(a.dauer_s, 10.0 * 2.0 / 100.0), "Dauer {} s", a.dauer_s);
+    assert!(nah(a.naiv_s, 10.0 * 5.0 / 400.0), "naiv {} s", a.naiv_s);
     assert!(nah(a.kritischer_pfad_s, 10.0 / 100.0));
 }
 
@@ -435,7 +435,7 @@ fn ac6_verschieden_schnelle_rechner_teilen_nach_leistung() {
         ],
     )
     .expect("Ablauf");
-    assert!(nah(a.dauer_s, 1.0), "{}", a.dauer_s);
+    assert!(nah(a.dauer_s, 1.0), "Dauer {} s", a.dauer_s);
     assert_eq!(a.rechner, 2);
 }
 
@@ -600,7 +600,7 @@ fn ac7_die_ratenstreuung_geht_auf_einem_rechner_voll_ein() {
     );
     let h = herleitung_von(&r);
     let m = mitte(&r);
-    assert!(nah(m, 10.0), "{m}");
+    assert!(nah(m, 10.0), "Mitte {m} s");
     // Ein Rechner: seine Stränge drosseln gemeinsam, nichts mittelt sich weg.
     assert!(nah(h.sigma_rate_s, 0.1 * 10.0), "σ {}", h.sigma_rate_s);
     let Restzeit::Spanne {
@@ -1000,8 +1000,8 @@ fn ac2_beide_durchsatzzahlen_stehen_nebeneinander_und_laufen_auseinander() {
     let kaempfe = durchsatz["full_fights_per_s"]["window"]
         .as_f64()
         .expect("Zahl");
-    assert!(nah(kandidaten, 100.0), "{kandidaten}");
-    assert!(nah(kaempfe, 5000.0), "{kaempfe}");
+    assert!(nah(kandidaten, 100.0), "Kandidaten {kandidaten} /s");
+    assert!(nah(kaempfe, 5000.0), "Kämpfe {kaempfe} /s");
     let text = a.zeilen().join("\n");
     assert!(text.contains("100 /s"), "{text}");
     assert!(text.contains("5 000 /s"), "{text}");
