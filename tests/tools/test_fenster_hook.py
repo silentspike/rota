@@ -376,7 +376,6 @@ class FensterHookTests(unittest.TestCase):
         'sh /home/jan/bin/cargo-remote-fmt',
         'cargo remote --resources=large -c -- build --release',
         "python3 -c \"import subprocess; subprocess.run(['cargo', 'remote', '--', 'test'])\"",
-        'bash tools/remote.sh',
     ]
 
     def tools_scripts(self):
@@ -391,7 +390,8 @@ class FensterHookTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.state(ort='node3')
                 warning = self.report(command, 'belasten')
-                for detail in ['OtherReview', 'Isolated measurement', '2026-09-06 09:00:00', 'node3']:
+                for detail in ['OtherReview', 'Isolated measurement',
+                               'misst seit 2026-09-06 09:00:00 auf node3', 'den Bau-Dienst auf node3']:
                     self.assertIn(detail, warning)
                 self.state(ort='laptop')
                 self.assertIsNone(self.call(command), 'a Laptop window is not disturbed by the build service')
@@ -407,16 +407,21 @@ class FensterHookTests(unittest.TestCase):
                         'flock -w 900 /work/tmp/rota-ts-schwer.lock npx vitest run', 'cargo build']:
             with self.subTest(command=command):
                 self.state(ort='laptop')
-                self.report(command, 'belasten')
+                self.assertIn('misst seit 2026-09-06 09:00:00 auf dem Laptop',
+                              self.report(command, 'die gemeinsame Maschine belasten'))
                 self.state(ort='node3')
                 self.assertIsNone(self.call(command), 'local load does not reach node3')
 
     def test_a_tools_script_carries_the_load_of_what_it_runs(self):
         self.tools_scripts()
+        # A tools/ script always counts as local load — many compute in Python
+        # without starting anything — and as build-service load, too, if its
+        # text names `cargo remote` (tests-lokal.sh, streich-mutation.py).
         for place in ['laptop', 'node3']:
             with self.subTest(place=place):
                 self.state(ort=place)
                 self.report('bash tools/beides.sh', 'belasten')
+                self.report('bash tools/remote.sh', 'belasten')
                 # unreadable: both places, because it could be either
                 self.report('bash tools/gibt-es-nicht.sh', 'belasten')
 

@@ -90,8 +90,17 @@ except (OSError, ValueError) as fehler:
 
 inhaber = stand.get("inhaber")
 abgabe = stand.get("abgabe")
+ort = stand.get("ort")
 
-# ---- Die drei Fälle, in denen GESCHWIEGEN wird ---------------------------
+# Der Ort des Fensters (rota-fenster --ort, #1049). Ein Schalter von vor dem
+# 28.10. kennt keinen und gilt als Laptop. Ein unbekannter Ort ist kein
+# "frei": ein fehlender Messwert ist kein gruener Messwert (Kriterium 4).
+if ort not in (None, "laptop", "node3"):
+    print(f"  [Fenster] Schalterstand unlesbar (unbekannter Ort {ort!r}) — sieh selbst nach.",
+          file=sys.stderr)
+    sys.exit(0)
+
+# ---- Die vier Fälle, in denen GESCHWIEGEN wird ---------------------------
 #
 # Auflage 1 aus der Zuteilung, und sie ist die wichtigere Hälfte: Eine
 # Warnung, die immer kommt, ist von einer abgeschalteten nicht zu
@@ -103,6 +112,8 @@ if abgabe is not None:
     sys.exit(0)                    # abgegeben, also frei
 if meine_rolle and inhaber == meine_rolle:
     sys.exit(0)                    # es ist mein eigenes Fenster
+if ort == "node3":
+    sys.exit(0)                    # npm-Laeufe sind lokale Last; node3 stoert nur der Bau-Dienst
 
 # ---- Und der eine, in dem gewarnt wird -----------------------------------
 zweck = (stand.get("zweck") or "").strip()
