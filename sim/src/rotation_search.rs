@@ -1067,6 +1067,19 @@ pub fn greedy_zuege(
     }
 }
 
+/// Wie viele Messungen die gierige Suche ab einem Rundenbeginn höchstens noch
+/// kostet (#933).
+#[must_use]
+pub fn restmessungen_hoechstens(
+    gewaehlt: usize,
+    offen: usize,
+    max_len: usize,
+    paare: usize,
+    tripel: usize,
+) -> u64 {
+    todo!("#933 {gewaehlt} {offen} {max_len} {paare} {tripel}")
+}
+
 /// Die Paare, die einzeln verlieren und zusammen tragen (Issue #558, AC2).
 ///
 /// # Der Mangel, gemessen
