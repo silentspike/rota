@@ -5,7 +5,8 @@
 //! selbst sicherten, stehen deshalb hier als eigene Fälle.
 
 use rota_sim::apl::{parse, Apl, AplName};
-use rota_sim::balance::{run, BalanceConfig};
+use rota_sim::balance::{run, run_vollstaendig, BalanceConfig};
+use rota_sim::fortschritt::Zaehlwerk;
 use rota_sim::gear::WornValues;
 
 const GOOD: &str = include_str!("../apl/step1-good.apl");
@@ -111,4 +112,52 @@ fn der_mitrechnende_aufrufer_laesst_den_trace_einstraengig() {
         parallel, 0,
         "der parallele Lauf trug Zustaende in den Trace des Aufrufers"
     );
+}
+
+/// **Die Strangzeit eines Bereichs landet auf seinem Platz** (#934). Sechs
+/// Kämpfe auf vier Strängen sind die Bereiche 2, 2, 1, 1: Die Plätze 0 und 1
+/// rechnen doppelt so viel wie 2 und 3. Die Zeit ist CPU-Zeit des Strangs
+/// und hängt nicht daran, ob ein Strang verdrängt wurde.
+#[test]
+fn die_strangzeit_landet_auf_dem_platz_ihres_bereichs() {
+    let werk = Zaehlwerk::neu(4);
+    let anmeldung = werk.anmelden();
+    let _ = run_vollstaendig(&konfiguration(6, 4, 7), &gute_liste());
+    drop(anmeldung);
+    let m = werk.momentaufnahme();
+    assert_eq!(
+        m.kaempfe_je_strang,
+        vec![0, 2, 2, 1, 1],
+        "die Kaempfe je Platz sind nicht die Bereiche 2, 2, 1, 1"
+    );
+    let s = &m.engpass.straenge;
+    assert_eq!(s.len(), 4, "ein Eintrag je Bereich");
+    for gross in [0, 1] {
+        for klein in [2, 3] {
+            assert!(
+                s[gross].arbeit_ns > s[klein].arbeit_ns,
+                "Platz {gross} (zwei Kaempfe) rechnete nicht laenger als Platz {klein} (einer): {s:?}"
+            );
+        }
+    }
+}
+
+/// **Ein Helfer trägt keine Zählung in den nächsten Lauf.** Zweimal derselbe
+/// Lauf mit eingeschalteten Kampfzählern ergibt zweimal dieselbe Zahl —
+/// zählte ein Helfer weiter, stünde beim zweiten Lauf mehr.
+#[cfg(feature = "diagnostics")]
+#[test]
+fn ein_helfer_traegt_keine_zaehlung_in_den_naechsten_lauf() {
+    use rota_sim::diagnostics;
+    let liste = gute_liste();
+    let mut gezaehlt = Vec::new();
+    for _ in 0..2 {
+        diagnostics::reset();
+        diagnostics::enable();
+        let _ = run(&konfiguration(40, 4, 7), &liste);
+        gezaehlt.push(diagnostics::snapshot().fights());
+        diagnostics::disable();
+        diagnostics::reset();
+    }
+    assert_eq!(gezaehlt, [40, 40], "Kaempfe je Lauf: {gezaehlt:?}");
 }
