@@ -21,7 +21,9 @@ use rota_sim::fortschritt::{
 };
 use rota_sim::gear::WornValues;
 use rota_sim::kalibrierung::{Abbruchgrund, Arbeitsart, RateModel};
-use rota_sim::rotation_search::{all_candidates, greedy, restmessungen_hoechstens};
+use rota_sim::rotation_search::{
+    all_candidates, greedy, restmessungen_hoechstens, tripel_messungen,
+};
 
 const GOOD: &str = include_str!("../apl/step1-good.apl");
 
@@ -237,11 +239,44 @@ fn ohne_anmeldung_zaehlt_nichts_und_das_ergebnis_bleibt_bitgleich() {
 
 #[test]
 fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
+    let _ = suche_haelt_ihre_schranken(konfiguration(4, 1, 0), 3);
+}
+
+/// Dieselbe Prüfung an einer Suche, die Dreiergruppen verdrängen lässt und die
+/// eine Runde an der Längengrenze fährt (#1027): die #797-AC5-Suche
+/// (`test-lethal-strike`, Gewicht 1, Grenze 10).
+///
+/// **Die Zusicherung vorweg:** Ohne geprüfte Gruppe sähe dieser Fall nur, was
+/// der Fall darüber schon sieht.
+#[test]
+fn die_obergrenze_haelt_auch_mit_verdraengenden_dreiergruppen() {
+    let config = BalanceConfig {
+        boss: rota_sim::data::boss_by_id("test-lethal-strike").expect("den Boss gibt es"),
+        stop_on_kill: false,
+        prevented_weight: 1.0,
+        ..BalanceConfig::default()
+    };
+    let ergebnis = suche_haelt_ihre_schranken(config, 10);
+    assert!(
+        ergebnis.tripel_geprueft > 0 && ergebnis.chosen.len() == 10,
+        "Zusicherung: keine Gruppe geprüft oder Liste nicht voll ({} Gruppen, Länge {}) — der \
+         Fall sähe die Verdrängung nicht",
+        ergebnis.tripel_geprueft,
+        ergebnis.chosen.len()
+    );
+}
+
+/// Fährt `greedy` in einem eigenen Strang, beobachtet die Meldungen und prüft:
+/// jede Runde in ihrem Plan, jede beobachtete Schranke um die tatsächliche Zahl.
+fn suche_haelt_ihre_schranken(
+    config: BalanceConfig,
+    max_len: usize,
+) -> rota_sim::rotation_search::SearchResult {
     let werk = Zaehlwerk::neu(1);
     let suchend = Arc::clone(&werk);
     let suche = std::thread::spawn(move || {
         let _anmeldung = suchend.anmelden();
-        greedy(&konfiguration(4, 1, 0), &all_candidates(), 3)
+        greedy(&config, &all_candidates(), max_len)
     });
     let mut gesehen: Vec<(Option<u64>, Arbeitsmenge)> = Vec::new();
     let mut ueber_plan = Vec::new();
@@ -272,10 +307,15 @@ fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
         ueber_plan.is_empty(),
         "während der Suche über dem Plan: {ueber_plan:?}"
     );
+    // Mit Gewicht auf Verhindertes misst die Suche vorweg einmal die leere
+    // Liste als Bezugspunkt (`greedy_zuege`, #814); das Zählwerk zählt sie
+    // mit, `measured` nicht. Gefunden beim Bau des Falls darunter: 8802 gegen
+    // 8801 — mit Gewicht 0, wie im Fall darüber, gibt es sie nicht.
+    let bezugspunkt = u64::from(config.prevented_weight > 0.0);
     assert_eq!(
         gesamt,
-        ergebnis.measured as u64 + 2,
-        "gezählt wird jede Messung, auch Start- und Fundliste"
+        ergebnis.measured as u64 + 2 + bezugspunkt,
+        "gezählt wird jede Messung, auch Start- und Fundliste und der Bezugspunkt"
     );
     assert!(ende.stand.bestes.is_some(), "kein bestes Ergebnis gemeldet");
     let mut runden: Vec<u64> = gesehen.iter().filter_map(|(r, _)| *r).collect();
@@ -300,6 +340,7 @@ fn die_gierige_suche_meldet_runden_bestes_und_eine_haltende_obergrenze() {
         }
     }
     assert!(geprueft > 0, "keine einzige Schranke beobachtet");
+    ergebnis
 }
 
 #[test]
@@ -308,8 +349,11 @@ fn die_obergrenze_der_suche_rechnet_runde_fuer_runde() {
     assert_eq!(restmessungen_hoechstens(0, 3, 1, 0, 0), 3);
     // Zwei Runden: 3·1 + (2)·min(0+3,1)+1 = 3 + 2·2.
     assert_eq!(restmessungen_hoechstens(0, 3, 2, 0, 0), 3 + 2 * 2);
-    // Längengrenze schon erreicht: nichts mehr.
-    assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 5), 0);
+    // Längengrenze schon erreicht: ohne Dreiergruppen nichts mehr …
+    assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 0), 0);
+    // … mit ihnen genau die eine Runde an der Grenze (#1027): je Gruppe drei
+    // von vier Zeilen verdrängt (4 Arten), an zwei Stellen — 5 · 4 · 2.
+    assert_eq!(restmessungen_hoechstens(4, 3, 4, 5, 5), 5 * 4 * 2);
     // Paare zählen nur, solange zwei Zeilen passen: Runde eins mit einer
     // Stelle (2 + 7), Runde zwei mit einer offenen Zeile an zwei Stellen.
     assert_eq!(restmessungen_hoechstens(0, 2, 1, 7, 0), 2);
@@ -318,6 +362,21 @@ fn die_obergrenze_der_suche_rechnet_runde_fuer_runde() {
         restmessungen_hoechstens(0, 2, 2, 7, 0),
         2 + 7 + zweite_runde
     );
+}
+
+/// Was eine Dreiergruppe je Runde kostet (#1027): ohne fehlenden Platz jede
+/// Stelle, mit fehlendem Platz jede Art, ihn freizumachen, mal die Stellen der
+/// verbliebenen Liste. Bei Grenze 10 ist das die Rechnung der #797-AC5-Suche.
+#[test]
+fn eine_dreiergruppe_kostet_je_art_platz_zu_schaffen() {
+    // Platz genug: Länge 7, drei frei — die acht Stellen von vor #1027.
+    assert_eq!(tripel_messungen(7, 10), 8);
+    // Eine Zeile fehlt: 8 Arten, je 8 Stellen.
+    assert_eq!(tripel_messungen(8, 10), 8 * 8);
+    // Zwei fehlen: 36 Arten, je 8 Stellen.
+    assert_eq!(tripel_messungen(9, 10), 36 * 8);
+    // An der Grenze drei: 120 Arten, je 8 Stellen.
+    assert_eq!(tripel_messungen(10, 10), 120 * 8);
 }
 
 // ---------------------------------------------------------------- AC4

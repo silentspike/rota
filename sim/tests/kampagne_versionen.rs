@@ -17,8 +17,9 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    DeadlinePolicy, Mission, ProfileCatalog, ProfileError, ProjectionSet, QualityTargets,
+    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
+    CoverageSpec, CpuReservation, CpuRole, DeadlinePolicy, HostRequirement, Mission,
+    NetworkRequirement, ProfileCatalog, ProfileError, ProjectionSet, QualityTargets,
     ReferenceProfile, ResultGuarantee, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
@@ -245,6 +246,138 @@ fn ein_teilergebnis_setzt_eine_verlangte_frist_voraus() {
             work_planned: WorkUnits(1_000_000),
         })
     );
+}
+
+const NODE3: HostRequirement = HostRequirement {
+    name: "node3",
+    cpu_role: CpuRole::Compute(ComputeRequirement {
+        guaranteed_cpu_quota: None,
+        cpu: CpuReservation {
+            physical_cores: 8,
+            threads_per_core: 2,
+            reserved_physical_cores: 0,
+        },
+    }),
+    gpu_duty_cycle: 0.0,
+    memory_limit_mib: 4096,
+    thermal_throttling: false,
+};
+
+const NETZ_LAPTOP_NODE3: NetworkRequirement = NetworkRequirement {
+    max_rtt_ms: 250,
+    min_bandwidth_mibit_s: None,
+};
+
+/// Fassung 1 (#1145, 2026-10-28): Der Laptop rechnete mit zwölf Strängen mit
+/// — `balanced`, zwei physische Kerne samt Geschwistern frei, Quote 12.
+static STANDARD_FASSUNG_1: &[HostRequirement] = &[
+    HostRequirement {
+        name: "laptop",
+        cpu_role: CpuRole::Compute(ComputeRequirement {
+            guaranteed_cpu_quota: Some(12.0),
+            cpu: CpuReservation {
+                physical_cores: 8,
+                threads_per_core: 2,
+                reserved_physical_cores: 2,
+            },
+        }),
+        gpu_duty_cycle: 0.0,
+        memory_limit_mib: 4096,
+        thermal_throttling: false,
+    },
+    NODE3,
+];
+
+/// Fassung 2 (2026-10-28, Entscheidung des Auftraggebers „Nur koordinieren"):
+/// Die CPU des Laptops koordiniert, node3 rechnet allein. Seine GPU darf auf
+/// ausdrücklichen Aufruf rechnen („NUR GPU", selber Abend); im Referenzlauf ist
+/// ihre Einschaltdauer 0 %.
+///
+/// Die Fassung ist auf `main` nie anders erschienen: Vor dem Merge stand die
+/// Grafik in der CPU-Rolle, und ein Koordinator konnte keine führen. Der Inhalt
+/// des Referenzlaufs — CPU des Laptops rechnet nicht, Grafik 0 % — ist
+/// derselbe; geändert hat sich nur, dass die GPU ausdrückbar ist.
+static STANDARD_FASSUNG_2: &[HostRequirement] = &[
+    HostRequirement {
+        name: "laptop",
+        cpu_role: CpuRole::Coordinator,
+        gpu_duty_cycle: 0.0,
+        memory_limit_mib: 4096,
+        thermal_throttling: false,
+    },
+    NODE3,
+];
+
+/// Jede vergebene Fassung des Referenzprofils „standard", eingefroren.
+///
+/// **Eine Fassung wird nie geändert.** Neue Rechner, Rollen oder Werte bekommen
+/// eine neue Version und eine neue Zeile hier — als Nächstes etwa die
+/// Bandbreite zu node3, sobald #912 sie misst.
+static STANDARD_FASSUNGEN: &[ReferenceProfile] = &[
+    ReferenceProfile {
+        name: "standard",
+        version: 1,
+        hosts: STANDARD_FASSUNG_1,
+        network: Some(NETZ_LAPTOP_NODE3),
+    },
+    ReferenceProfile {
+        name: "standard",
+        version: 2,
+        hosts: STANDARD_FASSUNG_2,
+        network: Some(NETZ_LAPTOP_NODE3),
+    },
+];
+
+/// **AC7** für das Referenzprofil: Ein geänderter Inhalt bekommt eine neue
+/// Version, eine vergebene Version behält ihren Inhalt.
+///
+/// [`ProfileCatalog`] schützt die Versionsnummer der **Kampagne**; die des
+/// Referenzprofils stand bis zum 2026-10-28 nur in einem Kommentar („dann
+/// bekommt das Profil eine neue Version"). Am selben Tag hat sich der Inhalt
+/// zum ersten Mal geändert: Die CPU des Laptops rechnet nicht mehr mit. Dieser Fall wird
+/// rot, wenn `REFERENCE_PROFILE_STANDARD` keiner eingefrorenen Fassung gleicht
+/// — geänderter Inhalt unter alter Nummer, oder eine neue Nummer ohne Zeile.
+#[test]
+fn das_profil_standard_ist_eine_seiner_eingefrorenen_fassungen() {
+    let aktuell = REFERENCE_PROFILE_STANDARD;
+    let fassung = STANDARD_FASSUNGEN
+        .iter()
+        .find(|f| f.version == aktuell.version)
+        .unwrap_or_else(|| {
+            panic!(
+                "Fassung {} des Profils standard ist nicht eingefroren — eine neue \
+                 Version braucht ihre Zeile in STANDARD_FASSUNGEN",
+                aktuell.version
+            )
+        });
+    assert_eq!(
+        *fassung, aktuell,
+        "Der Inhalt von Fassung {} hat sich geändert. Neuer Inhalt braucht eine \
+         neue Version (AC7) — und die alte Zeile bleibt, wie sie ist.",
+        aktuell.version
+    );
+
+    // Die Liste selbst: aufsteigende Nummern, und jede Fassung unterscheidet
+    // sich von der vorigen. Eine neue Nummer ohne neuen Inhalt wäre ein zweiter
+    // Name für dieselbe Arbeitsmenge.
+    for paar in STANDARD_FASSUNGEN.windows(2) {
+        assert!(
+            paar[0].version < paar[1].version,
+            "Fassungen {} und {} nicht aufsteigend",
+            paar[0].version,
+            paar[1].version
+        );
+        assert_ne!(
+            ReferenceProfile {
+                version: paar[1].version,
+                ..paar[0]
+            },
+            paar[1],
+            "Fassung {} hat den Inhalt von Fassung {}",
+            paar[1].version,
+            paar[0].version
+        );
+    }
 }
 
 /// Das Referenzprofil ist Teil der Identität: Dieselbe Version mit einem
