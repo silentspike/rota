@@ -1079,6 +1079,37 @@ where
     }
 }
 
+/// Fährt Kalibrierung und Referenz verschränkt, aber **fest** `dauer` lang —
+/// die verkürzte Messung der Kontrollprobe zu AC2.
+pub fn verschraenkt_feste_dauer<A, B>(kalibrierung: A, referenz: B, dauer: Duration) -> Verschraenkt
+where
+    A: FnMut() -> f64,
+    B: FnMut() -> f64,
+{
+    let _ = dauer;
+    kalibriere_verschraenkt(kalibrierung, referenz)
+}
+
+/// Die Kontrollprobe zu AC2: Welche der zwei Messungen liegt näher an ihrer
+/// verschränkten Referenz?
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Genauigkeitsprobe {
+    /// `|kalibriert / referenz - 1|` der adaptiven Messung.
+    pub fehler_adaptiv: f64,
+    /// Dasselbe für die verkürzte Messung fester Dauer.
+    pub fehler_fest: f64,
+    /// Ob die adaptive Messung **strikt** näher liegt.
+    pub adaptiv_genauer: bool,
+}
+
+/// Hält die adaptive und die verkürzte Messung je gegen ihre eigene
+/// verschränkte Referenz. `None`, wenn eine der vier Zahlen keine Rate ist.
+#[must_use]
+pub fn genauigkeitsprobe(adaptiv: &Verschraenkt, fest: &Verschraenkt) -> Option<Genauigkeitsprobe> {
+    let _ = (adaptiv, fest);
+    None
+}
+
 /// Wo Profile liegen.
 ///
 /// `ROTA_PROFILVERZEICHNIS` schlägt alles; sonst `$XDG_CACHE_HOME/rota-sim`,
@@ -2075,6 +2106,102 @@ mod tests {
         // Mit Aufwärmen und ohne Abklingen: deutlich unter der Höchstdauer.
         assert!(gelaufen < Duration::from_secs(10), "gelaufen {gelaufen:?}");
         assert!(r.samples >= ABSCHNITTE_MIN, "nur {} Abschnitte", r.samples);
+    }
+
+    // ------------------------------------- AC2: Kontrollprobe auf Genauigkeit
+
+    #[test]
+    fn genauigkeitsprobe_bevorzugt_die_naehere_messung() {
+        let p = genauigkeitsprobe(&verschraenkt(98.0, 100.0), &verschraenkt(90.0, 100.0))
+            .expect("vier Raten");
+        assert!(
+            (p.fehler_adaptiv - 0.02).abs() < 1e-12,
+            "adaptiv {}",
+            p.fehler_adaptiv
+        );
+        assert!(
+            (p.fehler_fest - 0.10).abs() < 1e-12,
+            "fest {}",
+            p.fehler_fest
+        );
+        assert!(p.adaptiv_genauer);
+        // Die Richtung zählt nicht, nur der Abstand: 102 gegen 100 ist so weit
+        // wie 98.
+        let p = genauigkeitsprobe(&verschraenkt(102.0, 100.0), &verschraenkt(90.0, 100.0))
+            .expect("vier Raten");
+        assert!(
+            (p.fehler_adaptiv - 0.02).abs() < 1e-12,
+            "adaptiv {}",
+            p.fehler_adaptiv
+        );
+        // Gegenprobe: Liegt die verkürzte näher, sagt die Probe das.
+        let p = genauigkeitsprobe(&verschraenkt(90.0, 100.0), &verschraenkt(99.0, 100.0))
+            .expect("vier Raten");
+        assert!(!p.adaptiv_genauer);
+        // Gleich nah ist kein Gewinn der Adaptivität.
+        let p = genauigkeitsprobe(&verschraenkt(95.0, 100.0), &verschraenkt(105.0, 100.0))
+            .expect("vier Raten");
+        assert!(!p.adaptiv_genauer, "Gleichstand als Gewinn gewertet");
+    }
+
+    #[test]
+    fn genauigkeitsprobe_jede_gegen_ihre_eigene_referenz() {
+        // Die verkürzte Messung hat ihre EIGENE Referenz: 180 gegen 200 sind
+        // zehn Prozent, nicht achtzig gegen die 100 der adaptiven.
+        let p = genauigkeitsprobe(&verschraenkt(98.0, 100.0), &verschraenkt(180.0, 200.0))
+            .expect("vier Raten");
+        assert!(
+            (p.fehler_fest - 0.10).abs() < 1e-12,
+            "fest {}",
+            p.fehler_fest
+        );
+    }
+
+    #[test]
+    fn genauigkeitsprobe_ohne_rate_ist_keine() {
+        for (a, b) in [
+            (verschraenkt(0.0, 100.0), verschraenkt(90.0, 100.0)),
+            (verschraenkt(98.0, f64::NAN), verschraenkt(90.0, 100.0)),
+            (verschraenkt(98.0, 100.0), verschraenkt(90.0, 0.0)),
+        ] {
+            assert!(genauigkeitsprobe(&a, &b).is_none(), "{a:?} {b:?}");
+        }
+    }
+
+    #[test]
+    fn verschraenkt_feste_dauer_hoert_nach_der_dauer_auf() {
+        let folge = std::cell::RefCell::new(Vec::<char>::new());
+        let v = verschraenkt_feste_dauer(
+            || {
+                folge.borrow_mut().push('A');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            || {
+                folge.borrow_mut().push('B');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            Duration::from_secs(2),
+        );
+        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
+            return;
+        }
+        assert_eq!(v.kalibrierung.reason, Abbruchgrund::FesteDauer);
+        assert_eq!(v.referenz.reason, Abbruchgrund::FesteDauer);
+        assert!(!v.kalibrierung.reason.brauchbar());
+        assert!(
+            v.kalibrierung.duration_ms >= 2000 && v.kalibrierung.duration_ms < 2100,
+            "Messdauer {} ms",
+            v.kalibrierung.duration_ms
+        );
+        assert_eq!(v.kalibrierung.samples, v.referenz.samples);
+        let folge = folge.into_inner();
+        assert!(
+            folge.windows(2).all(|w| w[0] != w[1]),
+            "nicht abwechselnd: {}",
+            folge.iter().collect::<String>()
+        );
     }
 
     // --------------------------------------------- AC1: verschränkte Referenz
