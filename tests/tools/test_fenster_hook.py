@@ -353,6 +353,13 @@ class FensterHookTests(unittest.TestCase):
                 self.assertIsNone(self.call(command))
         # A script that is neither visible nor readable is not known to be quiet.
         self.report('bash gibt-es-nicht.sh', 'UNBEKANNT')
+        # A directory known only at run time is undecidable, not a crash that
+        # swallows the visible load next to it (6 of 33,268 corpus calls,
+        # ValueError 'embedded null byte' from open()).
+        self.report('bash "$DIR/x.sh"', 'UNBEKANNT')
+        self.report('npm run lint\nbash "$DIR/x.sh"', 'die gemeinsame Maschine belasten')
+        self.state(ort='node3')
+        self.report('cargo remote -- test\nbash "$DIR/x.sh"', 'den Bau-Dienst auf node3 belasten')
 
     # The place of the window (rota-fenster --ort, rota#1049): on node3 the
     # build service shares the CPU with the measurement, so there a foreign
