@@ -730,6 +730,15 @@ impl Bounds {
         self.min.is_some() && self.max.is_some()
     }
 
+    /// Ob gar keine Grenze bekannt ist — [`Bounds::UNKNOWN`].
+    ///
+    /// Die Bedingung des konservativen Rückfalls in `kernel-choice` und
+    /// `action-bound` beim Wirken (DW3, Epic #892). Ein halb offener Bereich ist
+    /// eine Teilangabe und fällt dort nicht zurück.
+    pub const fn ist_unbekannt(self) -> bool {
+        self.min.is_none() && self.max.is_none()
+    }
+
     /// Die Huelle zweier Bereiche.
     ///
     /// **Eine unbekannte Grenze steckt an**: Wer `None` mit `Some` vereinigt,
@@ -784,7 +793,7 @@ impl NumerischerVertrag {
             if n.numeric_bounds.ist_eng() {
                 mit_enger_schranke += 1;
             }
-            if n.numeric_bounds == Bounds::UNKNOWN {
+            if n.numeric_bounds.ist_unbekannt() {
                 ohne_schranke += 1;
             }
             huelle = Some(match huelle {

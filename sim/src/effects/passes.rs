@@ -60,6 +60,14 @@ const LUECKE: &str =
     "Angabe fehlt — konservativ: alle Abhaengigkeiten, kein Ledger, keine Marginalisierung, \
      kein Dominanz-Pruning, keine enge Schranke, Rueckfall-Kernel";
 
+/// Grund des Rückfalls bei unbekanntem Wertebereich (DW3, Epic #892).
+///
+/// Für die Analysen, die den Bereich als Schranke weiterreichen: Bis #892
+/// reichten sie `Bounds::UNKNOWN` nur weiter und behielten ihr Urteil, und ein
+/// Verbraucher musste `ist_eng()` selbst fragen.
+const OHNE_WERTEBEREICH: &str =
+    "Wertebereich unbekannt — konservativ statt eines Urteils, das den Bereich weiterreicht";
+
 // ------------------------------------------------------- 1. Krit analytisch
 
 /// Darf der kritische Treffer analytisch statt gewuerfelt behandelt werden?
@@ -200,6 +208,15 @@ impl EffectAnalysisPass for ActionBoundPass {
                 // von der Zeitleiste ausgeloest wird, skaliert dagegen mit der
                 // KAMPFDAUER, und die steht hier nicht zur Verfuegung.
                 match node.trigger {
+                    // DW3 (Epic #892): Das Urteil reicht den Bereich als
+                    // Schranke weiter — ohne Bereich der konservative Pfad.
+                    Trigger::OnCast if node.numeric_bounds.ist_unbekannt() => {
+                        AnalysisResult::konservativ(
+                            Self::ID,
+                            Evidence::Aktionsgrenze(None),
+                            OHNE_WERTEBEREICH,
+                        )
+                    }
                     Trigger::OnCast => AnalysisResult::erlaubt(
                         Self::ID,
                         Evidence::Schranke(node.numeric_bounds),
@@ -266,6 +283,13 @@ impl EffectAnalysisPass for KernelChoicePass {
             }
         }
         match node.op {
+            // DW3 (Epic #892): Die Arme, die den Bereich als Schranke
+            // weiterreichen, fallen ohne ihn auf den allgemeinen Kernel zurück.
+            EffectOp::DealDamage | EffectOp::ModifyResource | EffectOp::Heal
+                if node.numeric_bounds.ist_unbekannt() =>
+            {
+                AnalysisResult::konservativ(Self::ID, Evidence::Keine, OHNE_WERTEBEREICH)
+            }
             EffectOp::DealDamage => AnalysisResult::erlaubt(
                 Self::ID,
                 Evidence::Schranke(node.numeric_bounds),
