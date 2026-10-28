@@ -39,6 +39,20 @@ V2_PASS = ('cargo-remote: job a91655beba11287563f0ab73 | linux-gnu-bookworm | Ru
            'test j ... ok\n\n'
            'test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.20s\n\n'
            'cargo-remote: succeeded | exit 0 | 20.16s\n')
+# cargo remote v2 uploads with `subprocess.run(rsync, check=True)` and exits
+# with rsync's own code (client.py: CalledProcessError -> exc.returncode).
+# 12 and 23 are rsync transfer errors, 255 is ssh failing underneath rsync.
+# The texts follow rsync 3.x's message format; the tool decides on the exit
+# code alone, so the wording is not load-bearing.
+V2_HEADER = ('cargo-remote: job a91655beba11287563f0ab73 | linux-gnu-bookworm | Rust 1.98.1 | normal | '
+             'workspace ad6fb34f55843cbc0a7efaef69c89ba0\n')
+TRANSPORT_EXITS = {
+    12: V2_HEADER + 'rsync error: error in rsync protocol data stream (code 12) at io.c(232) [sender=3.4.1]\n',
+    23: V2_HEADER + 'rsync error: some files/attrs were not transferred (see previous errors) '
+                    '(code 23) at main.c(1338) [sender=3.4.1]\n',
+    255: V2_HEADER + 'rsync: connection unexpectedly closed (0 bytes received so far) [sender]\n'
+                     'rsync error: unexplained error (code 255) at io.c(232) [sender=3.4.1]\n',
+}
 
 
 class MutationEvidence(unittest.TestCase):
@@ -222,6 +236,47 @@ class MutationEvidence(unittest.TestCase):
         evidence = json.loads((self.root / 'evidence.json').read_text())
         self.assertEqual(evidence['fields']['heal.amount']['status'], 'ABBRUCH')
         self.assert_restored()
+
+    def fresh_tool(self):
+        """A new module instance: an aborted run leaves the module's abort flag set."""
+        spec = importlib.util.spec_from_file_location('streich_evidence', ROOT / 'tools/streich-mutation.py')
+        self.tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.tool)
+
+    def test_transport_exits_of_the_v2_client_are_not_verdicts(self):
+        # Without this, exit 12 in a field build counts as a broken build (BAU)
+        # and exit 255 in the Rust stage as a red suite — while nothing was
+        # uploaded, let alone compiled.
+        for code, output in TRANSPORT_EXITS.items():
+            for stage in ('baseline-build', 'field-build', 'field-rust'):
+                with self.subTest(code=code, stage=stage):
+                    self.fresh_tool()
+
+                    def process(command, _timeout, code=code, output=output, stage=stage):
+                        mutated = self.missing() is not None
+                        if command.startswith('npx'):
+                            return (1, TS_FAIL) if mutated else (0, TS_PASS)
+                        if '--no-run' in command:
+                            if stage == 'baseline-build' or (stage == 'field-build' and mutated):
+                                return code, output
+                            return 0, 'Finished test profile\n'
+                        if stage == 'field-rust' and mutated:
+                            return code, output
+                        return 0, RUST_PASS
+
+                    with self.assertRaises(self.tool.NichtGelaufen) as raised:
+                        self.drive(process, '--feld', 'heal.amount')
+                    self.assertIn(f'Exit {code}', str(raised.exception))
+                    evidence = json.loads((self.root / 'evidence.json').read_text())
+                    if stage == 'baseline-build':
+                        self.assertEqual(evidence['fields'], {})
+                    else:
+                        entry = evidence['fields']['heal.amount']
+                        self.assertEqual(entry['status'], 'ABBRUCH')
+                        self.assertIn('NichtGelaufen', entry['detail'])
+                        self.assertTrue(entry['restored'])
+                    self.assertFalse(evidence['completed'] or evidence['full_pass'])
+                    self.assert_restored()
 
     def test_real_cargo_remote_v2_output_is_a_complete_rust_summary(self):
         proof = self.tool.suite_nachweis(0, V2_PASS, 'rust')
