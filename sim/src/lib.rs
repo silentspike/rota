@@ -82,6 +82,8 @@ pub mod domaene;
 pub mod durchgaenge;
 // Issue #911: die typisierte Wirkungsbeschreibung und ihre erzeugten Analysen.
 pub mod effects;
+// Issue #934: die Engpasserkennung — eine Diagnose, keine Zahlenliste.
+pub mod engpass;
 pub mod event;
 pub mod factors;
 pub mod fight;
