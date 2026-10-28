@@ -29,13 +29,13 @@
 //! nächsten Entscheidung. Beide Seiten müssen gleich rechnen — sonst ist
 //! `RunResult::idle_ms` eine Zahl, die nur so aussieht wie die des Spiels.
 
+mod listen_aufzeichnung;
+
 use serde_json::Value;
 
-use rota_sim::apl::{parse, AplName};
-use rota_sim::data::{boss_by_id, index_of, SPELLS, SPELL_COUNT};
-use rota_sim::log::LogKind;
-use rota_sim::replay::{first_divergence, Binding, Press, Recording};
-use rota_sim::{Fight, FightConfig, TICK_MS};
+use listen_aufzeichnung::{druecke, laeufe, lauf};
+use rota_sim::data::{index_of, SPELLS};
+use rota_sim::TICK_MS;
 
 const JSON_TEXT: &str = include_str!("../../tests/parity/recordings/gcd-freier-wurf.json");
 
@@ -52,101 +52,7 @@ const LAEUFE: [&str; 6] = [
 ];
 
 fn data() -> Value {
-    let value: Value = serde_json::from_str(JSON_TEXT).expect("gcd-freier-wurf.json ist kein JSON");
-    assert_eq!(
-        value["schema"].as_u64(),
-        Some(1),
-        "unbekannte Fassung der Aufzeichnung"
-    );
-    value
-}
-
-fn u32_at(node: &Value, key: &str) -> u32 {
-    let raw = node[key]
-        .as_u64()
-        .unwrap_or_else(|| panic!("{key} fehlt oder ist keine Zahl"));
-    u32::try_from(raw).expect("passt nicht in 32 Bit")
-}
-
-fn lauf<'a>(json: &'a Value, name: &str) -> &'a Value {
-    json["runs"]
-        .as_array()
-        .expect("runs fehlen")
-        .iter()
-        .find(|run| run["name"].as_str() == Some(name))
-        .unwrap_or_else(|| panic!("Lauf {name} fehlt in der Aufzeichnung"))
-}
-
-fn bindings(json: &Value) -> Vec<Binding> {
-    json["bindings"]
-        .as_array()
-        .expect("bindings fehlen")
-        .iter()
-        .map(|entry| {
-            let spell_id = entry["spellId"].as_str().expect("spellId fehlt");
-            Binding {
-                slot: u8::try_from(entry["slot"].as_u64().expect("slot fehlt"))
-                    .expect("slot > 255"),
-                spell: index_of(spell_id)
-                    .unwrap_or_else(|| panic!("Zauber {spell_id} kennt der Simulator nicht")),
-            }
-        })
-        .collect()
-}
-
-fn recording(json: &Value, run: &Value) -> Recording {
-    let presses = run["presses"]
-        .as_array()
-        .expect("presses fehlen")
-        .iter()
-        .map(|entry| Press {
-            tick: u32::try_from(entry["tick"].as_u64().expect("tick fehlt"))
-                .expect("tick zu gross"),
-            slot: u8::try_from(entry["slot"].as_u64().expect("slot fehlt")).expect("slot > 255"),
-        })
-        .collect();
-    Recording {
-        name: run["name"].as_str().expect("name fehlt").to_owned(),
-        seed: u32_at(json, "seed"),
-        ticks: u32_at(json, "ticks"),
-        bindings: bindings(json),
-        presses,
-    }
-}
-
-/// Die Drücke eines Laufs als (Zeitpunkt, Zauber-Index) — in der Reihenfolge der
-/// Aufzeichnung.
-fn druecke(json: &Value, run: &Value) -> Vec<(u32, usize)> {
-    let leiste = bindings(json);
-    recording(json, run)
-        .presses
-        .iter()
-        .map(|p| {
-            let spell = leiste
-                .iter()
-                .find(|b| b.slot == p.slot)
-                .map(|b| b.spell)
-                .unwrap_or_else(|| panic!("Platz {} liegt auf keinem Zauber", p.slot));
-            (p.tick * TICK_MS, spell)
-        })
-        .collect()
-}
-
-/// Ein Kampf wie die Schleife: volle Zeit, kein Abbruch beim Sieg.
-fn kampf(json: &Value) -> Fight {
-    let boss_id = json["bossId"].as_str().expect("bossId fehlt");
-    Fight::new(FightConfig {
-        seed: u32_at(json, "seed"),
-        duration_ms: Some(u32_at(json, "ticks") * TICK_MS),
-        boss: boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} fehlt")),
-        stop_on_kill: false,
-        log_capacity: 1 << 14,
-        ..FightConfig::default()
-    })
-}
-
-fn name_von(spell: usize) -> &'static str {
-    SPELLS[spell].id
+    listen_aufzeichnung::data(JSON_TEXT)
 }
 
 /// **Die Zusicherung vor der Messung.** Ein Lauf ohne freien Wurf belegt für
@@ -226,107 +132,11 @@ fn quench_faellt_genau_auf_die_schwelle_der_nachlegezeile() {
 /// sagen über den Zeitpunkt nichts mehr.
 #[test]
 fn das_abspielen_trifft_das_spiel_in_jedem_takt() {
-    let json = data();
-    for name in LAEUFE {
-        let run = lauf(&json, name);
-        let aufzeichnung = recording(&json, run);
-        let mut fight = kampf(&json);
-        let ergebnis = fight.replay(&aufzeichnung, true);
-        let erwartet = &run["expected"];
-
-        let pruefsummen: Vec<u32> = run["checksums"]
-            .as_array()
-            .expect("checksums fehlen")
-            .iter()
-            .map(|v| u32::try_from(v.as_u64().expect("keine Zahl")).expect("zu gross"))
-            .collect();
-        assert_eq!(
-            first_divergence(&pruefsummen, &ergebnis.checksums, TICK_MS),
-            None,
-            "{name}: Simulator und Spiel laufen beim Abspielen auseinander"
-        );
-        assert_eq!(
-            ergebnis.damage,
-            u32_at(erwartet, "damage"),
-            "{name}: Schaden"
-        );
-        assert_eq!(
-            ergebnis.accepted,
-            u32_at(erwartet, "accepted"),
-            "{name}: angenommen"
-        );
-        assert_eq!(ergebnis.rejected, 0, "{name}: abgelehnte Drücke");
-        assert_eq!(
-            ergebnis.final_checksum,
-            u32_at(erwartet, "finalChecksum"),
-            "{name}: Schluss-Prüfsumme"
-        );
-    }
+    listen_aufzeichnung::das_abspielen_trifft_das_spiel(&data(), &LAEUFE);
 }
 
-/// Fährt die Liste des Laufs durch den Simulator und hält Wurfreihe, Schaden und
-/// Leerlauf gegen die Aufzeichnung.
-///
-/// Die Wurfreihe zuerst, und mit der ersten Abweichung in der Meldung: Eine
-/// abweichende Schadenszahl sagt „irgendwo", der erste verschiedene Wurf sagt,
-/// nach welchem Druck die Entscheidung auseinanderläuft.
 fn entscheidet_wie_im_spiel(name: &str) {
-    let json = data();
-    let run = lauf(&json, name);
-    let text = run["apl"].as_str().expect("apl fehlt");
-    let apl = parse(AplName(name), text)
-        .unwrap_or_else(|fehler| panic!("{name}: Liste ist fehlerhaft:\n{fehler}\n{text}"));
-    let mut fight = kampf(&json);
-    let ergebnis = fight.run_apl(&apl);
-    assert!(
-        !fight.log().overflowed(),
-        "{name}: Kampfprotokoll übergelaufen"
-    );
-
-    let simulator: Vec<(u32, usize)> = fight
-        .log()
-        .entries()
-        .iter()
-        .filter(|e| e.kind == LogKind::Cast)
-        .map(|e| (e.time, usize::from(e.spell)))
-        .collect();
-    let spiel = druecke(&json, run);
-
-    if let Some(stelle) =
-        (0..simulator.len().max(spiel.len())).find(|&i| simulator.get(i) != spiel.get(i))
-    {
-        let zeige = |reihe: &[(u32, usize)]| -> String {
-            reihe
-                .iter()
-                .skip(stelle.saturating_sub(2))
-                .take(4)
-                .map(|&(t, s)| format!("{t} {}", name_von(s)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        panic!(
-            "{name}: Wurf {stelle} weicht ab.\n  Spiel:     {}\n  Simulator: {}",
-            zeige(&spiel),
-            zeige(&simulator)
-        );
-    }
-
-    let erwartet = &run["expected"];
-    assert_eq!(
-        ergebnis.damage,
-        u32_at(erwartet, "damage"),
-        "{name}: Schaden"
-    );
-    let mut casts = [0_u32; SPELL_COUNT];
-    for &(_, spell) in &spiel {
-        casts[spell] += 1;
-    }
-    assert_eq!(ergebnis.casts, casts, "{name}: Wirkungen je Zauber");
-    assert_eq!(
-        ergebnis.idle_ms,
-        u32_at(erwartet, "idleMs"),
-        "{name}: Leerlauf — der Simulator zählt die Wartezeit anders als die Schleife des Spiels"
-    );
+    listen_aufzeichnung::entscheidet_wie_im_spiel(&data(), name);
 }
 
 #[test]
@@ -363,12 +173,7 @@ fn warten_auf_die_uhr_entscheidet_wie_im_spiel() {
 #[test]
 fn jeder_lauf_hat_einen_prueffall() {
     let json = data();
-    let in_der_datei: Vec<&str> = json["runs"]
-        .as_array()
-        .expect("runs fehlen")
-        .iter()
-        .map(|run| run["name"].as_str().expect("name fehlt"))
-        .collect();
+    let in_der_datei = laeufe(&json);
     assert_eq!(
         in_der_datei, LAEUFE,
         "Läufe der Aufzeichnung und Prüffälle dieser Datei passen nicht zusammen"
