@@ -6278,6 +6278,85 @@ export function schluesselNachlagePayload(): Record<string, unknown> {
   });
 }
 
+export const SCHLUESSEL_NACHLAGE_ABLAUF_NAME = 'schluessel-nachlage-ablauf';
+
+/**
+ * `shield-refund`, wenn der gelegte Schild UNGEBROCHEN abläuft und danach eine
+ * Umwandlungs-Schicht bricht (#419, Abnahme von #1146).
+ *
+ * ```text
+ *       0 ms  CRUST            990
+ *    5000 ms  Schlag (320)     fängt sie auf, 670 bleiben
+ *   12 010 ms                  CRUST läuft ab, ungebrochen, Merker frei
+ *   13 000 ms  TEMPER, ab 14 500 ms KINDLE     Umwandlung bis 23 000 ms
+ *   15 000 ms  Überladung      bricht die Umwandlungs-Schicht -> NICHTS
+ *   23 000 ms  Zauber (1200)   bricht die nachgewachsene      -> NICHTS
+ * ```
+ *
+ * Die Nachlage kommt aus dem Schild, der gelegt wurde und bricht. Vor der
+ * Abnahme von #1146 gab die Umwandlungs-Schicht die Hälfte der abgelaufenen
+ * CRUST — 495 bei 15 000 ms, auf beiden Seiten gleich falsch. Die Datei hält
+ * fest, dass beide Brüche nichts nachlegen (`refunds` leer, `breaks` nicht).
+ *
+ * Gegen `test-vessel`: der Schlag bei 5000 ms, die Überladung aus der
+ * Energieleiste (7 je Sekunde, Schwelle 100), der Zauber von 20 000 ms mit
+ * 3000 ms Wirkzeit.
+ */
+export function schluesselNachlageAblaufPayload(): Record<string, unknown> {
+  const runde: SchluesselRunde = {
+    name: SCHLUESSEL_NACHLAGE_ABLAUF_NAME,
+    bossId: 'test-vessel',
+    ticks: 2400,
+    talents: { 'coagulation-trunk': 1, 'coagulation-thicker': 1, 'coagulation-keystone': 1 },
+    talentPermille: { damage: 20, shieldAmount: 100 },
+    keystones: ['shield-refund'],
+    bindings: [
+      { slot: 0, spellId: 'crust' },
+      { slot: 1, spellId: 'temper' },
+      { slot: 2, spellId: 'kindle' },
+    ],
+    plan: new Map([
+      [0, 'crust'],
+      [1300, 'temper'],
+      [1450, 'kindle'],
+      [1600, 'kindle'],
+      [1750, 'kindle'],
+      [1900, 'kindle'],
+      [2050, 'kindle'],
+    ]),
+  };
+  const refunds: number[] = [];
+  const breaks: number[] = [];
+  const expiries: number[] = [];
+  let spentVorher = false;
+  let schildVorher = 0;
+  let aufgefangenVorher = 0;
+  const lauf = schluesselRunde(runde, (combat, tick) => {
+    if (!spentVorher && combat.shieldRefundSpent) refunds.push(tick);
+    spentVorher = combat.shieldRefundSpent;
+    // Ein Schild, der auf 0 fällt, ist entweder gebrochen (es wurde dabei
+    // aufgefangen) oder abgelaufen (nichts aufgefangen).
+    if (schildVorher > 0 && combat.shield === 0) {
+      (combat.shieldAbsorbed > aufgefangenVorher ? breaks : expiries).push(tick);
+    }
+    schildVorher = combat.shield;
+    aufgefangenVorher = combat.shieldAbsorbed;
+  });
+  const combat = lauf.combat;
+  return schluesselDatei(runde, lauf, {
+    // **Die Zusicherung, dass die Runde den Ablauf fährt**: Die CRUST läuft
+    // ab, zwei Umwandlungs-Schichten brechen, und keine legt nach.
+    expiries,
+    breaks,
+    refunds,
+    shield: combat.shield,
+    shieldAbsorbed: combat.shieldAbsorbed,
+    converted: combat.converted,
+    damageTaken: combat.damageTaken,
+    playerHp: combat.playerHp,
+  });
+}
+
 export function synergyPayload(): Record<string, unknown> {
   const recording = recordSynergy(3000);
   const result = replayRecording(recording, { checksumPerTick: true });
