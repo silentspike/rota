@@ -278,6 +278,87 @@ class MutationEvidence(unittest.TestCase):
                     self.assertFalse(evidence['completed'] or evidence['full_pass'])
                     self.assert_restored()
 
+    BUILD_PANIC = ("error: failed to run custom build command for `rota-sim v0.1.0 (/src/sim)`\n"
+                   "thread 'main' panicked at sim/build.rs:556:20:\n"
+                   "common.json/spells[?]: Feld \"id\" fehlt\n")
+    RUST_FAIL = ('     Running tests/probe.rs (target/debug/deps/probe-1234)\n'
+                 'running 2 tests\ntest first ... ok\ntest parity_damage_matches ... FAILED\n'
+                 'test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out\n')
+
+    def with_base_damage(self):
+        """The probes need a base value that every damage computation reads."""
+        for school in self.tool.SCHULEN:
+            text = json.dumps({'spells': [{'id': school, 'baseDamage': 100, 'heal': {'amount': 40},
+                                           'shield': {'amount': 30}}]}) + '\n'
+            (self.root / f'data/spells/{school}.json').write_text(text)
+            self.originals[school] = text
+
+    def probe_state(self):
+        first = json.loads((self.root / 'data/spells/calcination.json').read_text())['spells'][0]
+        common = json.loads((self.root / 'data/spells/common.json').read_text())['spells'][0]
+        return 'bau' if 'id' not in common else 'rot' if first['baseDamage'] != 100 else None
+
+    def probe_process(self, bau_breaks=True, rust_names=True):
+        calls = []
+
+        def process(command, _timeout):
+            state, field = self.probe_state(), self.missing()
+            calls.append((command.split()[0], state, field))
+            if '--no-run' in command:
+                return (101, self.BUILD_PANIC) if state == 'bau' and bau_breaks else (0, 'Finished\n')
+            if command.startswith('cargo'):
+                return (101, self.RUST_FAIL) if state == 'rot' and rust_names else (0, RUST_PASS)
+            return (1, TS_FAIL) if state or field else (0, TS_PASS)
+        return process, calls
+
+    def test_probes_run_after_the_baseline_and_before_any_field(self):
+        self.with_base_damage()
+        process, calls = self.probe_process()
+        self.assertEqual(self.drive(process, '--vorproben'), 0)
+        evidence = json.loads((self.root / 'evidence.json').read_text())
+        bau, rot = evidence['probes']['bau'], evidence['probes']['rot']
+        self.assertEqual(bau['status'], 'BAU')
+        self.assertEqual(bau['build']['exit'], 101)
+        self.assertFalse(bau['old_rule_detects'], 'the old text rule must miss exactly this case')
+        self.assertEqual(bau['rust']['status'], 'SKIPPED')
+        self.assertEqual(rot['status'], 'ROT')
+        self.assertEqual(rot['failure_names'], {'rust': ['parity_damage_matches'],
+                                                'ts': ['value changes the outcome']})
+        self.assertTrue(evidence['probes_passed'])
+        self.assertTrue(all(p['restored'] and p['sha256']['after_restore'] == p['sha256']['before']
+                            for p in (bau, rot)))
+        first_field = next(i for i, (_, _, field) in enumerate(calls) if field)
+        probe_calls = [i for i, (_, state, _) in enumerate(calls) if state]
+        self.assertTrue(probe_calls and max(probe_calls) < first_field)
+        self.assertTrue(evidence['historical_comparison']['full_pass'])
+        self.assert_restored()
+
+    def test_a_probe_with_the_wrong_outcome_stops_before_any_field(self):
+        for bau_breaks, rust_names, failing in ((False, True, 'bau'), (True, False, 'rot')):
+            with self.subTest(failing=failing):
+                self.fresh_tool()
+                self.with_base_damage()
+                process, calls = self.probe_process(bau_breaks, rust_names)
+                self.assertEqual(self.drive(process, '--vorproben'), 3)
+                evidence = json.loads((self.root / 'evidence.json').read_text())
+                self.assertEqual(evidence['fields'], {})
+                self.assertFalse(evidence['probes_passed'])
+                self.assertNotEqual(evidence['probes'][failing]['status'],
+                                    evidence['probes'][failing]['expected'])
+                self.assertFalse(any(field for _, _, field in calls))
+                self.assert_restored()
+
+    def test_without_probes_a_complete_pass_is_no_acceptance(self):
+        def process(command, _timeout):
+            if command.startswith('npx'):
+                return (1, TS_FAIL) if self.missing() else (0, TS_PASS)
+            return 0, RUST_PASS
+
+        self.assertEqual(self.drive(process), 0)
+        evidence = json.loads((self.root / 'evidence.json').read_text())
+        self.assertTrue(evidence['completed'] and evidence['full_pass'])
+        self.assertFalse(evidence['historical_comparison']['full_pass'])
+
     def test_real_cargo_remote_v2_output_is_a_complete_rust_summary(self):
         proof = self.tool.suite_nachweis(0, V2_PASS, 'rust')
         self.assertEqual(proof['status'], 'PASS')
