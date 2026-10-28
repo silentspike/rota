@@ -24,9 +24,14 @@ class MutationParallel(unittest.TestCase):
     assert_restored = evidence_tests.MutationEvidence.assert_restored
 
     def child(self, name):
+        # The pid file appears atomically. Written in place, it existed empty
+        # between open and write; a SIGTERM in that gap left it empty, and
+        # `/proc/` + '' + `/stat` is the system-wide /proc/stat — the
+        # IndexError seen once in 100 runs under dash.
         code = ('import os,signal,sys,time; from pathlib import Path; '
                 'signal.signal(signal.SIGTERM, signal.SIG_IGN); '
-                'Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(60)')
+                'tmp = Path(sys.argv[1] + ".tmp"); tmp.write_text(str(os.getpid())); '
+                'tmp.rename(sys.argv[1]); time.sleep(60)')
         return shlex.join([sys.executable, '-c', code, str(self.root / f'{name}.pid')])
 
     def grandchild(self, name):
@@ -74,13 +79,11 @@ class MutationParallel(unittest.TestCase):
     def assert_children_stopped(self):
         self.assertEqual(self.tool._LAUFEND, set())
         for path in self.root.glob('*.pid'):
-            stat = Path(f'/proc/{path.read_text()}/stat')
             # A reparented zombie has exited and cannot read the restored data.
-            try:
-                state = stat.read_text().split(') ', 1)[1][0]
-            except FileNotFoundError:
-                continue
-            self.assertEqual(state, 'Z', path.name)
+            # Under dash the pid is a grandchild of the tool, reaped by its new
+            # parent at any moment — so 'gone' may also mean "between open and
+            # read". The tool now waits for the group; nothing is guessed here.
+            self.assertIn(self.process_state(int(path.read_text())), ('Z', 'gone'), path.name)
 
     def assert_aborted_and_restored(self):
         self.assert_children_stopped()
@@ -208,6 +211,51 @@ class MutationParallel(unittest.TestCase):
         self.assertIn(state, ('Z', 'gone'), 'still running when the groups counted as ended')
         self.assertEqual([type(error) for error in errors], [InterruptedError])
         self.assertEqual(self.tool._LAUFEND, set())
+
+    def test_running_group_members_are_found_by_group_thread_by_thread(self):
+        # `_lebende_mitglieder` decides when the restore may begin. The timing
+        # case above cannot tell a correct scan from a slow one — the scan
+        # alone outlasts the worker's exit — so its rules are checked here on
+        # real processes of one group:
+        #   the shell AND the worker below it run; matching on the parent PID
+        #   would find the worker only,
+        #   a child that exited and was never reaped (Z) runs no more,
+        #   a process whose first thread exited while a second one runs
+        #   still runs — /proc/<pid>/stat alone shows it as Z.
+        code = textwrap.dedent('''
+            import os, subprocess, sys, time
+            from pathlib import Path
+            def state(pid):
+                return Path(f'/proc/{pid}/stat').read_text().rpartition(') ')[2][:1]
+            zombie = os.fork()
+            if zombie == 0:
+                os._exit(0)
+            threads = subprocess.Popen([sys.executable, '-c',
+                'import ctypes, threading, time; '
+                'threading.Thread(target=time.sleep, args=(20,)).start(); '
+                'ctypes.CDLL(None).pthread_exit(None)'])
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and (state(zombie), state(threads.pid)) != ('Z', 'Z'):
+                time.sleep(0.01)
+            pids = (os.getppid(), os.getpid(), threads.pid, zombie)
+            tmp = Path(sys.argv[1] + '.tmp')
+            tmp.write_text(' '.join(map(str, pids)))
+            tmp.rename(sys.argv[1])
+            time.sleep(20)
+        ''')
+        ready = self.root / 'members.pid'
+        group = subprocess.Popen(shlex.join([sys.executable, '-c', code, str(ready)]) + '; exit $?',
+                                 shell=True, start_new_session=True)
+        self.addCleanup(group.wait)
+        self.addCleanup(os.killpg, group.pid, signal.SIGKILL)
+        deadline = time.monotonic() + 10
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        shell, worker, threads, zombie = map(int, ready.read_text().split())
+        self.assertEqual(shell, group.pid)
+        self.assertEqual((self.process_state(zombie), self.process_state(threads)), ('Z', 'Z'))
+        self.assertEqual(sorted(self.tool._lebende_mitglieder(group.pid)),
+                         sorted([shell, worker, threads]))
 
     def test_sigterm_can_reenter_the_process_registry_lock(self):
         def process(command, _timeout):
