@@ -154,28 +154,65 @@ impl Druck {
     #[must_use]
     pub fn stoert_zeitmessung(&self) -> Option<String> {
         use crate::hostcaps::{PSI_CPU_MAX, PSI_IO_MEM_MAX};
-        let zahl = |x: f64| format!("{x:.2}").replace('.', ",");
-        match (self.cpu, self.speicher) {
-            (None, _) => Some(
-                "kein Druckwert lesbar — ohne ihn ist eine Zeitmessung unter Fremdlast nicht \
-                 von einer Verlangsamung zu trennen"
-                    .to_owned(),
-            ),
-            (Some(cpu), _) if cpu > PSI_CPU_MAX => Some(format!(
+        Some(match self.stoerung()? {
+            Stoerung::OhneDruck => "kein Druckwert lesbar — ohne ihn ist eine Zeitmessung unter \
+                                    Fremdlast nicht von einer Verlangsamung zu trennen"
+                .to_owned(),
+            Stoerung::Rechendruck(cpu) => format!(
                 "Rechendruck: PSI cpu some avg10 bis {} % im Fenster, über {} % — Fremdlast \
                  oder eigene Stränge ohne freien Kern; die Zeitmessung ist nicht aussagekräftig",
                 zahl(cpu),
                 zahl(PSI_CPU_MAX)
-            )),
-            (_, Some(speicher)) if speicher > PSI_IO_MEM_MAX => Some(format!(
+            ),
+            Stoerung::Speicherdruck(speicher) => format!(
                 "Speicherdruck: PSI memory some avg10 bis {} % im Fenster, über {} % — die \
                  Zeitmessung ist nicht aussagekräftig",
                 zahl(speicher),
                 zahl(PSI_IO_MEM_MAX)
-            )),
+            ),
+        })
+    }
+
+    /// Dieselbe Störung in wenigen Worten, für den Satz der Diagnose — etwa
+    /// „PSI cpu 10,04 %". `None` genau dann, wenn [`Druck::stoert_zeitmessung`]
+    /// `None` ist: Beide lesen [`Druck::stoerung`].
+    #[must_use]
+    pub fn aussetzgrund(&self) -> Option<String> {
+        Some(match self.stoerung()? {
+            Stoerung::OhneDruck => "kein Druckwert lesbar".to_owned(),
+            Stoerung::Rechendruck(cpu) => format!("PSI cpu {} %", zahl(cpu)),
+            Stoerung::Speicherdruck(speicher) => format!("PSI memory {} %", zahl(speicher)),
+        })
+    }
+
+    /// Ob und wodurch eine Zeitmessung gestört ist — die eine Stelle, an der
+    /// die Grenzen stehen.
+    fn stoerung(&self) -> Option<Stoerung> {
+        use crate::hostcaps::{PSI_CPU_MAX, PSI_IO_MEM_MAX};
+        match (self.cpu, self.speicher) {
+            (None, _) => Some(Stoerung::OhneDruck),
+            (Some(cpu), _) if cpu > PSI_CPU_MAX => Some(Stoerung::Rechendruck(cpu)),
+            (_, Some(speicher)) if speicher > PSI_IO_MEM_MAX => {
+                Some(Stoerung::Speicherdruck(speicher))
+            }
             _ => None,
         }
     }
+}
+
+/// Wodurch eine Zeitmessung gestört ist.
+#[derive(Debug, Clone, Copy)]
+enum Stoerung {
+    /// Kein CPU-Druckwert lesbar.
+    OhneDruck,
+    /// PSI cpu über der Grenze, mit dem Höchststand.
+    Rechendruck(f64),
+    /// PSI memory über der Grenze, mit dem Höchststand.
+    Speicherdruck(f64),
+}
+
+fn zahl(x: f64) -> String {
+    format!("{x:.2}").replace('.', ",")
 }
 
 /// Was eine Momentaufnahme für die Engpasserkennung festhält, kumuliert ab

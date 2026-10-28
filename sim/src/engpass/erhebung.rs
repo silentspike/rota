@@ -193,11 +193,15 @@ impl Engpassbild {
             "none"
         };
         let mut j = format!(
-            "{{\"state\":\"{zustand}\",\"diagnosis\":{},\"sentence\":{},",
+            "{{\"state\":\"{zustand}\",\"diagnosis\":{},\"sentence\":{},\
+             \"time_diagnosis_suspended\":{},",
             d.befunde
                 .first()
                 .map_or_else(|| "null".to_owned(), |b| json_string(b.regel.diagnose())),
-            json_string(&d.satz())
+            json_string(&d.satz()),
+            d.zeit_ausgesetzt
+                .as_deref()
+                .map_or_else(|| "null".to_owned(), json_string)
         );
         let befunde: Vec<String> = d
             .befunde

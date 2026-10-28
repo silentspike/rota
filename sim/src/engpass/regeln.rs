@@ -193,6 +193,9 @@ pub struct Diagnose {
     pub geprueft: Vec<Regel>,
     /// Die Zeilen, die nicht geprüft werden konnten, mit dem Grund.
     pub ungeprueft: Vec<(Regel, String)>,
+    /// Warum eine Zeitzeile aussetzt, in wenigen Worten — `None`, wenn
+    /// keine wegen des Drucks aussetzte ([`super::Druck::aussetzgrund`]).
+    pub zeit_ausgesetzt: Option<String>,
 }
 
 impl Diagnose {
@@ -203,27 +206,35 @@ impl Diagnose {
     /// wenn überhaupt eine geprüft wurde — sonst sagt der Satz, warum nichts
     /// geprüft ist. Ein Wächter, der nichts prüfen kann, darf nicht wie einer
     /// aussehen, der nichts gefunden hat.
+    ///
+    /// **Und eine ausgesetzte Zeitdiagnose schweigt nicht** (Entscheidung des
+    /// Orchestrators, 2026-10-28): Setzt eine Zeitzeile wegen des Drucks aus,
+    /// endet jeder der drei Sätze mit „Zeitdiagnose ausgesetzt: …".
     #[must_use]
     pub fn satz(&self) -> String {
-        if let Some(erster) = self.befunde.first() {
+        let mut s = if let Some(erster) = self.befunde.first() {
             let mut s = erster.satz();
             if self.befunde.len() > 1 {
                 s.push_str(&format!(" (+{} weitere)", self.befunde.len() - 1));
             }
-            return s;
-        }
-        if self.geprueft.is_empty() {
+            s
+        } else if self.geprueft.is_empty() {
             let grund = self
                 .ungeprueft
                 .first()
                 .map_or("keine Messwerte", |(_, g)| g.as_str());
-            return format!("noch keine Diagnose — {grund}");
+            format!("noch keine Diagnose — {grund}")
+        } else {
+            format!(
+                "keine Diagnose — {} von {} Zeilen geprüft, keine schlägt an",
+                self.geprueft.len(),
+                self.geprueft.len() + self.ungeprueft.len()
+            )
+        };
+        if let Some(grund) = &self.zeit_ausgesetzt {
+            s.push_str(&format!("; Zeitdiagnose ausgesetzt: {grund}"));
         }
-        format!(
-            "keine Diagnose — {} von {} Zeilen geprüft, keine schlägt an",
-            self.geprueft.len(),
-            self.geprueft.len() + self.ungeprueft.len()
-        )
+        s
     }
 }
 
@@ -312,7 +323,10 @@ pub fn diagnose(m: &Messwerte, schluessel: &Schluessel, grundlage: Option<&Grund
             Regel::StraengeWarten,
             "kein über mehrere Stränge verteilter Abschnitt im Fenster".to_owned(),
         )),
-        (Some(_), Some(grund)) => d.ungeprueft.push((Regel::StraengeWarten, grund)),
+        (Some(_), Some(grund)) => {
+            d.ungeprueft.push((Regel::StraengeWarten, grund));
+            d.zeit_ausgesetzt = m.druck.aussetzgrund();
+        }
         (Some(w), None) => {
             d.geprueft.push(Regel::StraengeWarten);
             if w > STRANG_WARTEN_ANTEIL {
@@ -578,6 +592,7 @@ fn rueckfall(d: &mut Diagnose, m: &Messwerte, vergleich: &Result<&Grundlage, Str
     };
     if let Some(grund) = zeit_gestoert(m) {
         d.ungeprueft.push((Regel::ZeitOhneZaehler, grund));
+        d.zeit_ausgesetzt = m.druck.aussetzgrund();
         return;
     }
     match relativ(m.cpu_ns_je_kampf, g.werte.cpu_ns_je_kampf) {
