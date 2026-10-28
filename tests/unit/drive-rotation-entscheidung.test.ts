@@ -24,7 +24,7 @@
 import { describe, expect, it } from 'vitest';
 import { CALCINATION, FIRST_CRUCIBLE } from '../../src/core/data.js';
 import { Combat, alsSpellIndex } from '../../src/core/combat.js';
-import { driveRotation } from '../../src/devtools/reference-run.js';
+import { driveRotation, runReference } from '../../src/devtools/reference-run.js';
 
 interface Zeile {
   readonly spellId: string;
@@ -141,6 +141,22 @@ describe('Leerlauf: je Takt mit bereiter Wartezeit und ohne Wurf 10 ms', () => {
       { spellId: 'quench', gilt: (_c, t) => t >= 700 },
     ]);
     expect(idleMs).toBe(0);
+  });
+});
+
+describe('Nach dem Kampfende nimmt der Kampf keinen Wurf mehr an', () => {
+  it('ein bereiter Zauber, den der Kampf abweist, beendet die Entscheidung beim Zeitstempel', () => {
+    // `boss-1-2` legt den Spieler mit der guten Rotation bei 18000 über das
+    // Verhängnis. Danach meldet `isReady` KINDLE weiter als bereit, `cast`
+    // weist ihn aber ab (`CAST_FIGHT_OVER`) — der Zustand ändert sich nicht,
+    // und eine Schleife, die beim selben Zeitstempel weiterfragt, fragte
+    // endlos. Gemessen beim Bau: `Nullzeit-Zyklus bei 18000 ms … (kindle)` in
+    // `instanz-3.test.ts` und `instanz-4.test.ts`.
+    const r = runReference('good', { bossId: 'boss-1-2', durationMs: 30_000, stopOnKill: false });
+    expect(r.killedAtMs).toBe(-1);
+    // **Der Leerlauf bleibt der der alten Schleife:** Ein gewählter, aber
+    // abgewiesener Zauber war dort kein leerer Takt.
+    expect(r.idleMs).toBe(0);
   });
 });
 
