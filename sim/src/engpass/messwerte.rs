@@ -142,6 +142,12 @@ impl Druck {
     /// [`crate::hostcaps::PSI_IO_MEM_MAX`] für Speicher). Ohne lesbaren
     /// CPU-Druck ist eine Verlangsamung von Fremdlast nicht zu trennen.
     ///
+    /// **PSI zählt auch die eigenen Stränge.** Am 2026-10-28 auf node3, ohne
+    /// ein fremdes Programm im Container: vier Arbeitsstränge auf vier
+    /// erlaubten Kernen, tausende Auswertungen je Sekunde — Leit- und
+    /// Anzeigestrang warteten auf einen Kern, und PSI cpu stieg von 1,43 auf
+    /// 12,15 %. Der Satz nennt deshalb beide Ursachen.
+    ///
     /// Was keine Ablesung zeigt: einen gedrosselten Takt. Unter Volllast lief
     /// der Laptop am 2026-10-28 mit dreieinhalbfacher CPU-Zeit je Kampf bei nur
     /// +27 % Zyklen. Zähler sehen das nicht, eine Uhr schon.
@@ -156,8 +162,8 @@ impl Druck {
                     .to_owned(),
             ),
             (Some(cpu), _) if cpu > PSI_CPU_MAX => Some(format!(
-                "Fremdlast: PSI cpu some avg10 bis {} % im Fenster, über {} % — die \
-                 Zeitmessung ist nicht aussagekräftig",
+                "Rechendruck: PSI cpu some avg10 bis {} % im Fenster, über {} % — Fremdlast \
+                 oder eigene Stränge ohne freien Kern; die Zeitmessung ist nicht aussagekräftig",
                 zahl(cpu),
                 zahl(PSI_CPU_MAX)
             )),
