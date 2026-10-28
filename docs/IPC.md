@@ -500,20 +500,58 @@ Fällt das System ganz aus, gilt der alte Weg: Der Orchestrator schreibt den Tex
 Auftraggeber kopiert — **ausdrücklich angesagt**, nicht stillschweigend, und mit einer
 Analyse, warum es versagt hat.
 
+## Entscheidungen des Auftraggebers — wo sie liegen
+
+Fragen an den Auftraggeber stellt nur der Orchestrator (`rota-fragen neu`); Worker wenden
+sich über den Meldeweg an ihn. Der Auftraggeber antwortet auf der Fragenseite
+`localhost:8000/work/rota/fragen/`, und der Fragendienst stellt die Antwort dem
+Orchestrator als Nachricht `[ANTWORT DES AUFTRAGGEBERS — VERBINDLICH]` zu. Eine solche
+Antwort ersetzt jede eigene Annahme dazu, auch eine, die im Plan steht.
+
+**Nachlesen kann jede Sitzung selbst, ohne den Orchestrator zu fragen:**
+
+| Was                                    | Wo                                               |
+| -------------------------------------- | ------------------------------------------------ |
+| die Entscheidungen selbst              | `/work/rota/fragen/antworten/<frage-id>.json`    |
+| der Fragenkatalog (Wortlaut, Optionen) | `/work/rota/fragen/fragen.json`                  |
+| alles nebeneinander                    | `rota-fragen zeigen`                             |
+| der zugestellte Wortlaut               | `rota-fragen antworten`                          |
+| Widersprüche zwischen beiden Dateien   | `rota-fragen stand` (Rückgabe 1 bei Widerspruch) |
+
+**Maßgeblich ist die Antwortdatei, nicht das Feld `status` in `fragen.json`.** Den Status
+`beantwortet` trägt erst `rota-fragen quittieren` nach, wenn der Orchestrator vermerkt hat,
+was er aus der Antwort macht; bis dahin steht dort `offen`, obwohl die Entscheidung
+vorliegt. Wer `fragen.json` direkt mit `jq` liest, sieht deshalb nicht den ganzen Stand.
+`rota-fragen zeigen` legt beide Dateien nebeneinander und nennt jeden Widerspruch oben.
+
+**Nur lesen.** Geschrieben wird dort ausschließlich über `rota-fragen` und den
+Fragendienst, beide unter derselben Schreibsperre (`/work/rota/fragen/.schreibsperre`).
+Ein Schreiben am Werkzeug vorbei kann eine Antwort oder Quittung überschreiben, ohne dass
+es jemand merkt.
+
+**`fragen/` ist nicht versioniert.** Das Verzeichnis liegt im Spiel-Checkout `/work/rota`,
+ist dort aber per `.gitignore` ausgeschlossen: Ein `git clean -x` in `/work/rota` löscht
+es samt allen Antworten (`git clean -ndx -- fragen` meldet `Would remove fragen/`). In den
+Worker-Worktrees liegt es nicht. Wo es künftig dauerhaft gesichert wird, ist offen (#1095).
+
 ## Wo was liegt
 
-| Was         | Wo                                                          |
-| ----------- | ----------------------------------------------------------- |
-| Sender      | `~/bin/rota-ipc`                                            |
-| Watcher     | `~/bin/rota-ipc-watcher`                                    |
-| Rollen      | `/work/rota-ipc/rollen.json`                                |
-| Nachrichten | `/work/rota-ipc/nachrichten/` (Klartext, nicht versioniert) |
-| Pausen      | `/work/rota-ipc/pausen.json`                                |
-| Prüflauf    | `/work/rota-ipc/pruefen.sh`                                 |
-| Plan        | `/work/rota-ipc/PLAN.md`                                    |
+| Was                              | Wo                                                              |
+| -------------------------------- | --------------------------------------------------------------- |
+| Sender                           | `~/bin/rota-ipc`                                                |
+| Watcher                          | `~/bin/rota-ipc-watcher`                                        |
+| Rollen                           | `/work/rota-ipc/rollen.json`                                    |
+| Nachrichten                      | `/work/rota-ipc/nachrichten/` (Klartext, nicht versioniert)     |
+| Pausen                           | `/work/rota-ipc/pausen.json`                                    |
+| Prüflauf                         | `/work/rota-ipc/pruefen.sh`                                     |
+| Plan                             | `/work/rota-ipc/PLAN.md`                                        |
+| Entscheidungen des Auftraggebers | `/work/rota/fragen/antworten/` (lesen mit `rota-fragen zeigen`) |
+| Fragenwerkzeug und -dienst       | `~/bin/rota-fragen`, `rota-fragen.service`                      |
 
-Der Zustand liegt **außerhalb** des Spiel-Repositories — sonst würde ein `git checkout` in
-einem Worktree Rollen umschalten oder Nachrichten überschreiben.
+Der Zustand des Nachrichtensystems liegt **außerhalb** des Spiel-Repositories — sonst würde
+ein `git checkout` in einem Worktree Rollen umschalten oder Nachrichten überschreiben. Die
+Fragenablage ist die Ausnahme: Sie liegt im Checkout `/work/rota`, nur von `.gitignore`
+ausgenommen (siehe oben).
 
 ## Verhältnis zum bestehenden openinbox
 

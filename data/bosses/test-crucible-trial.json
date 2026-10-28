@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "test-crucible-trial",
-  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #240 (eskalierende Wiederholung, Schwaechung ohne Heil-Loesung) und sonst nichts. BAUSTEIN 6 STAND HIER BIS ZUM 2026-08-05 als eigenes Feld `stabilise` und ist herausgenommen: Der Boss-Ring des Spiels IST die Reaktion (GAME-DESIGN 9.1), ein zweiter Wert daneben waere eine Dublette gewesen. Er wird in Issue #247 gebaut, am Ring statt an einem zweiten Wert. ZUR ERREICHBARKEIT, weil in einer Nacht fuenfmal eine Pruefung richtig gebaut war und die Zahlen den Fall unmoeglich machten: Die Zeitleiste wiederholt sich alle 12 s, die Wirkzeit beginnt bei 3000 ms und schrumpft je Zyklus um 500 auf mindestens 1000 — nach vier Zyklen ist die Untergrenze erreicht und damit auch SIE im Lauf sichtbar. Die Schwaechung greift bei 8 s und tickt jede Sekunde. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10.",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT. Dieser Boss traegt die Prueffaelle zu Issue #240 (eskalierende Wiederholung, Schwaechung ohne Heil-Loesung) und sonst nichts. BAUSTEIN 6 STAND HIER BIS ZUM 2026-08-05 als eigenes Feld `stabilise` und ist herausgenommen: Der Boss-Ring des Spiels IST die Reaktion (GAME-DESIGN 9.1), ein zweiter Wert daneben waere eine Dublette gewesen. Er wird in Issue #247 gebaut, am Ring statt an einem zweiten Wert. ZUR ERREICHBARKEIT, weil in einer Nacht fuenfmal eine Pruefung richtig gebaut war und die Zahlen den Fall unmoeglich machten: Die Zeitleiste wiederholt sich alle 12 s, die Wirkzeit beginnt bei 3000 ms und schrumpft je Zyklus um 500 auf mindestens 1000 — nach vier Zyklen ist die Untergrenze erreicht und damit auch SIE im Lauf sichtbar. Die Schwaechung greift bei 8 s und tickt jede Sekunde. Kein Boss des Spiels traegt diese Bausteine — welcher sie bekommt, entscheidet E10.\n\nARBEITSNAMEN (Issue #797): \"Trial Taint\" (affliction). Pruefboss; den Namen braucht die Ankuendigung (GAME-DESIGN 11.5), die jede Faehigkeit beim Namen nennt.",
   "name": "The Crucible Trial",
   "instance": "test",
   "hp": 999999,
@@ -17,6 +17,7 @@
     "minCastTimeMs": 1000
   },
   "affliction": {
+    "name": "Trial Taint",
     "atMs": 8000,
     "perStepMs": 1000,
     "damage": 30,

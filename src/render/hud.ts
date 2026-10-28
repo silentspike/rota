@@ -42,6 +42,7 @@ import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numeral
 import { alsSpellIndex } from '../core/combat.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
+import { AnnouncementRenderer } from './announcements.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
 import {
   feedsMechanic,
@@ -206,6 +207,8 @@ export class HudRenderer {
    */
   private readonly mechanicSource: LoadoutSource;
   private readonly spellBar: SpellBar;
+  /** Die Boss-Ankündigungen (GAME-DESIGN 11.5, Issue #797). */
+  readonly announcements = new AnnouncementRenderer();
   private readonly trainingMetrics = {
     lostTimeMs: 0,
     lostTimeShare: 0,
@@ -341,6 +344,7 @@ export class HudRenderer {
     this.digitAdvanceCountdown = measureDigitAdvance(ctx);
     this.spellBar.measure(ctx);
     this.impact.measure(ctx);
+    this.announcements.measure(ctx);
   }
 
   render(simTimeMs: number, alpha: number): void {
@@ -349,20 +353,37 @@ export class HudRenderer {
     // Wischblende und Wartezeit bei 144 Hz sichtbar in Zehntel-Stufen.
     const shownMs = simTimeMs + alpha * TICK_MS;
 
+    // Die Ankündigungen VOR dem Bildbeginn: Das Ruckeln von Stufe 3 verschiebt
+    // die ganze Fläche, genau wie das der Treffer (GAME-DESIGN 9, 11.5).
+    this.announcements.update(
+      this.session.combat,
+      this.session.fightElapsedMs(shownMs),
+      this.session.phase === PHASE_FIGHTING,
+    );
+
     // Das Bild-Ruckeln verschiebt die ganze Fläche (GAME-DESIGN 9).
-    this.surface.beginFrame(BACKGROUND, LETTERBOX, this.impact.shakeOffset(shownMs), 0);
+    this.surface.beginFrame(
+      BACKGROUND,
+      LETTERBOX,
+      this.impact.shakeOffset(shownMs) + this.announcements.shakeOffset(),
+      0,
+    );
     ctx.textBaseline = 'alphabetic';
 
     this.drawVesselAndTimer(ctx, shownMs);
+    this.announcements.drawVesselHighlight(ctx, shownMs);
     this.impact.draw(ctx, shownMs);
     this.drawHeat(ctx);
     this.drawMechanicNumbers(ctx);
     this.drawBossCastBar(ctx, shownMs);
+    this.announcements.drawCenter(ctx);
     this.drawCastBar(ctx, shownMs);
     this.drawResetPrompt(ctx);
     this.spellBar.draw(ctx, shownMs);
+    this.announcements.drawList(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
     this.drawCountdown(ctx, shownMs);
+    this.announcements.drawFlash(ctx);
     this.syncOverlay(shownMs);
   }
 
