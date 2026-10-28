@@ -526,12 +526,22 @@ def bau_gebrochen(code, ausgabe):
 # hätte das Feld damit BAU geheißen, ohne dass ein einziger Compiler lief. Und
 # seit v2 parallele Worktrees zulässt, ist Exit 75 ein Alltagsfall: Der Server
 # reiht nichts ein, er lehnt ab, wenn sein Budget voll ist.
+#
+# 12, 23 und 255 kommen gar nicht vom Client selbst, sondern von rsync, über
+# das er die Quellen hochlädt: `subprocess.run(rsync, check=True)` und am Ende
+# `sys.exit(exc.returncode)` (client.py der installierten v2-Fassung). Der
+# Code wird also unverändert durchgereicht. Ohne diese Einträge hieß ein
+# abgebrochener Upload im Feld-Bau BAU — ein Feld als Pflichtfeld verbucht,
+# für das kein einziger Compiler lief (#1055).
 DIENST_AUSGAENGE = {
     75: "kein Platz auf dem Bau-Dienst oder Arbeitsbereich belegt — nichts eingereiht",
     70: "Verbindung oder Ausführer des Bau-Dienstes verloren",
     74: "Artefakte nicht übertragbar",
     130: "abgebrochen",
     2: "Aufruf oder Projektkonfiguration vom Client abgelehnt",
+    12: "rsync: Fehler im Protokoll-Datenstrom — Übertragung abgebrochen",
+    23: "rsync: Teilübertragung — nicht alle Dateien übertragen",
+    255: "ssh unter rsync gescheitert — keine Verbindung zum Bau-Dienst",
 }
 
 
