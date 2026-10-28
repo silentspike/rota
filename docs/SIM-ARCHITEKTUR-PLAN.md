@@ -3919,6 +3919,25 @@ Belegung der Ereignisschlange · Trefferquote von expire_buffs
 | `expire_buffs`-Trefferquote > 20 %                               | die Annahme aus E11.2 gilt nicht mehr | neu messen, Endausbau erreicht          |
 | Ereignisschlange > 80 % voll                                     | Kapazität wird knapp                  | **vor** dem Überlauf handeln (E11.0b)   |
 
+> **Entschieden am 2026-10-28 (Orchestrator)** — drei Stellen, die die Tabelle offen ließ, so wie
+> #934 sie umsetzt (`sim/src/engpass/regeln.rs`):
+>
+> 1. **„cycles/event +30 %" ist die gemeinsame Vorbedingung der Zeilen 1 und 2**, gemessen je
+>    Kampf. Ohne gestiegene Kosten je Ereignis gibt es keinen Engpass, nur verschobene Zähler.
+> 2. **„L3 niedrig" heißt: Weniger als die Hälfte der zusätzlichen L2-Fehlgriffe geht auch an L3
+>    vorbei.** Die relative Lesart („L3 unter +50 %") widerlegte die Speicherlage: L2-Fehlgriffe
+>    je Kampf 1,24 → 29,33 (+2274 %), L3 1,05 → 3,29 (+213 %) — von den zusätzlichen gingen 8,0 %
+>    an L3 vorbei (node3, Zen 5, 2026-10-28). Eine fast leere dritte Ebene macht aus jeder Handvoll
+>    Fehlgriffe einen großen Anteil.
+> 3. **Die Zeitzeilen — Stränge warten, CPU-Zeit je Kampf im Rückfall — prüfen nur, solange der
+>    Höchststand von PSI `some avg10` im Fenster bei höchstens 5 % cpu und 10 % memory liegt**
+>    (`hostcaps::PSI_CPU_MAX`, `PSI_IO_MEM_MAX`). Darüber schweigen sie nicht: Der Satz endet mit
+>    „Zeitdiagnose ausgesetzt: PSI cpu …".
+> 4. **Die Rückfallzeile „langsamer als die Grundlage" gilt nur auf taktfesten Rechnern.** Gemessen
+>    am 2026-10-28: node3 ±3 %, Laptop zwischen gleichen Läufen ±40 % (24,7–45,8 µs je Kampf) bei
+>    PSI ≤ 4,08 %; auf dem Laptop rechnet die CPU nicht (Entscheidung des Auftraggebers
+>    2026-10-28).
+
 **Die vorletzte Zeile ist der eigentliche Zweck dieses Issues.** Jede Optimierung von E11 beruht
 auf einer heute gemessenen Verteilung. Der Engpasswächter ist das Bauteil, das **meldet, wann
 eine dieser Annahmen abgelaufen ist** — und im Endausbau werden mehrere ablaufen (Teil 1).

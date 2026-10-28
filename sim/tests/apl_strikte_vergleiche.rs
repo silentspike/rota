@@ -1,21 +1,25 @@
-//! Hält fest, dass ein strikter Vergleich (`<`) auf einem zeitabhängigen Wert
-//! **später** greift als der nicht-strikte (`<=`) — und um wie viel.
+//! Hält fest, wann ein strikter Vergleich (`<`) auf einem zeitabhängigen Wert
+//! greift — gegen den nicht-strikten (`<=`) und gegen eine Takt-Referenz.
 //!
-//! # Was dieser Fall festhält, und was nicht
+//! # Fassung B ist entschieden (2026-10-28)
 //!
-//! Er hält den **gemessenen Ist-Zustand** fest, nicht den gewollten. Ob `<`
-//! greifen soll, wie es dasteht, ist in #1027 offen und wird vom Auftraggeber
-//! entschieden. Bis dahin ist der Verzug nicht abgesichert: Er kann sich
-//! verschieben, ohne dass etwas rot wird — auch in die *richtige* Richtung,
-//! dann wäre das Problem behoben und niemand wüsste es.
+//! Der Auftraggeber hat am 2026-10-28 Fassung B gewählt („B, wie das Spiel"):
+//! Eine Zahl in einer Bedingung auf einem Zeitwert greift im Simulator wie im
+//! Spiel auf dem 10-ms-Takt. `switch_point` (`sim/src/apl/mod.rs`) legt den
+//! Weckruf seither auf den ersten Takt, an dem der Vergleich **kippt**, nicht
+//! mehr auf den, an dem der Wert die Schwelle **erreicht**.
 //!
-//! **Wird dieser Fall rot, ist das eine Information, keine Panne.** Er gehört
-//! dann angepasst, nicht repariert: Wer ihn stillschweigend auf die neuen
-//! Zahlen zieht, löscht den einzigen Beleg dafür, dass sich etwas geändert hat.
+//! Bis dahin hielt diese Datei den gemessenen Ist-Zustand von Fassung A fest:
+//! `<` griff erst am nächsten fremden Ereignis. Die sechs Fälle, die das
+//! festhielten — die drei Verzugsfälle unten und die drei Formtabellen —, sind
+//! auf B **umgestellt, nicht gelöscht**: Ihre Sollwerte stehen jetzt dort, wo
+//! die Takt-Referenz wirft. Die alten Zahlen stehen in den Doc-Kommentaren
+//! daneben und in `docs/APL-STRICT-COMPARISON-2026-10-24.md`; dort sind A und B
+//! über alle 42 Bosse gemessen (PR #1135).
 //!
 //! # Warum die Eigenschaft und nicht die Zahl
 //!
-//! Der Verzug ist **nicht konstant**. Gemessen am 2026-08-22:
+//! Unter Fassung A war der Verzug **nicht konstant**. Gemessen am 2026-08-22:
 //!
 //! | Boss | erster Eintrag | Umschlagpunkt | `<=` greift | `<` greift | Verzug |
 //! | --- | ---: | ---: | ---: | ---: | ---: |
@@ -27,8 +31,10 @@
 //! Umschlagpunkt ins Raster fällt. Eine einzelne Zahl festzunageln hieße, eine
 //! Eigenschaft des Aufbaus für eine Eigenschaft der Sache zu halten.
 //!
-//! Deshalb prüft dieser Fall die **Richtung** (`<` greift später) an zwei
-//! Aufbauten und die konkreten Punkte je Aufbau getrennt.
+//! Unter Fassung B ist er an beiden Aufbauten genau ein Takt (9010 und 7010):
+//! Er hängt nicht mehr am Raster, sondern allein an der Strenge des Vergleichs.
+//! Beide Aufbauten bleiben stehen — wäre der Verzug wieder rasterabhängig,
+//! fielen sie verschieden aus.
 //!
 //! # Die Ursache ist geklärt (2026-10-24)
 //!
@@ -40,8 +46,9 @@
 //! auf dem Zeitpunkt, an dem der Wert die Schwelle **erreicht**; dort ist `<=`
 //! wahr und `<` noch falsch, und einen zweiten Weckruf stellt `switch_point`
 //! am Umschlag für keine Form. Gemessen: Mit einem Weckruf auf dem ersten Takt,
-//! an dem der Vergleich kippt (Fassung B, Wegwerf-Patch), wirft `< 3000` bei
-//! 9010 statt 10000 und bei 7010 statt 7500.
+//! an dem der Vergleich kippt (Fassung B, damals Wegwerf-Patch, seit dem
+//! 2026-10-28 eingebaut), wirft `< 3000` bei 9010 statt 10000 und bei 7010
+//! statt 7500.
 //!
 //! **Die Mutation vom 2026-08-22 konnte das nicht zeigen.** Sie schaltete den
 //! Weckruf für `BossNextStrikeIn` ab, und alle Fälle hier blieben grün — aber
@@ -112,67 +119,82 @@ fn die_messmethode_unterscheidet_ueberhaupt() {
     );
 }
 
+/// Der erste `kindle`-Wurf der Liste `kindle if <bedingung>` vor `purge`, **auf
+/// den Takt genau** — aus dem Kampfprotokoll gelesen statt über die
+/// 250-ms-Schritte von [`erster_wurf`].
+///
+/// Seit Fassung B (#1027) liegt der Unterschied zwischen `<` und `<=` bei einem
+/// Takt; `erster_wurf` ergäbe für beide dieselbe Schranke (9250) und könnte ihn
+/// nicht sehen.
+fn erster_wurf_genau(boss: &str, bedingung: &str) -> Option<u32> {
+    let apl: Apl = parse(AplName("probe"), &format!("kindle if {bedingung}\npurge\n"))
+        .unwrap_or_else(|e| panic!("Prioritätenliste ist fehlerhaft:\n{e}"));
+    kindle_im_fenster(boss, &apl, 0, 60_000).first().copied()
+}
+
+/// **Trägerprüfung der genauen Messmethode**, aus demselben Grund wie bei
+/// [`erster_wurf`]: Eine Bedingung, die nie gilt, darf keinen Wurf ergeben, eine,
+/// die immer gilt, muss beim ersten Takt werfen.
+#[test]
+fn die_genaue_messmethode_unterscheidet_ueberhaupt() {
+    assert_eq!(erster_wurf_genau(BOSS_12000, "time < 0"), None);
+    assert_eq!(erster_wurf_genau(BOSS_12000, "time >= 0"), Some(0));
+}
+
+/// **Fassung B, entschieden am 2026-10-28** („B, wie das Spiel"): `< 3000` greift
+/// einen Takt nach `<= 3000`, so wie im Spiel — nicht mehr erst am nächsten
+/// fremden Ereignis (bis dahin 10000 statt 9010).
 #[test]
 fn strikt_greift_spaeter_als_nicht_strikt_bei_eintrag_12000() {
-    let nicht_strikt = erster_wurf(BOSS_12000, "boss.next_strike_in <= 3000");
-    let strikt = erster_wurf(BOSS_12000, "boss.next_strike_in < 3000");
+    let nicht_strikt = erster_wurf_genau(BOSS_12000, "boss.next_strike_in <= 3000");
+    let strikt = erster_wurf_genau(BOSS_12000, "boss.next_strike_in < 3000");
     assert_eq!(
         nicht_strikt,
-        Some(9250),
+        Some(9000),
         "`<= 3000` soll am Umschlagpunkt 9000 greifen"
     );
     assert_eq!(
         strikt,
-        Some(10250),
-        "`< 3000` greift gemessen erst bei 10000"
-    );
-    assert!(
-        strikt > nicht_strikt,
-        "Der strikte Vergleich müsste später greifen als der nicht-strikte. \
-         Tut er es nicht mehr, wurde #1027 entschieden — dann gehört dieser \
-         Fall angepasst, nicht repariert."
+        Some(9000 + TICK_MS),
+        "`< 3000` greift unter Fassung B einen Takt nach dem Umschlag — bei 10000 \
+         läge der Weckruf wieder auf dem Erreichen der Schwelle (Fassung A)"
     );
 }
 
+/// Dasselbe an einem anderen Raster: Bei `boss-1-2` lag der Verzug unter Fassung
+/// A bei 500 ms (7500 statt 7000), weil dort ein anderes fremdes Ereignis weckte.
+/// Unter B ist er auch hier genau ein Takt.
 #[test]
 fn derselbe_verzug_faellt_bei_anderem_raster_anders_aus() {
-    let nicht_strikt = erster_wurf(BOSS_10000, "boss.next_strike_in <= 3000");
-    let strikt = erster_wurf(BOSS_10000, "boss.next_strike_in < 3000");
+    let nicht_strikt = erster_wurf_genau(BOSS_10000, "boss.next_strike_in <= 3000");
+    let strikt = erster_wurf_genau(BOSS_10000, "boss.next_strike_in < 3000");
     assert_eq!(
         nicht_strikt,
-        Some(7250),
+        Some(7000),
         "Umschlagpunkt liegt hier bei 7000"
     );
     assert_eq!(
         strikt,
-        Some(7750),
-        "`<` greift hier bei 7500, nicht bei 8000"
-    );
-    assert!(
-        strikt > nicht_strikt,
-        "Auch bei diesem Aufbau muss der strikte Vergleich später greifen."
+        Some(7000 + TICK_MS),
+        "`<` greift unter Fassung B bei 7010, nicht mehr beim fremden Ereignis 7500"
     );
 }
 
-/// Der Verzug ist **500 ms hier und 1000 ms dort**. Diese Ungleichheit ist der
-/// eigentliche Befund: Wer abwägt, ob ein Eingriff sich lohnt, darf die 1000
-/// nicht für eine Eigenschaft der Sache halten.
+/// **Unter Fassung A war der Verzug 500 ms hier und 1000 ms dort** — der Abstand
+/// bis zum nächsten regulären Ereignis. Unter Fassung B hängt er an keinem
+/// Raster mehr: Er ist an beiden Aufbauten genau ein Takt, die Zeit, die `<`
+/// nach dem Erreichen der Schwelle braucht, um wahr zu werden.
 #[test]
 fn der_verzug_ist_nicht_konstant() {
     let verzug = |boss: &str| {
-        let a = erster_wurf(boss, "boss.next_strike_in <= 3000").expect("`<=` warf nie");
-        let b = erster_wurf(boss, "boss.next_strike_in < 3000").expect("`<` warf nie");
+        let a = erster_wurf_genau(boss, "boss.next_strike_in <= 3000").expect("`<=` warf nie");
+        let b = erster_wurf_genau(boss, "boss.next_strike_in < 3000").expect("`<` warf nie");
         b - a
     };
     let weit = verzug(BOSS_12000);
     let eng = verzug(BOSS_10000);
-    assert_eq!(weit, 1000, "Verzug bei erstem Eintrag 12000");
-    assert_eq!(eng, 500, "Verzug bei erstem Eintrag 10000");
-    assert_ne!(
-        weit, eng,
-        "Wären beide gleich, wäre der Verzug eine Eigenschaft der Sprache. Er \
-         ist eine des Aufbaus: der Abstand bis zum nächsten regulären Ereignis."
-    );
+    assert_eq!(weit, TICK_MS, "Verzug bei erstem Eintrag 12000");
+    assert_eq!(eng, TICK_MS, "Verzug bei erstem Eintrag 10000");
 }
 
 // ---------------------------------------------------------------------------
@@ -190,13 +212,14 @@ fn der_verzug_ist_nicht_konstant() {
 // selbst: eine angehängte Zeile, die nie greift und je Takt eine Gruppe
 // `time >= t and time < 0` trägt. Sie weckt an jedem Takt und wirft nie.
 //
-// **Die Tabellen halten den Ist-Zustand fest (Fassung A).** Wo Ereignis und
-// Referenz auseinanderliegen, verpasst die Form heute ihren Umschlagpunkt.
-// Unter Fassung B (Weckruf auf den ersten Takt, an dem der Vergleich kippt)
-// ändern sich genau diese Zeilen, und jede Tabelle wird an ihrer ersten
-// verspäteten Zeile rot — gemessen, siehe
-// `docs/APL-STRICT-COMPARISON-2026-10-24.md`. Rot ist dann eine Information:
-// anpassen, nicht reparieren.
+// **Die Tabellen halten Fassung B fest (seit 2026-10-28).** In jeder Zeile
+// wirft der ereignisgesteuerte Lauf dort, wo die Takt-Referenz wirft, und
+// `pruefe_alle_formen` verlangt dann das ganze Fenster gleich, nicht nur den
+// ersten Wurf. Unter Fassung A lagen je Tabelle vier Zeilen daneben — `<`,
+// sein Spiegel und `!=` in beiden Reihenfolgen (bei `time`: `>`, sein Spiegel
+// und `!=`); ihre damaligen Ereigniswerte stehen an den Tabellen. Fällt eine
+// Zeile auf ihren alten Wert zurück, liegt der Weckruf wieder auf dem Erreichen
+// der Schwelle.
 
 /// Die Liste, ergänzt um eine Zeile, die nie greift und an jedem Takt in
 /// `[von, bis)` weckt.
@@ -313,8 +336,8 @@ fn pruefe_alle_formen(
             (ereignis.first().copied(), referenz.first().copied()),
             (ereignis_erwartet, referenz_erwartet),
             "`{bedingung}` an {boss}: erster Wurf (Ereignis, Referenz) hat sich \
-             verschoben. Steht die Weckruf-Fassung zur Entscheidung (#1027), ist \
-             das die Messung — anpassen, nicht reparieren."
+             verschoben. Unter Fassung B (#1027, entschieden am 2026-10-28) wirft \
+             jede Form dort, wo die Takt-Referenz wirft."
         );
         if ereignis_erwartet == referenz_erwartet {
             assert_eq!(
@@ -392,10 +415,10 @@ fn die_takt_referenz_weckt_und_wirft_nie() {
 /// am Umschlag. Die Rotation entscheidet dort also ohnehin, und gemessen wird
 /// allein, ob eine Form den Takt DANACH noch bekommt.
 ///
-/// Verspätet sind `v < 3000`, sein Spiegel `3000 > v` und `!=` in beiden
-/// Reihenfolgen: Sie sind am Umschlag falsch und kippen einen Takt später,
-/// und für diesen Takt stellt `switch_point` keinen Weckruf. Der nächste
-/// Anlass ist der Hitzeverfall bei 10000.
+/// `v < 3000`, sein Spiegel `3000 > v` und `!=` in beiden Reihenfolgen sind am
+/// Umschlag falsch und kippen einen Takt später; unter Fassung B weckt
+/// `switch_point` genau diesen Takt (9010). Unter Fassung A warfen sie erst beim
+/// Hitzeverfall bei 10000.
 #[test]
 fn alle_formen_an_boss_next_strike_in() {
     pruefe_alle_formen(
@@ -405,18 +428,18 @@ fn alle_formen_an_boss_next_strike_in() {
         3000,
         9000,
         &[
-            ("<", false, Some(10_000), Some(9010)),
+            ("<", false, Some(9010), Some(9010)),
             ("<", true, None, None),
             ("<=", false, Some(9000), Some(9000)),
             ("<=", true, Some(9000), Some(9000)),
             (">", false, None, None),
-            (">", true, Some(10_000), Some(9010)),
+            (">", true, Some(9010), Some(9010)),
             (">=", false, Some(9000), Some(9000)),
             (">=", true, Some(9000), Some(9000)),
             ("==", false, Some(9000), Some(9000)),
             ("==", true, Some(9000), Some(9000)),
-            ("!=", false, Some(10_000), Some(9010)),
-            ("!=", true, Some(10_000), Some(9010)),
+            ("!=", false, Some(9010), Some(9010)),
+            ("!=", true, Some(9010), Some(9010)),
         ],
     );
 }
@@ -426,8 +449,9 @@ fn alle_formen_an_boss_next_strike_in() {
 ///
 /// SMOULDER bei 0 läuft bis 12000; die Restzeit erreicht 1500 bei 10500. Dort
 /// endet der GCD von `purge` (gewirkt bei 1500 und 9000). Dasselbe Muster wie
-/// oben: `<`, sein Spiegel und `!=` verspätet — hier bis zum letzten Tick bei
-/// 12000, weil zwischen 10500 und 12000 nichts in der Schlange steht.
+/// oben: `<`, sein Spiegel und `!=` kippen einen Takt danach (10510). Unter
+/// Fassung A warfen sie erst beim letzten Tick bei 12000, weil zwischen 10500
+/// und 12000 nichts in der Schlange steht.
 ///
 /// **Diese Tabelle misst nur den Takt NACH dem Umschlag, nicht den Weckruf.**
 /// Am Umschlag weckt der GCD von `purge` ohnehin; die Zeilen `<=`, `==` und
@@ -445,18 +469,18 @@ fn alle_formen_an_dot_remains() {
         1500,
         10_500,
         &[
-            ("<", false, Some(12_000), Some(10_510)),
+            ("<", false, Some(10_510), Some(10_510)),
             ("<", true, None, None),
             ("<=", false, Some(10_500), Some(10_500)),
             ("<=", true, Some(10_500), Some(10_500)),
             (">", false, None, None),
-            (">", true, Some(12_000), Some(10_510)),
+            (">", true, Some(10_510), Some(10_510)),
             (">=", false, Some(10_500), Some(10_500)),
             (">=", true, Some(10_500), Some(10_500)),
             ("==", false, Some(10_500), Some(10_500)),
             ("==", true, Some(10_500), Some(10_500)),
-            ("!=", false, Some(12_000), Some(10_510)),
-            ("!=", true, Some(12_000), Some(10_510)),
+            ("!=", false, Some(10_510), Some(10_510)),
+            ("!=", true, Some(10_510), Some(10_510)),
         ],
     );
 }
@@ -464,8 +488,9 @@ fn alle_formen_an_dot_remains() {
 /// `time` — der steigende Wert, und deshalb mit gespiegeltem Befund.
 ///
 /// Auf der Uhr kippt `time > 9000` erst nach 9000, `time >= 9000` genau dort.
-/// Verspätet sind deshalb `>` und sein Spiegel `9000 < time` — nicht `<` wie
-/// bei den fallenden Restzeiten — sowie `!=` in beiden Reihenfolgen.
+/// Einen Takt nach dem Umschlag (9010) greifen deshalb `>` und sein Spiegel
+/// `9000 < time` — nicht `<` wie bei den fallenden Restzeiten — sowie `!=` in
+/// beiden Reihenfolgen. Unter Fassung A warfen sie erst bei 10000.
 ///
 /// **Auch diese Tabelle misst nur den Takt NACH dem Umschlag, nicht den
 /// Weckruf** — wie die an `dot.smoulder.remains`. Am Umschlag 9000 endet der
@@ -490,17 +515,17 @@ fn alle_formen_an_time() {
         9000,
         &[
             ("<", false, None, None),
-            ("<", true, Some(10_000), Some(9010)),
+            ("<", true, Some(9010), Some(9010)),
             ("<=", false, Some(9000), Some(9000)),
             ("<=", true, Some(9000), Some(9000)),
-            (">", false, Some(10_000), Some(9010)),
+            (">", false, Some(9010), Some(9010)),
             (">", true, None, None),
             (">=", false, Some(9000), Some(9000)),
             (">=", true, Some(9000), Some(9000)),
             ("==", false, Some(9000), Some(9000)),
             ("==", true, Some(9000), Some(9000)),
-            ("!=", false, Some(10_000), Some(9010)),
-            ("!=", true, Some(10_000), Some(9010)),
+            ("!=", false, Some(9010), Some(9010)),
+            ("!=", true, Some(9010), Some(9010)),
         ],
     );
 }
