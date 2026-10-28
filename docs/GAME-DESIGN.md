@@ -247,6 +247,21 @@ benannt, damit das Ersetzen eine Zeile bleibt.
 > Tabelle oben zu den Konstanten passt, prüft `tests/unit/design-herleitung.test.ts` —
 > **diese Rechnung ist einmal still gealtert, und das soll sie nicht wieder.**
 
+> **Die Obergrenze der Zersetzungs-Stapel gegen den GCD — entschieden am 2026-10-28: so lassen
+> (#1102).** Ein Stapel lebt 12 000 ms, ein Wurf kostet 1 500 ms. Aus Würfen allein liegen also
+> höchstens acht Stapel, und PUTRID BLOOM kostet selbst einen GCD. Gemessen
+> ([STACK-CAPACITY-MEASUREMENT.md](STACK-CAPACITY-MEASUREMENT.md), am 2026-10-28 auf `efc02a42`
+> nachgefahren, alle Zahlen gleich): Mit BLOOM erreicht die direkte Folge sieben Stapel. Hebt das
+> Talent Faster Rot die Obergrenze auf acht, liegen acht nur mit einer zweiten Quelle — mit ROT
+> (Ticks ohne eigenen Wurf je Stapel) ab 6,5 s, mit SEPSIS ab 13,5 s. Ein Zuschlag auf die
+> Obergrenze über zwei hinaus wirkt damit nur, wenn ROT oder SEPSIS in der Rotation stehen.
+>
+> **Das bleibt so.** Es passt zu „jeder Zauber muss irgendwo die beste Wahl sein": ROT und SEPSIS
+> sind für eine Zersetzungs-Ausrichtung mit gehobener Obergrenze strukturell nötig. Die Decke zu
+> heben (`DECAY_STACK_DURATION_MS` oder `GCD_MS` ändern) berührte alles. Den Zuschlag über zwei
+> hinaus nicht zu vergeben, hätte Faster Rot entwertet — und das hat der Auftraggeber am
+> 2026-10-28 ausdrücklich behalten („Bestand gilt", [TALENT-RASTER.md](TALENT-RASTER.md)).
+
 (Hitze-Stapel, Kontroll-Punkte, Zersetzungs-Stapel) — das gibt ihnen Tiefe und ein eigenes
 Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Schwierigkeit" anzutasten.
 
