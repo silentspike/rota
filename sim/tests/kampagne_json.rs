@@ -16,37 +16,53 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    CpuReservation, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError, Mission,
-    NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
-    WorkUnits, REFERENCE_PROFILE_STANDARD,
+    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
+    CoverageSpec, CpuReservation, DateTimeUtc, DeadlinePolicy, HostRequirement, HostRole,
+    JsonError, Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile,
+    ResultGuarantee, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
-static HOSTS: &[HostRequirement] = &[
-    HostRequirement {
-        name: "laptop",
-        guaranteed_cpu_quota: Some(1.0),
-        memory_limit_mib: 4096,
-        cpu: CpuReservation {
-            physical_cores: 8,
-            threads_per_core: 2,
-            reserved_physical_cores: 2,
-        },
-        gpu_duty_cycle: 0.0,
-        thermal_throttling: false,
+const LAPTOP_RECHNET: ComputeRequirement = ComputeRequirement {
+    guaranteed_cpu_quota: Some(1.0),
+    cpu: CpuReservation {
+        physical_cores: 8,
+        threads_per_core: 2,
+        reserved_physical_cores: 2,
     },
+    gpu_duty_cycle: 0.0,
+};
+
+const LAPTOP: HostRequirement = HostRequirement {
+    name: "laptop",
+    role: HostRole::Compute(LAPTOP_RECHNET),
+    memory_limit_mib: 4096,
+    thermal_throttling: false,
+};
+
+/// Der erste Testrechner mit anderen Rechenangaben, sonst unverändert.
+const fn rechnet(rechnen: ComputeRequirement) -> HostRequirement {
+    HostRequirement {
+        role: HostRole::Compute(rechnen),
+        ..LAPTOP
+    }
+}
+
+static HOSTS: &[HostRequirement] = &[
+    LAPTOP,
     // Der zweite Rechner hat ausdrücklich KEINE Zusicherung — der Fall, den ein
     // Profil mit nur einem Eintrag nie prüfen würde.
     HostRequirement {
         name: "best-effort",
-        guaranteed_cpu_quota: None,
+        role: HostRole::Compute(ComputeRequirement {
+            guaranteed_cpu_quota: None,
+            cpu: CpuReservation {
+                physical_cores: 16,
+                threads_per_core: 2,
+                reserved_physical_cores: 2,
+            },
+            gpu_duty_cycle: 0.5,
+        }),
         memory_limit_mib: 8192,
-        cpu: CpuReservation {
-            physical_cores: 16,
-            threads_per_core: 2,
-            reserved_physical_cores: 2,
-        },
-        gpu_duty_cycle: 0.5,
         thermal_throttling: false,
     },
 ];
@@ -130,6 +146,8 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
         .expect("hosts ist keine Liste");
     assert_eq!(hosts.len(), 2, "Beide Rechner müssen im Text stehen.");
     assert_eq!(hosts[0]["name"], "laptop");
+    assert_eq!(hosts[0]["role"], "compute");
+    assert_eq!(hosts[1]["role"], "compute");
     assert_eq!(
         hosts[0]["computeThreads"], 12,
         "Die Anzeige rechnet die SMT-Geschwister nicht mit."
@@ -450,10 +468,10 @@ fn nichtendliche_qualitaetsvorgaben_werden_mit_feldname_abgelehnt() {
 #[test]
 fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
     for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let host = HostRequirement {
+        let host = rechnet(ComputeRequirement {
             guaranteed_cpu_quota: Some(wert),
-            ..HOSTS[0]
-        };
+            ..LAPTOP_RECHNET
+        });
         assert_eq!(
             host.to_json(),
             Err(JsonError::NonFinite {
@@ -461,10 +479,10 @@ fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
             })
         );
     }
-    static UNGUELTIG: &[HostRequirement] = &[HostRequirement {
+    static UNGUELTIG: &[HostRequirement] = &[rechnet(ComputeRequirement {
         guaranteed_cpu_quota: Some(f64::NAN),
-        ..HOSTS[0]
-    }];
+        ..LAPTOP_RECHNET
+    })];
     let mut k = kampagne();
     k.reference_profile.hosts = UNGUELTIG;
     assert_eq!(
@@ -478,10 +496,10 @@ fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
 #[test]
 fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
     for wert in [0.0, -0.0, f64::MIN_POSITIVE, f64::MAX] {
-        let host = HostRequirement {
+        let host = rechnet(ComputeRequirement {
             guaranteed_cpu_quota: Some(wert),
-            ..HOSTS[0]
-        };
+            ..LAPTOP_RECHNET
+        });
         let gelesen: serde_json::Value = serde_json::from_str(&host.to_json().unwrap()).unwrap();
         let quote = gelesen["guaranteedCpuQuota"]
             .as_f64()
@@ -497,10 +515,10 @@ fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
 #[test]
 fn nichtendliche_grafik_einschaltdauer_wird_abgelehnt() {
     for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let host = HostRequirement {
+        let host = rechnet(ComputeRequirement {
             gpu_duty_cycle: wert,
-            ..HOSTS[0]
-        };
+            ..LAPTOP_RECHNET
+        });
         assert_eq!(
             host.to_json(),
             Err(JsonError::NonFinite {
