@@ -3,11 +3,12 @@
   "id": "test-lapse",
   "name": "The Lapse",
   "instance": "testing",
-  "_comment": "PRUEFBOSS fuer den ZWEITEN Ausloeser von Baustein 5 (Issue #609). Er traegt eine Schwaechung UND eine Boss-Heilung mit on=\"affliction\": Wer nicht reinigt, verliert nicht nur Leben, sondern Fortschritt — je Schritt der Schwaechung, nicht einmal. GAME-DESIGN 11.2 sagt zu Baustein 5 woertlich \"ein FEHLER macht Fortschritt rueckgaengig\"; bis #609 loeste im Code nur die verpasste Unterbrechung aus, und damit verlangte jeder Boss mit diesem Baustein dieselbe Taste. DER BETRAG IST 50 UND WAR ERST 400 — gemessen und gesenkt. undoProgress deckelt bei null: Wer mehr zurueckdreht, als je an Fortschritt gefallen ist, bekommt den Rest nicht gutgeschrieben. Bei 400 je Schritt gegen rund 100 Schaden je Sekunde zaehlten von sechs Schritten nur zwei, und bossHealed stand bei 800 statt bei 2400. Ein Pruefboss muss den Ausloeser SICHTBAR machen, nicht ihn ueberfahren — sonst misst der Fall den Deckel und nicht die Mechanik. Ein ausgewogener Wert fuer einen echten Kampf gehoert an den Boss, der ihn spaeter traegt, und wird dort gemessen.",
+  "_comment": "PRUEFBOSS fuer den ZWEITEN Ausloeser von Baustein 5 (Issue #609). Er traegt eine Schwaechung UND eine Boss-Heilung mit on=\"affliction\": Wer nicht reinigt, verliert nicht nur Leben, sondern Fortschritt — je Schritt der Schwaechung, nicht einmal. GAME-DESIGN 11.2 sagt zu Baustein 5 woertlich \"ein FEHLER macht Fortschritt rueckgaengig\"; bis #609 loeste im Code nur die verpasste Unterbrechung aus, und damit verlangte jeder Boss mit diesem Baustein dieselbe Taste. DER BETRAG IST 50 UND WAR ERST 400 — gemessen und gesenkt. undoProgress deckelt bei null: Wer mehr zurueckdreht, als je an Fortschritt gefallen ist, bekommt den Rest nicht gutgeschrieben. Bei 400 je Schritt gegen rund 100 Schaden je Sekunde zaehlten von sechs Schritten nur zwei, und bossHealed stand bei 800 statt bei 2400. Ein Pruefboss muss den Ausloeser SICHTBAR machen, nicht ihn ueberfahren — sonst misst der Fall den Deckel und nicht die Mechanik. Ein ausgewogener Wert fuer einen echten Kampf gehoert an den Boss, der ihn spaeter traegt, und wird dort gemessen.\n\nARBEITSNAMEN (Issue #797): \"Lapse Taint\" (affliction), gleich wie im Zwilling test-lapse-interrupt. Pruefboss; den Namen braucht die Ankuendigung (GAME-DESIGN 11.5), die jede Faehigkeit beim Namen nennt.",
   "hp": 999999,
   "overpressureMs": 60000,
   "timeline": [],
   "affliction": {
+    "name": "Lapse Taint",
     "atMs": 5000,
     "perStepMs": 1000,
     "damage": 10,
