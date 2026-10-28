@@ -3785,6 +3785,10 @@ Belegung der Ereignisschlange · Trefferquote von expire_buffs
 >    Höchststand von PSI `some avg10` im Fenster bei höchstens 5 % cpu und 10 % memory liegt**
 >    (`hostcaps::PSI_CPU_MAX`, `PSI_IO_MEM_MAX`). Darüber schweigen sie nicht: Der Satz endet mit
 >    „Zeitdiagnose ausgesetzt: PSI cpu …".
+> 4. **Die Rückfallzeile „langsamer als die Grundlage" gilt nur auf taktfesten Rechnern.** Gemessen
+>    am 2026-10-28: node3 ±3 %, Laptop zwischen gleichen Läufen ±40 % (24,7–45,8 µs je Kampf) bei
+>    PSI ≤ 4,08 %; auf dem Laptop rechnet die CPU nicht (Entscheidung des Auftraggebers
+>    2026-10-28).
 
 **Die vorletzte Zeile ist der eigentliche Zweck dieses Issues.** Jede Optimierung von E11 beruht
 auf einer heute gemessenen Verteilung. Der Engpasswächter ist das Bauteil, das **meldet, wann
