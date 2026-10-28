@@ -37,7 +37,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::apl::Apl;
 use crate::data::{Boss, BOSS};
@@ -1165,7 +1165,30 @@ fn aufrufer_bereich(
     let _trace = TraceZurueck(crate::diagnostics::is_trace_enabled());
     crate::diagnostics::disable_trace();
     let (teil, zeit) = bereich_messen(config, apl, offset, len, control);
+    if let Some(je_kampf) = bremse() {
+        thread::sleep(je_kampf * len);
+    }
     (teil, zeit, None)
+}
+
+/// Eine Bremse für Prüffälle (#912): Teilnehmer `0` (der Aufrufer) braucht
+/// je Kampf so viel länger. Gesetzt auf dem aufrufenden Strang; außerhalb
+/// der Prüffälle gibt es sie nicht.
+#[cfg(test)]
+thread_local! {
+    static BREMSE: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+/// Die Bremse dieses Laufs, gelesen auf dem aufrufenden Strang.
+#[cfg(test)]
+fn bremse() -> Option<Duration> {
+    BREMSE.with(std::cell::Cell::get)
+}
+
+/// Außerhalb der Prüffälle gibt es keine Bremse.
+#[cfg(not(test))]
+const fn bremse() -> Option<Duration> {
+    None
 }
 
 /// Die Helfer der parallelen Läufe: Stränge, die über die Läufe leben (#912).
@@ -1761,6 +1784,50 @@ pub fn run_gestaffelt(
 #[cfg(test)]
 mod tests {
     use super::{factor_value, run_intern, with_factor, BalanceConfig, FACTOR_NAMES};
+
+    /// **Ein langsamer Strang hält den Lauf nicht auf** (#912).
+    ///
+    /// Bei fester Aufteilung rechnet jeder Strang seinen Bereich, gleich wie
+    /// langsam er ist, und der Lauf wartet auf den langsamsten. Gemessen am
+    /// 28.10. auf node3: Dynamische Entnahme hob den Durchsatz der Arbeit am
+    /// Stück um 10,8–17,2 % (Versuchsbau, verschränkt, bitgleich).
+    ///
+    /// Gebremst wird der Aufrufer, 2 ms je Kampf: Er greift als Erster zu,
+    /// rechnet also sicher etwas — die positive Kontrolle —, darf aber nicht
+    /// seinen festen Viertelanteil von 100 Kämpfen rechnen müssen.
+    #[test]
+    fn ein_gebremster_strang_rechnet_nicht_seinen_festen_anteil() {
+        let werk = crate::fortschritt::Zaehlwerk::neu(4);
+        let anmeldung = werk.anmelden();
+        let mut worn = crate::gear::WornValues::none();
+        worn.purity = 500;
+        let config = BalanceConfig {
+            iterations: 400,
+            threads: 4,
+            worn,
+            ..BalanceConfig::default()
+        };
+        super::BREMSE.with(|b| b.set(Some(std::time::Duration::from_millis(2))));
+        let _ = super::run_vollstaendig(&config, &gute_liste());
+        super::BREMSE.with(|b| b.set(None));
+        drop(anmeldung);
+        let m = werk.momentaufnahme();
+        assert_eq!(
+            m.kaempfe, 400,
+            "nicht jeder Kampf gezaehlt: {:?}",
+            m.kaempfe_je_strang
+        );
+        let aufrufer = m.kaempfe_je_strang[1];
+        assert!(
+            aufrufer > 0,
+            "der Aufrufer rechnete nichts — die Bremse griff nie"
+        );
+        assert!(
+            aufrufer < 50,
+            "der gebremste Aufrufer rechnete {aufrufer} von 400 Kaempfen: {:?}",
+            m.kaempfe_je_strang
+        );
+    }
     use crate::apl::{parse, AplName};
     use crate::factors::{DamageFactors, NEUTRAL};
 
