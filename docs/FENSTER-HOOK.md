@@ -230,19 +230,20 @@ neue Auszählung denselben Korpus. Am Stand `aba4785d`:
 | Absturz                 |       0 |
 | warnt im Laptop-Fenster |   7.839 |
 | warnt im node3-Fenster  |   4.457 |
-| längste Zerlegung       | 16,9 ms |
+| längste Zerlegung       | 16,8 ms |
 
 Kein Befehl, der vorher warnte, ist ohne Last geblieben. Die 2.716, die im
 Laptop-Fenster jetzt schweigen, sind Bau-Dienst-Aufrufe (`cd … && cargo
 remote …`, `export … ; cargo remote …`) und warnen im node3-Fenster. Neu als
 Last erkannt wurden 25 bisher stille Befehle. Neu unbekannt sind 162, davon 154
 Skripte, deren Dateien beim Nachspielen nicht mehr existieren, 5 Pfade und 3
-Programmnamen, die erst zur Laufzeit feststehen; beim echten Aufruf liegt die Datei vor. Die
-Nachspielung liest Skripte und `tools/`-Dateien von der heutigen Platte; zwei
-Läufe im Abstand von gut zwanzig Minuten wichen deshalb in 37 Befehlen
-(lokal gegen lokal und Bau-Dienst) ab, während zwei Fassungen im selben
-Moment nur in den 6 Befehlen voneinander abwichen, an denen die erste
-abstürzte (`ValueError('embedded null byte')`, behoben in `aba4785d`).
+Programmnamen, die erst zur Laufzeit feststehen. Im echten Aufruf liest der
+Hook ein Skript, das dann auf der Platte liegt. Die Nachspielung liest Skripte
+und `tools/`-Dateien von der heutigen Platte: Zwei Läufe im Abstand von gut drei
+Minuten wichen in 37 Befehlen (lokal gegen lokal und Bau-Dienst) voneinander
+ab, zwei Fassungen im selben Moment dagegen nur in den 6 Befehlen, an denen die
+erste abstürzte (`ValueError('embedded null byte')`, behoben in `aba4785d`).
+Die 37 stammen also aus den gelesenen Dateien, nicht aus dem Code.
 
 ## Gemessener Preis
 
@@ -291,9 +292,9 @@ erwarteten Pfad; zwei unveränderte Läufe nacheinander:
 
 Bei freiem Fenster — dem häufigsten Fall — liegt der Unterschied zwischen den
 Fassungen mit −2,5 und +2,1 ms im Rauschen; dieselbe Fassung streut zwischen
-den Läufen um 5 bis 9 ms. Im fremden Fenster ist die neue Fassung in beiden
-Läufen und allen fünf Fällen 3 bis 5 ms teurer: Sie übersetzt den größeren
-Klassifizierer. Im fremden node3-Fenster schweigt `npm run lint` jetzt; die
+den Läufen um 3,1 bis 9,5 ms. Im fremden Fenster ist die neue Fassung in beiden
+Läufen und allen fünf Fällen teurer, um 1,6 bis 5,4 ms. Naheliegend, aber
+nicht gemessen ist als Ursache das Übersetzen des größeren Klassifizierers. Im fremden node3-Fenster schweigt `npm run lint` jetzt; die
 alte Fassung kannte keinen Ort und warnte.
 
 Das sind gemessene Kosten auf diesem belasteten Host, keine zugesicherte
