@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -123,9 +124,24 @@ class MutationDelta(unittest.TestCase):
         data_ts = self.root / 'src/core/data.ts'
         data_ts.write_text(data_ts.read_text().replace("key !== 'cooldownReductionBelowMs'",
                                                        "key !== 'cooldownReductionMs'"))
-        with self.assertRaisesRegex(SystemExit, 'Zeitregel'):
+        with self.assertRaisesRegex(self.tool.NichtGestartet, 'Zeitregel'):
             self.drive(self.green, '--feld', 'heal.amount', '--delta', '1')
         self.assertEqual(self.calls, [])
+
+    def test_an_unusable_time_rule_ends_the_script_with_exit_2(self):
+        # As a script, not through main(): the exit code is the claim here.
+        # `raise SystemExit(text)` ended with 1, the code for a finding.
+        (self.root / 'tools').mkdir()
+        for name in ('streich-mutation.py', 'spell-time-audit.py'):
+            shutil.copyfile(ROOT / 'tools' / name, self.root / 'tools' / name)
+        loop = self.root / 'src/core/loop.ts'
+        loop.write_text(loop.read_text().replace('TICK_MS', 'RENAMED_MS'))
+        result = subprocess.run([sys.executable, '-B', str(self.root / 'tools/streich-mutation.py'),
+                                 '--feld', 'heal.amount', '--delta', '1'],
+                                cwd=self.root, capture_output=True, text=True, timeout=60, check=False)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('NICHT GESTARTET: Zeitregel nicht verwendbar', result.stderr)
+        self.assert_restored()
 
     def test_a_kind_selects_exactly_its_fields(self):
         self.assertEqual(self.drive(self.red_when_changed, '--art', 'ganzzahl', '--delta', '1'), 0)

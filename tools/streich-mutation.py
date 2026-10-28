@@ -351,8 +351,8 @@ def zeitregel():
     try:
         takt, schwellen = audit.policy(WURZEL)
     except (OSError, ValueError) as grund:
-        raise SystemExit(f"Zeitregel nicht verwendbar (#1104): {grund}. "
-                         "Das ist ein Befund über den Bestand, keine Vorgabe.")
+        raise NichtGestartet(f"Zeitregel nicht verwendbar (#1104): {grund}. "
+                             "Das ist ein Befund über den Bestand, keine Vorgabe.")
     return takt, frozenset(schwellen)
 
 
@@ -530,7 +530,7 @@ def vorprobe_rot(pfade):
                 zauber["baseDamage"] = alt + 1
                 p.write_text(json.dumps(daten, indent=2, ensure_ascii=False) + "\n")
                 return f"{schule}.json: {zauber.get('id', '?')} baseDamage {alt}->{alt + 1}"
-    raise SystemExit("ROT-Vorprobe nicht möglich: kein Zauber trägt einen positiven baseDamage")
+    raise NichtGestartet("ROT-Vorprobe nicht möglich: kein Zauber trägt einen positiven baseDamage")
 
 
 def spells(schule):
@@ -737,6 +737,13 @@ DIENST_AUSGAENGE = {
 
 class NichtGelaufen(RuntimeError):
     """Der Bau-Dienst hat den Schritt nicht ausgeführt; es gibt nichts zu verbuchen."""
+
+
+class NichtGestartet(RuntimeError):
+    """Eine Vorbedingung fehlt; gemessen wurde nichts. Exit 2, nicht 1.
+
+    `raise SystemExit(text)` endete mit Exit 1 — dem Code für „ein Befund".
+    """
 
 
 def suite_nachweis(code, ausgabe, sprache):
@@ -1724,6 +1731,9 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
+    except NichtGestartet as grund:
+        print(f"NICHT GESTARTET: {grund}", file=sys.stderr)
+        sys.exit(2)
     except NichtGelaufen as grund:
         # Exit 2 wie die übrigen „nicht gemessen"-Ausgänge dieses Werkzeugs.
         # Das betroffene Feld steht im Nachweis als ABBRUCH, sein Datensatz ist
