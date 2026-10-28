@@ -39,6 +39,7 @@ import {
   type Announcement,
 } from '../../src/combat/boss/announcements.js';
 import { SOUND_MANIFEST } from '../../src/audio/manifest-data.js';
+import { AudioFeedback } from '../../src/core/audio-bridge.js';
 import { Combat } from '../../src/core/combat.js';
 import {
   BOSSES,
@@ -848,30 +849,62 @@ describe('Kanal 3: Warnklang je Art, Countdown für Stufe 3', () => {
   });
 });
 
-describe('Die fehlenden Klänge stehen im Verzeichnis', () => {
+describe('Die Ankündigungs-Klänge liegen und sind angeschlossen', () => {
   const ASSETS = new Set(Object.keys(import.meta.glob('/assets/audio/*.ogg')));
   const ereignisse = EVENT_NAMES.filter(
     (e) => e.startsWith('boss.warning.') || e.startsWith('boss.countdown.'),
   );
+  /** `boss.countdown.5` → `boss-countdown-5`: Kennung und Datei tragen den Namen des Ereignisses. */
+  const kennung = (e: string): string => e.split('.').join('-');
 
-  it('jedes Warn- und Countdown-Ereignis hat einen Eintrag — angeschlossen oder als fehlend benannt', () => {
-    expect(ereignisse.length, 'sonst prüft der Fall nichts').toBeGreaterThan(0);
+  it('jedes Warn- und Countdown-Ereignis hat genau einen Klang mit Auslöser, und seine Datei liegt', () => {
+    expect(ereignisse, 'vier Warn-Arten und fünf Countdown-Zahlen').toHaveLength(9);
     for (const e of ereignisse) {
-      const eintrag = SOUND_MANIFEST.sounds.find(
-        (s) => s.trigger?.on === e || (s.provisional ?? '').includes(e),
-      );
-      expect(eintrag, `${e}: kein Eintrag im Verzeichnis`).toBeDefined();
-      if (eintrag!.trigger?.on === e && eintrag!.provisional === undefined) {
-        // Angeschlossen: dann muss die Datei auch liegen.
-        expect(ASSETS.has(`/assets/${eintrag!.file}`), `${e}: Datei fehlt`).toBe(true);
-      } else {
-        // Benannt, aber noch ohne Datei — und ohne Auslöser, sonst verlangte der
-        // Kampf einen Klang, den es nicht gibt (Klang-Bericht: `klangFehlend`).
-        expect(eintrag!.file, `${e}: der Eintrag nennt keine Datei`).toMatch(/^audio\/.+\.ogg$/);
-        expect(ASSETS.has(`/assets/${eintrag!.file}`), `${e}: Datei liegt schon`).toBe(false);
-        expect(eintrag!.trigger, `${e}: Auslöser ohne Datei`).toBeUndefined();
-      }
+      // Über die Kennung statt über „irgendein Eintrag": Hinge `boss.countdown.4`
+      // am Klang der Fünf, spräche der Countdown eine Zahl zu früh.
+      const eintraege = SOUND_MANIFEST.sounds.filter((s) => s.trigger?.on === e);
+      expect(
+        eintraege.map((s) => s.id),
+        `${e}: genau ein Klang mit Auslöser`,
+      ).toEqual([kennung(e)]);
+      const eintrag = eintraege[0]!;
+      expect(eintrag.provisional, `${e}: noch als vorläufig markiert`).toBeUndefined();
+      expect(ASSETS.has(`/assets/${eintrag.file}`), `${e}: Datei fehlt`).toBe(true);
     }
+  });
+
+  /** Wie oft die Sitzung jeden Ankündigungs-Klang anfordert — über das echte Verzeichnis. */
+  function angefordert(b: BossDef, bisMs: number): Record<string, number> {
+    const audio = new AudioFeedback();
+    const combat = new Combat({ school: CALCINATION.value, boss: b });
+    const session = new Session(new PressQueue(), combat, audio);
+    session.startFight(0);
+    for (let t = 0; t <= bisMs; t += TICK_MS) session.tick(t);
+    const out: Record<string, number> = {};
+    for (const e of ereignisse) {
+      const n = audio.requestsBySound[audio.map.indexOf(kennung(e))] ?? 0;
+      if (n > 0) out[kennung(e)] = n;
+    }
+    return out;
+  }
+
+  it('die Sitzung fordert sie an: Stufe 3 an boss-1-2, Stufe 2 an boss-2-2', () => {
+    // Dieselben Läufe wie in „Kanal 3" oben, aber gezählt an der Klang-Brücke:
+    // Ereignis → Auslöser im Verzeichnis → Klang. Ohne Klang-Kontext, also auch
+    // ohne Datei — ob sie liegt, prüft der Fall darüber.
+    expect(angefordert(boss('boss-1-2'), 17_000)).toEqual({
+      'boss-warning-lethal': 1,
+      'boss-countdown-5': 1,
+      'boss-countdown-4': 1,
+      'boss-countdown-3': 1,
+      'boss-countdown-2': 1,
+      'boss-countdown-1': 1,
+    });
+    expect(angefordert(boss('boss-2-2'), 12_000)).toEqual({
+      'boss-warning-debuff': 1,
+      'boss-warning-damage': 1,
+      'boss-warning-opportunity': 1,
+    });
   });
 });
 
