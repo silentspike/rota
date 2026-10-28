@@ -756,11 +756,7 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
     assert_eq!(laptop.cpu.compute_threads(), 12);
 
     for h in p.hosts {
-        assert!(
-            h.memory_limit_mib > 0,
-            "{}: kein Speicherbudget",
-            h.name
-        );
+        assert!(h.memory_limit_mib > 0, "{}: kein Speicherbudget", h.name);
         assert!(h.cpu.compute_threads() > 0, "{}: keine Stränge", h.name);
         assert!(
             h.gpu_duty_cycle.is_finite() && (0.0..=1.0).contains(&h.gpu_duty_cycle),

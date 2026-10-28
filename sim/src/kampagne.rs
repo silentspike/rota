@@ -744,8 +744,15 @@ pub struct HostRequirement {
     /// Unterschied gehört benannt, weil ein unbekannter Wert später geschätzt
     /// wird und ein ausdrückliches „best effort" nicht.
     pub guaranteed_cpu_quota: Option<f64>,
-    /// Zugesicherter Speicher in Mebibyte.
-    pub guaranteed_memory_mib: u32,
+    /// Obergrenze für den Speicher des Laufs auf diesem Rechner, in Mebibyte.
+    ///
+    /// **Eine Obergrenze, keine Reservierung:** Der Lauf belegt nur, was er
+    /// gerade braucht, und niemand hält ihm den Rest frei (Vorgabe des
+    /// Auftraggebers vom 2026-10-28 für node3; auf dem Laptop ist die Quelle
+    /// die Vorgabe „unter 5 GB"). Bis #914 hieß das Feld
+    /// `guaranteed_memory_mib` und behauptete eine Zusicherung, die es auf
+    /// keinem der beiden Rechner gibt.
+    pub memory_limit_mib: u32,
     /// Die CPU-Aufteilung dieses Rechners.
     pub cpu: CpuReservation,
     /// Grafik-Einschaltdauer: welcher Anteil der Zeit die Grafik rechnet,
@@ -809,14 +816,14 @@ static STANDARD_HOSTS: &[HostRequirement] = &[
     // Der Laptop: AMD Ryzen 9 5900HS, 8 physische Kerne × 2 Stränge (sysfs am
     // 2026-10-28: thread_siblings_list 0-1 … 14-15). Profil `balanced`: zwei
     // physische Kerne samt Geschwistern bleiben frei (Plan Z. 46), also zwölf
-    // Stränge — die CPU-Quote ist genau diese zwölf. Speicher 4096 MiB nach der
-    // Vorgabe „Speichergrenzen unter 5 GB" für diese Maschine. Grafik 0 %, weil
-    // es keinen GPU-Pfad gibt; das Budget stammt allein aus der CPU. Der
-    // Koordinator läuft hier.
+    // Stränge — die CPU-Quote ist genau diese zwölf. Speicher höchstens 4096 MiB
+    // nach der Vorgabe „Speichergrenzen unter 5 GB" für diese Maschine — eine
+    // Obergrenze, keine Reservierung. Grafik 0 %, weil es keinen GPU-Pfad gibt;
+    // das Budget stammt allein aus der CPU. Der Koordinator läuft hier.
     HostRequirement {
         name: "laptop",
         guaranteed_cpu_quota: Some(12.0),
-        guaranteed_memory_mib: 4096,
+        memory_limit_mib: 4096,
         cpu: CpuReservation {
             physical_cores: 8,
             threads_per_core: 2,
@@ -829,12 +836,14 @@ static STANDARD_HOSTS: &[HostRequirement] = &[
     // nichts reserviert (die Laptop-Grenze gilt auf den Nodes nicht, Plan
     // Z. 3337). CPU ausdrücklich best effort: keine garantierte Quote, wie der
     // Plan es für Zusatzrechner vorsieht („cores großzügig, cpuunits niedrig").
-    // Speicher hart 4096 MiB — auf ovh-pve1 waren am 2026-10-28 nur rund 12 GB
-    // frei, 13 VMs laufen. Der Simulations-Container entsteht erst mit #912.
+    // Speicher höchstens 4096 MiB als OBERGRENZE, nicht reserviert: Der
+    // Container belegt nur, was er gerade braucht (Vorgabe des Auftraggebers
+    // vom 2026-10-28) — auf ovh-pve1 waren an dem Tag nur rund 12 GB frei,
+    // 13 VMs laufen. Der Simulations-Container entsteht erst mit #912.
     HostRequirement {
         name: "node3",
         guaranteed_cpu_quota: None,
-        guaranteed_memory_mib: 4096,
+        memory_limit_mib: 4096,
         cpu: CpuReservation {
             physical_cores: 8,
             threads_per_core: 2,
@@ -967,7 +976,7 @@ impl CampaignDefinition {
                 Some(quota) => mix_f64(mix_int(h, 1), quota),
                 None => mix_int(h, 0),
             };
-            h = mix_int(h, host.guaranteed_memory_mib as i32);
+            h = mix_int(h, host.memory_limit_mib as i32);
             h = mix_int(h, i32::from(host.cpu.physical_cores));
             h = mix_int(h, i32::from(host.cpu.threads_per_core));
             h = mix_int(h, i32::from(host.cpu.reserved_physical_cores));
@@ -1071,7 +1080,7 @@ impl HostRequirement {
     pub fn to_json(&self) -> Result<String, JsonError> {
         Ok(format!(
             "{{\"name\":{},\"guaranteedCpuQuota\":{},\
-             \"guaranteedMemoryMib\":{},\"computeThreads\":{},\
+             \"memoryLimitMib\":{},\"computeThreads\":{},\
              \"totalThreads\":{},\"physicalCores\":{},\"threadsPerCore\":{},\
              \"reservedPhysicalCores\":{},\"gpuDutyCycle\":{},\
              \"thermalThrottling\":{}}}",
@@ -1079,7 +1088,7 @@ impl HostRequirement {
             // `null` heißt hier ausdrücklich "best effort", nicht "unbekannt".
             // Eine 0.0 wäre die dritte, ganz andere Aussage: garantiert nichts.
             json_optional_number(self.guaranteed_cpu_quota, "guaranteedCpuQuota")?,
-            self.guaranteed_memory_mib,
+            self.memory_limit_mib,
             self.cpu.compute_threads(),
             self.cpu.total_threads(),
             self.cpu.physical_cores,
