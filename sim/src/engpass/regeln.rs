@@ -239,15 +239,6 @@ fn zahl(x: f64) -> String {
 #[must_use]
 pub fn diagnose(m: &Messwerte, schluessel: &Schluessel, grundlage: Option<&Grundlage>) -> Diagnose {
     let mut d = Diagnose::default();
-    // ROTER STAND (#934, erster Commit): Die Typen stehen, die Tabelle
-    // entscheidet noch nichts. Die Prüffälle müssen hier beim Namen rot sein.
-    if !m.sekunden.is_nan() {
-        for regel in Regel::TABELLE {
-            d.ungeprueft.push((regel, "die Regeltabelle ist noch nicht gebaut".to_owned()));
-        }
-        let _ = (schluessel, grundlage);
-        return d;
-    }
 
     // Dieselbe Grenze wie bei der Restzeit (#933): Unter vier Messsekunden
     // ist eine Abweichung Zufall, und der Anfang eines Laufs lädt Code und
