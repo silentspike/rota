@@ -108,8 +108,9 @@ describe('Zuordnung aus dem Verzeichnis (AC4)', () => {
   // noch keinen Klang, und das gehoert namentlich in den Quelltext statt in
   // eine uebersprungene Pruefung.
   //
-  // Klaenge entstehen ueber Suno (docs/suno-sfx.md) und werden vom
-  // Auftraggeber abgenommen — sie in einem Zauber-PR mitzubauen ginge nicht.
+  // Klaenge entstehen ueber Suno (suno/suno-sfx.md im privaten Werkzeug-Repo
+  // silentspike/rota-werkzeuge) und werden vom Auftraggeber abgenommen — sie
+  // in einem Zauber-PR mitzubauen ginge nicht.
   // Dazu die Prüf-Zauber über der Stufengrenze (`unlockLevel: 101`), die kein
   // Spieler je auf die Leiste legt: `test-cast` (#304), `test-buff` (#420),
   // die sechs Ziel-Prüfer aus #489/E10, `test-cap` (#562) sowie `test-channel`

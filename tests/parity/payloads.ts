@@ -5918,6 +5918,153 @@ export function spenderTalentPayload(): Record<string, unknown> {
   };
 }
 
+export const KONTROLL_PREIS_TALENT_NAME = 'kontrolle-preis-talent';
+
+/** Die Leiste dieser Runde: der Ausgeber und der Aufbauer, sonst nichts. */
+const KONTROLL_PREIS_TALENT_BINDINGS = [
+  { slot: 0, spellId: 'latch' },
+  { slot: 1, spellId: 'bind' },
+] as const;
+
+/**
+ * Der Kontroll-Preis unter einer Verteilung aus ZWEI Bäumen (Issue #419).
+ *
+ * # Warum es diese Aufzeichnung gibt
+ *
+ * Jede Talent-Aufzeichnung davor trägt genau einen Weg (`decay-talent`,
+ * `spender-talent`), und ihre Kommentare sagen, warum das so bleiben soll.
+ * Dadurch kombinierte keine den Schutz-Weg der PUTREFACTION
+ * (`putrefaction-duration`) mit einem Weg eines anderen Baums — und genau dort
+ * rechneten Spiel und Simulator verschieden, ohne dass eine Prüfung es sah:
+ * Commit 347395fd hatte in `combat.ts` die Untergrenze `1` des Kontroll-Preises
+ * durch `talentDecayWardFactor(this.talents)` ersetzt. Ohne den Schutz-Weg ist
+ * dieser Faktor genau 1,0, und alles bleibt gleich; mit einem Rang ist er 1,12.
+ *
+ * # Warum genau diese Verteilung
+ *
+ * Die Untergrenze greift nur, wo der geteilte Preis bei 1 ankommt. Mit den
+ * heutigen Daten gibt es dafür genau einen Fall: LATCH kostet 2, und fünf
+ * Ränge `fixation-cost` (80 Promille je Rang) teilen durch 1,4 — gerundet 1.
+ * Jeder andere Ausgeber bleibt bei 2 oder mehr (STAY, WEDGE und PIN kosten 3,
+ * 3 / 1,4 ergibt gerundet 2).
+ *
+ * ```text
+ *   fixation-trunk 1, fixation-cost 5, putrefaction-trunk 1, putrefaction-duration 1
+ * ```
+ *
+ * Acht Punkte, und jeder Weg mit seinem Stamm — eine Verteilung, die das Spiel
+ * zulässt (`allocationProblem`), keine, die nur ein Prüffall bauen kann.
+ *
+ * # Feste Drücke, keine Entscheidung am Vorrat
+ *
+ * BIND bei 0 ms, LATCH bei 4500 und bei 16 500 ms (seine Abklingzeit ist
+ * 10 000). Eine Runde, die am Vorrat entschiede, drückte mit falschem Preis
+ * anders als mit richtigem — dann verglichen sich zwei verschiedene Runden. So
+ * bleibt die Runde dieselbe, und nur die Rechnung kann abweichen: Der zweite
+ * LATCH trifft auf genau den Vorrat, den der erste übrig lässt.
+ *
+ * # Warum der erste LATCH erst NACH dem unterbrechbaren Zauber kommt
+ *
+ * LATCH verzögert den nächsten Eintrag der Zeitleiste. Bei 4500 ms ist das der
+ * Schlag von 12 000 ms, bei 16 500 ms der von 19 000 ms — beide Male ein
+ * Schlag, nie der unterbrechbare Zauber bei 4000 ms.
+ *
+ * Das ist Absicht, und der Grund ist gemessen (2026-10-24): Einen VERZÖGERTEN
+ * unterbrechbaren Zauber lässt das Spiel sofort treffen, der Simulator erst
+ * nach seiner Wirkzeit. Mit dem ersten LATCH bei 1500 ms beginnt der Zauber in
+ * beiden bei 8000 ms; im Spiel trifft er bei 8010 ms, im Simulator bei
+ * 11 000 ms — mit und ohne Talente gleich. `Combat.stepPassive` rechnet den
+ * Einschlag ab dem ursprünglichen Fälligkeitszeitpunkt und setzt die
+ * Verzögerung schon vorher auf null. Diese Abweichung stammt nicht aus
+ * 347395fd, und diese Runde soll den Preis vergleichen, nicht sie; sie ist an
+ * den Orchestrator gemeldet.
+ *
+ * # Die Verteilung kommt als PROMILLE in den Simulator
+ *
+ * Wie bei `decay-talent` und `spender-talent`: Der Simulator kennt die
+ * Talent-Daten nicht und beginnt bei den Promille. Die beiden Stämme tragen je
+ * 20 Promille Schaden (`talent_permille`).
+ */
+export function kontrollPreisTalentPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const talents = {
+    'fixation-trunk': 1,
+    'fixation-cost': 5,
+    'putrefaction-trunk': 1,
+    'putrefaction-duration': 1,
+  };
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  // **VOR dem ersten Takt** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(talents);
+  const latch = alsSpellIndex(combat.indexOf('latch'));
+  const bind = alsSpellIndex(combat.indexOf('bind'));
+  // 20 s: Der Schlag von 12 000 ms fällt verzögert bei 16 000 ms hinein, der
+  // von 19 000 ms nur, wenn der zweite LATCH scheitert.
+  const ticks = 2000;
+
+  /** Takt -> Zauber. Fest, siehe oben. */
+  const plan = new Map<number, typeof latch>([
+    [0, bind],
+    [450, latch],
+    [1650, latch],
+  ]);
+
+  const slots = slotMap(combat, KONTROLL_PREIS_TALENT_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    const zauber = plan.get(tick);
+    if (zauber !== undefined) {
+      // **Ein abgewiesener Druck bricht ab**, statt still zu fehlen: Die feste
+      // Folge ist die Aussage dieser Datei. Fiele ein Druck weg, verglichen
+      // beide Seiten eine andere Runde als die beschriebene.
+      const ergebnis = combat.cast(zauber, timeMs).result;
+      if (!isCastAccepted(ergebnis)) {
+        throw new Error(
+          `${KONTROLL_PREIS_TALENT_NAME}: der Druck in Takt ${String(tick)} wurde abgewiesen ` +
+            `(Ergebnis ${String(ergebnis)}) — die feste Folge passt nicht mehr zu den Daten.`,
+        );
+      }
+      presses.push({ tick, slot: slotFor(slots, zauber, combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: KONTROLL_PREIS_TALENT_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    talents,
+    talentPermille: { damage: 2 * 20, controlCost: 5 * 80, decayWard: 1 * 120 },
+    bindings: KONTROLL_PREIS_TALENT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    expected: {
+      // **Bleibt bei `combat`**, aus demselben Grund wie bei `spender-talent`
+      // (Issue #659): `replayRecording` kennt keine Talente — es gibt kein
+      // `ReplayResult` mit dieser Verteilung, aus dem sich lesen ließe.
+      /**
+       * **Die Größen, um die es geht.** Mit Preis 1 gelingen beide LATCH:
+       * nichts scheitert, zwei Punkte sind ausgegeben.
+       */
+      controlFailed: combat.controlFailed,
+      controlSpent: combat.controlSpent,
+      damageTaken: combat.damageTaken,
+      damageDealt: combat.damageDealt,
+      /** Die Zusicherung, dass die Runde beide Zauber wirklich wirft. */
+      latchCasts: combat.castCount(latch),
+      bindCasts: combat.castCount(bind),
+    },
+  };
+}
+
 export function synergyPayload(): Record<string, unknown> {
   const recording = recordSynergy(3000);
   const result = replayRecording(recording, { checksumPerTick: true });

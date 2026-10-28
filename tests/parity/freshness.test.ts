@@ -118,6 +118,7 @@ import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteEntladerSpur from './recordings/spender-talent.json';
+import eingecheckterKontrollPreis from './recordings/kontrolle-preis-talent.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVieleBraende from './recordings/ember-viele-braende.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -183,6 +184,7 @@ import {
   decayFactorPayload,
   decayTalentPayload,
   spenderTalentPayload,
+  kontrollPreisTalentPayload,
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
@@ -263,6 +265,12 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // Der Entlader-Weg des globalen Baums (#419). Eigene Datei, weil sie sonst
     // bei jeder beliebigen Talent-Änderung rot würde und nicht sagte, welche.
     expect(eingecheckteEntladerSpur, HINWEIS).toEqual(spenderTalentPayload());
+  });
+
+  it('der Kontroll-Preis unter zwei Bäumen entspricht dem heutigen Spielstand', () => {
+    // Die erste Talent-Aufzeichnung mit Wegen aus ZWEI Bäumen (#419): der
+    // Schutz-Weg der PUTREFACTION neben dem Preis-Weg der FIXATION.
+    expect(eingecheckterKontrollPreis, HINWEIS).toEqual(kontrollPreisTalentPayload());
   });
 
   it('die Synergie-Runde entspricht dem heutigen Spielstand', () => {
@@ -1013,6 +1021,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'krit-umwandlung',
   'rot-decay',
   'spender-talent',
+  'kontrolle-preis-talent',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

@@ -68,6 +68,8 @@ import {
   decayFactorPayload,
   decayTalentPayload,
   spenderTalentPayload,
+  kontrollPreisTalentPayload,
+  KONTROLL_PREIS_TALENT_NAME,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -671,6 +673,18 @@ const spenderTalentPath = join(here, 'recordings', 'spender-talent.json');
 writeFileSync(spenderTalentPath, serialize(spenderTalent), 'utf8');
 console.log(`geschrieben: ${spenderTalentPath}`);
 console.log(`  Entlader-Weg    Schaden: ${spenderTalent.expected.damage}`);
+
+// Der Kontroll-Preis unter einer Verteilung aus zwei Baeumen (#419). Die erste
+// Talent-Aufzeichnung mit MEHR als einem Weg — siehe `payloads.ts`, warum.
+const kontrollPreisTalent = kontrollPreisTalentPayload();
+const kontrollPreisTalentPath = join(here, 'recordings', `${KONTROLL_PREIS_TALENT_NAME}.json`);
+writeFileSync(kontrollPreisTalentPath, serialize(kontrollPreisTalent), 'utf8');
+console.log(`geschrieben: ${kontrollPreisTalentPath}`);
+console.log(
+  `  Kontroll-Preis  ${kontrollPreisTalent.expected.controlFailed} fehlgeschlagen, ` +
+    `${kontrollPreisTalent.expected.controlSpent} Punkte ausgegeben, ` +
+    `${kontrollPreisTalent.expected.latchCasts} LATCH`,
+);
 
 const buffCombat = buffCombatPayload();
 const buffCombatPath = join(here, 'recordings', 'buff-combat.json');

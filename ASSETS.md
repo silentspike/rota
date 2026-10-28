@@ -136,8 +136,9 @@ Credits-Bereich zeigt sie an. Die unveränderten Originale liegen als Beleg unte
 ### Klang (`assets/audio/`)
 
 **Alle 56 Dateien sind Eigenerzeugung mit Suno**, erzeugt am 27. und 28. Juli 2026 über das Konto
-`backupslave` im **Pro Plan**. Die Werkzeugkette steht in [`docs/suno-sfx.md`](docs/suno-sfx.md);
-`tools/suno_api.py` erzwingt das Konto über einen Wächter, der vor jeder Generierung prüft, welcher
+`backupslave` im **Pro Plan**. Die Werkzeugkette liegt seit 2026-10-28 im privaten Werkzeug-Repo
+`silentspike/rota-werkzeuge` unter `suno/` (Doku `suno/suno-sfx.md`, Aufruf `suno/README.md`);
+`suno/suno_api.py` erzwingt das Konto über einen Wächter, der vor jeder Generierung prüft, welcher
 Account angemeldet ist.
 
 | Muster                        | n   | Herkunft                               | Lizenz / Rechtelage                 | Nennung | Verwendung                                                                                                                                     |
@@ -179,8 +180,9 @@ Bei Suno hängt die kommerzielle Nutzbarkeit am **Kontotyp**, nicht am einzelnen
 > **Warum das hier steht und nicht nur im Kopf:** Ein Klang ohne belegte Rechtelage ist so wertlos
 > wie eine Grafik, deren Lizenz nur den privaten Gebrauch erlaubt — nur fällt es später auf, wenn
 > keine Zeit mehr ist. Der Tarif
-> lässt sich jederzeit gegen die Wirklichkeit prüfen: `/venv/bin/python tools/suno_api.py auth-test`
-> zeigt Konto und Tarif-Stand an.
+> lässt sich jederzeit gegen die Wirklichkeit prüfen: `suno/suno_api.py auth-test` aus dem
+> privaten Werkzeug-Repo `silentspike/rota-werkzeuge`, aufgerufen aus der Wurzel eines
+> rota-Checkouts, zeigt Konto und Tarif-Stand an.
 
 ### Schriften (`assets/fonts/`)
 

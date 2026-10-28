@@ -86,6 +86,22 @@ mehrerer Fehlgriffe.
 |                  | Rücksetzer  | `cooldownResetCharges`                   |     ? |     ? | keine neue    |
 |                  | Schwelle    | `cooldownReductionBelowMs`               |     ? |     ? | keine neue    |
 
+> **Überholt — markiert am 2026-10-24 (#419), nicht neu entschieden.** Seit #824 (2026-08-13)
+> tragen drei Zeilen dieser Tabelle eine andere Größe als hier beschrieben, und GLOBAL steht
+> nicht darin:
+>
+> ```text
+>   PUTREFACTION Aufbau        decayCapPerRankPerMille      die OBERGRENZE der Stapel
+>   PUTREFACTION Haltbarkeit   decayWardPerRankPerMille     der SCHUTZ je Stapel
+>   SUBLIMATION  Abzug         convertPerRankPerMille       EFFLUX' Umwandlung
+>   GLOBAL       build         buildDamagePerRankPerMille   der Schaden der Aufbau-Zauber
+> ```
+>
+> Gemessen mit dem Befehl im Kopfkommentar von `data/player/talents.json`. Die Spalten TS und
+> Rust sind für diese vier nicht neu gezählt. Die beiden PUTREFACTION-Zeilen gelten, wie sie
+> sind: Am 2026-10-28 hat der Auftraggeber den Widerspruch zum früheren Ausschluss entschieden
+> („Bestand gilt“, siehe „Zwei Gruppen waren ausgeschlossen“ unten).
+
 > **SUBLIMATIONs drei Wege sind seit #751 gebaut**, und zwar mit je eigener Größe:
 > `sublimation-reduction` → `cooldownReductionPerRankPerMille`, `-charges` →
 > `cooldownResetChargesPerRank`, `-threshold` → `cooldownThresholdPerRankPerMille`.
@@ -102,6 +118,12 @@ bewegen Größen, die bereits in beiden Prüfsummen stehen.
 > tragen heute alle `damagePerRankPerMille` — denselben Topf wie der Stamm. Solange das so ist,
 > braucht auch er keine neue Zeile; sobald jemand ihm eigene Größen gibt, gehört die Frage neu
 > gestellt.
+>
+> **Überholt — markiert am 2026-10-24 (#419):** Er hat sie inzwischen. Seit #812 und #824 trägt
+> GLOBAL `buildDamagePerRankPerMille` (build), `spenderDamagePerRankPerMille` (release) und für
+> hold `dotDurationPerRankPerMille`, `decayDurationPerRankPerMille` und
+> `shieldDurationPerRankPerMille`. Die Frage nach einer Prüfsummen-Zeile ist damit gestellt und
+> hier nicht beantwortet.
 
 ## Zwei Wege sind schon gebaut — nur der Schalter davor fehlt
 
@@ -134,9 +156,15 @@ acht Buff-Ziele wirken heute auf die fertige Größe, nicht auf einen ihrer Summ
 das nur `proStapel` hebt, wäre eine neue Wirkungsart mit einer Sonderregel, die kein anderer Faktor
 kennt.
 
-## Zwei Gruppen wurden ausgeschlossen — sie verdoppeln je einen Zauber
+## Zwei Gruppen waren ausgeschlossen — der Ausschluss ist aufgehoben
 
-Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei sind gestrichen:
+> **Entschieden am 2026-10-28 vom Auftraggeber: „Bestand gilt“.** Die beiden Wege bleiben, wie
+> PR #824 sie gebaut hat: `putrefaction-build` (Faster Rot) hebt die Obergrenze
+> (`decayCapPerRankPerMille`), `putrefaction-duration` (Lasting Rot) den Schutz je Stapel
+> (`decayWardPerRankPerMille`). Der Ausschluss unten gilt nicht mehr; er bleibt als Herkunft
+> stehen. Folge für #1102: AC2 lautet „so lassen“.
+
+Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei waren gestrichen:
 
 | Gruppe     | Größe                        | Warum nicht                                                                                       |
 | ---------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -146,6 +174,13 @@ Bei PUTREFACTION standen fünf Gruppen zur Wahl. Zwei sind gestrichen:
 Beide wären technisch baubar (je 1–2 Stellen, keine neue Prüfsummen-Zeile). Der Einwand ist
 fachlich: Ein Weg, der einen Zauber verdoppelt, ist so wenig eine Wahl wie einer, der eine Mechanik
 verdoppelt.
+
+> **Widersprach dem Bestand — markiert am 2026-10-24 (#419), entschieden am 2026-10-28 (oben).** PR #824 hat
+> nach der Entscheidung des Auftraggebers vom 2026-08-13 („Jeder der vier bekommt eine Wirkung
+> anderer BAUART", Kommentar in #419) genau diese beiden Größen gewählt: `putrefaction-build`
+> trägt seither `decayCapPerRankPerMille` (die Obergrenze), `putrefaction-duration`
+> `decayWardPerRankPerMille` (den Schutz je Stapel). Der Ausschluss oben und der Bestand
+> schlossen einander aus. Der Auftraggeber hat für den Bestand entschieden.
 
 ## Die Kennungen sind inzwischen sprechend — bei vier von sechs Bäumen
 
@@ -205,6 +240,11 @@ weiterhin nicht.
   GLOBAL bewegt weiterhin dreimal `damagePerRankPerMille` (15 je Rang) — dort trifft die alte
   Aussage zu, und dort allein.
 
+  > **Überholt — markiert am 2026-10-24 (#419):** Beide Absätze darüber sind gealtert.
+  > `sublimation-reduction` trägt seit #824 `convertPerRankPerMille` (120 je Rang, EFFLUX'
+  > Umwandlung) statt `cooldownReductionPerRankPerMille`, und GLOBAL trägt seit #812 und #824
+  > eigene Größen, siehe den Hinweis bei der Tabelle oben.
+
   Sechs der zwölf Zauber tragen die Zahlen, an denen die Wege greifen:
 
   ```
@@ -225,6 +265,13 @@ weiterhin nicht.
 - **Die Schlüsseltalente** je Schule. Nur CALCINATION hat eines (`calcination-keystone`).
   `keystone: string` und `hasKeystone()` sind wiederverwendbar; jedes Schlüsseltalent ist ein
   eigenes Verhalten, kein Zahlendreher.
+
+  > **Überholt — markiert am 2026-10-24 (#419):** Es sind fünf, je Schul-Baum eines
+  > (`split-spender`, `partial-control`, `auto-reset`, `shield-refund`, `decay-echo`); der globale
+  > Baum hat keines. Gemessen mit
+  > `jq -r '[.trees[].talents[] | select(.keystone != null)] | length' data/player/talents.json`.
+  > Wie viele es werden sollen — je Baum oder je Weg —, ist offen.
+
 - **Die Verteilung der 50 Talentpunkte** über die Stufen (`talentPointTarget` in
   `data/player/levels.json`). Die Zahl
   ist entschieden, ihre Verteilung nicht. Warnung für den Wächter: Wer die Verteilung summiert und
