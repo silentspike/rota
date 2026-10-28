@@ -73,7 +73,7 @@ python3 tools/streich-volllauf.py --rolle <Rolle> --stand <Commit>   # erst --tr
 
 Das Werkzeug prüft die Vorbedingungen selbst und startet ohne eine davon nichts
 (Exit 2): Fenster der Rolle zugeteilt und nicht abgegeben, Stand ist ein Commit,
-Ausgabeverzeichnis neu, 1500 MB frei auf `/work`, `package-lock.json` gleich dem
+Ausgabeverzeichnis neu, 1500 MB frei dort, wo Ausgabe und Checkout landen, `package-lock.json` gleich dem
 von `/work/rota`. Dann legt es den Checkout per `git worktree add --detach` unter
 `/work/rota-worktrees/<Rolle>-1055-volllauf` an — dort ordnet `rota-fenster` die
 Prozesse einer Rolle zu; unter `/work/tmp` wären sie unsichtbar, und die erste
