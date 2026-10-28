@@ -491,9 +491,10 @@ describe('Die Einstufung je Fähigkeit', () => {
     return e;
   };
 
-  // Von Hand gesetzt: Stufe und Art je Fall, aus 11.5 und der Entscheidung des
-  // Orchestrators vom 28.10. gelesen (Stufe 2 = nach WARD mindestens die Hälfte
-  // der vollen Leben), nicht aus der Regel im Code.
+  // Von Hand gesetzt: Stufe und Art je Fall, aus 11.5 und den Entscheidungen des
+  // Orchestrators vom 28.10. gelesen (Stufe 2 = nach WARD mindestens ein VIERTEL
+  // der vollen Leben; die erste Fassung „die Hälfte" ließ Stufe 2 in allen
+  // Spiel-Bossen leer), nicht aus der Regel im Code.
   const faelle: ReadonlyArray<[string, string, number, number, string]> = [
     ['test-lethal-strike', 'Sunder', TIER_LETHAL, KIND_LETHAL, '18400 nach WARD 14720 >= 5000'],
     [
@@ -501,11 +502,24 @@ describe('Die Einstufung je Fähigkeit', () => {
       'Sunder',
       TIER_HIGHLIGHT,
       KIND_DAMAGE,
-      '4600 nach WARD 3680 >= 2500',
+      '4600 nach WARD 3680 >= 1250',
     ],
-    ['boss-1-1', 'Kindling Roar', TIER_BAR, KIND_DAMAGE, '900 nach WARD 720 < 2500'],
-    ['boss-1-1', 'Backlash', TIER_BAR, KIND_DAMAGE, '300 nach WARD 240 < 2500'],
-    ['boss-2-2', 'Collapse', TIER_BAR, KIND_DAMAGE, 'der schwerste Spiel-Eintrag, 1760 < 2500'],
+    ['boss-1-1', 'Kindling Roar', TIER_BAR, KIND_DAMAGE, '900 nach WARD 720 < 1250'],
+    ['boss-1-1', 'Backlash', TIER_BAR, KIND_DAMAGE, '300 nach WARD 240 < 1250'],
+    [
+      'boss-2-2',
+      'Collapse',
+      TIER_HIGHLIGHT,
+      KIND_DAMAGE,
+      'der schwerste Spiel-Eintrag, 1760 >= 1250',
+    ],
+    [
+      'boss-3-4',
+      'Final Seal',
+      TIER_BAR,
+      KIND_DAMAGE,
+      'der zweitschwerste, 1400 nach WARD 1120 < 1250',
+    ],
     ['boss-1-2', 'Cinder Sweep', TIER_BAR, KIND_DAMAGE, 'an Phase 1 gebunden — gleiche Regel'],
   ];
   for (const [id, name, tier, kind, warum] of faelle) {
@@ -525,21 +539,32 @@ describe('Die Einstufung je Fähigkeit', () => {
     expect(classifyEntry(sunder, { vesselMax: 14721, gearWardPermille: 0 }).tier).toBe(
       TIER_HIGHLIGHT,
     );
-    expect(classifyEntry(sunder, { vesselMax: 29441, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
+    // Ein Viertel von 58880 ist 14720 — bis dahin Stufe 2, darüber Stufe 1.
+    expect(classifyEntry(sunder, { vesselMax: 58880, gearWardPermille: 0 }).tier).toBe(
+      TIER_HIGHLIGHT,
+    );
+    expect(classifyEntry(sunder, { vesselMax: 58881, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
     // WARD aus der Ausrüstung zählt mit: 0,2 + 0,1 = 0,3 → 12880 — tötet 13000
-    // nicht mehr, trifft aber mit mehr als der Hälfte: Stufe 2.
+    // nicht mehr, trifft aber mit mehr als einem Viertel: Stufe 2.
     expect(classifyEntry(sunder, { vesselMax: 13000, gearWardPermille: 100 }).tier).toBe(
       TIER_HIGHLIGHT,
     );
   });
 
-  it('Stufe 2 beginnt genau bei der Hälfte der vollen Leben', () => {
-    // 4600 * 0,8 = 3680: Bei 7360 Leben ist das genau die Hälfte, bei 7361 weniger.
+  it('Stufe 2 beginnt genau bei einem Viertel der vollen Leben', () => {
+    // 4600 * 0,8 = 3680: Bei 14720 Leben ist das genau ein Viertel, bei 14721 weniger.
     const sunder = eintrag('test-survivable-strike', 'Sunder');
-    expect(classifyEntry(sunder, { vesselMax: 7360, gearWardPermille: 0 }).tier).toBe(
+    expect(classifyEntry(sunder, { vesselMax: 14720, gearWardPermille: 0 }).tier).toBe(
       TIER_HIGHLIGHT,
     );
-    expect(classifyEntry(sunder, { vesselMax: 7361, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
+    expect(classifyEntry(sunder, { vesselMax: 14721, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
+    // Und ein Spiel-Eintrag an derselben Grenze: Collapse, 2200 → 1760, ist bei
+    // 7040 Leben genau ein Viertel.
+    const collapse = eintrag('boss-2-2', 'Collapse');
+    expect(classifyEntry(collapse, { vesselMax: 7040, gearWardPermille: 0 }).tier).toBe(
+      TIER_HIGHLIGHT,
+    );
+    expect(classifyEntry(collapse, { vesselMax: 7041, gearWardPermille: 0 }).tier).toBe(TIER_BAR);
   });
 
   it('die Stufe hängt am Schaden, nicht an der Mechanik', () => {
@@ -748,6 +773,16 @@ describe('Kanal 3: Warnklang je Art, Countdown für Stufe 3', () => {
     // in die letzten fünf Sekunden, keiner beim Wirkbeginn.
     const b = mitZeitleiste([zauber(8000, 'Beta', HART, 3000), zauber(20_000, 'Beta', HART, 3000)]);
     expect(warnungen(b, 21_000)).toEqual(['boss.warning.damage@3000', 'boss.warning.damage@15000']);
+  });
+
+  it('Stufe 2 in einem Spiel-Boss: Collapse warnt, neben Schwächung und Gelegenheit', () => {
+    // boss-2-2: Schwächung bei 8000, Wettrennen bei 10000, Collapse (1760 nach
+    // WARD, mehr als ein Viertel) wirkt ab 11000. Cinder Rain (160) schweigt.
+    expect(warnungen(boss('boss-2-2'), 12_000)).toEqual([
+      'boss.warning.debuff@3000',
+      'boss.warning.opportunity@5000',
+      'boss.warning.damage@6000',
+    ]);
   });
 
   it('Allgemeiner Schaden der Stufe 1 schweigt — „ruhigere Ankündigung"', () => {
