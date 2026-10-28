@@ -45,12 +45,12 @@
 //!   reichten sie `Bounds::UNKNOWN` nur als Angabe weiter und behielten ihr
 //!   Urteil; die Festlegung des Orchestrators zu DW3 (28.10.) stellt sie auf den
 //!   Rückfall um — eine Regel ohne vollständige Semantik fällt auf den
-//!   konservativen Pfad. Die beiden Fälle, die das Weiterreichen festnagelten,
-//!   sind bewusst umgedreht ([`beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck`],
-//!   [`die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck`]). Ein
-//!   **halb offener** Bereich fällt nicht zurück — die Festlegung lautet auf
-//!   `Bounds::UNKNOWN`; [`ein_halb_offener_bereich_laesst_beide_leser_beim_urteil`]
-//!   hält diese Grenze fest.
+//!   konservativen Pfad, und zwar bei **jedem nicht engen** Bereich, auch einem
+//!   halb offenen. Die beiden Fälle, die das Weiterreichen festnagelten, sind
+//!   bewusst umgedreht ([`beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck`],
+//!   [`die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck`]), ebenso
+//!   der Zwischenstand, der halb offen beim Urteil ließ
+//!   ([`ein_halb_offener_bereich_laesst_beide_leser_ebenfalls_zurueckfallen`]).
 //!
 //! # Gemessen am 2026-10-24, als Mutation (`/work/tmp`, nicht eingecheckt)
 //!
@@ -505,7 +505,23 @@ fn reichen_den_bereich_weiter(pass: &str) -> Vec<EffectOp> {
         .collect()
 }
 
-/// DW3 an einem Leser des Bereichs: ohne ihn der konservative Pfad.
+/// Die beiden halb offenen Bereiche: je eine Grenze bekannt.
+///
+/// So tragen ihn die echten Knoten — Schaden nach oben offen (`sim/build.rs`:
+/// „Verstaerkungen und Stapel-Zuschlaege heben den Grundwert an“), der Entlader
+/// nach unten.
+const HALB_OFFEN: [Bounds; 2] = [
+    Bounds {
+        min: Some(0),
+        max: None,
+    },
+    Bounds {
+        min: None,
+        max: Some(0),
+    },
+];
+
+/// DW3 an einem Leser des Bereichs: ohne engen Bereich der konservative Pfad.
 ///
 /// # Bewusst umgedreht (Festlegung des Orchestrators für #892, 28.10.)
 ///
@@ -515,7 +531,7 @@ fn reichen_den_bereich_weiter(pass: &str) -> Vec<EffectOp> {
 /// Urteil behalten. DW3 verlangt, dass eine Regel ohne vollständige Semantik auf
 /// den konservativen Pfad fällt — ein Verbraucher, der dem Urteil traut, soll
 /// `ist_eng()` nicht selbst fragen müssen.
-fn faellt_ohne_bereich_zurueck(pass: &str, angabe: Evidence) {
+fn faellt_ohne_engen_bereich_zurueck(pass: &str, angabe: Evidence, bereiche: &[Bounds]) {
     let ops = reichen_den_bereich_weiter(pass);
     assert!(
         !ops.is_empty(),
@@ -523,19 +539,27 @@ fn faellt_ohne_bereich_zurueck(pass: &str, angabe: Evidence) {
          Fall nichts, oder der Leser ist ein anderer geworden."
     );
     for op in &ops {
-        let r = ergebnis(pass, &mit_unbekanntem_bereich(*op));
-        assert_eq!(
-            (r.verdict, r.evidence),
-            (Verdict::Conservative, angabe),
-            "{op:?}: Ohne Wertebereich urteilt \"{pass}\" weiter ({}). Gemessene Bausteine mit \
-             weitergereichtem Bereich: {ops:?}.",
-            r.reason
-        );
-        assert!(
-            r.fallback.vollstaendig(),
-            "{op:?}: nur {} von 6 konservativen Zuständen",
-            r.fallback.anzahl()
-        );
+        for &bereich in bereiche {
+            assert!(
+                !bereich.ist_eng(),
+                "{bereich:?} ist eng — dann prüft dieser Fall nichts"
+            );
+            let mut knoten = beispielknoten(*op);
+            knoten.numeric_bounds = bereich;
+            let r = ergebnis(pass, &knoten);
+            assert_eq!(
+                (r.verdict, r.evidence),
+                (Verdict::Conservative, angabe),
+                "{op:?} mit {bereich:?}: Ohne engen Wertebereich urteilt \"{pass}\" weiter ({}). \
+                 Gemessene Bausteine mit weitergereichtem Bereich: {ops:?}.",
+                r.reason
+            );
+            assert!(
+                r.fallback.vollstaendig(),
+                "{op:?} mit {bereich:?}: nur {} von 6 konservativen Zuständen",
+                r.fallback.anzahl()
+            );
+        }
     }
 }
 
@@ -545,7 +569,11 @@ fn beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck() {
     // gewirkt). Das Urteil reichte aber den Bereich als Schranke mit — und ohne
     // Bereich ist die Semantik unvollständig. Die Angabe ist dieselbe wie in
     // jedem anderen Rückfall dieses Passes: keine Obergrenze.
-    faellt_ohne_bereich_zurueck("action-bound", Evidence::Aktionsgrenze(None));
+    faellt_ohne_engen_bereich_zurueck(
+        "action-bound",
+        Evidence::Aktionsgrenze(None),
+        &[Bounds::UNKNOWN],
+    );
 }
 
 #[test]
@@ -553,43 +581,23 @@ fn die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck() {
     // Ein spezialisierter Kernel mit fester Darstellung braucht den Bereich;
     // ohne ihn der allgemeine Kernel. Die Angabe ist dieselbe wie im Rückfall
     // bei einer Lücke.
-    faellt_ohne_bereich_zurueck("kernel-choice", Evidence::Keine);
+    faellt_ohne_engen_bereich_zurueck("kernel-choice", Evidence::Keine, &[Bounds::UNKNOWN]);
 }
 
 #[test]
-fn ein_halb_offener_bereich_laesst_beide_leser_beim_urteil() {
-    // **Die Grenze der Festlegung, festgenagelt statt vergessen.** Sie lautet
-    // auf `Bounds::UNKNOWN`. Ein Bereich mit nur einer Grenze — so tragen ihn
-    // die echten Schadenszauber (`sim/build.rs`: nach oben offen) — ist eine
-    // Teilangabe: Die Leser behalten ihr Urteil und reichen ihn weiter, die
-    // Angabe sagt „nicht eng“. Wer auch hier zurückfallen lässt, ändert damit
-    // 77 Urteile an echten Knoten (gemessen am 2026-10-28) und dreht diesen Fall
-    // bewusst um.
-    for pass in ["action-bound", "kernel-choice"] {
-        for op in reichen_den_bereich_weiter(pass) {
-            for halb in [
-                Bounds {
-                    min: Some(0),
-                    max: None,
-                },
-                Bounds {
-                    min: None,
-                    max: Some(0),
-                },
-            ] {
-                let mut knoten = beispielknoten(op);
-                knoten.numeric_bounds = halb;
-                let r = ergebnis(pass, &knoten);
-                assert_eq!(
-                    (r.verdict, r.evidence),
-                    (Verdict::Permits, Evidence::Schranke(halb)),
-                    "{pass} bei {op:?} mit {halb:?}: ({})",
-                    r.reason
-                );
-                assert!(!halb.ist_eng());
-            }
-        }
-    }
+fn ein_halb_offener_bereich_laesst_beide_leser_ebenfalls_zurueckfallen() {
+    // **Bewusst umgedreht, zweite Festlegung des Orchestrators (28.10.).** Die
+    // erste Fassung dieses Falls hieß `ein_halb_offener_bereich_laesst_beide_leser_beim_urteil`
+    // und nagelte fest, dass nur `Bounds::UNKNOWN` zurückfällt. Damit blieb die
+    // Lücke aus PR #1136 bei allen 15 Schadenszaubern offen: Sie tragen einen
+    // halb offenen Bereich, und die Leser erlaubten mit einer Schranke, die nicht
+    // eng ist. Entschieden ist „ohne vollständige Semantik“ — also jeder nicht
+    // enge Bereich, wie im Zweig für Zusatz-Aktionen desselben Passes
+    // ([`ohne_wertebereich_leitet_action_bound_fuer_zusatzaktionen_keine_obergrenze_ab`]).
+    // An den echten Knoten kippen damit 77 Urteile (kernel-choice 23,
+    // action-bound 54; gemessen am 2026-10-28).
+    faellt_ohne_engen_bereich_zurueck("action-bound", Evidence::Aktionsgrenze(None), &HALB_OFFEN);
+    faellt_ohne_engen_bereich_zurueck("kernel-choice", Evidence::Keine, &HALB_OFFEN);
 }
 
 #[test]
