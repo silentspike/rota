@@ -87,6 +87,15 @@ Stunden später. Dein eigentliches Ergebnis kommt später als **neue** Nachricht
 **Melde dich auch, bevor du still wirst.** Wenn du fertig bist oder wartest, sag das — sonst
 meldet der Watcher dich als stillstehend, und der Orchestrator weiß nicht, ob du hängst.
 
+### Entscheidungen des Auftraggebers nachlesen
+
+Seine verbindlichen Entscheidungen liegen als Antwortdateien unter
+`/work/rota/fragen/antworten/<frage-id>.json`, die Fragen dazu in `/work/rota/fragen/fragen.json`.
+Lesen mit `rota-fragen zeigen` — ohne den Orchestrator zu fragen. **Maßgeblich ist die
+Antwortdatei**, nicht das Feld `status` in `fragen.json`: `beantwortet` steht dort erst nach
+der Quittung des Orchestrators. Nur lesen, nichts dort schreiben. Einzelheiten in
+[`docs/IPC.md`](docs/IPC.md), Abschnitt „Entscheidungen des Auftraggebers".
+
 ### Vier Regeln
 
 1. **Weiche nicht aus.** Klemmt der Versand, melde den Fehlertext. Keine GitHub-Kommentare, kein
