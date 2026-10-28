@@ -63,8 +63,8 @@ pub use messwerte::{
     Strangzeit, Wegtreffer, Zaehlerlage, Zaehlerwerte,
 };
 pub use regeln::{
-    diagnose, Befund, Diagnose, Regel, ABLAUF_TREFFER_ANTEIL, DURCHSATZ_MINUS, FEHLSPRUENGE_PLUS,
-    NETZ_WARTEN_ANTEIL, SCHLANGE_BELEGUNG_ANTEIL, SPEICHER_WARTEZEIT_PLUS, STRANG_WARTEN_ANTEIL,
-    ZYKLEN_JE_EREIGNIS_PLUS,
+    diagnose, Befund, Diagnose, Regel, ABLAUF_TREFFER_ANTEIL, DRITTE_EBENE_ANTEIL, DURCHSATZ_MINUS,
+    FEHLSPRUENGE_PLUS, NETZ_WARTEN_ANTEIL, SCHLANGE_BELEGUNG_ANTEIL, SPEICHER_WARTEZEIT_PLUS,
+    STRANG_WARTEN_ANTEIL, ZYKLEN_JE_EREIGNIS_PLUS,
 };
 pub use zaehler::{prozess_cpu_ns, Gruppenstand, Leistungszaehler, Sperre, Zaehlerstand};
