@@ -244,6 +244,25 @@ fn raten_ohne_gueltigen_messbeleg_werden_zurueckgewiesen() {
 }
 
 #[test]
+fn stabile_rate_mit_breiter_abschnittsstreuung_wird_angenommen() {
+    // Seit dem 28.10. hängt `Stabil` an der Unsicherheit des MITTELS, nicht an
+    // der Streuung der Abschnitte (#912, Entscheidung des Orchestrators). Auf
+    // node3 streuen die Abschnitte des Vollkampfs um rund 10 %, das Mittel aus
+    // gut 500 ist auf ein halbes Prozent bekannt. Eine solche Rate ist eine
+    // Kalibrierung — wer sie hier verwirft, verwirft jede auf dem Zielrechner.
+    let mut profile = profile("fixture", 100.0);
+    profile.raten[0].1 = RateModel {
+        spread: 0.10,
+        samples: 516,
+        ..rate(100.0)
+    };
+    assert!(
+        preflight(&contract(10_000), &[work()], &[host(&profile)]).is_ok(),
+        "eine stabile Rate mit breiten Abschnitten wurde verworfen"
+    );
+}
+
+#[test]
 fn anderer_host_artefakt_kernel_oder_taktregime_ist_inkompatibel() {
     let profile = profile("fixture", 100.0);
     for field in 0..4 {
