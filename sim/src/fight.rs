@@ -3538,7 +3538,12 @@ impl Fight {
                 // weiter unten beim Spieler ankommen — sonst waere das Talent
                 // ein Freischlag statt einer Nachlage. Spiegelbild von
                 // `Combat.hitPlayer`.
-                let nachlage = if self.shield_refund {
+                //
+                // **Nur eine GELEGTE Schicht gibt sie** (Abnahme von #1146):
+                // ohne Stapel liegt nur Umwandlung (TEMPER), und die waechst,
+                // sie wird nicht gelegt. Vorher gab ihr Bruch die Haelfte einer
+                // CRUST, die ungebrochen abgelaufen war — gemessen 450 statt 0.
+                let nachlage = if self.shield_refund && self.shield_stacks > 0 {
                     self.shield_last_amount / 2
                 } else {
                     0
@@ -5506,6 +5511,17 @@ impl Fight {
         if self.shield_refund {
             h = mix_named_int(h, "shieldRefundUsed", i32::from(self.shield_refund_used));
             h = mix_named_int(h, "shieldLastAmount", self.shield_last_amount as i32);
+        }
+        // **Der Auswahlmodus der Ruecksetzer** (#419, Abnahme von #1146) —
+        // angehaengt, und NUR solange er scharf steht. Begruendung und Folge
+        // wie in `src/core/checksum.ts`.
+        if self.reset_mode.is_armed() {
+            h = mix_named_int(h, "resetArmedFor", i32::from(self.reset_mode.armed_for()));
+            h = mix_named_int(
+                h,
+                "resetChargesLeft",
+                i32::from(self.reset_mode.charges_left()),
+            );
         }
         h
     }

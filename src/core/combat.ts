@@ -3457,9 +3457,15 @@ export class Combat {
         // Abgerundet (GAME-DESIGN 18.4) und nur, wenn dabei etwas übrig
         // bleibt: Eine Nachlage von 0 wäre keine, würde aber den Merker
         // verbrauchen und sähe im Verlauf wie eine aus.
-        const nachlage = this.hasKeystone(KEYSTONE_SHIELD_REFUND)
-          ? Math.floor(this.shieldLastAmount / 2)
-          : 0;
+        //
+        // **Nur eine GELEGTE Schicht gibt sie** (Abnahme von #1146): ohne
+        // Stapel liegt nur Umwandlung (TEMPER), und die wird nicht gelegt, sie
+        // wächst. Vorher gab ihr Bruch die Hälfte einer CRUST, die längst
+        // ungebrochen abgelaufen war — gemessen 450 statt 0.
+        const nachlage =
+          this.hasKeystone(KEYSTONE_SHIELD_REFUND) && this.shieldStacksValue > 0
+            ? Math.floor(this.shieldLastAmount / 2)
+            : 0;
         //
         // **Kein `return` hier.** Der Schlag, der die Schicht bricht, kann
         // mehr tragen, als sie auffängt; der Rest muss weiter unten beim
