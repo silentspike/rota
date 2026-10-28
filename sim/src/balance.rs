@@ -1106,9 +1106,9 @@ fn bereich_messen(
 /// Ein Bereich auf einem Helfer: angemeldet auf dem Platz des Bereichs, mit
 /// eigenen Kampfzählern, die danach zurückgehen.
 ///
-/// **Wie auf einem frischen Strang.** Ein Helfer rechnet viele Läufe; seine
-/// Zähler werden deshalb vor dem Bereich geleert und danach wieder
-/// abgeschaltet — sonst trüge er die Zählung eines früheren Laufs in den
+/// **Wie auf einem frischen Strang.** Ein Helfer rechnet viele Läufe; nach
+/// jedem Bereich werden seine Zähler abgeschaltet und geleert — auch wenn
+/// der Bereich abbricht —, sonst trüge er die Zählung eines Laufs in den
 /// nächsten.
 fn helfer_bereich(
     config: &BalanceConfig,
@@ -1119,17 +1119,21 @@ fn helfer_bereich(
     arbeiter: Option<crate::fortschritt::Strang>,
     kampfzaehler: bool,
 ) -> Teil {
+    /// Schaltet die Kampfzähler des Helfers ab und leert sie.
+    struct Aufraeumen;
+    impl Drop for Aufraeumen {
+        fn drop(&mut self) {
+            crate::diagnostics::disable();
+            crate::diagnostics::reset();
+        }
+    }
     let _anmeldung = arbeiter.map(crate::fortschritt::Strang::anmelden);
+    let _aufraeumen = Aufraeumen;
     if kampfzaehler {
-        crate::diagnostics::reset();
         crate::diagnostics::enable();
     }
     let (teil, zeit) = bereich_messen(config, apl, offset, len, control);
     let zaehler = kampfzaehler.then(crate::diagnostics::snapshot);
-    if kampfzaehler {
-        crate::diagnostics::disable();
-        crate::diagnostics::reset();
-    }
     (teil, zeit, zaehler)
 }
 
