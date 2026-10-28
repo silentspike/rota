@@ -8,8 +8,14 @@
 //!
 //! | AC2 verlangt | hier geprüft |
 //! | --- | --- |
-//! | drei echte Läufe mit einem, zwei, drei Rechnern | drei **Deployments** mit einem, zwei, drei Rechnern |
+//! | drei echte Läufe mit einem, zwei, drei Teilnehmern | drei **Deployments** mit einem, zwei, drei Teilnehmern |
 //! | gleicher Ergebnis-Fingerabdruck | gleicher **Kampagnen**-Fingerabdruck |
+//!
+//! **Teilnehmer sind Arbeitsprozesse auf node3**, jeder mit eigener
+//! Kernbindung — Entscheidung des Auftraggebers vom 2026-10-28 („2 Prozesse auf
+//! node3"). Hier stand „mit einem, zwei, drei Rechnern"; „drei Rechner" heißt
+//! seitdem drei Prozesse. Kein weiterer Rechner; das Netz zwischen zwei
+//! Maschinen prüft die Abnahme nicht.
 //!
 //! **Nicht belegt ist damit, dass ein echter verteilter Lauf dasselbe
 //! Ergebnis liefert.** Das kann erst das Verteiler-Issue, das den Rechenweg
@@ -22,10 +28,10 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    CpuReservation, DateTimeUtc, DeadlinePolicy, DeployedHost, Hash, HostRequirement, Mission,
-    NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
-    RunDeployment, RuntimeAccounting, WorkUnits, REFERENCE_PROFILE_STANDARD,
+    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
+    CoverageSpec, CpuReservation, CpuRole, DateTimeUtc, DeadlinePolicy, DeployedHost, Hash,
+    HostRequirement, Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile,
+    ResultGuarantee, RunDeployment, RuntimeAccounting, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
 const LAPTOP: CpuReservation = CpuReservation {
@@ -34,14 +40,26 @@ const LAPTOP: CpuReservation = CpuReservation {
     reserved_physical_cores: 2,
 };
 
+const LAPTOP_RECHNET: ComputeRequirement = ComputeRequirement {
+    guaranteed_cpu_quota: Some(1.0),
+    cpu: LAPTOP,
+};
+
 const REFERENZ_HOST: HostRequirement = HostRequirement {
     name: "laptop",
-    guaranteed_cpu_quota: Some(1.0),
-    memory_limit_mib: 4096,
-    cpu: LAPTOP,
+    cpu_role: CpuRole::Compute(LAPTOP_RECHNET),
     gpu_duty_cycle: 0.0,
+    memory_limit_mib: 4096,
     thermal_throttling: false,
 };
+
+/// Der Referenzrechner mit anderen CPU-Angaben, sonst unverändert.
+const fn rechnet(rechnen: ComputeRequirement) -> HostRequirement {
+    HostRequirement {
+        cpu_role: CpuRole::Compute(rechnen),
+        ..REFERENZ_HOST
+    }
+}
 
 const NETZ: NetworkRequirement = NetworkRequirement {
     max_rtt_ms: 5,
@@ -89,26 +107,56 @@ fn host(name: &'static str, kerne: u16) -> DeployedHost {
     }
 }
 
-/// Ein, zwei, drei Rechner — mit ABSICHTLICH verschiedener Ausstattung, damit
-/// die Deployments sich nicht nur in der Länge unterscheiden.
+/// Physische Kerne von node3 — die Grenze, in die alle Teilnehmer passen.
+const NODE3_KERNE: u16 = 8;
+
+/// Ein Teilnehmer der Abnahme: ein Arbeitsprozess auf node3, gebunden an
+/// `kerne` eigene physische Kerne samt ihren SMT-Geschwistern.
+///
+/// Entscheidung des Auftraggebers vom 2026-10-28: „2 Prozesse auf node3" —
+/// getrennte Arbeitsprozesse, jeder mit eigener Kernbindung, kein weiterer
+/// Rechner.
+fn prozess(name: &'static str, kerne: u16) -> DeployedHost {
+    DeployedHost {
+        name,
+        cgroup_quota: 1.0,
+        runtime_perf_profile: 1.0,
+        cpu: CpuReservation {
+            physical_cores: kerne,
+            threads_per_core: 2,
+            reserved_physical_cores: 0,
+        },
+    }
+}
+
+/// Ein, zwei, drei Teilnehmer — mit ABSICHTLICH verschiedener Kernbindung,
+/// damit die Deployments sich nicht nur in der Länge unterscheiden.
+///
+/// Bis zum 2026-10-28 waren es Rechner („laptop" mit 8, „node3" mit 12,
+/// „dritter" mit 16 Kernen). Seitdem teilen sich die Teilnehmer die Kerne von
+/// node3; die Schätzung ist deshalb überall dieselbe.
 fn deployments() -> [RunDeployment; 3] {
     [
         RunDeployment {
-            available_hosts: vec![host("laptop", 8)],
+            available_hosts: vec![prozess("node3/1", 8)],
             estimated_eta: Duration::from_secs(7200),
         },
         RunDeployment {
-            available_hosts: vec![host("laptop", 8), host("node3", 12)],
-            estimated_eta: Duration::from_secs(3600),
+            available_hosts: vec![prozess("node3/1", 5), prozess("node3/2", 3)],
+            estimated_eta: Duration::from_secs(7200),
         },
         RunDeployment {
-            available_hosts: vec![host("laptop", 8), host("node3", 12), host("dritter", 16)],
-            estimated_eta: Duration::from_secs(2400),
+            available_hosts: vec![
+                prozess("node3/1", 4),
+                prozess("node3/2", 3),
+                prozess("node3/3", 1),
+            ],
+            estimated_eta: Duration::from_secs(7200),
         },
     ]
 }
 
-/// **AC2** — dieselbe Kampagne, drei Rechnerzahlen, ein Fingerabdruck.
+/// **AC2** — dieselbe Kampagne, ein, zwei, drei Teilnehmer, ein Fingerabdruck.
 #[test]
 fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
     let k = kampagne();
@@ -116,14 +164,44 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 
     // ZUSICHERUNG: Die drei Deployments müssen sich WIRKLICH unterscheiden.
     // Ohne sie verglichen wir dreimal dasselbe, und die Gleichheit wäre trivial
-    // wahr — der Fall bliebe grün, auch wenn jemand alle drei gleich baut.
-    let stränge: Vec<u64> = d.iter().map(RunDeployment::total_compute_threads).collect();
+    // wahr — der Fall bliebe grün, auch wenn jemand alle drei gleich baut. Die
+    // Summe der Stränge ist dafür kein Maß mehr: Alle drei teilen sich node3.
+    let straenge_je_teilnehmer: Vec<Vec<u32>> = d
+        .iter()
+        .map(|x| {
+            x.available_hosts
+                .iter()
+                .map(|t| t.cpu.compute_threads())
+                .collect()
+        })
+        .collect();
     assert_eq!(
-        stränge,
-        vec![12, 12 + 20, 12 + 20 + 28],
+        straenge_je_teilnehmer,
+        vec![vec![16], vec![10, 6], vec![8, 6, 2]],
         "Die drei Deployments unterscheiden sich nicht wie erwartet — dann \
          prüft dieser Fall nichts."
     );
+
+    // Kein weiterer Rechner: Jeder Teilnehmer ist ein Prozess auf node3, und
+    // zusammen binden sie höchstens dessen Kerne.
+    for x in &d {
+        for t in &x.available_hosts {
+            assert!(
+                t.name.starts_with("node3/"),
+                "Teilnehmer {} ist kein Prozess auf node3",
+                t.name
+            );
+        }
+        let kerne: u32 = x
+            .available_hosts
+            .iter()
+            .map(|t| u32::from(t.cpu.physical_cores))
+            .sum();
+        assert!(
+            kerne <= u32::from(NODE3_KERNE),
+            "{kerne} gebundene Kerne passen nicht auf node3 ({NODE3_KERNE})"
+        );
+    }
 
     let abdruecke: Vec<Hash> = d
         .iter()
@@ -133,11 +211,11 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
         .collect();
     assert_eq!(
         abdruecke[0], abdruecke[1],
-        "ein Rechner gegen zwei: verschiedene Fingerabdrücke"
+        "ein Teilnehmer gegen zwei: verschiedene Fingerabdrücke"
     );
     assert_eq!(
         abdruecke[1], abdruecke[2],
-        "zwei Rechner gegen drei: verschiedene Fingerabdrücke"
+        "zwei Teilnehmer gegen drei: verschiedene Fingerabdrücke"
     );
 
     // Und die Arbeitsmenge selbst ist dieselbe, nicht nur ihr Abdruck.
@@ -462,10 +540,22 @@ fn ac1_der_vertrag_entsteht_aus_der_kampagne_allein() {
 /// Der Unterschied zwischen `None` und einer Zahl ist hier inhaltlich:
 /// ausdrückliches „best effort" gegen eine Zusicherung. Ein Profil, das nur
 /// Namen führte, bestünde diesen Fall nicht.
+///
+/// „Jeder Rechner hat nutzbare Stränge" gilt seit dem 2026-10-28 nur noch für
+/// die, deren **CPU rechnet**: Ein Koordinator hat bewusst keine (im Profil
+/// „standard" der Laptop, Entscheidung des Auftraggebers). Damit die
+/// Präzisierung den Fall nicht aushöhlt, muss mindestens eine CPU rechnen —
+/// sonst bestünde ein Profil aus lauter Koordinatoren die Schleife trivial und
+/// hätte nichts, woraus ein Budget folgen könnte. Die Grafik-Einschaltdauer
+/// steht bei jedem Rechner und muss überall ein Anteil sein.
 #[test]
 fn ac3_das_referenzprofil_nennt_mindestressourcen() {
     let profil = kampagne().reference_profile;
     assert!(!profil.hosts.is_empty(), "Das Profil führt keinen Rechner.");
+    assert!(
+        profil.hosts.iter().any(|h| h.compute_threads() > 0),
+        "Im Profil rechnet kein Rechner."
+    );
 
     for h in profil.hosts {
         assert!(
@@ -474,10 +564,18 @@ fn ac3_das_referenzprofil_nennt_mindestressourcen() {
              Maschine gibt.",
             h.name
         );
+        if let CpuRole::Compute(rechnen) = h.cpu_role {
+            assert!(
+                rechnen.cpu.compute_threads() > 0,
+                "{}: rechnet ohne nutzbare Stränge",
+                h.name
+            );
+        }
         assert!(
-            h.cpu.compute_threads() > 0,
-            "{}: keine nutzbaren Stränge",
-            h.name
+            h.gpu_duty_cycle.is_finite() && (0.0..=1.0).contains(&h.gpu_duty_cycle),
+            "{}: Grafik-Einschaltdauer {} ist kein Anteil",
+            h.name,
+            h.gpu_duty_cycle
         );
         assert!(
             !h.thermal_throttling,
@@ -504,17 +602,17 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
         ),
         (
             "quota",
-            HostRequirement {
+            rechnet(ComputeRequirement {
                 guaranteed_cpu_quota: Some(2.0),
-                ..REFERENZ_HOST
-            },
+                ..LAPTOP_RECHNET
+            }),
         ),
         (
             "best effort",
-            HostRequirement {
+            rechnet(ComputeRequirement {
                 guaranteed_cpu_quota: None,
-                ..REFERENZ_HOST
-            },
+                ..LAPTOP_RECHNET
+            }),
         ),
         (
             "memory",
@@ -525,33 +623,33 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
         ),
         (
             "physical cores",
-            HostRequirement {
+            rechnet(ComputeRequirement {
                 cpu: CpuReservation {
                     physical_cores: 9,
                     ..LAPTOP
                 },
-                ..REFERENZ_HOST
-            },
+                ..LAPTOP_RECHNET
+            }),
         ),
         (
             "threads per core",
-            HostRequirement {
+            rechnet(ComputeRequirement {
                 cpu: CpuReservation {
                     threads_per_core: 1,
                     ..LAPTOP
                 },
-                ..REFERENZ_HOST
-            },
+                ..LAPTOP_RECHNET
+            }),
         ),
         (
             "reserved cores",
-            HostRequirement {
+            rechnet(ComputeRequirement {
                 cpu: CpuReservation {
                     reserved_physical_cores: 1,
                     ..LAPTOP
                 },
-                ..REFERENZ_HOST
-            },
+                ..LAPTOP_RECHNET
+            }),
         ),
         (
             "gpu duty cycle",
@@ -564,6 +662,16 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
             "throttling",
             HostRequirement {
                 thermal_throttling: true,
+                ..REFERENZ_HOST
+            },
+        ),
+        // Seit 2026-10-28: Ob die CPU eines Rechners rechnet, gehört zur
+        // Identität. Die CPU des Laptops im Profil „standard" ist danach
+        // Koordinator geworden.
+        (
+            "cpu role",
+            HostRequirement {
+                cpu_role: CpuRole::Coordinator,
                 ..REFERENZ_HOST
             },
         ),
@@ -584,12 +692,35 @@ fn ac2_jedes_referenzfeld_aendert_den_fingerabdruck_ohne_neue_versionsnummer() {
 #[test]
 fn ac2_referenzrechner_anzahl_und_fehlende_quote_bleiben_unterscheidbar() {
     static DOPPELT: &[HostRequirement] = &[REFERENZ_HOST, REFERENZ_HOST];
-    static OHNE_QUOTE: &[HostRequirement] = &[HostRequirement {
+    static OHNE_QUOTE: &[HostRequirement] = &[rechnet(ComputeRequirement {
         guaranteed_cpu_quota: None,
+        ..LAPTOP_RECHNET
+    })];
+    static NULL_QUOTE: &[HostRequirement] = &[rechnet(ComputeRequirement {
+        guaranteed_cpu_quota: Some(0.0),
+        ..LAPTOP_RECHNET
+    })];
+    // Ein Koordinator ist kein rechnender Rechner mit lauter Nullen: null
+    // nutzbare Stränge heißen „alle Kerne reserviert", eine Quote von 0.0
+    // „garantiert nichts" — beides sind Aussagen über einen RECHNENDEN.
+    static KOORDINATOR: &[HostRequirement] = &[HostRequirement {
+        cpu_role: CpuRole::Coordinator,
         ..REFERENZ_HOST
     }];
-    static NULL_QUOTE: &[HostRequirement] = &[HostRequirement {
+    static LAUTER_NULLEN: &[HostRequirement] = &[rechnet(ComputeRequirement {
         guaranteed_cpu_quota: Some(0.0),
+        cpu: CpuReservation {
+            physical_cores: 0,
+            threads_per_core: 0,
+            reserved_physical_cores: 0,
+        },
+    })];
+    // Die GPU eines Koordinators gehört zur Identität (Entscheidung „NUR GPU",
+    // 2026-10-28): Ein Profil, dessen Laptop-GPU ein Viertel der Zeit rechnet,
+    // ist ein anderes als eines ohne.
+    static KOORDINATOR_MIT_GPU: &[HostRequirement] = &[HostRequirement {
+        cpu_role: CpuRole::Coordinator,
+        gpu_duty_cycle: 0.25,
         ..REFERENZ_HOST
     }];
     let basis = kampagne();
@@ -604,6 +735,101 @@ fn ac2_referenzrechner_anzahl_und_fehlende_quote_bleiben_unterscheidbar() {
     let mut null = basis;
     null.reference_profile.hosts = NULL_QUOTE;
     assert_ne!(ohne.fingerprint(), null.fingerprint());
+
+    let mut koordinator = basis;
+    koordinator.reference_profile.hosts = KOORDINATOR;
+    let mut nullen = basis;
+    nullen.reference_profile.hosts = LAUTER_NULLEN;
+    assert_eq!(nullen.reference_profile.hosts[0].compute_threads(), 0);
+    assert_eq!(koordinator.reference_profile.hosts[0].compute_threads(), 0);
+    assert_ne!(
+        koordinator.fingerprint(),
+        nullen.fingerprint(),
+        "Ein Koordinator und ein rechnender Rechner ohne Stränge sind derselbe \
+         Fingerabdruck."
+    );
+
+    let mut mit_gpu = basis;
+    mit_gpu.reference_profile.hosts = KOORDINATOR_MIT_GPU;
+    assert_eq!(mit_gpu.reference_profile.hosts[0].compute_threads(), 0);
+    assert_ne!(
+        mit_gpu.fingerprint(),
+        koordinator.fingerprint(),
+        "Die Grafik-Einschaltdauer eines Koordinators fehlt im Fingerabdruck."
+    );
+}
+
+/// Die CPU-Rolle steht im Fingerabdruck VOR den CPU-Angaben — und das trägt.
+///
+/// Die beiden Profile sind so gebaut, dass sie ohne die Rollenkennung
+/// denselben Mischstrom ergäben, Wert für Wert. Wo im einen der Koordinator
+/// „a" Grafik, Speicher und Drosselung einrührt (0, 0, 2, 0), rührt im anderen
+/// der rechnende „a" Quote-Kennung, Kerne, Stränge und Reservierung ein — mit
+/// denselben Zahlen. Seine Grafik-Bits (1 und 0),
+/// sein Speicher (98) und seine Drosselung (0) sind im ersten Profil Länge,
+/// Name und Quote-Kennung des rechnenden „b"; dessen Kerne, Stränge und
+/// Reservierung (1, 0, 98) sind im zweiten Länge und Name des Koordinators
+/// „b". Ein Koordinator hat weniger Felder als ein rechnender Rechner; ohne
+/// Kennung entscheidet nichts, wo sie enden.
+#[test]
+fn ac2_die_rolle_trennt_koordinator_und_rechner_auch_bei_passenden_werten() {
+    static KOORDINATOR_ZUERST: &[HostRequirement] = &[
+        HostRequirement {
+            name: "a",
+            cpu_role: CpuRole::Coordinator,
+            gpu_duty_cycle: 0.0,
+            memory_limit_mib: 2,
+            thermal_throttling: false,
+        },
+        HostRequirement {
+            name: "b",
+            cpu_role: CpuRole::Compute(ComputeRequirement {
+                guaranteed_cpu_quota: None,
+                cpu: CpuReservation {
+                    physical_cores: 1,
+                    threads_per_core: 0,
+                    reserved_physical_cores: 98,
+                },
+            }),
+            gpu_duty_cycle: 0.0,
+            memory_limit_mib: 4096,
+            thermal_throttling: false,
+        },
+    ];
+    static RECHNER_ZUERST: &[HostRequirement] = &[
+        HostRequirement {
+            name: "a",
+            cpu_role: CpuRole::Compute(ComputeRequirement {
+                guaranteed_cpu_quota: None,
+                cpu: CpuReservation {
+                    physical_cores: 0,
+                    threads_per_core: 2,
+                    reserved_physical_cores: 0,
+                },
+            }),
+            // Niederwertige Hälfte 1, höherwertige 0: im anderen Profil die
+            // Länge von „b".
+            gpu_duty_cycle: f64::from_bits(1),
+            memory_limit_mib: 98,
+            thermal_throttling: false,
+        },
+        HostRequirement {
+            name: "b",
+            cpu_role: CpuRole::Coordinator,
+            gpu_duty_cycle: 0.0,
+            memory_limit_mib: 4096,
+            thermal_throttling: false,
+        },
+    ];
+    let mut eins = kampagne();
+    eins.reference_profile.hosts = KOORDINATOR_ZUERST;
+    let mut zwei = kampagne();
+    zwei.reference_profile.hosts = RECHNER_ZUERST;
+    assert_ne!(
+        eins.fingerprint(),
+        zwei.fingerprint(),
+        "Ohne Rollenkennung fallen die beiden Profile zusammen."
+    );
 }
 
 #[test]
@@ -726,12 +952,27 @@ fn ac2_name_und_netz_des_referenzprofils_aendern_den_fingerabdruck() {
     assert_ne!(unbekannt.fingerprint(), null_bandbreite.fingerprint());
 }
 
-/// **AC3** — das Referenzprofil „standard" ist Laptop + node3.
+/// **AC3** — das Referenzprofil „standard" ist Laptop + node3: node3 rechnet,
+/// die CPU des Laptops koordiniert.
 ///
-/// Entscheidung des Auftraggebers vom 2026-10-28: Der Plan nannte
+/// Rechner: Entscheidung des Auftraggebers vom 2026-10-28. Der Plan nannte
 /// „Laptop + proxmox + gonet". Zusatzrechner ist nur noch node3 (Proxmox-Knoten
 /// `ovh-pve1`, AMD Ryzen 7 9700X, 8 Kerne/16 Stränge); gonet und 10.0.0.69
 /// gehören nicht mehr dazu.
+///
+/// Rollen: zweite Entscheidung desselben Tages, auf die Frage, ob der Laptop
+/// mitrechnet oder nur koordiniert: „Nur koordinieren". **Dieser Fall ist
+/// deshalb bewusst umgedreht.** Bis dahin verlangte er wörtlich, dass der
+/// Laptop mit zwölf Strängen rechnet (`balanced`, zwei physische Kerne samt
+/// Geschwistern frei, Quote 12), und dass jeder Rechner des Profils nutzbare
+/// Stränge hat. Jetzt verlangt er das Gegenteil für die CPU des Laptops, und
+/// die Strang-Bedingung gilt für jeden Rechner, dessen CPU rechnet —
+/// abgesichert dadurch, dass die Liste dieser Rechner genau node3 ist.
+///
+/// GPU: dritte Entscheidung desselben Abends, „NUR GPU" — die GPU des Laptops
+/// darf rechnen, auf ausdrücklichen Aufruf. Deshalb prüft der Fall die
+/// Grafik-Einschaltdauer bei **jedem** Rechner und verlangt nicht, dass der
+/// Koordinator keine hat. Im Referenzlauf ist sie 0 %.
 #[test]
 fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
     let p = REFERENCE_PROFILE_STANDARD;
@@ -743,67 +984,89 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
         "Das Profil standard führt andere Rechner als Laptop + node3"
     );
 
+    // Der Koordinator läuft auf dem ersten Rechner (`ReferenceProfile::hosts`),
+    // und im Profil standard rechnet seine CPU nicht.
     let laptop = &p.hosts[0];
     assert_eq!(
-        laptop.cpu,
-        CpuReservation {
-            physical_cores: 8,
-            threads_per_core: 2,
-            reserved_physical_cores: 2,
-        },
-        "balanced: zwei physische Kerne samt Geschwistern bleiben frei (Plan Z. 46)"
+        laptop.cpu_role,
+        CpuRole::Coordinator,
+        "Die CPU des Laptops rechnet mit — entschieden ist „Nur koordinieren“"
     );
-    assert_eq!(laptop.cpu.compute_threads(), 12);
+    assert_eq!(laptop.compute_threads(), 0);
+
+    let rechnend: Vec<&str> = p
+        .hosts
+        .iter()
+        .filter(|h| matches!(h.cpu_role, CpuRole::Compute(_)))
+        .map(|h| h.name)
+        .collect();
+    assert_eq!(
+        rechnend,
+        vec!["node3"],
+        "Im Profil standard rechnet nicht genau die CPU von node3"
+    );
 
     for h in p.hosts {
         assert!(h.memory_limit_mib > 0, "{}: kein Speicherbudget", h.name);
-        assert!(h.cpu.compute_threads() > 0, "{}: keine Stränge", h.name);
+        assert!(
+            !h.thermal_throttling,
+            "{}: aktives Drosseln erlaubt",
+            h.name
+        );
         assert!(
             h.gpu_duty_cycle.is_finite() && (0.0..=1.0).contains(&h.gpu_duty_cycle),
             "{}: Grafik-Einschaltdauer {} ist kein Anteil",
             h.name,
             h.gpu_duty_cycle
         );
-        if let Some(quote) = h.guaranteed_cpu_quota {
+        let CpuRole::Compute(rechnen) = h.cpu_role else {
+            continue;
+        };
+        assert!(
+            rechnen.cpu.compute_threads() > 0,
+            "{}: rechnet ohne Stränge",
+            h.name
+        );
+        if let Some(quote) = rechnen.guaranteed_cpu_quota {
             assert!(
                 quote.is_finite() && quote > 0.0,
                 "{}: Quote {quote} ist keine Zusicherung",
                 h.name
             );
             assert!(
-                quote <= f64::from(h.cpu.compute_threads()),
+                quote <= f64::from(rechnen.cpu.compute_threads()),
                 "{}: Quote {quote} über den nutzbaren Strängen",
                 h.name
             );
         }
-        assert!(
-            !h.thermal_throttling,
-            "{}: aktives Drosseln erlaubt",
-            h.name
-        );
     }
 
     // Die entschiedenen Werte, wörtlich (Orchestrator, 2026-10-28). Die
     // allgemeinen Eigenschaften oben bestünde auch ein Profil mit erfundenen
     // Zahlen; erst diese Zeilen machen eine stille Änderung sichtbar.
-    assert_eq!(laptop.guaranteed_cpu_quota, Some(12.0));
+    //
     // Speicher ist auf BEIDEN Rechnern eine Obergrenze, keine Reservierung:
     // auf dem Laptop die Vorgabe „unter 5 GB“, auf node3 die Vorgabe des
     // Auftraggebers vom 2026-10-28, dass der Container nur belegt, was er
-    // gerade braucht.
+    // gerade braucht. Auch der Koordinator belegt Speicher.
     assert_eq!(laptop.memory_limit_mib, 4096, "Vorgabe „unter 5 GB“");
+    // Die GPU des Laptops darf rechnen, aber nur auf ausdrücklichen Aufruf —
+    // und es gibt noch keinen GPU-Pfad. Der Referenzlauf rechnet also ohne sie.
     assert_eq!(
         laptop.gpu_duty_cycle, 0.0,
-        "kein GPU-Pfad, also keine Grafik"
+        "Im Referenzlauf rechnet die GPU des Laptops von selbst mit"
     );
 
     let node3 = &p.hosts[1];
+    let CpuRole::Compute(n3) = node3.cpu_role else {
+        panic!("node3 rechnet nicht: {:?}", node3.cpu_role);
+    };
     assert_eq!(
-        node3.guaranteed_cpu_quota, None,
+        n3.guaranteed_cpu_quota, None,
         "node3 ist ausdrücklich best effort — keine garantierte Quote"
     );
     assert_eq!(
-        node3.cpu,
+        n3.cpu,
         CpuReservation {
             physical_cores: 8,
             threads_per_core: 2,
@@ -815,7 +1078,16 @@ fn ac3_das_referenzprofil_standard_ist_laptop_und_node3() {
         node3.memory_limit_mib, 4096,
         "Speicher höchstens 4096 MiB, nichts reserviert"
     );
-    assert_eq!(node3.gpu_duty_cycle, 0.0);
+    assert_eq!(node3.gpu_duty_cycle, 0.0, "node3 hat nur BMC-Grafik");
+
+    // Das Profil rechnet mit genau den Strängen von node3.
+    let straenge: u32 = p.hosts.iter().map(HostRequirement::compute_threads).sum();
+    assert_eq!(
+        straenge,
+        n3.cpu.compute_threads(),
+        "Im Profil rechnen mehr als die Stränge von node3"
+    );
+    assert_eq!(straenge, 16);
 
     let netz = p
         .network

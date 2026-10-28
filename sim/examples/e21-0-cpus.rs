@@ -28,7 +28,10 @@ use std::process::ExitCode;
 use rota_sim::hostcaps::erlaubte_kerne;
 use rota_sim::kampagne::{cpu_list, CpuTopology};
 
-/// Die Reservierung des Profils `balanced` auf dem Laptop (Plan Z. 46).
+/// Die Reservierung des Betriebsprofils `balanced` auf dem Laptop (Plan E15.1,
+/// „Regelung: von außen und von selbst"). Im Referenzprofil „standard" rechnet
+/// die CPU des Laptops seit dem 2026-10-28 nicht mehr mit; diese Zahl gilt für
+/// den CPU-Rückfall, in dem sie rechnet.
 const RESERVIERT_VORGABE: u16 = 2;
 
 enum Modus {

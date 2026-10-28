@@ -16,37 +16,53 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    CpuReservation, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError, Mission,
-    NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
+    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
+    CoverageSpec, CpuReservation, CpuRole, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError,
+    Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
     WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
-static HOSTS: &[HostRequirement] = &[
-    HostRequirement {
-        name: "laptop",
-        guaranteed_cpu_quota: Some(1.0),
-        memory_limit_mib: 4096,
-        cpu: CpuReservation {
-            physical_cores: 8,
-            threads_per_core: 2,
-            reserved_physical_cores: 2,
-        },
-        gpu_duty_cycle: 0.0,
-        thermal_throttling: false,
+const LAPTOP_RECHNET: ComputeRequirement = ComputeRequirement {
+    guaranteed_cpu_quota: Some(1.0),
+    cpu: CpuReservation {
+        physical_cores: 8,
+        threads_per_core: 2,
+        reserved_physical_cores: 2,
     },
+};
+
+const LAPTOP: HostRequirement = HostRequirement {
+    name: "laptop",
+    cpu_role: CpuRole::Compute(LAPTOP_RECHNET),
+    gpu_duty_cycle: 0.0,
+    memory_limit_mib: 4096,
+    thermal_throttling: false,
+};
+
+/// Der erste Testrechner mit anderen CPU-Angaben, sonst unverändert.
+const fn rechnet(rechnen: ComputeRequirement) -> HostRequirement {
+    HostRequirement {
+        cpu_role: CpuRole::Compute(rechnen),
+        ..LAPTOP
+    }
+}
+
+static HOSTS: &[HostRequirement] = &[
+    LAPTOP,
     // Der zweite Rechner hat ausdrücklich KEINE Zusicherung — der Fall, den ein
     // Profil mit nur einem Eintrag nie prüfen würde.
     HostRequirement {
         name: "best-effort",
-        guaranteed_cpu_quota: None,
-        memory_limit_mib: 8192,
-        cpu: CpuReservation {
-            physical_cores: 16,
-            threads_per_core: 2,
-            reserved_physical_cores: 2,
-        },
+        cpu_role: CpuRole::Compute(ComputeRequirement {
+            guaranteed_cpu_quota: None,
+            cpu: CpuReservation {
+                physical_cores: 16,
+                threads_per_core: 2,
+                reserved_physical_cores: 2,
+            },
+        }),
         gpu_duty_cycle: 0.5,
+        memory_limit_mib: 8192,
         thermal_throttling: false,
     },
 ];
@@ -130,6 +146,8 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
         .expect("hosts ist keine Liste");
     assert_eq!(hosts.len(), 2, "Beide Rechner müssen im Text stehen.");
     assert_eq!(hosts[0]["name"], "laptop");
+    assert_eq!(hosts[0]["cpuRole"], "compute");
+    assert_eq!(hosts[1]["cpuRole"], "compute");
     assert_eq!(
         hosts[0]["computeThreads"], 12,
         "Die Anzeige rechnet die SMT-Geschwister nicht mit."
@@ -148,6 +166,101 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     assert!(
         hosts[0].get("guaranteedMemoryMib").is_none(),
         "Der Text nennt den Speicher noch als zugesichert"
+    );
+}
+
+/// **AC3** — im Profil „standard" rechnet nur node3 auf der CPU; die CPU des
+/// Laptops koordiniert, seine GPU darf rechnen.
+///
+/// Zwei Entscheidungen des Auftraggebers vom 2026-10-28. Auf die Frage, ob der
+/// Laptop weiter mitrechnet oder nur koordiniert: „Nur koordinieren" — bis dahin
+/// rechnete er mit zwölf Strängen mit (Betriebsprofil `balanced`). Auf die
+/// Frage, ob er außer Koordinieren rechnen darf: „NUR GPU" — GPU-Arbeit ja, auf
+/// ausdrücklichen Aufruf; die CPU nur als Rückfall.
+///
+/// **Bewusst umgestellt.** Dieser Fall verlangte zuerst, dass der Koordinator
+/// auch keine Grafik-Einschaltdauer führt — also „der Laptop rechnet gar
+/// nichts". Das hat die zweite Entscheidung aufgehoben: Die Rolle gilt der CPU
+/// (`cpuRole`), die Grafik-Einschaltdauer steht bei jedem Rechner.
+///
+/// Der Fall liest den **Text**, weil ein Leser des Profils die Rolle dort finden
+/// muss. Ein Koordinator, der nur an fehlenden oder leeren Zahlen zu erkennen
+/// wäre, sähe für einen Leser, der `null` als „best effort" liest, wie ein
+/// rechnender Rechner ohne Zusicherung aus.
+#[test]
+fn ac3_im_profil_standard_rechnet_nur_node3_der_laptop_koordiniert() {
+    let standard = CampaignDefinition {
+        reference_profile: REFERENCE_PROFILE_STANDARD,
+        ..kampagne()
+    };
+    let v: serde_json::Value =
+        serde_json::from_str(&standard.to_json().expect("gültig")).expect("JSON");
+    let hosts = v["referenceProfile"]["hosts"]
+        .as_array()
+        .expect("hosts ist keine Liste");
+    assert_eq!(hosts.len(), 2, "{hosts:?}");
+
+    let laptop = &hosts[0];
+    assert_eq!(laptop["name"], "laptop");
+    assert_eq!(laptop["cpuRole"], "coordinator", "{laptop}");
+    assert!(
+        laptop.get("role").is_none(),
+        "Eine Rolle ohne „cpu“ läse sich als „rechnet gar nicht“: {laptop}"
+    );
+    assert_eq!(
+        laptop["computeThreads"], 0,
+        "Die CPU des Koordinators rechnet mit: {laptop}"
+    );
+    // Keine CPU-Quote für Rechenarbeit — auch keine leere. Ein `null` an dieser
+    // Stelle hieße „best effort", also: rechnet ohne Zusicherung.
+    for feld in [
+        "guaranteedCpuQuota",
+        "totalThreads",
+        "physicalCores",
+        "threadsPerCore",
+        "reservedPhysicalCores",
+    ] {
+        assert!(
+            laptop.get(feld).is_none(),
+            "Der Koordinator führt {feld}: {laptop}"
+        );
+    }
+    // Die GPU darf rechnen, also steht ihre Einschaltdauer da — als Zahl. Im
+    // Referenzlauf ist sie 0: Es gibt keinen GPU-Pfad, und GPU-Arbeit läuft nur
+    // auf ausdrücklichen Aufruf.
+    assert_eq!(
+        laptop["gpuDutyCycle"], 0.0,
+        "Der Koordinator führt keine Grafik-Einschaltdauer: {laptop}"
+    );
+    assert_eq!(laptop["memoryLimitMib"], 4096);
+    assert_eq!(laptop["thermalThrottling"], false);
+
+    // GEGENPROBE im selben Text: Der rechnende Rechner trägt seine Angaben
+    // weiter. Ohne sie wäre der Fall auch grün, wenn `to_json` die
+    // Rechenangaben für JEDEN Rechner wegließe.
+    let node3 = &hosts[1];
+    assert_eq!(node3["name"], "node3");
+    assert_eq!(node3["cpuRole"], "compute", "{node3}");
+    assert_eq!(node3["gpuDutyCycle"], 0.0);
+    assert_eq!(node3["computeThreads"], 16);
+    assert_eq!(node3["totalThreads"], 16);
+    assert_eq!(node3["reservedPhysicalCores"], 0);
+    assert!(
+        node3["guaranteedCpuQuota"].is_null(),
+        "node3 ist best effort: {node3}"
+    );
+
+    let straenge: u64 = hosts
+        .iter()
+        .map(|h| {
+            h["computeThreads"]
+                .as_u64()
+                .expect("computeThreads ist keine Zahl")
+        })
+        .sum();
+    assert_eq!(
+        straenge, 16,
+        "Im Profil rechnen mehr als die Stränge von node3"
     );
 }
 
@@ -374,10 +487,10 @@ fn nichtendliche_qualitaetsvorgaben_werden_mit_feldname_abgelehnt() {
 #[test]
 fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
     for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let host = HostRequirement {
+        let host = rechnet(ComputeRequirement {
             guaranteed_cpu_quota: Some(wert),
-            ..HOSTS[0]
-        };
+            ..LAPTOP_RECHNET
+        });
         assert_eq!(
             host.to_json(),
             Err(JsonError::NonFinite {
@@ -385,10 +498,10 @@ fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
             })
         );
     }
-    static UNGUELTIG: &[HostRequirement] = &[HostRequirement {
+    static UNGUELTIG: &[HostRequirement] = &[rechnet(ComputeRequirement {
         guaranteed_cpu_quota: Some(f64::NAN),
-        ..HOSTS[0]
-    }];
+        ..LAPTOP_RECHNET
+    })];
     let mut k = kampagne();
     k.reference_profile.hosts = UNGUELTIG;
     assert_eq!(
@@ -402,10 +515,10 @@ fn nichtendliche_cpu_quote_ist_keine_fehlende_zusicherung() {
 #[test]
 fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
     for wert in [0.0, -0.0, f64::MIN_POSITIVE, f64::MAX] {
-        let host = HostRequirement {
+        let host = rechnet(ComputeRequirement {
             guaranteed_cpu_quota: Some(wert),
-            ..HOSTS[0]
-        };
+            ..LAPTOP_RECHNET
+        });
         let gelesen: serde_json::Value = serde_json::from_str(&host.to_json().unwrap()).unwrap();
         let quote = gelesen["guaranteedCpuQuota"]
             .as_f64()
@@ -418,20 +531,44 @@ fn endliche_randwerte_bleiben_zahlen_und_cpu_vorgaben_bleiben_erhalten() {
     }
 }
 
+/// Gilt für jede CPU-Rolle: Auch ein Koordinator schreibt seine
+/// Grafik-Einschaltdauer, also darf auch seine kein `NaN` sein.
 #[test]
 fn nichtendliche_grafik_einschaltdauer_wird_abgelehnt() {
-    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let host = HostRequirement {
-            gpu_duty_cycle: wert,
-            ..HOSTS[0]
-        };
-        assert_eq!(
-            host.to_json(),
-            Err(JsonError::NonFinite {
-                field: "gpuDutyCycle"
-            })
-        );
+    for cpu_role in [CpuRole::Compute(LAPTOP_RECHNET), CpuRole::Coordinator] {
+        for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let host = HostRequirement {
+                cpu_role,
+                gpu_duty_cycle: wert,
+                ..LAPTOP
+            };
+            assert_eq!(
+                host.to_json(),
+                Err(JsonError::NonFinite {
+                    field: "gpuDutyCycle"
+                }),
+                "{cpu_role:?}"
+            );
+        }
     }
+}
+
+/// Die GPU eines Koordinators darf rechnen (Entscheidung des Auftraggebers
+/// „NUR GPU", 2026-10-28) — ihr Anteil steht dann im Text, die CPU-Angaben
+/// nicht.
+#[test]
+fn ein_koordinator_mit_gpu_schreibt_ihre_einschaltdauer() {
+    let host = HostRequirement {
+        cpu_role: CpuRole::Coordinator,
+        gpu_duty_cycle: 0.25,
+        ..LAPTOP
+    };
+    let gelesen: serde_json::Value =
+        serde_json::from_str(&host.to_json().expect("endlich")).expect("JSON");
+    assert_eq!(gelesen["cpuRole"], "coordinator");
+    assert_eq!(gelesen["computeThreads"], 0);
+    assert_eq!(gelesen["gpuDutyCycle"], 0.25, "{gelesen}");
+    assert!(gelesen.get("guaranteedCpuQuota").is_none(), "{gelesen}");
 }
 
 /// **AC5** — jede der fünf Garantiearten steht unterscheidbar im Text, und das
