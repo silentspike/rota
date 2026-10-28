@@ -107,13 +107,29 @@ export interface PlayerFrame {
 }
 
 /**
+ * Ab welchem Anteil der vollen Leben ein Treffer „hart trifft" (Stufe 2,
+ * GAME-DESIGN 11.5: „Fähigkeiten, die hart treffen"), in Prozent.
+ *
+ * **Ein Viertel**, entschieden vom Orchestrator am 28.10. Die erste Fassung war
+ * die Hälfte — gemessen über alle Bossdateien mit dem Basisspieler (5000 Leben,
+ * WARD 0,2) blieb Stufe 2 damit in allen 20 Spiel-Bossen leer: Ihr schwerster
+ * Eintrag, Collapse in boss-2-2, nimmt nach WARD 1760 und damit 35 %. 11.5 nennt
+ * keine Zahl; ein Treffer, der ein Viertel des Lebens nimmt, ist die Lesart von
+ * „hart", unter der die Stufe im Spiel überhaupt vorkommt.
+ *
+ * **Ein Anteil, keine feste Schadenszahl:** Die Schwelle wächst mit dem Spieler
+ * (Stufe, Ausrüstung) — dieselbe Regel wie „tödlich" in Stufe 3.
+ */
+const HARD_HIT_PERCENT = 25;
+
+/**
  * Stufe und Warnart eines Treffers — **aus dem Schaden abgeleitet**, ohne
  * eigenes Feld (Entscheidung des Orchestrators vom 28.10. zu L1–L3).
  *
  * | Schaden nach WARD, gegen die vollen Leben | Stufe | Art |
  * | --- | --- | --- |
  * | mindestens alles — tötet aus vollem Leben | 3 | Jetzt handeln oder sterben |
- * | mindestens die Hälfte — „trifft hart" | 2 | die Art bei überlebbarer Folge |
+ * | mindestens `HARD_HIT_PERCENT` — „trifft hart" | 2 | die Art bei überlebbarer Folge |
  * | darunter | 1 | die Art bei überlebbarer Folge |
  *
  * **Die Art folgt aus der FOLGE, die Stufe aus der SCHWERE.** „Unterbrechbar" ist
@@ -137,7 +153,8 @@ export function classifyDamage(
 ): Classification {
   const angekommen = afterWard(damage, player.gearWardPermille, 0);
   if (angekommen >= player.vesselMax) return CLASSES[TIER_LETHAL]![KIND_LETHAL]!;
-  const tier = angekommen * 2 >= player.vesselMax ? TIER_HIGHLIGHT : TIER_BAR;
+  // Ganzzahlig verglichen, ohne Division: kein Rundungsfehler an der Grenze.
+  const tier = angekommen * 100 >= player.vesselMax * HARD_HIT_PERCENT ? TIER_HIGHLIGHT : TIER_BAR;
   return CLASSES[tier]![survivableKind]!;
 }
 
