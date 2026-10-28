@@ -125,3 +125,104 @@ describe('AC3 — der Schlag kommt trotzdem an', () => {
     );
   });
 });
+
+/**
+ * Die Nachlage kommt aus dem Schild, der GELEGT wurde und JETZT bricht (#419).
+ *
+ * „Mit ihm entsteht im selben Moment eine halbe neue Schicht, einmal je
+ * gelegtem Schild" — die Hälfte dessen, was zuletzt gelegt wurde und bricht.
+ * Nicht die eines älteren, der längst abgelaufen ist.
+ *
+ * # Der Ablauf, an dem es schiefging
+ *
+ * Eine Schicht aus Umwandlung (TEMPER) wird nicht gelegt, sie wächst. Sie
+ * schreibt weder die Dicke noch den Merker. Liegt sie allein und bricht, stand
+ * dort noch die Dicke einer CRUST, die vorher UNGEBROCHEN abgelaufen war — und
+ * deren Merker war frei, weil sie nie gebrochen ist:
+ *
+ * ```text
+ *       0 ms  CRUST            990
+ *    5000 ms  Schlag (320)     fängt sie auf, 670 bleiben
+ *   12 000 ms                  CRUST läuft ab, ungebrochen
+ *   13 000 ms  TEMPER, 14 500 ms KINDLE   -> 25 aus Umwandlung
+ *   15 000 ms  Überladung (160) bricht die 25
+ * ```
+ *
+ * Gegen `test-vessel`: der Schlag bei 5000 ms, die Überladung aus der
+ * Energieleiste (7 je Sekunde, Schwelle 100) bei 15 000 ms.
+ */
+describe('die Nachlage gibt nur der gelegte Schild, der bricht', () => {
+  const ABLAUF = new Map([
+    [0, 'crust'],
+    [13_000, 'temper'],
+    [14_500, 'kindle'],
+  ]);
+
+  function ablauf(bisMs: number, talents?: Record<string, number>) {
+    const combat = new Combat({
+      school: CALCINATION.value,
+      boss: bossById('test-vessel') ?? FIRST_CRUCIBLE.value,
+      ...(talents === undefined ? {} : { talents }),
+    });
+    let crustAbgelaufen = -1;
+    let vorher = 0;
+    for (let t = 0; t <= bisMs; t += 10) {
+      combat.stepPassive(t);
+      const id = ABLAUF.get(t);
+      if (id !== undefined) combat.cast(alsSpellIndex(combat.indexOf(id)), t);
+      if (crustAbgelaufen < 0 && vorher > 0 && combat.shield === 0) crustAbgelaufen = t;
+      vorher = combat.shield;
+    }
+    return { combat, crustAbgelaufen };
+  }
+
+  it('die CRUST läuft ungebrochen ab, und die Umwandlung legt eine eigene Schicht', () => {
+    // **Die Zusicherung vor der Messung.** Bräche die CRUST unter dem Schlag,
+    // wäre ihr Merker verbraucht, und der Fall unten wäre grün ohne die Regel.
+    const bisAblauf = ablauf(12_500, MIT_TALENT);
+    expect(bisAblauf.crustAbgelaufen, 'die CRUST verschwindet nicht durch Ablauf').toBe(12_010);
+    expect(bisAblauf.combat.shieldAbsorbed, 'der Schlag bei 5000 ms trifft sie nicht').toBe(320);
+
+    const vorDemBruch = ablauf(14_990, MIT_TALENT);
+    expect(vorDemBruch.combat.converted, 'TEMPER wandelt nichts um').toBeGreaterThan(0);
+    expect(vorDemBruch.combat.shield).toBe(vorDemBruch.combat.converted);
+    expect(vorDemBruch.combat.shieldStacks, 'die Umwandlung ist keine gelegte Schicht').toBe(0);
+  });
+
+  it('bricht die Umwandlungs-Schicht, kommt NICHTS nach', () => {
+    const mit = ablauf(15_000, MIT_TALENT);
+    const ohne = ablauf(15_000);
+    // Ohne Talent: Die Überladung bricht die Umwandlungs-Schicht ganz.
+    expect(ohne.combat.shield, 'die Überladung bricht die Schicht nicht').toBe(0);
+    expect(ohne.combat.shieldAbsorbed).toBe(320 + ohne.combat.converted);
+    expect(mit.combat.shield, 'die abgelaufene CRUST legt ihre Hälfte nach').toBe(0);
+    expect(mit.combat.shieldStacks).toBe(0);
+  });
+
+  it('liegt die Umwandlung AUF einer gelegten Schicht, gibt diese ihre Hälfte', () => {
+    // **Die Gegenrichtung**, damit die Regel nicht zu viel sperrt: Bricht eine
+    // gelegte CRUST, auf der Umwandlung liegt, ist es die CRUST, die bricht —
+    // und ihre Hälfte kommt nach. Gegen `test-onslaught` (2000 bei 5000 ms).
+    const combat = new Combat({
+      school: CALCINATION.value,
+      boss: bossById('test-onslaught') ?? FIRST_CRUCIBLE.value,
+      talents: MIT_TALENT,
+    });
+    const plan = new Map([
+      [0, 'crust'],
+      [1500, 'temper'],
+      [3000, 'kindle'],
+    ]);
+    let gelegt = 0;
+    for (let t = 0; t <= 5000; t += 10) {
+      combat.stepPassive(t);
+      const id = plan.get(t);
+      if (id !== undefined) combat.cast(alsSpellIndex(combat.indexOf(id)), t);
+      if (t === 0) gelegt = combat.shield;
+      if (t === 4990) {
+        expect(combat.shield, 'auf der CRUST liegt keine Umwandlung').toBeGreaterThan(gelegt);
+      }
+    }
+    expect(combat.shield, 'die gelegte CRUST gibt ihre Hälfte nicht').toBe(Math.floor(gelegt / 2));
+  });
+});

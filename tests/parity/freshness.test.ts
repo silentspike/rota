@@ -58,6 +58,8 @@ import eingecheckteProtokollParitaet from './recordings/log-parity.json';
 import eingecheckteProtokollTakte from './recordings/log-takte.json';
 import eingecheckteAetherRunde from './recordings/aether-fenster.json';
 import eingecheckteSublimeRunde from './recordings/sublime-merker.json';
+import eingecheckterGcdFreierWurf from './recordings/gcd-freier-wurf.json';
+import eingecheckterStrikterUmschlag from './recordings/strikter-umschlag.json';
 import eingecheckteCondenseRunde from './recordings/condense-merker.json';
 import eingecheckteKontrollFehlschlagRunde from './recordings/kontrolle-fehlschlag.json';
 import eingecheckteRetortRunde from './recordings/retort-erstattung.json';
@@ -117,6 +119,10 @@ import eingecheckteCapStapelung from './recordings/cap-stapelung.json';
 import eingecheckteTickRundung from './recordings/tick-rundung.json';
 import eingecheckteFaeulnis from './recordings/rot-decay.json';
 import eingecheckteEntladerSpur from './recordings/spender-talent.json';
+import eingecheckterKontrollPreis from './recordings/kontrolle-preis-talent.json';
+import eingecheckterNachlauf from './recordings/schluessel-nachlauf.json';
+import eingecheckteNachlage from './recordings/schluessel-nachlage.json';
+import eingecheckterNachlageAblauf from './recordings/schluessel-nachlage-ablauf.json';
 import eingecheckteBrandzeit from './recordings/dot-lifetime.json';
 import eingecheckteVieleBraende from './recordings/ember-viele-braende.json';
 import eingecheckteVerlaengerung from './recordings/extend-effects.json';
@@ -153,6 +159,8 @@ import {
   logTaktePayload,
   aetherPayload,
   sublimePayload,
+  gcdFreiPayload,
+  strikterUmschlagPayload,
   condensePayload,
   kontrollFehlschlagPayload,
   retortPayload,
@@ -181,6 +189,10 @@ import {
   decayFactorPayload,
   decayTalentPayload,
   spenderTalentPayload,
+  kontrollPreisTalentPayload,
+  schluesselNachlaufPayload,
+  schluesselNachlagePayload,
+  schluesselNachlageAblaufPayload,
   wardCapPayload,
   putrefactionFillerPayload,
   fixationSpellsPayload,
@@ -261,6 +273,20 @@ describe('Gemeinsame Vergleichsdateien', () => {
     // Der Entlader-Weg des globalen Baums (#419). Eigene Datei, weil sie sonst
     // bei jeder beliebigen Talent-Änderung rot würde und nicht sagte, welche.
     expect(eingecheckteEntladerSpur, HINWEIS).toEqual(spenderTalentPayload());
+  });
+
+  it('der Kontroll-Preis unter zwei Bäumen entspricht dem heutigen Spielstand', () => {
+    // Die erste Talent-Aufzeichnung mit Wegen aus ZWEI Bäumen (#419): der
+    // Schutz-Weg der PUTREFACTION neben dem Preis-Weg der FIXATION.
+    expect(eingecheckterKontrollPreis, HINWEIS).toEqual(kontrollPreisTalentPayload());
+  });
+
+  it('die drei Schlüssel-Runden entsprechen dem heutigen Spielstand', () => {
+    // Die einzigen Aufzeichnungen mit verteiltem Schlüsseltalent (#419, #418
+    // AC4) — und damit die einzigen, in deren Prüfsumme dessen Zustand steht.
+    expect(eingecheckterNachlauf, HINWEIS).toEqual(schluesselNachlaufPayload());
+    expect(eingecheckteNachlage, HINWEIS).toEqual(schluesselNachlagePayload());
+    expect(eingecheckterNachlageAblauf, HINWEIS).toEqual(schluesselNachlageAblaufPayload());
   });
 
   it('die Synergie-Runde entspricht dem heutigen Spielstand', () => {
@@ -622,6 +648,19 @@ describe('Gemeinsame Vergleichsdateien', () => {
   it('SUBLIMEs Merker entspricht dem heutigen Spielstand', () => {
     // Issue #480. Die Aufzeichnung traegt `merker` — den Zustand je Takt.
     expect(eingecheckteSublimeRunde, HINWEIS).toEqual(sublimePayload());
+  });
+
+  it('die Entscheidung nach einem Wurf ohne Wartezeit entspricht dem heutigen Spielstand', () => {
+    // Issue #1027. Die Läufe tragen neben den Drücken den Leerlauf der
+    // Schleife aus `runReference` — die Größe, die der Simulator nachrechnet.
+    expect(eingecheckterGcdFreierWurf, HINWEIS).toEqual(gcdFreiPayload());
+  });
+
+  it('der strikte Umschlag entspricht dem heutigen Spielstand', () => {
+    // Issue #1027, Fassung B. Die Läufe tragen die Würfe der Schleife an dem
+    // Takt, an dem ein strikter Vergleich kippt — die Größe, die der Simulator
+    // mit seinem Weckruf treffen muss.
+    expect(eingecheckterStrikterUmschlag, HINWEIS).toEqual(strikterUmschlagPayload());
   });
 
   it('AETHERs Fenster entspricht dem heutigen Spielstand', () => {
@@ -999,11 +1038,17 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'kern-zauber',
   'putrid-bloom',
   'pin-befreiung',
+  'gcd-freier-wurf',
+  'strikter-umschlag',
   'decay-ward',
   'efflux-restzeit',
   'krit-umwandlung',
   'rot-decay',
   'spender-talent',
+  'kontrolle-preis-talent',
+  'schluessel-nachlauf',
+  'schluessel-nachlage',
+  'schluessel-nachlage-ablauf',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

@@ -176,8 +176,9 @@ const AUSNAHMEN: Readonly<Record<string, string>> = {
   // belegen. Ein Auslöser, der erst mit seinem Klang entsteht, kommt in einer
   // anderen Nummer heraus — und verschiebt jede aufgezeichnete Prüfsumme.
   'src/core/events.ts#EV_SYNERGY_READY': 'vorgesehener Auslöser, Klang im Verzeichnis',
-  'src/core/events.ts#EV_BOSS_CAST_START': 'vorgesehener Auslöser, Klang im Verzeichnis',
-  'src/core/events.ts#EV_BOSS_CAST_SUCCESS': 'vorgesehener Auslöser, Klang im Verzeichnis',
+  // EV_BOSS_CAST_START und EV_BOSS_CAST_SUCCESS standen hier. Seit #797 sendet
+  // `Session.detectBossCastEdges` beide — der Fall „überholte Ausnahme" hat
+  // es gemeldet, wie er es soll.
   'src/core/events.ts#EV_BOSS_PHASE_CHANGE': 'vorgesehener Auslöser, Klang im Verzeichnis',
   'src/core/events.ts#EV_BOSS_REACTION_DESTABILISE': 'vorgesehener Auslöser, Klang im Verzeichnis',
   'src/core/events.ts#EV_PLAYER_LOW_HEALTH': 'vorgesehener Auslöser, Klang im Verzeichnis',

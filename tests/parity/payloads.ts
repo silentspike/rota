@@ -12,7 +12,7 @@
  * Moment nichts mehr aussagen, in dem er gebraucht wird.
  */
 import { combatChecksum, mixFloat, mixInt, recordFieldOrder } from '../../src/core/checksum.js';
-import { STEP1_BINDINGS } from '../../src/core/loadout.js';
+import { STEP1_BINDINGS, type Binding } from '../../src/core/loadout.js';
 import { pressRecorder, slotFor, slotMap } from './press-recorder.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs, tickCount } from '../../src/core/haste.js';
@@ -36,7 +36,7 @@ import { BUFF_KIND_CAPACITY, Buffs } from '../../src/combat/schools/buffs.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
-import { Combat, alsSpellIndex, isCastAccepted } from '../../src/core/combat.js';
+import { Combat, NOT_ACTIVE, alsSpellIndex, isCastAccepted } from '../../src/core/combat.js';
 import {
   bossById,
   BOSSES,
@@ -48,6 +48,7 @@ import {
 } from '../../src/core/data.js';
 import type { Recording, RecordedPress } from '../../src/devtools/recording.js';
 import { recordings, replayRecording } from '../../src/devtools/recording.js';
+import { driveRotation, nullzeitBudget } from '../../src/devtools/reference-run.js';
 export { productionPhasesPayload, PRODUCTION_PHASES_NAME } from './phase-bindings-production.js';
 import {
   POOL_CATALYSIS,
@@ -3821,6 +3822,367 @@ export function sublimePayload(): Record<string, unknown> {
   };
 }
 
+export const GCD_FREI_NAME = 'gcd-freier-wurf';
+
+/** Die Leiste dieser Aufzeichnung — VOR der Funktion (Issue #405). */
+const GCD_FREI_BINDINGS = [
+  { slot: 0, spellId: 'quench' },
+  { slot: 1, spellId: 'smoulder' },
+  { slot: 2, spellId: 'kindle' },
+  { slot: 3, spellId: 'sublime' },
+] as const;
+
+/**
+ * Eine Zeile der Prioritätenliste, **zweimal an derselben Stelle geschrieben**:
+ * als Text für den Simulator (`bedingung`, Sprache aus `sim/src/apl`) und als
+ * Funktion für diese Seite (`gilt`). Getrennt in zwei Dateien liefen sie
+ * auseinander, ohne dass es jemand sähe — dieselbe Lage wie bei `aplGood` und
+ * `step1-good.apl` (`sim/tests/apl_paritaets_luecke.rs`).
+ */
+interface ListenZeile {
+  readonly spellId: string;
+  /** Leer heißt „ohne Bedingung". */
+  readonly bedingung: string;
+  readonly gilt: (combat: Combat, timeMs: number) => boolean;
+}
+
+/** Ein Lauf einer Listen-Aufzeichnung: ein Name und seine Prioritätenliste. */
+interface ListenLauf {
+  readonly name: string;
+  readonly zeilen: readonly ListenZeile[];
+}
+
+const OHNE_BEDINGUNG = (): boolean => true;
+
+function smoulderRest(combat: Combat, timeMs: number): number {
+  return combat.dotRemainingMs(combat.indexOf('smoulder'), timeMs);
+}
+
+/**
+ * Die Läufe dieser Aufzeichnung, je 30 s an `first-crucible` — wie die
+ * `gcd`-Proben aus `sim/examples/e1027-operator-measure.rs`, damit die Zahlen
+ * des Berichts `docs/APL-STRICT-COMPARISON-2026-10-24.md` hier nachzulesen sind.
+ */
+const GCD_FREI_LAEUFE: readonly ListenLauf[] = [
+  {
+    // QUENCH vor dem Füller, ohne jede zeitabhängige Bedingung. Bis #1135 warf
+    // der Simulator den Füller erst bei 2000; seit dem Entscheidungsmodell vom
+    // 2026-10-28 folgt er beim selben Zeitstempel (0), vorher im nächsten Takt.
+    name: 'quench-fueller',
+    zeilen: [
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // Die strikte Nachlegezeile der Suche neben QUENCH — die Lage, in der sich
+    // vor #1135 14 der 15 verschobenen Suchen des Berichts trennten. QUENCH
+    // kommt hier auch mitten in den GCD des Füllers (5000, 10000, …).
+    name: 'quench-nachlegen-strikt',
+    zeilen: [
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains < 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) < 1500,
+      },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // Dieselbe Lage, aber genau getroffen: QUENCH fällt auf das GCD-Ende bei
+    // 10500, an dem SMOULDER (gewirkt bei 0) genau auf 1500 steht. `< 1500`
+    // ist dort falsch; die Liste wählt beim selben Zeitstempel den Füller, und
+    // SMOULDER kommt erst am nächsten GCD-Ende. (Bis zum Entscheidungsmodell
+    // vom 2026-10-28 entschied sie einen Takt später und legte bei 10510 nach.)
+    // `time >= 10500` setzt nur den Zeitpunkt.
+    name: 'quench-auf-der-schwelle',
+    zeilen: [
+      {
+        spellId: 'quench',
+        bedingung: 'time >= 10500',
+        gilt: (_combat, timeMs) => timeMs >= 10500,
+      },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains < 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) < 1500,
+      },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // Ohne Füller: Zwischen den Würfen wird gewartet, und QUENCH fällt mitten
+    // in diese Wartezeit. Hier hängt der Leerlauf an beidem — am Weckruf der
+    // Nachlegezeile und an der Entscheidung nach dem freien Wurf.
+    name: 'quench-ohne-fueller',
+    zeilen: [
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains <= 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) <= 1500,
+      },
+    ],
+  },
+  {
+    // Der Wurf, den SUBLIME befreit, löst keine Wartezeit aus — danach ist die
+    // Lage dieselbe wie nach QUENCH, nur über einen anderen Weg.
+    name: 'sublime-befreit',
+    zeilen: [
+      { spellId: 'sublime', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains <= 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) <= 1500,
+      },
+    ],
+  },
+  {
+    // (b) QUENCH UNTER dem Füller: KINDLE ist an jedem GCD-Ende bereit, also
+    // kam QUENCH bis zum Entscheidungsmodell vom 2026-10-28 nie zum Zug. Jetzt
+    // nach KINDLE im selben Takt und am Ende jeder Abklingzeit, mitten im GCD.
+    name: 'quench-unter-dem-fueller',
+    zeilen: [
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      { spellId: 'quench', bedingung: '', gilt: OHNE_BEDINGUNG },
+    ],
+  },
+  {
+    // (b) Eine Bedingung, die mitten im GCD wahr wird: QUENCH bei 700, im GCD
+    // des KINDLE von 0. Der Simulator braucht dafür einen Weckruf INNERHALB der
+    // Wartezeit — bis hierher legte er jeden auf ihr Ende.
+    name: 'quench-mitten-im-gcd',
+    zeilen: [
+      { spellId: 'kindle', bedingung: '', gilt: OHNE_BEDINGUNG },
+      {
+        spellId: 'quench',
+        bedingung: 'time >= 700',
+        gilt: (_combat, timeMs) => timeMs >= 700,
+      },
+    ],
+  },
+  {
+    // Die Gegenprobe OHNE freien Wurf: nur Warten auf die Uhr. Sie trennt den
+    // Leerlauf vom freien Wurf — zählt der Simulator hier falsch, liegt es am
+    // Zählen selbst.
+    name: 'warten-auf-die-uhr',
+    zeilen: [
+      {
+        spellId: 'kindle',
+        bedingung: 'time >= 5000',
+        gilt: (_combat, timeMs) => timeMs >= 5000,
+      },
+    ],
+  },
+];
+
+/**
+ * Was nach einem Wurf ohne Wartezeit geschieht (Issue #1027).
+ *
+ * Gefahren wird die Schleife von `runReference` selbst
+ * ({@link driveRotation}): je Takt, und nach jedem Wurf beim selben Zeitstempel
+ * erneut, bis die Liste nichts mehr wählt — auch während einer laufenden
+ * Wartezeit. Die Aufzeichnung hält deshalb zweierlei fest — die Drücke, die
+ * die Rust-Seite wie jede andere Aufzeichnung abspielt, und **wann die Liste
+ * entschieden hat**, samt Leerlauf. Gegen das Zweite fährt
+ * `sim/tests/parity_gcd_freier_wurf.rs` dieselbe Liste durch den Simulator.
+ */
+export function gcdFreiPayload(): Record<string, unknown> {
+  return listenPayload(GCD_FREI_NAME, GCD_FREI_BINDINGS, GCD_FREI_LAEUFE);
+}
+
+export const STRIKT_NAME = 'strikter-umschlag';
+
+/** Die Leiste dieser Aufzeichnung — VOR der Funktion (Issue #405). */
+const STRIKT_BINDINGS = [
+  { slot: 0, spellId: 'smoulder' },
+  { slot: 1, spellId: 'kindle' },
+  { slot: 2, spellId: 'purge' },
+] as const;
+
+function purgeRest(combat: Combat, timeMs: number): number {
+  return combat.cooldownRemainingMs(combat.indexOf('purge'), timeMs);
+}
+
+/**
+ * Strikte Vergleiche auf zwei zeitabhängigen Werten, je ohne Füller (#1027).
+ *
+ * **Ohne Füller, weil nur dort ein Weckruf über den Wurf entscheidet.** Mit
+ * Füller entscheidet die Liste an jedem GCD-Ende ohnehin; ohne ihn wartet sie,
+ * und der Wurf fällt genau auf den Takt, an dem der strikte Vergleich kippt —
+ * oder, wenn der Simulator diesen Takt nicht weckt, erst am nächsten fremden
+ * Ereignis. Das ist die Lage, in der sich der Weg der #797-AC5-Suche trennte
+ * (`docs/APL-STRICT-COMPARISON-2026-10-24.md`, „Am Weg der Suche").
+ */
+const STRIKT_LAEUFE: readonly ListenLauf[] = [
+  {
+    // `dot.remains < 1500`: SMOULDER (12000 ms) steht bei 10500 auf 1500 und
+    // ist einen Takt später darunter. Das Spiel legt bei 10510 nach.
+    name: 'brand-strikt-ohne-fueller',
+    zeilen: [
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains < 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) < 1500,
+      },
+    ],
+  },
+  {
+    // Derselbe Vergleich mit vertauschten Seiten — der Simulator spiegelt die
+    // Form (`1500 > v` ist `v < 1500`), und das muss er hier tun.
+    name: 'brand-strikt-gespiegelt',
+    zeilen: [
+      {
+        spellId: 'smoulder',
+        bedingung: '1500 > dot.smoulder.remains',
+        gilt: (combat, timeMs) => 1500 > smoulderRest(combat, timeMs),
+      },
+    ],
+  },
+  {
+    // `cooldown.remains < 1000`: PURGE bei 0 (Abklingzeit 7500) steht bei 6500
+    // auf 1000 und ist einen Takt später darunter. Das Spiel wirft KINDLE bei
+    // 6510; das nächste fremde Ereignis wäre das Ende der Abklingzeit bei 7500.
+    name: 'abklingzeit-strikt',
+    zeilen: [
+      {
+        spellId: 'purge',
+        bedingung: 'time == 0',
+        gilt: (_combat, timeMs) => timeMs === 0,
+      },
+      {
+        spellId: 'kindle',
+        bedingung: 'cooldown.purge.remains < 1000',
+        gilt: (combat, timeMs) => purgeRest(combat, timeMs) < 1000,
+      },
+    ],
+  },
+  {
+    // Die Gegenprobe mit `<=`: Sie kippt am Erreichen der Schwelle, also bei
+    // 10500. Trifft der Simulator sie und verfehlt die strikte Form, liegt es
+    // am Vergleich und nicht am Brand.
+    name: 'brand-nicht-strikt',
+    zeilen: [
+      {
+        spellId: 'smoulder',
+        bedingung: 'dot.smoulder.remains <= 1500',
+        gilt: (combat, timeMs) => smoulderRest(combat, timeMs) <= 1500,
+      },
+    ],
+  },
+];
+
+/**
+ * Ein strikter Vergleich trifft seinen Umschlag im selben Takt wie das Spiel
+ * (Issue #1027, Fassung B, entschieden am 2026-10-28).
+ *
+ * Dieselbe Bauart wie {@link gcdFreiPayload}: Die Schleife des Spiels
+ * entscheidet je Takt, `sim/tests/parity_strikter_umschlag.rs` fährt dieselbe
+ * Liste als Text durch den Simulator und hält Wurf für Wurf dagegen.
+ */
+export function strikterUmschlagPayload(): Record<string, unknown> {
+  return listenPayload(STRIKT_NAME, STRIKT_BINDINGS, STRIKT_LAEUFE);
+}
+
+/**
+ * Fährt jede Liste durch die Schleife des Spiels ({@link driveRotation}) an
+ * `first-crucible`, je 30 s, und schreibt Drücke, Ergebnis und Leerlauf auf.
+ *
+ * **Eine Funktion für alle Listen-Aufzeichnungen**, damit zwei Aufzeichnungen
+ * nicht zwei Abschriften derselben Schleife fahren.
+ */
+function listenPayload(
+  name: string,
+  bindings: readonly Binding[],
+  laeufe: readonly ListenLauf[],
+): Record<string, unknown> {
+  const boss = bossById('first-crucible');
+  if (boss === undefined) throw new Error('Der Boss first-crucible fehlt.');
+  const ticks = 3000; // 30 s
+
+  const runs = laeufe.map(({ name: laufName, zeilen }) => {
+    const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+    const regeln = zeilen.map((zeile) => {
+      const index = combat.indexOf(zeile.spellId);
+      if (index < 0) throw new Error(`Den Zauber ${zeile.spellId} gibt es nicht.`);
+      return { index, gilt: zeile.gilt };
+    });
+    const presses: RecordedPress[] = [];
+    const press = pressRecorder(combat, bindings, presses);
+
+    const ergebnisDerListe = driveRotation(
+      combat,
+      // Dieselbe Regel wie `Apl::decide`: die erste Zeile, deren Zauber bereit
+      // ist und deren Bedingung gilt.
+      (timeMs) => {
+        for (const regel of regeln) {
+          if (combat.isReady(regel.index, timeMs) && regel.gilt(combat, timeMs)) return regel.index;
+        }
+        return -1;
+      },
+      ticks * TICK_MS,
+      false,
+      (spell, timeMs) => {
+        press(spell, timeMs / TICK_MS, timeMs);
+      },
+    );
+    // **Ein Sieg verschöbe die Läufe gegeneinander:** Die Schleife rechnet
+    // ohne Abbruch weiter, `replayRecording` bricht beim Sieg ab. Die Läufe
+    // sind so gewählt, dass keiner den Boss legt — und das steht hier als
+    // Bedingung, nicht als Annahme.
+    if (ergebnisDerListe.killedAtMs >= 0) {
+      throw new Error(`Der Lauf ${laufName} legt den Boss bei ${ergebnisDerListe.killedAtMs} ms.`);
+    }
+
+    const ergebnis = replayRecording(
+      { name: laufName, seed: 0, ticks, presses, bindings },
+      { checksumPerTick: true, boss },
+    );
+
+    return {
+      name: laufName,
+      apl: zeilen
+        .map((z) => (z.bedingung === '' ? z.spellId : `${z.spellId} if ${z.bedingung}`))
+        .join('\n'),
+      presses: presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+      expected: {
+        damage: ergebnis.damage,
+        killedAtMs: ergebnis.killedAtMs,
+        accepted: ergebnis.accepted,
+        rejected: ergebnis.rejected,
+        casts: ergebnis.casts,
+        /**
+         * **Aus der Schleife, nicht aus dem Abspielen.** `replayRecording`
+         * kennt keinen Leerlauf — es spielt Drücke ab, statt zu entscheiden.
+         */
+        idleMs: ergebnisDerListe.idleMs,
+        finalChecksum: ergebnis.finalChecksum,
+        sequenceChecksum: ergebnis.sequenceChecksum,
+      },
+      checksums: ergebnis.checksums,
+    };
+  });
+
+  return {
+    schema: SCHEMA,
+    name,
+    bossId: boss.id,
+    seed: 0,
+    ticks,
+    tickMs: TICK_MS,
+    /**
+     * Die Grenze aus {@link nullzeitBudget}. Der Simulator hält seine eigene
+     * (`NULLZEIT_BUDGET`) dagegen — sonst bräche eine Seite einen Zyklus ab,
+     * den die andere noch rechnet.
+     */
+    nullzeitBudget: nullzeitBudget(new Combat({ school: CALCINATION.value, boss, seed: 0 })),
+    bindings: bindings.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    runs,
+  };
+}
+
 const CONDENSE_BINDINGS = [
   { slot: 0, spellId: 'condense' },
   { slot: 1, spellId: 'kindle' },
@@ -5701,6 +6063,445 @@ export function spenderTalentPayload(): Record<string, unknown> {
       kindleCasts: presses.length - pyreDruecke,
     },
   };
+}
+
+export const KONTROLL_PREIS_TALENT_NAME = 'kontrolle-preis-talent';
+
+/** Die Leiste dieser Runde: der Ausgeber und der Aufbauer, sonst nichts. */
+const KONTROLL_PREIS_TALENT_BINDINGS = [
+  { slot: 0, spellId: 'latch' },
+  { slot: 1, spellId: 'bind' },
+] as const;
+
+/**
+ * Der Kontroll-Preis unter einer Verteilung aus ZWEI Bäumen (Issue #419).
+ *
+ * # Warum es diese Aufzeichnung gibt
+ *
+ * Jede Talent-Aufzeichnung davor trägt genau einen Weg (`decay-talent`,
+ * `spender-talent`), und ihre Kommentare sagen, warum das so bleiben soll.
+ * Dadurch kombinierte keine den Schutz-Weg der PUTREFACTION
+ * (`putrefaction-duration`) mit einem Weg eines anderen Baums — und genau dort
+ * rechneten Spiel und Simulator verschieden, ohne dass eine Prüfung es sah:
+ * Commit 347395fd hatte in `combat.ts` die Untergrenze `1` des Kontroll-Preises
+ * durch `talentDecayWardFactor(this.talents)` ersetzt. Ohne den Schutz-Weg ist
+ * dieser Faktor genau 1,0, und alles bleibt gleich; mit einem Rang ist er 1,12.
+ *
+ * # Warum genau diese Verteilung
+ *
+ * Die Untergrenze greift nur, wo der geteilte Preis bei 1 ankommt. Mit den
+ * heutigen Daten gibt es dafür genau einen Fall: LATCH kostet 2, und fünf
+ * Ränge `fixation-cost` (80 Promille je Rang) teilen durch 1,4 — gerundet 1.
+ * Jeder andere Ausgeber bleibt bei 2 oder mehr (STAY, WEDGE und PIN kosten 3,
+ * 3 / 1,4 ergibt gerundet 2).
+ *
+ * ```text
+ *   fixation-trunk 1, fixation-cost 5, putrefaction-trunk 1, putrefaction-duration 1
+ * ```
+ *
+ * Acht Punkte, und jeder Weg mit seinem Stamm — eine Verteilung, die das Spiel
+ * zulässt (`allocationProblem`), keine, die nur ein Prüffall bauen kann.
+ *
+ * # Feste Drücke, keine Entscheidung am Vorrat
+ *
+ * BIND bei 0 ms, LATCH bei 4500 und bei 16 500 ms (seine Abklingzeit ist
+ * 10 000). Eine Runde, die am Vorrat entschiede, drückte mit falschem Preis
+ * anders als mit richtigem — dann verglichen sich zwei verschiedene Runden. So
+ * bleibt die Runde dieselbe, und nur die Rechnung kann abweichen: Der zweite
+ * LATCH trifft auf genau den Vorrat, den der erste übrig lässt.
+ *
+ * # Warum der erste LATCH erst NACH dem unterbrechbaren Zauber kommt
+ *
+ * LATCH verzögert den nächsten Eintrag der Zeitleiste. Bei 4500 ms ist das der
+ * Schlag von 12 000 ms, bei 16 500 ms der von 19 000 ms — beide Male ein
+ * Schlag, nie der unterbrechbare Zauber bei 4000 ms.
+ *
+ * Das ist Absicht, und der Grund ist gemessen (2026-10-24): Einen VERZÖGERTEN
+ * unterbrechbaren Zauber lässt das Spiel sofort treffen, der Simulator erst
+ * nach seiner Wirkzeit. Mit dem ersten LATCH bei 1500 ms beginnt der Zauber in
+ * beiden bei 8000 ms; im Spiel trifft er bei 8010 ms, im Simulator bei
+ * 11 000 ms — mit und ohne Talente gleich. `Combat.stepPassive` rechnet den
+ * Einschlag ab dem ursprünglichen Fälligkeitszeitpunkt und setzt die
+ * Verzögerung schon vorher auf null. Diese Abweichung stammt nicht aus
+ * 347395fd, und diese Runde soll den Preis vergleichen, nicht sie; sie ist an
+ * den Orchestrator gemeldet.
+ *
+ * # Die Verteilung kommt als PROMILLE in den Simulator
+ *
+ * Wie bei `decay-talent` und `spender-talent`: Der Simulator kennt die
+ * Talent-Daten nicht und beginnt bei den Promille. Die beiden Stämme tragen je
+ * 20 Promille Schaden (`talent_permille`).
+ */
+export function kontrollPreisTalentPayload(): Record<string, unknown> {
+  const boss = bossById('test-warden');
+  if (boss === undefined) throw new Error('Der Boss test-warden fehlt.');
+
+  const talents = {
+    'fixation-trunk': 1,
+    'fixation-cost': 5,
+    'putrefaction-trunk': 1,
+    'putrefaction-duration': 1,
+  };
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  // **VOR dem ersten Takt** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(talents);
+  const latch = alsSpellIndex(combat.indexOf('latch'));
+  const bind = alsSpellIndex(combat.indexOf('bind'));
+  // 20 s: Der Schlag von 12 000 ms fällt verzögert bei 16 000 ms hinein, der
+  // von 19 000 ms nur, wenn der zweite LATCH scheitert.
+  const ticks = 2000;
+
+  /** Takt -> Zauber. Fest, siehe oben. */
+  const plan = new Map<number, typeof latch>([
+    [0, bind],
+    [450, latch],
+    [1650, latch],
+  ]);
+
+  const slots = slotMap(combat, KONTROLL_PREIS_TALENT_BINDINGS);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+
+  for (let tick = 0; tick < ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    const zauber = plan.get(tick);
+    if (zauber !== undefined) {
+      // **Ein abgewiesener Druck bricht ab**, statt still zu fehlen: Die feste
+      // Folge ist die Aussage dieser Datei. Fiele ein Druck weg, verglichen
+      // beide Seiten eine andere Runde als die beschriebene.
+      const ergebnis = combat.cast(zauber, timeMs).result;
+      if (!isCastAccepted(ergebnis)) {
+        throw new Error(
+          `${KONTROLL_PREIS_TALENT_NAME}: der Druck in Takt ${String(tick)} wurde abgewiesen ` +
+            `(Ergebnis ${String(ergebnis)}) — die feste Folge passt nicht mehr zu den Daten.`,
+        );
+      }
+      presses.push({ tick, slot: slotFor(slots, zauber, combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+  }
+
+  return {
+    schema: SCHEMA,
+    name: KONTROLL_PREIS_TALENT_NAME,
+    bossId: boss.id,
+    ticks,
+    tickMs: TICK_MS,
+    talents,
+    talentPermille: { damage: 2 * 20, controlCost: 5 * 80, decayWard: 1 * 120 },
+    bindings: KONTROLL_PREIS_TALENT_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses,
+    checksums,
+    expected: {
+      // **Bleibt bei `combat`**, aus demselben Grund wie bei `spender-talent`
+      // (Issue #659): `replayRecording` kennt keine Talente — es gibt kein
+      // `ReplayResult` mit dieser Verteilung, aus dem sich lesen ließe.
+      /**
+       * **Die Größen, um die es geht.** Mit Preis 1 gelingen beide LATCH:
+       * nichts scheitert, zwei Punkte sind ausgegeben.
+       */
+      controlFailed: combat.controlFailed,
+      controlSpent: combat.controlSpent,
+      damageTaken: combat.damageTaken,
+      damageDealt: combat.damageDealt,
+      /** Die Zusicherung, dass die Runde beide Zauber wirklich wirft. */
+      latchCasts: combat.castCount(latch),
+      bindCasts: combat.castCount(bind),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Die Schlüsseltalente mit Zustand (#419, #418 AC4)
+// ---------------------------------------------------------------------------
+
+export const SCHLUESSEL_NACHLAUF_NAME = 'schluessel-nachlauf';
+export const SCHLUESSEL_NACHLAGE_NAME = 'schluessel-nachlage';
+
+/** Eine feste Runde mit Verteilung — was beide Aufzeichnungen unterscheidet. */
+interface SchluesselRunde {
+  readonly name: string;
+  readonly bossId: string;
+  readonly ticks: number;
+  readonly talents: Readonly<Record<string, number>>;
+  /** Die Verteilung, wie der Simulator sie bekommt (er kennt die Talent-Daten nicht). */
+  readonly talentPermille: Readonly<Record<string, number>>;
+  /** Die Schlüsseltalente als Kennung — der Simulator bekommt sie als Schalter. */
+  readonly keystones: readonly string[];
+  readonly bindings: readonly { slot: number; spellId: string }[];
+  /** Takt -> Zauber-Kennung. Fest, kein Entscheid am Zustand. */
+  readonly plan: ReadonlyMap<number, string>;
+}
+
+/**
+ * Spielt eine Schlüssel-Runde und schreibt sie aus.
+ *
+ * **Feste Drücke**, wie bei `kontrolle-preis-talent`: Eine Runde, die am
+ * Zustand entschiede, drückte mit falscher Rechnung anders als mit richtiger —
+ * dann verglichen sich zwei verschiedene Runden. Ein abgewiesener Druck bricht
+ * deshalb ab, statt still zu fehlen.
+ *
+ * `beobachte` läuft nach jedem Takt und sammelt, was die Aufzeichnung über
+ * sich selbst zusichert — die Zahlen, die belegen, dass die Runde das Talent
+ * überhaupt berührt.
+ */
+function schluesselRunde(
+  runde: SchluesselRunde,
+  beobachte: (combat: Combat, tick: number) => void,
+): { combat: Combat; presses: { tick: number; slot: number }[]; checksums: number[] } {
+  const boss = bossById(runde.bossId);
+  if (boss === undefined) throw new Error(`Der Boss ${runde.bossId} fehlt.`);
+  const combat = new Combat({ school: CALCINATION.value, boss, seed: 0 });
+  // **VOR dem ersten Takt** — ab Zeit 0 ist die Verteilung gesperrt (#425).
+  combat.setTalents(runde.talents);
+  for (const kennung of runde.keystones) {
+    if (!combat.hasKeystone(kennung)) {
+      throw new Error(`${runde.name}: die Verteilung schaltet ${kennung} nicht frei.`);
+    }
+  }
+  const slots = slotMap(combat, runde.bindings);
+  const presses: { tick: number; slot: number }[] = [];
+  const checksums: number[] = [];
+
+  for (let tick = 0; tick < runde.ticks; tick++) {
+    const timeMs = tick * TICK_MS;
+    combat.stepPassive(timeMs);
+    const id = runde.plan.get(tick);
+    if (id !== undefined) {
+      const zauber = alsSpellIndex(combat.indexOf(id));
+      const ergebnis = combat.cast(zauber, timeMs).result;
+      if (!isCastAccepted(ergebnis)) {
+        throw new Error(
+          `${runde.name}: der Druck in Takt ${String(tick)} (${id}) wurde abgewiesen ` +
+            `(Ergebnis ${String(ergebnis)}) — die feste Folge passt nicht mehr zu den Daten.`,
+        );
+      }
+      presses.push({ tick, slot: slotFor(slots, zauber, combat) });
+    }
+    checksums.push(combatChecksum(combat, timeMs));
+    beobachte(combat, tick);
+  }
+  return { combat, presses, checksums };
+}
+
+function schluesselDatei(
+  runde: SchluesselRunde,
+  lauf: ReturnType<typeof schluesselRunde>,
+  expected: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    schema: SCHEMA,
+    name: runde.name,
+    bossId: runde.bossId,
+    ticks: runde.ticks,
+    tickMs: TICK_MS,
+    talents: runde.talents,
+    talentPermille: runde.talentPermille,
+    keystones: runde.keystones,
+    bindings: runde.bindings.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: lauf.presses,
+    // **Mit Talent gemessen** — die Folge, die der Gleichlauf-Wächter (#236)
+    // sonst nur ohne Talent sieht (`doom-stacks`). Die Felder der
+    // Schlüsseltalente stehen nur hier, und ihre Namen müssen auf beiden
+    // Seiten wörtlich dieselben sein.
+    fieldOrder: recordFieldOrder(() => {
+      combatChecksum(lauf.combat, (runde.ticks - 1) * TICK_MS);
+    }),
+    checksums: lauf.checksums,
+    expected,
+  };
+}
+
+/**
+ * PUTREFACTIONs Schlüsseltalent `decay-echo` in einer Runde, die jeden Zweig
+ * des Nachlaufs fährt (#419, #418 AC4).
+ *
+ * ```text
+ *      0 ms  ROT          Brand bis 4000, Stapel 1..4, Endpunkt 16 000
+ *   5000 ms               Brand aus, der Nachlauf legt weiter
+ *   8000 ms  NECROSIS     verzehrt alle Stapel -> der Nachlauf endet beim
+ *                         nächsten Tick, weil keiner mehr liegt
+ *  15 000 ms  ROT          neuer Brand, neuer Endpunkt
+ *  20 000 ms               Brand aus, zweiter Nachlauf
+ *  32 000 ms               der Nachlauf endet, weil seine Frist vorbei ist
+ * ```
+ *
+ * Damit endet der Endpunkt auf BEIDEN Wegen, die `imDecayEcho` kennt — das
+ * steht unten als Zusicherung in der Datei (`echoEnds`).
+ *
+ * Gegen den Ersten Schmelztiegel: Er schlägt nicht zu, also wirkt der
+ * Schutz-Weg der Verteilung (`putrefaction-duration`) auf nichts, und die
+ * Runde misst allein den Nachlauf.
+ */
+export function schluesselNachlaufPayload(): Record<string, unknown> {
+  const runde: SchluesselRunde = {
+    name: SCHLUESSEL_NACHLAUF_NAME,
+    bossId: 'first-crucible',
+    ticks: 4000,
+    talents: { 'putrefaction-trunk': 1, 'putrefaction-duration': 1, 'putrefaction-keystone': 1 },
+    talentPermille: { damage: 20, decayWard: 120 },
+    keystones: ['decay-echo'],
+    bindings: [
+      { slot: 0, spellId: 'rot' },
+      { slot: 1, spellId: 'necrosis' },
+    ],
+    plan: new Map([
+      [0, 'rot'],
+      [800, 'necrosis'],
+      [1500, 'rot'],
+    ]),
+  };
+  const echoEnds: number[] = [];
+  let vorher = NOT_ACTIVE;
+  let rot = -1;
+  const lauf = schluesselRunde(runde, (combat, tick) => {
+    if (rot < 0) rot = combat.indexOf('rot');
+    const jetzt = combat.decayEchoUntil(rot);
+    if (vorher !== NOT_ACTIVE && jetzt === NOT_ACTIVE) echoEnds.push(tick);
+    vorher = jetzt;
+  });
+  const combat = lauf.combat;
+  return schluesselDatei(runde, lauf, {
+    // **Die Zusicherung, dass die Runde den Nachlauf fährt**: der Takt, in dem
+    // der Endpunkt jeweils fällt — einmal mangels Stapel, einmal nach Frist.
+    echoEnds,
+    decayStacks: combat.decayStacks,
+    damageDealt: combat.damageDealt,
+    rotCasts: combat.castCount(alsSpellIndex(rot)),
+    rotTicks: combat.dotTickCount(rot),
+    necrosisCasts: combat.castCount(alsSpellIndex(combat.indexOf('necrosis'))),
+  });
+}
+
+/**
+ * COAGULATIONs Schlüsseltalent `shield-refund` in einer Runde, die jeden
+ * Zustand des Merkers fährt (#419, #418 AC4).
+ *
+ * ```text
+ *      0 ms  CRUST        Schicht 990, Merker frei
+ *   5000 ms               Schlag bricht sie -> Nachlage 495, Merker verbraucht
+ *  12 000 ms               Schlag bricht die Nachlage -> NICHTS kommt nach
+ *  13 000 ms  CRUST        neue Schicht, der Merker ist wieder frei
+ *  19 000 ms               Schlag bricht sie -> zweite Nachlage
+ *  24 000 ms               ein kleiner Schlag, die Nachlage fängt ihn auf
+ * ```
+ *
+ * Gegen `test-onslaught`: Seine Zauber treffen mit 2000 erst nach ihrer
+ * Wirkzeit (3000 + 2000, 10 000 + 2000, 17 000 + 2000), der Schlag bei
+ * 24 000 ms mit 500. Der Spieler überlebt die Runde.
+ */
+export function schluesselNachlagePayload(): Record<string, unknown> {
+  const runde: SchluesselRunde = {
+    name: SCHLUESSEL_NACHLAGE_NAME,
+    bossId: 'test-onslaught',
+    ticks: 2500,
+    talents: { 'coagulation-trunk': 1, 'coagulation-thicker': 1, 'coagulation-keystone': 1 },
+    talentPermille: { damage: 20, shieldAmount: 100 },
+    keystones: ['shield-refund'],
+    bindings: [{ slot: 0, spellId: 'crust' }],
+    plan: new Map([
+      [0, 'crust'],
+      [1300, 'crust'],
+    ]),
+  };
+  const refunds: number[] = [];
+  let vorher = false;
+  const lauf = schluesselRunde(runde, (combat, tick) => {
+    if (!vorher && combat.shieldRefundSpent) refunds.push(tick);
+    vorher = combat.shieldRefundSpent;
+  });
+  const combat = lauf.combat;
+  return schluesselDatei(runde, lauf, {
+    // **Die Zusicherung, dass die Runde den Merker fährt**: die Takte, in
+    // denen eine Nachlage fiel. Zwei Schilde, zwei Nachlagen — und keine bei
+    // 12 000 ms, wo die Nachlage selbst bricht.
+    refunds,
+    shield: combat.shield,
+    shieldAbsorbed: combat.shieldAbsorbed,
+    damageTaken: combat.damageTaken,
+    playerHp: combat.playerHp,
+    crustCasts: combat.castCount(alsSpellIndex(combat.indexOf('crust'))),
+  });
+}
+
+export const SCHLUESSEL_NACHLAGE_ABLAUF_NAME = 'schluessel-nachlage-ablauf';
+
+/**
+ * `shield-refund`, wenn der gelegte Schild UNGEBROCHEN abläuft und danach eine
+ * Umwandlungs-Schicht bricht (#419, Abnahme von #1146).
+ *
+ * ```text
+ *       0 ms  CRUST            990
+ *    5000 ms  Schlag (320)     fängt sie auf, 670 bleiben
+ *   12 010 ms                  CRUST läuft ab, ungebrochen, Merker frei
+ *   13 000 ms  TEMPER, ab 14 500 ms KINDLE     Umwandlung bis 23 000 ms
+ *   15 000 ms  Überladung      bricht die Umwandlungs-Schicht -> NICHTS
+ *   23 000 ms  Zauber (1200)   bricht die nachgewachsene      -> NICHTS
+ * ```
+ *
+ * Die Nachlage kommt aus dem Schild, der gelegt wurde und bricht. Vor der
+ * Abnahme von #1146 gab die Umwandlungs-Schicht die Hälfte der abgelaufenen
+ * CRUST — 495 bei 15 000 ms, auf beiden Seiten gleich falsch. Die Datei hält
+ * fest, dass beide Brüche nichts nachlegen (`refunds` leer, `breaks` nicht).
+ *
+ * Gegen `test-vessel`: der Schlag bei 5000 ms, die Überladung aus der
+ * Energieleiste (7 je Sekunde, Schwelle 100), der Zauber von 20 000 ms mit
+ * 3000 ms Wirkzeit.
+ */
+export function schluesselNachlageAblaufPayload(): Record<string, unknown> {
+  const runde: SchluesselRunde = {
+    name: SCHLUESSEL_NACHLAGE_ABLAUF_NAME,
+    bossId: 'test-vessel',
+    ticks: 2400,
+    talents: { 'coagulation-trunk': 1, 'coagulation-thicker': 1, 'coagulation-keystone': 1 },
+    talentPermille: { damage: 20, shieldAmount: 100 },
+    keystones: ['shield-refund'],
+    bindings: [
+      { slot: 0, spellId: 'crust' },
+      { slot: 1, spellId: 'temper' },
+      { slot: 2, spellId: 'kindle' },
+    ],
+    plan: new Map([
+      [0, 'crust'],
+      [1300, 'temper'],
+      [1450, 'kindle'],
+      [1600, 'kindle'],
+      [1750, 'kindle'],
+      [1900, 'kindle'],
+      [2050, 'kindle'],
+    ]),
+  };
+  const refunds: number[] = [];
+  const breaks: number[] = [];
+  const expiries: number[] = [];
+  let spentVorher = false;
+  let schildVorher = 0;
+  let aufgefangenVorher = 0;
+  const lauf = schluesselRunde(runde, (combat, tick) => {
+    if (!spentVorher && combat.shieldRefundSpent) refunds.push(tick);
+    spentVorher = combat.shieldRefundSpent;
+    // Ein Schild, der auf 0 fällt, ist entweder gebrochen (es wurde dabei
+    // aufgefangen) oder abgelaufen (nichts aufgefangen).
+    if (schildVorher > 0 && combat.shield === 0) {
+      (combat.shieldAbsorbed > aufgefangenVorher ? breaks : expiries).push(tick);
+    }
+    schildVorher = combat.shield;
+    aufgefangenVorher = combat.shieldAbsorbed;
+  });
+  const combat = lauf.combat;
+  return schluesselDatei(runde, lauf, {
+    // **Die Zusicherung, dass die Runde den Ablauf fährt**: Die CRUST läuft
+    // ab, zwei Umwandlungs-Schichten brechen, und keine legt nach.
+    expiries,
+    breaks,
+    refunds,
+    shield: combat.shield,
+    shieldAbsorbed: combat.shieldAbsorbed,
+    converted: combat.converted,
+    damageTaken: combat.damageTaken,
+    playerHp: combat.playerHp,
+  });
 }
 
 export function synergyPayload(): Record<string, unknown> {

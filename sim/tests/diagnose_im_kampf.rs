@@ -22,7 +22,7 @@
 //! leeren Huelle.
 //!
 //! ```text
-//! cargo remote -c --manifest-path sim/Cargo.toml -- \
+//! cargo remote -c -- \
 //!   test --features diagnostics --test diagnose_im_kampf
 //! ```
 #![cfg(feature = "diagnostics")]

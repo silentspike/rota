@@ -14,12 +14,20 @@ angelehnt an World-of-Warcraft-Rotationen (Global Cooldown, Cooldown-Management,
 
 ## SSOT-Dokumente
 
-| Dokument              | Inhalt                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/GAME-DESIGN.md` | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
-| `docs/suno-sfx.md`    | Sound-Produktion mit Suno Sounds: Prompt-Regeln, Workflow, Prompt-Vorlagen                                                                    |
+| Dokument                                                         | Inhalt                                                                                                                                        |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/GAME-DESIGN.md`                                            | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
+| `suno/suno-sfx.md` im privaten Repo `silentspike/rota-werkzeuge` | Sound-Produktion mit Suno Sounds: Prompt-Regeln, Workflow, Prompt-Vorlagen (seit 2026-10-28 dort, nicht mehr in diesem Repo)                  |
 
 Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMMER das Design-Dokument.
+
+**Über beiden steht der Masterplan** `~/.claude/plans/greedy-skipping-russell.md` — der Plan, den
+der Orchestrator zum Spiel erstellt hat. Vorgabe des Auftraggebers vom 2026-10-28: „verlasse dich
+nicht zu sehr auf game-design, wichtig ist der plan den du zu dem game erstellt hast". Vor einer
+Design-Entscheidung zuerst dort nachsehen; widerspricht `docs/GAME-DESIGN.md` dem Masterplan,
+gilt der Masterplan, und die Abweichung wird dem Orchestrator gemeldet. Die verbindlichen
+Einzelentscheidungen des Auftraggebers (Abschnitt „Entscheidungen des Auftraggebers nachlesen")
+gehen beiden vor.
 
 ## Nicht verhandelbare Design-Gesetze (vom Auftraggeber festgelegt)
 
@@ -87,6 +95,15 @@ Stunden später. Dein eigentliches Ergebnis kommt später als **neue** Nachricht
 **Melde dich auch, bevor du still wirst.** Wenn du fertig bist oder wartest, sag das — sonst
 meldet der Watcher dich als stillstehend, und der Orchestrator weiß nicht, ob du hängst.
 
+### Entscheidungen des Auftraggebers nachlesen
+
+Seine verbindlichen Entscheidungen liegen als Antwortdateien unter
+`/work/rota/fragen/antworten/<frage-id>.json`, die Fragen dazu in `/work/rota/fragen/fragen.json`.
+Lesen mit `rota-fragen zeigen` — ohne den Orchestrator zu fragen. **Maßgeblich ist die
+Antwortdatei**, nicht das Feld `status` in `fragen.json`: `beantwortet` steht dort erst nach
+der Quittung des Orchestrators. Nur lesen, nichts dort schreiben. Einzelheiten in
+[`docs/IPC.md`](docs/IPC.md), Abschnitt „Entscheidungen des Auftraggebers".
+
 ### Vier Regeln
 
 1. **Weiche nicht aus.** Klemmt der Versand, melde den Fehlertext. Keine GitHub-Kommentare, kein
@@ -135,7 +152,7 @@ Einzelheiten in [`docs/IPC.md`](docs/IPC.md).
     liegt unter `/rota/favicon.svg` und wird korrekt geladen.
 - **Browser-Tests:** `playwright-cli -s=rota ...` (headless; `--headed` nur wenn der User zuschauen will).
   Session am Ende mit `close` beenden.
-- **Sound:** Erzeugung via Suno Sounds (siehe `docs/suno-sfx.md`). ElevenLabs hat KEIN Guthaben.
+- **Sound:** Erzeugung via Suno Sounds (siehe `suno/suno-sfx.md` im privaten Werkzeug-Repo `silentspike/rota-werkzeuge`, lokal `/work/rota-ipc/suno/`). ElevenLabs hat KEIN Guthaben.
   Claude kann nicht hören → Sounds technisch prüfen (ffprobe/ffmpeg: Länge, Pegel, Anfangs-Stille,
   Clipping), ästhetische Abnahme macht der User über ein Abhör-Soundboard.
 - **Speicherung:** Spielstand im Browser (localStorage), laufend automatisch.

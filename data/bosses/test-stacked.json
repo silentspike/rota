@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "test-stacked",
-  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT, UND KEIN INHALT. Dieser Boss traegt genau einen Prueffall: Er hat als EINZIGER sowohl den toedlichen Zaehler (Baustein 2) als auch die Energieleiste (Baustein 1), und damit stehen zwei Schwellen-Leisten zugleich im HUD. Ohne ihn waere der gestapelte Aufbau aus Issue #219 ungeprueft — heute traegt kein Boss beide, und mit festen Plaetzen faellt das erst auf, wenn der erste es tut. Wer ihn fuer Inhalt haelt und balanciert, hat ihn missverstanden: Welcher Boss diese Bausteine bekommt, entscheidet E10 mit den Signatur-Regeln.",
+  "_comment": "VORLAEUFIGE WERTE — NICHT BALANCIERT, UND KEIN INHALT. Dieser Boss traegt genau einen Prueffall: Er hat als EINZIGER sowohl den toedlichen Zaehler (Baustein 2) als auch die Energieleiste (Baustein 1), und damit stehen zwei Schwellen-Leisten zugleich im HUD. Ohne ihn waere der gestapelte Aufbau aus Issue #219 ungeprueft — heute traegt kein Boss beide, und mit festen Plaetzen faellt das erst auf, wenn der erste es tut. Wer ihn fuer Inhalt haelt und balanciert, hat ihn missverstanden: Welcher Boss diese Bausteine bekommt, entscheidet E10 mit den Signatur-Regeln.\n\nARBEITSNAMEN (Issue #797): \"Stacked Count\" (doom). Pruefboss; den Namen braucht die Ankuendigung (GAME-DESIGN 11.5), die jede Faehigkeit beim Namen nennt.",
   "name": "The Stacked Proof",
   "instance": "test",
   "hp": 999999,
@@ -19,6 +19,7 @@
     }
   },
   "doom": {
+    "name": "Stacked Count",
     "perStepMs": 1000,
     "amount": 5,
     "threshold": 100,

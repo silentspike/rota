@@ -405,6 +405,23 @@ teuer — wer mit den kurzen Läufen anfängt, kostet sie Sekunden.
 > Vektorpfade. Die datierten Messungen weiter unten beschreiben ihren damaligen
 > Versuchsaufbau.
 
+> **Seit 2026-10-23 ist der Buildserver cargo remote v2** (`rustbuild-ovh` auf node3; der alte
+> Dienst auf CT 155 ist für ROTA abgelöst). Was sich dadurch am Ablauf ändert, gemessen bei der
+> Umstellung:
+>
+> - **Ein aktiver Job je Arbeitsverzeichnis.** Ein zweiter Aufruf aus demselben Worktree endet
+>   sofort mit **Exit 75** und hat nichts gebaut — der Dienst reiht nichts ein. Dasselbe gilt laut
+>   seinem Vertrag (globale CLAUDE.md, Abschnitt „Cargo Remote"), wenn sein Speicherbudget belegt ist;
+>   dieser Fall ist nicht eigens gemessen. Erst `cargo remote --status` ansehen, dann erneut aufrufen;
+>   nie denselben Aufruf doppelt starten. Ob Worktrees gleichzeitig bauen dürfen, regelt die
+>   Vorgabe oben, nicht das Werkzeug.
+> - **Der Compiler ist gepinnt** — `rust-toolchain.toml` und `.cargo-remote.toml` nennen dieselbe
+>   exakte Version, die CI liest sie von dort und prüft beides (`tools/rust-pin.py`).
+> - **Jeder Aufruf startet in der Wurzel.** Optionen wie `--manifest-path` gehören, wenn
+>   überhaupt, hinter das `--`; davor lehnt der Client sie ab.
+> - **`-c` holt nur ausführbare Dateien zurück**, kein `target/`-Baum. Für reine Prüfungen und
+>   Testläufe ist es überflüssig.
+
 > **Beim Läufer mit `--apl` ist der Pfad `sim/apl/…`, nicht `apl/…`** — er startet im
 > Workspace-Root. Die Fehlermeldung nennt den übergebenen Pfad und sieht deshalb aus
 > wie ein Sync-Problem; zwei Sitzungen haben genau das diagnostiziert und lagen falsch:
@@ -3551,16 +3568,27 @@ trotzdem an einer geschweiften Klammer scheitern.
 #### Der Ablauf vor dem Melden
 
 ```bash
-npm run lint && npm test && npm run build        # TypeScript-Seite
-cargo remote -c -- clippy --all-targets -- -D warnings   # Rust: Stil
-bash ~/bin/cargo-remote-fmt --check              # Rust: Format, CI-Version
-cargo remote -c -- test --no-run --no-fail-fast > /work/tmp/bau.log           # Rust: Verhalten
-bash tools/tests-lokal.sh /work/tmp/bau.log
+npm run lint && npm test && npm run build                 # TypeScript-Seite
+cargo remote -- clippy --all-targets -- -D warnings       # Rust: Stil, wie die CI
+cargo-remote-fmt --check                                  # Rust: Format, wie die CI
+cargo remote -- test                                      # Rust: Verhalten, wie die CI …
+cargo remote -- test --all-targets --features diagnostics # … und ihr zweiter Lauf
 ```
 
-> **`cargo-remote-fmt` statt `cargo remote -- fmt`:** Das Skript trifft die Stable-Version der
-> CI; `cargo remote -- fmt` synct nur `target/` zurück, nicht das formatierte `src/`. Steht in
-> `/work/.claude/CLAUDE.md`.
+Die vier Rust-Zeilen sind die Befehle der CI-Stufe `sim`, auf demselben gepinnten Compiler
+(`rust-toolchain.toml`). Wer die Tests auf **dieser** Maschine braucht — etwa für eine Messung —,
+holt sie mit `cargo remote -c -- test --no-run … > /work/tmp/bau.log` und fährt sie mit
+`bash tools/tests-lokal.sh /work/tmp/bau.log`.
+
+> **`cargo-remote-fmt` statt `cargo remote -- fmt`:** Es formatiert mit der gepinnten Version,
+> derselben wie die CI, und schreibt die formatierten `.rs` zurück. `cargo remote -- fmt`
+> formatiert nur die Kopie auf dem Server; lokal ändert sich nichts. Beides gemessen am
+> 2026-10-23.
+>
+> **Und nie `bash ~/bin/cargo-remote-fmt`.** Seit v2 ist das ein Python-Skript: bash endet mit
+> einem Syntaxfehler (Exit 2) und führt vorher Zeile 2, `import sys,runpy`, als Befehl aus —
+> beides gemessen mit leerem `PATH`. Mit dem normalen träfe das `/usr/bin/import`, und das ist
+> auf diesem Rechner ImageMagicks Bildschirmabzug.
 
 **`npm run build` gehört dazu, auch wenn Vitest grün ist.** Vitest transpiliert **ohne
 Typprüfung** — ein Typfehler fällt dort nicht auf und im Bau sofort.
@@ -3843,7 +3871,7 @@ npx vitest run
 cargo remote -c -- test --no-run --no-fail-fast > /work/tmp/bau.log
 bash tools/tests-lokal.sh /work/tmp/bau.log
 cargo remote -c -- clippy --all-targets -- -D warnings
-bash ~/bin/cargo-remote-fmt --check
+cargo-remote-fmt --check                        # seit v2 ohne „bash" davor, siehe „Der Ablauf vor dem Melden"
 git merge-base --is-ancestor <Basis> HEAD       # nur wenn du auf fremder Basis sitzt
 ```
 
@@ -4116,6 +4144,9 @@ python tools/suno_api.py auth-test
   Account: backupslave | billing/info: HTTP 200
   Credits: 1342 | Tier: True
 ```
+
+(Das Werkzeug liegt seit 2026-10-28 als `suno/suno_api.py` im privaten Werkzeug-Repo
+`silentspike/rota-werkzeuge`.)
 
 Der Klang war zwei Minuten später fertig. Die Einordnung der Sitzung selbst: _„Meine Suno-Sperre war
 eine ungeprüfte Annahme aus einer alten Notiz."_
@@ -4720,16 +4751,23 @@ zwanzig Minuten und zwang ein Kriterium auf einen anderen Messweg.
 #### Die drei Aufrufe, damit es kein drittes Mal gibt
 
 ```bash
-cargo remote -c --manifest-path sim/Cargo.toml -- test --no-run --no-fail-fast > /work/tmp/bau.log
+cargo remote -c -- test --no-run --no-fail-fast > /work/tmp/bau.log
 bash tools/tests-lokal.sh /work/tmp/bau.log
-cargo remote -c --manifest-path sim/Cargo.toml -- clippy --all-targets -- -D warnings
-cargo remote -c --manifest-path sim/Cargo.toml -- build --release --example balance
+cargo remote -c -- clippy --all-targets -- -D warnings
+cargo remote -c -- build --release --example balance
 ./target/release/examples/balance --apl sim/apl/DATEI.apl --boss test-metronome --iterations 200 --json
 ```
 
-`--manifest-path` statt `cd sim` ist dabei kein Stil, sondern eine Gegenmaßnahme: **Der Weg hin
-(`cd sim`) und der Weg zurück (nichts) sind asymmetrisch** — deshalb hilft die Erinnerung nicht.
-Ohne Weg hin gibt es nichts zu vergessen.
+Alle Aufrufe starten in der Wurzel, nicht in `sim/` — und das ist kein Stil, sondern eine
+Gegenmaßnahme: **Der Weg hin (`cd sim`) und der Weg zurück (nichts) sind asymmetrisch** — deshalb
+hilft die Erinnerung nicht. Ohne Weg hin gibt es nichts zu vergessen.
+
+> **Bis zum 2026-10-23 stand hier `--manifest-path sim/Cargo.toml` vor dem `--`.** Diese Option
+> kennt cargo remote v2 nicht: Der Aufruf endet sofort mit Exit 2 (`unrecognized arguments`).
+> Gebraucht wird sie nicht — der Workspace in der Wurzel hat genau ein Mitglied, `sim`. Aus `sim/`
+> heraus scheitert der Aufruf auf diesem Rechner ebenfalls, nur später: Der v2-Client findet dort
+> keine Konfiguration, reicht an den alten Client weiter, und der bricht an der lokalen
+> Rust-Sperre ab (Exit 101). Beides gemessen am 2026-10-23.
 
 `--help` kennt der Läufer inzwischen; vorher kam die Nutzungszeile **nur als Fehlermeldung**, wer
 sie suchte, musste erst danebengreifen.

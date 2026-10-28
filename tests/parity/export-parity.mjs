@@ -68,6 +68,14 @@ import {
   decayFactorPayload,
   decayTalentPayload,
   spenderTalentPayload,
+  kontrollPreisTalentPayload,
+  KONTROLL_PREIS_TALENT_NAME,
+  schluesselNachlaufPayload,
+  SCHLUESSEL_NACHLAUF_NAME,
+  schluesselNachlagePayload,
+  SCHLUESSEL_NACHLAGE_NAME,
+  schluesselNachlageAblaufPayload,
+  SCHLUESSEL_NACHLAGE_ABLAUF_NAME,
   fixationSpellsPayload,
   resetRunPayload,
   raceHealPayload,
@@ -145,6 +153,10 @@ import {
   AETHER_NAME,
   sublimePayload,
   SUBLIME_NAME,
+  gcdFreiPayload,
+  GCD_FREI_NAME,
+  strikterUmschlagPayload,
+  STRIKT_NAME,
   condensePayload,
   CONDENSE_NAME,
   retortPayload,
@@ -531,6 +543,28 @@ console.log(
     `${sublime.expected.merkerTakte} Merker-Takte, Schaden ${sublime.expected.damageDealt}`,
 );
 
+// Nach einem Wurf ohne Wartezeit entscheidet die Liste im naechsten Takt (#1027).
+const gcdFrei = gcdFreiPayload();
+const gcdFreiPath = join(here, 'recordings', `${GCD_FREI_NAME}.json`);
+writeFileSync(gcdFreiPath, serialize(gcdFrei), 'utf8');
+console.log(`geschrieben: ${gcdFreiPath}`);
+for (const lauf of gcdFrei.runs) {
+  console.log(
+    `  ${lauf.name.padEnd(24)} Schaden ${lauf.expected.damage}, Leerlauf ${lauf.expected.idleMs} ms`,
+  );
+}
+
+// Ein strikter Vergleich trifft seinen Umschlag im selben Takt wie das Spiel (#1027).
+const strikt = strikterUmschlagPayload();
+const striktPath = join(here, 'recordings', `${STRIKT_NAME}.json`);
+writeFileSync(striktPath, serialize(strikt), 'utf8');
+console.log(`geschrieben: ${striktPath}`);
+for (const lauf of strikt.runs) {
+  console.log(
+    `  ${lauf.name.padEnd(24)} Schaden ${lauf.expected.damage}, Leerlauf ${lauf.expected.idleMs} ms`,
+  );
+}
+
 const condense = condensePayload();
 const condensePath = join(here, 'recordings', `${CONDENSE_NAME}.json`);
 writeFileSync(condensePath, serialize(condense), 'utf8');
@@ -658,6 +692,52 @@ const spenderTalentPath = join(here, 'recordings', 'spender-talent.json');
 writeFileSync(spenderTalentPath, serialize(spenderTalent), 'utf8');
 console.log(`geschrieben: ${spenderTalentPath}`);
 console.log(`  Entlader-Weg    Schaden: ${spenderTalent.expected.damage}`);
+
+// Der Kontroll-Preis unter einer Verteilung aus zwei Baeumen (#419). Die erste
+// Talent-Aufzeichnung mit MEHR als einem Weg — siehe `payloads.ts`, warum.
+const kontrollPreisTalent = kontrollPreisTalentPayload();
+const kontrollPreisTalentPath = join(here, 'recordings', `${KONTROLL_PREIS_TALENT_NAME}.json`);
+writeFileSync(kontrollPreisTalentPath, serialize(kontrollPreisTalent), 'utf8');
+console.log(`geschrieben: ${kontrollPreisTalentPath}`);
+console.log(
+  `  Kontroll-Preis  ${kontrollPreisTalent.expected.controlFailed} fehlgeschlagen, ` +
+    `${kontrollPreisTalent.expected.controlSpent} Punkte ausgegeben, ` +
+    `${kontrollPreisTalent.expected.latchCasts} LATCH`,
+);
+
+// Die zwei Schluesseltalente mit Zustand (#419, #418 AC4) — je eine Runde, die
+// jeden Zweig ihres Zustands faehrt. Die Felder gehen nur mit Talent in die
+// Pruefsumme ein; nur diese beiden Dateien tragen sie.
+const schluesselNachlauf = schluesselNachlaufPayload();
+const schluesselNachlaufPath = join(here, 'recordings', `${SCHLUESSEL_NACHLAUF_NAME}.json`);
+writeFileSync(schluesselNachlaufPath, serialize(schluesselNachlauf), 'utf8');
+console.log(`geschrieben: ${schluesselNachlaufPath}`);
+console.log(
+  `  Nachlauf        endet in Takt ${schluesselNachlauf.expected.echoEnds.join(' und ')}, ` +
+    `${schluesselNachlauf.expected.decayStacks} Stapel am Ende`,
+);
+const schluesselNachlage = schluesselNachlagePayload();
+const schluesselNachlagePath = join(here, 'recordings', `${SCHLUESSEL_NACHLAGE_NAME}.json`);
+writeFileSync(schluesselNachlagePath, serialize(schluesselNachlage), 'utf8');
+console.log(`geschrieben: ${schluesselNachlagePath}`);
+console.log(
+  `  Nachlage        in Takt ${schluesselNachlage.expected.refunds.join(' und ')}, ` +
+    `Schild am Ende ${schluesselNachlage.expected.shield}`,
+);
+// Der gelegte Schild laeuft ungebrochen ab, danach brechen Umwandlungs-
+// Schichten — und keine legt nach (Abnahme von #1146).
+const schluesselNachlageAblauf = schluesselNachlageAblaufPayload();
+const schluesselNachlageAblaufPath = join(
+  here,
+  'recordings',
+  `${SCHLUESSEL_NACHLAGE_ABLAUF_NAME}.json`,
+);
+writeFileSync(schluesselNachlageAblaufPath, serialize(schluesselNachlageAblauf), 'utf8');
+console.log(`geschrieben: ${schluesselNachlageAblaufPath}`);
+console.log(
+  `  Ablauf          Brueche in Takt ${schluesselNachlageAblauf.expected.breaks.join(' und ')}, ` +
+    `Nachlagen: ${schluesselNachlageAblauf.expected.refunds.length}`,
+);
 
 const buffCombat = buffCombatPayload();
 const buffCombatPath = join(here, 'recordings', 'buff-combat.json');

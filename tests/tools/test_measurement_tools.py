@@ -93,22 +93,33 @@ class MeasurementTools(unittest.TestCase):
         self.assertEqual(names, ['apl_case', 'AC2 catches the boundary', 'FAIL is part of this name'])
         self.assertEqual(files, ['tests/unit/x.test.ts'])
 
-    def test_raster_reads_both_real_sources_and_rejects_disagreement(self):
+    def test_time_rule_reads_all_four_real_sources_and_rejects_disagreement(self):
+        # Since #1087 the grid comes from policy() in spell-time-audit.py
+        # (#1104), which also reads the threshold exceptions on both sides.
         (self.root / 'src/core').mkdir(parents=True)
         (self.root / 'sim').mkdir()
         ts = self.root / 'src/core/loop.ts'
         rs = self.root / 'sim/build.rs'
+        data_ts = self.root / 'src/core/data.ts'
+        (self.root / 'sim/time_fields.rs').write_text(
+            'if key != "cooldownReductionBelowMs" && millis % tick_ms != 0 {}')
+        data_ts.write_text("if (key !== 'cooldownReductionBelowMs' && value % TICK_MS !== 0) {}")
         with patch.object(self.streich, 'WURZEL', self.root):
             for raster in (10, 20):
                 ts.write_text(f'export const TICK_MS: number = {raster};')
                 rs.write_text(f'const RASTER_MS: u64 = {raster};')
-                self.assertEqual(self.streich.raster_ms(), raster)
+                self.assertEqual(self.streich.zeitregel(), (raster, frozenset({'cooldownReductionBelowMs'})))
             ts.write_text('export const TICK_MS = 10;')
-            with self.assertRaisesRegex(SystemExit, 'auseinander'):
-                self.streich.raster_ms()
+            with self.assertRaisesRegex(self.streich.NichtGestartet, 'Zeitregel.*disagree.*Befund'):
+                self.streich.zeitregel()
             ts.write_text('export const RENAMED = 20;')
-            with self.assertRaisesRegex(SystemExit, 'nicht lesbar'):
-                self.streich.raster_ms()
+            with self.assertRaisesRegex(self.streich.NichtGestartet, 'Zeitregel.*Cannot read'):
+                self.streich.zeitregel()
+            ts.write_text('export const TICK_MS = 20;')
+            self.assertEqual(self.streich.zeitregel()[0], 20)
+            data_ts.write_text("if (key !== 'cooldownReductionMs' && value % TICK_MS !== 0) {}")
+            with self.assertRaisesRegex(self.streich.NichtGestartet, 'Zeitregel.*threshold exceptions disagree'):
+                self.streich.zeitregel()
 
     def test_failed_remote_build_skips_remote_tests_and_restores_data(self):
         (self.root / 'data/spells').mkdir(parents=True)

@@ -3,6 +3,10 @@
 .env.*
 *.key
 *.pem
+# Die Suno-Cookies. Das Werkzeug liegt seit 2026-10-28 im privaten Repo
+# silentspike/rota-werkzeuge (suno/), legt die Datei aber weiter in der Wurzel
+# des rota-Checkouts ab, aus dem es aufgerufen wird — deshalb bleiben die
+# Einträge hier.
 .suno-state.json
 # Auch jede Sicherung davon. Der Rat "vor jedem Lauf eine Kopie anlegen"
 # (Issue #199) erzeugt Dateien mit denselben Sitzungs-Cookies — gemessen:

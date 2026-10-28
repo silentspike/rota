@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "Verzeichnis aller Klaenge (GAME-DESIGN 17.1). Prompt-Regeln: docs/suno-sfx.md 2. Erzeugung: tools/suno_api.py batch, Nachbearbeitung: tools/sfx-post.sh.",
+  "note": "Verzeichnis aller Klaenge (GAME-DESIGN 17.1). Prompt-Regeln: suno/suno-sfx.md 2, Erzeugung: suno/suno_api.py batch — beide im privaten Werkzeug-Repo silentspike/rota-werkzeuge. Nachbearbeitung: tools/sfx-post.sh.",
   "coverage": {
     "note": "Soll aus GAME-DESIGN 17.1. Die 47 ableitbaren Slots sind vollstaendig beschrieben. Was fehlt, steht unter 'placeholders' mit dem Epic, das es ausarbeitet — es fehlt nicht aus Nachlaessigkeit, sondern weil die Vorlage dafuer noch nicht existiert (GAME-DESIGN 22).",
     "groups": {
@@ -620,6 +620,114 @@
       "trigger": {
         "on": "boss.defeated"
       }
+    },
+    {
+      "id": "boss-warning-debuff",
+      "group": "boss",
+      "purpose": "Ankuendigung, Art Schwaechung auf dir (GAME-DESIGN 11.5): trifft nur den Spieler und verlangt persoenliche Reaktion. Eigener Klang, sofortiges Handeln.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-warning-debuff.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 0,
+      "prompt": "dark curse sting, rising whispered hiss, short one shot, eerie alchemy",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.debuff — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-warning-damage",
+      "group": "boss",
+      "purpose": "Ankuendigung, Art Allgemeiner Schaden (GAME-DESIGN 11.5) ab Stufe 2: trifft ohne Zutun, man kann nur vorher heilen oder schuetzen. Ruhigere Ankuendigung.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-warning-damage.ogg",
+      "targetSeconds": 0.8,
+      "pitchJitterCents": 0,
+      "prompt": "low muffled war drum hit, short one shot, dark fantasy warning",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.damage — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-warning-lethal",
+      "group": "boss",
+      "purpose": "Ankuendigung, Art Jetzt handeln oder sterben (GAME-DESIGN 11.5), Stufe 3: der eigene Klang der hoechsten Stufe, vor dem gesprochenen Countdown.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-warning-lethal.ogg",
+      "targetSeconds": 1.2,
+      "pitchJitterCents": 0,
+      "prompt": "harsh alarm stinger, metallic shriek with deep boom, urgent dark fantasy",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.lethal — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-warning-opportunity",
+      "group": "boss",
+      "purpose": "Ankuendigung, Art Gelegenheit (GAME-DESIGN 11.5): ein Schadensfenster oeffnet sich. Muss sich klar von den Warnungen abheben.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-warning-opportunity.ogg",
+      "targetSeconds": 0.9,
+      "pitchJitterCents": 0,
+      "prompt": "bright rising chime shimmer, short one shot, hopeful magic sparkle",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.opportunity — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-countdown-5",
+      "group": "boss",
+      "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort fuenf.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-countdown-5.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 0,
+      "prompt": "deep calm voice saying five, dry, close microphone, short one shot",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.5 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-countdown-4",
+      "group": "boss",
+      "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort vier.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-countdown-4.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 0,
+      "prompt": "deep calm voice saying four, dry, close microphone, short one shot",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.4 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-countdown-3",
+      "group": "boss",
+      "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort drei.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-countdown-3.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 0,
+      "prompt": "deep calm voice saying three, dry, close microphone, short one shot",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.3 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-countdown-2",
+      "group": "boss",
+      "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort zwei.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-countdown-2.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 0,
+      "prompt": "deep calm voice saying two, dry, close microphone, short one shot",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.2 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+    },
+    {
+      "id": "boss-countdown-1",
+      "group": "boss",
+      "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort eins.",
+      "kind": "oneshot",
+      "bus": "sfx",
+      "file": "audio/boss-countdown-1.ogg",
+      "targetSeconds": 0.6,
+      "pitchJitterCents": 0,
+      "prompt": "deep calm voice saying one, dry, close microphone, short one shot",
+      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.1 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
     },
     {
       "id": "state-countdown-tick",

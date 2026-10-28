@@ -3,7 +3,7 @@ id: ROTA-GAME-DESIGN
 status: Stable
 ssot: true
 refs:
-  docs: [WORKER-GUIDE, VERIFICATION, STEP1-SPEC, suno-sfx, ASSETS]
+  docs: [WORKER-GUIDE, VERIFICATION, STEP1-SPEC, ASSETS]
 ---
 
 # ROTA — Game Design (SSOT der Umsetzung)
@@ -246,6 +246,21 @@ benannt, damit das Ersetzen eine Zeile bleibt.
 > Der Wert steht auf beiden Seiten: `src/core/combat.ts` und `sim/src/fight.rs`. Dass die
 > Tabelle oben zu den Konstanten passt, prüft `tests/unit/design-herleitung.test.ts` —
 > **diese Rechnung ist einmal still gealtert, und das soll sie nicht wieder.**
+
+> **Die Obergrenze der Zersetzungs-Stapel gegen den GCD — entschieden am 2026-10-28: so lassen
+> (#1102).** Ein Stapel lebt 12 000 ms, ein Wurf kostet 1 500 ms. Aus Würfen allein liegen also
+> höchstens acht Stapel, und PUTRID BLOOM kostet selbst einen GCD. Gemessen
+> ([STACK-CAPACITY-MEASUREMENT.md](STACK-CAPACITY-MEASUREMENT.md), am 2026-10-28 auf `efc02a42`
+> nachgefahren, alle Zahlen gleich): Mit BLOOM erreicht die direkte Folge sieben Stapel. Hebt das
+> Talent Faster Rot die Obergrenze auf acht, liegen acht nur mit einer zweiten Quelle — mit ROT
+> (Ticks ohne eigenen Wurf je Stapel) ab 6,5 s, mit SEPSIS ab 13,5 s. Ein Zuschlag auf die
+> Obergrenze über zwei hinaus wirkt damit nur, wenn ROT oder SEPSIS in der Rotation stehen.
+>
+> **Das bleibt so.** Es passt zu „jeder Zauber muss irgendwo die beste Wahl sein": ROT und SEPSIS
+> sind für eine Zersetzungs-Ausrichtung mit gehobener Obergrenze strukturell nötig. Die Decke zu
+> heben (`DECAY_STACK_DURATION_MS` oder `GCD_MS` ändern) berührte alles. Den Zuschlag über zwei
+> hinaus nicht zu vergeben, hätte Faster Rot entwertet — und das hat der Auftraggeber am
+> 2026-10-28 ausdrücklich behalten („Bestand gilt", [TALENT-RASTER.md](TALENT-RASTER.md)).
 
 (Hitze-Stapel, Kontroll-Punkte, Zersetzungs-Stapel) — das gibt ihnen Tiefe und ein eigenes
 Spielgefühl, ohne die Grundentscheidung „Abklingzeiten sind die alleinige Schwierigkeit" anzutasten.
@@ -1941,7 +1956,13 @@ das Player Home.
 
 ### 17.1 Klang
 
-**Umfang V1: 126 Sounds**, jeder der 60 Zauber einzeln vertont.
+**Umfang V1: 135 Sounds**, jeder der 60 Zauber einzeln vertont.
+
+> **Nachgetragen am 2026-10-28.** Hier stand „126 Sounds". Es fehlten die **9 Klänge der
+> Boss-Ankündigungen**, die 11.5 verlangt („Eigener Klang je Ereignisart", „Gesprochener
+> Countdown 5-4-3-2-1"): je einer für die vier Warn-Arten und fünf gesprochene Countdown-Zahlen.
+> Sie stehen seit #797 als vorläufige Einträge im Verzeichnis, außerhalb der 126 aus den
+> `target`-Werten. Maßgeblich ist der Masterplan, Anhang A.9, mit derselben Aufstellung.
 
 > **Die Zahl ist die Summe der Tabelle darunter, nicht eine Schätzung daneben.** Bis zum
 > 2026-08-22 stand hier „~115" — der Wert von vor der Slot-Korrektur vom 2026-07-27, die
@@ -1962,6 +1983,7 @@ das Player Home.
 | Menü (Berühren, Drücken, Reiter, Fenster auf, Fenster zu, Talentpunkt, Talente zurück, Gegenstand angelegt, Zusammenstellung gespeichert, abgelehnt, **Freischaltung**, **Aufwertung**) | 12     |
 | **Beute nach Qualität**                                                                                                                                                                 | **4**  |
 | Klangteppich: 5 feste Schichten (Menü, Spannung, Endspurt, Phasenwechsel, Überdruck) plus **ein Grundklang je Instanz**                                                                 | 5 + 14 |
+| **Boss-Ankündigungen** (11.5): Schwächung auf dir, Allgemeiner Schaden, Jetzt handeln oder sterben, Gelegenheit, dazu der gesprochene Countdown 5-4-3-2-1                               | 4 + 5  |
 
 > **Zu den drei zuletzt benannten Klängen** (2026-07-27): Der Planungs-Plan nannte bei
 > Kampfzuständen die Zahl 6 und bei Menü die Zahl 12, listete aber nur 5 bzw. 10 Einträge — ein
@@ -2008,7 +2030,8 @@ hunderten Wiederholungen zur Qual wird.
 | **Tonhöhen-Streuung** | Wenige Prozent, zufällig, bei jeder Wiedergabe. Verhindert den Maschinengewehr-Effekt. Bei tonalen Klängen je Klang begrenzen                                                      |
 | **Zwei Sound-Typen**  | **One-Shot** (feste Länge) und **Sustained** — letztere **dreiteilig**: Ansatz (One-Shot) → Körper (Loop) → Ausklang (One-Shot), weil der Effekt abgebrochen werden kann           |
 
-**Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT [`suno-sfx.md`](suno-sfx.md).
+**Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT `suno/suno-sfx.md` im privaten
+Werkzeug-Repo `silentspike/rota-werkzeuge`.
 
 #### Was die Klang-Produktion kostet (gemessen, 2026-07-28)
 
@@ -2512,6 +2535,7 @@ for f in data/spells/*.json; do echo -n "$(basename $f .json): "; jq '.spells|le
 jq '.items|length' data/items.json
 jq -r 'select(.instance | startswith("instance-") or . == "prologue") | .id' data/bosses/*.json | wc -l
 jq -r '[.trees[].paths[]] | map(select(.!="trunk")) | length' data/player/talents.json
+jq -r '[.trees[].talents[] | select(.keystone != null)] | length' data/player/talents.json
 jq -r '.instances | length' data/instances.json
 ```
 
@@ -2521,7 +2545,7 @@ jq -r '.instances | length' data/instances.json
 | Talentbäume                 |          5 Schulen + global |                              **6** | 12.5                       |
 | Talentwege                  |     18 (sechs Bäume à drei) |                    **18** — gebaut | `docs/TALENT-RASTER.md`    |
 | — im Simulator geprüft      |            12 Talent-Felder |           **12** (#738 abgenommen) | #738, PR #751              |
-| Schlüsseltalente            |                           5 |                **1** (CALCINATION) | #418                       |
+| Schlüsseltalente            |                           5 |      **5** (je Schul-Baum, 24.10.) | #418                       |
 | **Ausrüstung**              |     zehn Plätze, vier Töpfe | **20 spielbare** + 7 Prüf-Einträge | 13.0, 13.1b                |
 | — Topf 4 (Sätze, Legendäre) |               angeschlossen |        **angeschlossen** (PR #748) | 13.1b                      |
 | — Satz-Katalog              |   sechs Sätze à drei Stufen |    **6 definiert**, **1 anlegbar** | `docs/SATZ-KATALOG.md`     |
@@ -2871,6 +2895,18 @@ Boss-Fähigkeiten · Ressource die auch dem Boss nützt · begrenzte Ressource s
 ---
 
 ## 22. Noch nicht ausgeplant
+
+> **Der Vorbehalt dieses Kapitels ist am 2026-10-28 aufgehoben.** Auf die Frage, was für die Punkte
+> unten gilt, hat der Auftraggeber geantwortet: „Nicht game design, du musst den plan den du
+> erstellt hast als refernz nehmen". Die Punkte brauchen damit keine eigene Planungsrunde mehr: Der
+> Orchestrator arbeitet sie nach seinem Plan aus und baut sie im Issue, das sie braucht. **Dieser Plan
+> ist der Masterplan aus der Planungszeit**, `~/.claude/plans/greedy-skipping-russell.md` (lokal,
+> nicht im Repository): Teil A ist das entschiedene Design, C.0 dieselbe Liste wie unten mit dem
+> jeweiligen Rahmen, C.1c die Leitplanken des Auftraggebers, Teil F das Verworfene. Was dort
+> ausgearbeitet wird, kommt als Regel in dieses Dokument — bei Widerspruch gilt weiter dieses. Namen und
+> Themen stehen als Arbeitsnamen da und sind als solche gekennzeichnet, damit der Auftraggeber sie
+> ändern kann. Der Satz „Nicht selbst entscheiden — fragen" unten gilt nicht mehr; er bleibt als
+> Herkunft stehen.
 
 Diese Punkte sind **beschlossen**, aber die Ausarbeitung fehlt. Jeder braucht vor seinem Epic eine
 eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen.**

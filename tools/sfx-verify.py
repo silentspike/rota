@@ -3,7 +3,8 @@
 
 Claude kann nicht hoeren. Was sich messen laesst, wird deshalb gemessen:
 Laenge, Anfangs-Stille, Spitzenpegel und Lautheit — gegen die Vorgaben aus
-`data/sound-manifest.json` und `docs/suno-sfx.md` 7.6.
+`data/sound-manifest.json` und `suno/suno-sfx.md` 7.6 (privates Werkzeug-Repo
+silentspike/rota-werkzeuge).
 
     tools/sfx-verify.py                      # alles, was im Verzeichnis steht
     tools/sfx-verify.py spell-kindle boss-hit

@@ -31,35 +31,44 @@
 //! [`ohne_luecke`] sichert das ab. Ohne diese Zusicherung waere der ganze
 //! Prueflauf gruen und bedeutungslos.
 
+#[macro_use]
+mod wirkungsanker;
+
 use rota_sim::effects::passes::beispielknoten;
 use rota_sim::effects::registry::{alle_analysen, AnalysisResult};
 use rota_sim::effects::{
-    Bounds, ControlFlowEffect, EffectNode, EffectOp, LocalMonotonicityHint, MonotonicDirection,
-    MonotonicityDomain, RandomnessSemantics, SignatureId, StackingSemantics, StateMask, Target,
-    TimingSemantics, Trigger,
+    Bounds, ControlFlowEffect, EffectNode, EffectOp, RandomnessSemantics, StackingSemantics,
+    StateMask, Target, TimingSemantics, Trigger,
+};
+use wirkungsanker::{
+    jede_zufallsquelle, jeder_ausloeser, jeder_baustein, jeder_hinweis, jedes_stapelverhalten,
+    jedes_zeitverhalten, jedes_ziel,
 };
 
-/// Die Bausteine, ueber denen jedes Feld geprueft wird.
+/// Die Bausteine, ueber denen jedes Feld geprueft wird — **jeder**.
 ///
 /// Mehrere, weil ein Feld nur fuer bestimmte Bausteine einen Leser haben kann:
 /// `stacking` entscheidet bei einem Brand etwas anderes als bei einem
 /// Ruecksetzer. Ein Feld gilt als gelesen, sobald es bei **irgendeinem**
 /// Baustein zwei unterscheidbare Ableitungen erzeugt.
-const BASIS_BAUSTEINE: &[EffectOp] = &[
-    EffectOp::DealDamage,
-    EffectOp::ApplyDot,
-    EffectOp::ApplyBuff,
-    EffectOp::ModifyResource,
-    EffectOp::ReduceCooldown,
-    EffectOp::ResetCooldown,
-    EffectOp::FreeNextGcd,
-    EffectOp::Heal,
-    EffectOp::Shield,
-    EffectOp::ConvertDamage,
-    EffectOp::ChangeBossState,
-    EffectOp::ChangePhase,
-    EffectOp::CustomSignature(SignatureId("prueffall")),
-];
+///
+/// Bis #892 stand hier eine Liste ohne Anker: Ein neuer Baustein, in jeder
+/// Analyse eingeordnet, fehlte ihr, ohne dass etwas rot wurde — und ein Feld,
+/// das nur er liest, galt als ungelesen. Jetzt kommt sie aus
+/// [`wirkungsanker::jeder_baustein`], deren Anker ein erschöpfender `match`
+/// über dieselben Namen ist.
+fn basis_bausteine() -> Vec<EffectOp> {
+    jeder_baustein()
+}
+
+/// Nur die Werte, die eine Angabe sind — `Unknown` löst die Lückenprüfung aus
+/// (siehe Modul-Kopf, „die zweite Falle“).
+///
+/// Gefiltert über die Methode des Typs, nicht über `hat_luecke`: Sonst wäre
+/// [`kein_wert_der_wertelisten_erzeugt_eine_luecke`] durch Konstruktion grün.
+fn angegeben<T: Copy>(alle: Vec<T>, unbekannt: fn(T) -> bool) -> Vec<T> {
+    alle.into_iter().filter(|wert| !unbekannt(*wert)).collect()
+}
 
 /// Sichert, dass ein Knoten keine Luecke hat — sonst misst der Vergleich nur
 /// [`EffectNode::hat_luecke`] und nicht den Leser des Feldes.
@@ -85,10 +94,10 @@ fn hat_leser(feld: &str, werte: &[Setzer]) -> bool {
         werte.len() >= 2,
         "{feld}: mit weniger als zwei Werten kann dieser Fall nichts feststellen."
     );
-    for op in BASIS_BAUSTEINE {
+    for op in basis_bausteine() {
         let mut gesehen: Vec<Vec<AnalysisResult>> = Vec::new();
         for setzen in werte {
-            let mut knoten = beispielknoten(*op);
+            let mut knoten = beispielknoten(op);
             setzen(&mut knoten);
             ohne_luecke(&knoten, &format!("{feld} bei {}", op.name()));
             let ergebnis = alle_analysen(&knoten);
@@ -107,139 +116,63 @@ fn hat_leser(feld: &str, werte: &[Setzer]) -> bool {
     false
 }
 
-/// Die zehn Felder mit je allen sinnvollen Werten.
+/// Jedes Feld mit je allen sinnvollen Werten.
 ///
 /// `op` steht nicht dabei: Es ist kein Feld neben den anderen, sondern die
 /// Fallunterscheidung, ueber die jede Analyse ohnehin ihr `match` fuehrt.
+///
+/// # Seit #892 verankert
+///
+/// [`felder!`] verlangt jedes Feld des Knotens (ein Muster ohne `..`), und die
+/// Werte der Aufzählungen kommen aus [`wirkungsanker`]. Bis dahin standen beide
+/// als Listen hier, und die Zusicherung war `assert_eq!(geprueft, 10)` — eine
+/// Zahl, die mit der Liste wuchs und nicht mit dem Knoten: Ein elftes Feld,
+/// überall sonst eingeordnet, wäre an diesem Fall vorbeigewachsen. Ebenso ein
+/// neuer Auslöser an der Werteliste von `trigger`.
 fn felder() -> Vec<(&'static str, Vec<Setzer>)> {
-    vec![
-        (
-            "trigger",
-            vec![
-                Box::new(|n: &mut EffectNode| n.trigger = Trigger::OnCast) as Setzer,
-                Box::new(|n: &mut EffectNode| n.trigger = Trigger::OnTick),
-                Box::new(|n: &mut EffectNode| n.trigger = Trigger::OnExpire),
-                Box::new(|n: &mut EffectNode| n.trigger = Trigger::OnTimeline),
-                Box::new(|n: &mut EffectNode| n.trigger = Trigger::OnPhaseChange),
-            ],
-        ),
-        (
-            "target",
-            vec![
-                Box::new(|n: &mut EffectNode| n.target = Target::Boss) as Setzer,
-                Box::new(|n: &mut EffectNode| n.target = Target::Player),
-                Box::new(|n: &mut EffectNode| n.target = Target::AllCooldowns),
-                Box::new(|n: &mut EffectNode| n.target = Target::OneCooldown),
-            ],
-        ),
-        (
-            "reads",
-            vec![
-                Box::new(|n: &mut EffectNode| n.reads = StateMask::RESOURCE) as Setzer,
-                Box::new(|n: &mut EffectNode| n.reads = StateMask::BUFFS.union(StateMask::DOTS)),
-                Box::new(|n: &mut EffectNode| n.reads = StateMask::EMPTY),
-            ],
-        ),
-        (
-            "writes",
-            vec![
-                Box::new(|n: &mut EffectNode| n.writes = StateMask::BOSS_HP) as Setzer,
-                Box::new(|n: &mut EffectNode| {
-                    n.writes = StateMask::PLAYER_HP.union(StateMask::SHIELD)
-                }),
-                Box::new(|n: &mut EffectNode| n.writes = StateMask::EMPTY),
-            ],
-        ),
-        (
-            "timing",
-            vec![
-                Box::new(|n: &mut EffectNode| n.timing = TimingSemantics::Immediate) as Setzer,
-                Box::new(|n: &mut EffectNode| n.timing = TimingSemantics::Snapshot),
-                Box::new(|n: &mut EffectNode| n.timing = TimingSemantics::Live),
-            ],
-        ),
-        (
-            "stacking",
-            vec![
-                Box::new(|n: &mut EffectNode| n.stacking = StackingSemantics::None) as Setzer,
-                Box::new(|n: &mut EffectNode| n.stacking = StackingSemantics::Refresh),
-                Box::new(|n: &mut EffectNode| n.stacking = StackingSemantics::Extend),
-                Box::new(|n: &mut EffectNode| n.stacking = StackingSemantics::Additive),
-                Box::new(|n: &mut EffectNode| n.stacking = StackingSemantics::Capped(3)),
-                Box::new(|n: &mut EffectNode| n.stacking = StackingSemantics::Replace),
-            ],
-        ),
-        (
-            "randomness",
-            vec![
-                Box::new(|n: &mut EffectNode| n.randomness = RandomnessSemantics::Deterministic)
-                    as Setzer,
-                Box::new(|n: &mut EffectNode| n.randomness = RandomnessSemantics::CritRoll),
-                Box::new(|n: &mut EffectNode| {
-                    n.randomness = RandomnessSemantics::Stream(rota_sim::rng::Stream::DotTick)
-                }),
-            ],
-        ),
-        (
-            "monotonicity",
-            vec![
-                Box::new(|n: &mut EffectNode| {
-                    n.monotonicity = LocalMonotonicityHint {
-                        direction: MonotonicDirection::Increasing,
-                        domain: MonotonicityDomain::ExpectedDamageStableTrace,
-                    }
-                }) as Setzer,
-                Box::new(|n: &mut EffectNode| {
-                    n.monotonicity = LocalMonotonicityHint {
-                        direction: MonotonicDirection::NonMonotonic,
-                        domain: MonotonicityDomain::ExpectedDamageStableTrace,
-                    }
-                }),
-                Box::new(|n: &mut EffectNode| {
-                    n.monotonicity = LocalMonotonicityHint {
-                        direction: MonotonicDirection::Increasing,
-                        domain: MonotonicityDomain::VictoryOutcome,
-                    }
-                }),
-            ],
-        ),
-        (
-            "numeric_bounds",
-            vec![
-                Box::new(|n: &mut EffectNode| n.numeric_bounds = Bounds::exact(0, 42)) as Setzer,
-                Box::new(|n: &mut EffectNode| n.numeric_bounds = Bounds::UNKNOWN),
-                Box::new(|n: &mut EffectNode| {
-                    n.numeric_bounds = Bounds {
-                        min: Some(0),
-                        max: None,
-                    }
-                }),
-            ],
-        ),
-        (
-            "control_flow_effect",
-            vec![
-                Box::new(|n: &mut EffectNode| n.control_flow_effect = ControlFlowEffect::NONE)
-                    as Setzer,
-                Box::new(|n: &mut EffectNode| {
-                    n.control_flow_effect = ControlFlowEffect {
-                        branches_on_damage: true,
-                        branches_on_hp: false,
-                        branches_on_victory: false,
-                        unknown: false,
-                    }
-                }),
-                Box::new(|n: &mut EffectNode| {
-                    n.control_flow_effect = ControlFlowEffect {
-                        branches_on_damage: false,
-                        branches_on_hp: false,
-                        branches_on_victory: true,
-                        unknown: false,
-                    }
-                }),
-            ],
-        ),
-    ]
+    felder! {
+        trigger: angegeben(jeder_ausloeser(), Trigger::ist_unbekannt),
+        target: angegeben(jedes_ziel(), Target::ist_unbekannt),
+        reads: [
+            StateMask::RESOURCE,
+            StateMask::BUFFS.union(StateMask::DOTS),
+            StateMask::EMPTY,
+        ],
+        writes: [
+            StateMask::BOSS_HP,
+            StateMask::PLAYER_HP.union(StateMask::SHIELD),
+            StateMask::EMPTY,
+        ],
+        timing: angegeben(jedes_zeitverhalten(), TimingSemantics::ist_unbekannt),
+        stacking: angegeben(jedes_stapelverhalten(), StackingSemantics::ist_unbekannt),
+        randomness: angegeben(jede_zufallsquelle(), RandomnessSemantics::ist_unbekannt),
+        // Ohne Filter: Ein Hinweis ohne Richtung oder Bezug ist eine gültige
+        // Deklaration, keine Lücke (Weg b, `effects_rueckfall.rs`).
+        monotonicity: jeder_hinweis(),
+        numeric_bounds: [
+            Bounds::exact(0, 42),
+            Bounds::UNKNOWN,
+            Bounds {
+                min: Some(0),
+                max: None,
+            },
+        ],
+        control_flow_effect: [
+            ControlFlowEffect::NONE,
+            ControlFlowEffect {
+                branches_on_damage: true,
+                branches_on_hp: false,
+                branches_on_victory: false,
+                unknown: false,
+            },
+            ControlFlowEffect {
+                branches_on_damage: false,
+                branches_on_hp: false,
+                branches_on_victory: true,
+                unknown: false,
+            },
+        ],
+    }
 }
 
 /// Welche Analysen ein Feld tatsaechlich lesen — **gemessen, nicht gepflegt**.
@@ -250,10 +183,10 @@ fn felder() -> Vec<(&'static str, Vec<Setzer>)> {
 /// alle Werte durch und sammelt die Analysen, deren Ergebnis sich aendert.
 fn leser_von(werte: &[Setzer]) -> Vec<&'static str> {
     let mut leser: Vec<&'static str> = Vec::new();
-    for op in BASIS_BAUSTEINE {
+    for op in basis_bausteine() {
         let mut ergebnisse: Vec<Vec<AnalysisResult>> = Vec::new();
         for setzen in werte {
-            let mut knoten = beispielknoten(*op);
+            let mut knoten = beispielknoten(op);
             setzen(&mut knoten);
             ergebnisse.push(alle_analysen(&knoten));
         }
@@ -339,6 +272,8 @@ fn mehrfach_gelesene_felder_sind_benannt() {
 /// gepflegte Liste, gegen die dieses ganze Modul gebaut ist.
 #[test]
 fn kein_feld_ohne_leser() {
+    // Kein `assert_eq!(geprueft, 10)` mehr: Dass jedes Feld dabei ist, sichert
+    // der Anker von `felder!` beim Übersetzen. Die Zahl steht in der Meldung.
     let mut ohne: Vec<&str> = Vec::new();
     let mut geprueft = 0usize;
     for (name, werte) in felder() {
@@ -347,17 +282,16 @@ fn kein_feld_ohne_leser() {
             ohne.push(name);
         }
     }
-    assert_eq!(
-        geprueft, 10,
-        "Es wurden {geprueft} Felder geprueft, der Knoten hat zehn. Kommt ein Feld dazu, \
-         gehoert es in diese Liste — sonst waechst der Knoten an der Pruefung vorbei."
+    assert!(
+        geprueft > 0,
+        "Kein Feld geprueft — dann sagt dieser Fall nichts."
     );
     assert!(
         ohne.is_empty(),
         "Diese Felder des Wirkungsknotens haben KEINEN Leser — kein einziges Wertepaar fuehrt \
          zu verschiedenen Ableitungen: {ohne:?}. Ein Feld ohne Leser ist die gepflegte Liste \
          eine Ebene tiefer: Es sieht nach Semantik aus und traegt keine. (Stop-Bedingung von \
-         Issue #966.)"
+         Issue #966.) Geprueft wurden {geprueft} Felder."
     );
 }
 
@@ -371,8 +305,8 @@ fn kein_wert_der_wertelisten_erzeugt_eine_luecke() {
     let mut paare = 0usize;
     for (name, werte) in felder() {
         for setzen in &werte {
-            for op in BASIS_BAUSTEINE {
-                let mut knoten = beispielknoten(*op);
+            for op in basis_bausteine() {
+                let mut knoten = beispielknoten(op);
                 setzen(&mut knoten);
                 ohne_luecke(&knoten, &format!("{name} bei {}", op.name()));
                 paare += 1;
@@ -380,7 +314,7 @@ fn kein_wert_der_wertelisten_erzeugt_eine_luecke() {
         }
     }
     let erwartet: usize =
-        felder().iter().map(|(_, w)| w.len()).sum::<usize>() * BASIS_BAUSTEINE.len();
+        felder().iter().map(|(_, w)| w.len()).sum::<usize>() * basis_bausteine().len();
     assert_eq!(
         paare, erwartet,
         "Es wurden {paare} Paare geprueft, erwartet {erwartet} — die Schleife hat nicht alles \

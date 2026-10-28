@@ -800,35 +800,119 @@ mod dp_tests {
         println!("E {e_formel}, Var {var_formel}, Zustände {}", v.zustaende());
     }
 
+    /// `P(C >= c)` für `C ~ Bin(n; zaehler / nenner)`, in ganzen Zahlen.
+    ///
+    /// Jedes Glied ist `C(n, i) · zaehler^i · (nenner - zaehler)^(n - i)`; die
+    /// Summe wird erst am Ende durch `nenner^n` geteilt. Eine einzige Rundung,
+    /// keine Gleitkomma-Summe — und nichts, was der DP oder
+    /// [`Verteilung::phase_erreicht`] mitrechnet.
+    fn binomialflanke(n: u32, c: u32, zaehler: u64, nenner: u64) -> f64 {
+        let mut summe = 0u64;
+        for i in c..=n {
+            // C(n, i) fortlaufend: Nach Schritt j steht C(n, j + 1) da, und
+            // die Division geht jedes Mal glatt auf.
+            let mut binom = 1u64;
+            for j in 0..i {
+                binom = binom * u64::from(n - j) / u64::from(j + 1);
+            }
+            summe += binom * zaehler.pow(i) * (nenner - zaehler).pow(n - i);
+        }
+        summe as f64 / nenner.pow(n) as f64
+    }
+
     /// **AC6, Nachweis 4: die Phasenwahrscheinlichkeit stimmt einzeln.**
     ///
-    /// Gegengerechnet über die Aufzählung, nicht über eine zweite Formel — die
-    /// Aufzählung ist der Bezugspunkt aus Nachweis 1.
+    /// Zwei Bezugspunkte, und jeder prüft etwas anderes:
+    ///
+    /// 1. **Die Aufzählung** aus Nachweis 1 prüft den DP. Sie teilt mit ihm
+    ///    aber den Auswerter [`Verteilung::phase_erreicht`]: Ein Fehler dort
+    ///    fiele beiden Seiten gleich zu, und der Vergleich bliebe grün.
+    /// 2. **Die Binomialflanke** prüft den Auswerter. Bei zehn gleichen
+    ///    Treffern ist die Summe `100 + 5·c` bei `c` Krits, und `c` ist
+    ///    binomialverteilt. Phase `k` ist erreicht, sobald `c` die kleinste
+    ///    Kritzahl über ihrer Schwelle erreicht — in ganzen Zahlen gerechnet,
+    ///    ohne DP und ohne `phase_erreicht`.
+    ///
+    /// # Warum die Trägerzusicherung genau `[1, 2, 3]` verlangt
+    ///
+    /// Bis Issue #915 standen hier die Schwellen `[60, 100, 140]` und die
+    /// Zusicherung `a > 0.0 && a < 1.0`. Bei zehn Treffern zu 10 oder 15 liegen
+    /// die Summen zwischen 100 und 150: Die Schwellen 60 und 100 werden IMMER
+    /// erreicht, nur 140 streut. Die Zusicherung zählte trotzdem vier gestufte
+    /// Phasen, denn die Masse aller Zustände summiert sich in Gleitkomma zu
+    /// `0.9999999999999999` und nicht zu 1 — gemessen für die Phasen 0, 1 und 2.
+    /// Der Fall bestand seine Trägerzusicherung also durch Rundung.
+    ///
+    /// Die erste Behebung verlangte mindestens zwei gestufte Phasen. Das nahm
+    /// auch `[0, 1, 2, 3]` hin, obwohl die Phase 0 immer erreicht wird — genau
+    /// das, was ein Auswerter mit `==` statt `>=` liefert.
     #[test]
     fn die_phasenwahrscheinlichkeit_stimmt_je_stufe() {
-        let treffer = gleiche_treffer(10, 10, 15);
-        let phasen = [60u64, 100, 140];
-        let p = 0.4;
+        const TREFFER: u32 = 10;
+        const OHNE: u32 = 10;
+        const MIT: u32 = 15;
+        // p = 2/5, als Bruch für die Binomialflanke und als `f64` für den DP.
+        const ZAEHLER: u64 = 2;
+        const NENNER: u64 = 5;
+        let treffer = gleiche_treffer(TREFFER as usize, OHNE, MIT);
+        // **Alle drei Schwellen INNERHALB der Summen 100 bis 150**, wie in
+        // Nachweis 1. Die Summe ist `100 + 5·c` bei `c` Krits, also
+        //
+        //   >= 115  bei c >= 3   P = 0,8327
+        //   >= 125  bei c >= 5   P = 0,3669
+        //   >= 140  bei c >= 8   P = 0,0123
+        //
+        // — drei Phasen mit echter Streuung, und die Phase 0 bleibt die eine,
+        // die immer erreicht wird.
+        let phasen = [115u64, 125, 140];
+        let p = ZAEHLER as f64 / NENNER as f64;
 
         let dp = verteilung_ueber(&treffer, p, &phasen);
         let roh = aufzaehlung(&treffer, p, &phasen);
 
-        let mut wirklich_gestuft = 0;
-        for k in 0..=phasen.len() as u32 {
-            let a = dp.phase_erreicht(k);
-            let b = roh.phase_erreicht(k);
-            assert!((a - b).abs() < 1e-12, "Phase {k}: DP {a}, Aufzählung {b}");
-            if a > 0.0 && a < 1.0 {
-                wirklich_gestuft += 1;
-            }
-        }
-        assert!(
-            wirklich_gestuft >= 2,
-            "Trägerzusicherung: mindestens zwei Phasen werden NICHT immer und \
-             nicht nie erreicht ({wirklich_gestuft}) — sonst prüft der Fall nur \
-             Nullen und Einsen"
+        // Die kleinste Kritzahl je Phase; die Phase 0 hat keine Schwelle.
+        let mindestens: Vec<u32> = std::iter::once(0)
+            .chain(phasen.iter().map(|&schwelle| {
+                (0..=TREFFER)
+                    .find(|&c| u64::from(TREFFER * OHNE + c * (MIT - OHNE)) >= schwelle)
+                    .expect("die Schwelle liegt innerhalb der Summen")
+            }))
+            .collect();
+
+        const ABSTAND: f64 = 1e-6;
+        let werte: Vec<f64> = (0..=phasen.len() as u32)
+            .map(|k| dp.phase_erreicht(k))
+            .collect();
+        let beschreibung = werte
+            .iter()
+            .enumerate()
+            .map(|(k, a)| format!("Phase {k}: {a:?}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let gestuft: Vec<u32> = (0..=phasen.len() as u32)
+            .filter(|&k| {
+                let a = werte[k as usize];
+                a > ABSTAND && a < 1.0 - ABSTAND
+            })
+            .collect();
+        assert_eq!(
+            gestuft,
+            [1u32, 2, 3],
+            "Trägerzusicherung: Die Phase 0 wird immer erreicht, die Phasen 1 \
+             bis 3 weder immer noch nie ({beschreibung})"
         );
-        println!("{wirklich_gestuft} Phasen mit echter Streuung");
+
+        for (k, &a) in werte.iter().enumerate() {
+            let b = roh.phase_erreicht(k as u32);
+            assert!((a - b).abs() < 1e-12, "Phase {k}: DP {a}, Aufzählung {b}");
+            let c = mindestens[k];
+            let soll = binomialflanke(TREFFER, c, ZAEHLER, NENNER);
+            assert!(
+                (a - soll).abs() < 1e-12,
+                "Phase {k}: DP {a}, Binomialflanke P(c >= {c}) = {soll}"
+            );
+        }
+        println!("Phasen mit echter Streuung: {gestuft:?} ({beschreibung}); mindestens {mindestens:?} Krits");
     }
 
     /// **AC6, Nachweis 5: Monte-Carlo — und zwar ZULETZT.**

@@ -28,6 +28,14 @@ verschieden ausgelegt wird:
                         in beide Richtungen, denn jetzt ist geschnitten
 
 Aendert sich LENGTH_TOLERANCE_S, aendern sich beide. Das ist der ganze Zweck.
+
+WER SIE LIEST
+-------------
+`sfx-verify.py` hier und `suno/suno_api.py` im privaten Werkzeug-Repo
+silentspike/rota-werkzeuge. Das Werkzeug liegt seit 2026-10-28 dort, importiert
+diese Datei aber aus dem rota-Checkout, aus dem es aufgerufen wird
+(`LENGTH_TOLERANCE_S`, `candidate_usable`). Wer einen der beiden Namen ändert,
+bricht es — und die CI von rota bemerkt das nicht.
 """
 
 from __future__ import annotations
