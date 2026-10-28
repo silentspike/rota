@@ -326,6 +326,24 @@ export function alsSpellIndex(zahl: number): SpellIndex {
  */
 export const NO_SPELL = alsSpellIndex(-1);
 
+/**
+ * Was von einem Boss-Schlag nach WARD übrig bleibt — **die eine Stelle** dafür.
+ *
+ * `hitPlayer` rechnet damit, und die Boss-Ankündigungen (GAME-DESIGN 11.5,
+ * Issue #797) fragen damit, ob ein Schlag aus vollem Leben tötet. Zwei
+ * Abschriften derselben Formel liefen beim nächsten Deckel auseinander, und die
+ * Warnung nennte „tödlich", was der Kampf überleben lässt.
+ *
+ * Die Rechnung ist unverändert aus `hitPlayer` herausgezogen, Zeichen für
+ * Zeichen: EINE Promille-Summe, einmal geteilt, beide Deckel, einmal gerundet
+ * (dieselbe Form wie `incoming_with_gear` im Simulator).
+ */
+export function afterWard(raw: number, gearWardPermille: number, decayPermille: number): number {
+  const roh = PLAYER.wardReduction + (gearWardPermille + decayPermille) / 1000;
+  const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
+  return Math.max(0, Math.round(raw * (1 - minderung)));
+}
+
 export interface CombatOptions {
   readonly school: SchoolDef;
   readonly boss: BossDef;
@@ -1427,6 +1445,38 @@ export class Combat {
   /** Wie weit die Boss-Zeitleiste abgearbeitet ist. */
   get timelineIndex(): number {
     return this.timelineIndexValue;
+  }
+
+  /**
+   * Die Boss-Ankündigungen (GAME-DESIGN 11.5, Issue #797) lesen die Zeitleiste
+   * über DIESELBEN zwei Regeln wie der Kampf, statt sie nachzubauen.
+   *
+   * Ein Nachbau antwortete plausibel aus einer zweiten Quelle — und liefe bei
+   * der ersten Änderung an Schleife oder Verzögerung lautlos auseinander.
+   * Nur lesend; der Kampf ändert sich dadurch nicht.
+   */
+  timelineDueAtMs(index: number): number {
+    return this.timelineDueAt(index);
+  }
+
+  /** Der Eintrag beim Fortschrittsstand `index` (siehe `timelineDueAtMs`). */
+  timelineEntryAtProgress(index: number): TimelineEntryDef | undefined {
+    return this.timelineEntryAt(index);
+  }
+
+  /**
+   * Um wie viel STAY den **anstehenden** Eintrag verschoben hat (Issue #100).
+   *
+   * Ohne diesen Wert zählte die Ankündigung auf einen Zeitpunkt herunter, zu
+   * dem nichts geschieht — der Schlag käme nach der Null.
+   */
+  get pendingTimelineDelayMs(): number {
+    return this.nextStrikeDelayMs;
+  }
+
+  /** Die vollen Lebenspunkte des Spielers in diesem Kampf, mit Stufe und Ausrüstung. */
+  get playerVesselMax(): number {
+    return this.vesselMax;
   }
 
   /** Verbleibende Lebenspunkte des Spielers. */
@@ -3410,9 +3460,7 @@ export class Combat {
               talentDecayWardFactor(this.talents),
           )
         : 0;
-    const roh = PLAYER.wardReduction + (this.worn.ward + decayPermille) / 1000;
-    const minderung = Math.min(1, Math.min(PLAYER.wardCapPermille / 1000, roh));
-    const nachWard = Math.max(0, Math.round(raw * (1 - minderung)));
+    const nachWard = afterWard(raw, this.worn.ward, decayPermille);
 
     // **Die Schutzschicht nimmt den Schlag ZUERST** (COAGULATION, Weg 1,
     // Issue #79).

@@ -39,7 +39,11 @@ import {
   PHASE_PREPARE,
 } from './phases.js';
 import {
+  EV_BOSS_CAST_START,
+  EV_BOSS_CAST_SUCCESS,
+  EV_BOSS_COUNTDOWN_BY_SECOND,
   EV_BOSS_DEFEATED,
+  EV_BOSS_WARNING_BY_KIND,
   EV_BOSS_LOW_HEALTH,
   EV_BOSS_OVERPRESSURE,
   EV_BOSS_OVERPRESSURE_WARNING,
@@ -59,6 +63,13 @@ import {
   NO_KEY,
   type FeedbackSink,
 } from './events.js';
+import {
+  BossAnnouncer,
+  TIER_LETHAL,
+  countdownSecond,
+  highlighted,
+  type Announcement,
+} from '../combat/boss/announcements.js';
 import { LatencyTrace } from './latency.js';
 import { combatChecksum } from './checksum.js';
 import { CombatLog } from './log.js';
@@ -269,6 +280,30 @@ export class Session implements Simulation {
   private warnedOverpressure = false;
   /** Zuletzt geschlagene Countdown-Sekunde, sonst -1. */
   private countdownStep = -1;
+  /**
+   * Der laufende Boss-Zauber im vorigen Takt und wie viele bis dahin begonnen
+   * hatten bzw. durchgekommen waren (GAME-DESIGN 11.5, Kanal 3; Issue #797).
+   *
+   * **Gezählt, nicht nur verglichen:** Ein Zauber, der in demselben Takt beginnt
+   * und unterbrochen wird, steht beim Vergleich nie als laufend da — die Summe
+   * aus unterbrochenen, durchgekommenen und laufenden Zaubern sieht ihn trotzdem.
+   */
+  private lastBossCasting = -1;
+  private bossCastsBegun = 0;
+  private bossCastsLanded = 0;
+  /**
+   * Die Ankündigungen, wie der TAKT sie sieht (GAME-DESIGN 11.5, Kanal 3).
+   *
+   * Eine eigene Instanz neben der des Bildes: Der Klang gehört in den Logik-Takt
+   * (zwei Durchläufe klingen gleich), das Bild rechnet zwischen zwei Takten.
+   * Beide fragen dieselbe Klasse.
+   */
+  private readonly announcer = new BossAnnouncer();
+  /** Je Fähigkeit: für welche Wiederholung der Warnklang kam, sonst -1. */
+  private warnedOccurrence: Int32Array = new Int32Array(0);
+  /** Je Fähigkeit: zuletzt gesprochene Countdown-Sekunde, sonst 0. */
+  private warnedSecond: Int8Array = new Int8Array(0);
+  private warnedFor: readonly Announcement[] | null = null;
 
   /**
    * Der Auswahlmodus des Cooldown-Rücksetzers (GAME-DESIGN 4.1, Issue E3-3c).
@@ -624,6 +659,86 @@ export class Session implements Simulation {
       this.warnedOverpressure = true;
       this.emit(EV_BOSS_OVERPRESSURE_WARNING, NO_KEY, timeMs);
     }
+
+    this.detectBossCastEdges(timeMs);
+    this.detectBossWarningEdges(timeMs);
+  }
+
+  /**
+   * Der Warnklang je Art und der Countdown von Stufe 3 (GAME-DESIGN 11.5).
+   *
+   * | Stufe | Klang |
+   * | --- | --- |
+   * | 1 | keiner — „ruhigere Ankündigung", der Balken genügt |
+   * | 2 | einmal, wenn sie in ihre letzten Sekunden tritt |
+   * | 3 | ebenso, dazu je Sekunde 5-4-3-2-1 |
+   *
+   * **„Das Nebensächliche kurz unterdrückt"**: Tritt eine Fähigkeit in ihr
+   * Fenster, während eine höhere Stufe schon in ihrem ist, bleibt sie stumm —
+   * sonst überdeckte der leisere Klang den, auf den es ankommt. Die Liste ist
+   * nach Dringlichkeit sortiert, das Höhere kommt also zuerst an die Reihe.
+   */
+  private detectBossWarningEdges(timeMs: number): void {
+    const ann = this.announcer;
+    ann.update(this.combat, this.fightElapsedMs(timeMs));
+    const abilities = ann.abilities;
+    if (abilities !== this.warnedFor) {
+      // Einmal je Boss, nicht je Takt.
+      this.warnedFor = abilities;
+      this.warnedOccurrence = new Int32Array(abilities.length).fill(-1);
+      this.warnedSecond = new Int8Array(abilities.length);
+    }
+    let lauteste = 0;
+    for (let rank = 0; rank < ann.count; rank++) {
+      const a = ann.at(rank);
+      if (!highlighted(a)) continue;
+      const i = abilities.indexOf(a);
+      if (this.warnedOccurrence[i] !== a.occurrence) {
+        this.warnedOccurrence[i] = a.occurrence;
+        this.warnedSecond[i] = 0;
+        if (a.tier >= lauteste) {
+          this.emit(EV_BOSS_WARNING_BY_KIND[a.kind] as number, NO_KEY, timeMs);
+        }
+      }
+      if (a.tier > lauteste) lauteste = a.tier;
+      if (a.tier < TIER_LETHAL) continue;
+      const sekunde = countdownSecond(a.remainingMs);
+      if (
+        sekunde !== this.warnedSecond[i] &&
+        sekunde >= 1 &&
+        sekunde < EV_BOSS_COUNTDOWN_BY_SECOND.length
+      ) {
+        this.warnedSecond[i] = sekunde;
+        this.emit(EV_BOSS_COUNTDOWN_BY_SECOND[sekunde] as number, NO_KEY, timeMs);
+      }
+    }
+  }
+
+  /**
+   * Beginn und Durchkommen eines Boss-Zaubers hörbar machen (GAME-DESIGN 11.5,
+   * Kanal 3; Issue #797).
+   *
+   * **Die zwei Klänge lagen fertig im Verzeichnis und klangen nie.**
+   * `boss-cast-start.ogg` („Kündigt das Unterbrechen-Fenster an") und
+   * `boss-cast-success.ogg` („das Fenster wurde verpasst") hängen an
+   * `boss.cast.start` und `boss.cast.success` — gemessen vor dieser Zeile: kein
+   * einziger Aufruf im Quelltext sendete eines der beiden Ereignisse.
+   */
+  private detectBossCastEdges(timeMs: number): void {
+    const combat = this.combat;
+    const laufend = combat.casting;
+    const begonnen = combat.interruptsLanded + combat.interruptsMissed + (laufend >= 0 ? 1 : 0);
+    // Zwei Wege, weil jeder einen Fall allein nicht sieht: die Summe den im selben
+    // Takt unterbrochenen Zauber, der Vergleich den, der einen laufenden ablöst.
+    if (begonnen > this.bossCastsBegun || (laufend >= 0 && laufend !== this.lastBossCasting)) {
+      this.emit(EV_BOSS_CAST_START, NO_KEY, timeMs);
+    }
+    this.bossCastsBegun = begonnen;
+    this.lastBossCasting = laufend;
+    if (combat.interruptsMissed > this.bossCastsLanded) {
+      this.emit(EV_BOSS_CAST_SUCCESS, NO_KEY, timeMs);
+    }
+    this.bossCastsLanded = combat.interruptsMissed;
   }
 
   // ------------------------------------------------------------ Kampfablauf
@@ -766,6 +881,16 @@ export class Session implements Simulation {
     }
     this.sawLowHealth = false;
     this.warnedOverpressure = false;
+    this.lastBossCasting = this.combat.casting;
+    this.bossCastsBegun =
+      this.combat.interruptsLanded +
+      this.combat.interruptsMissed +
+      (this.combat.casting >= 0 ? 1 : 0);
+    this.bossCastsLanded = this.combat.interruptsMissed;
+    // Die Wiederholungen eines neuen Laufs tragen dieselben Nummern wie die des
+    // vorigen — ohne diese Zeilen bliebe die erste Warnung jedes Neustarts stumm.
+    this.warnedOccurrence.fill(-1);
+    this.warnedSecond.fill(0);
     this.emit(EV_FIGHT_START, NO_KEY, timeMs);
   }
 
@@ -911,6 +1036,11 @@ export class Session implements Simulation {
     this.sawLowHealth = false;
     this.warnedOverpressure = false;
     this.countdownStep = -1;
+    this.lastBossCasting = -1;
+    this.bossCastsBegun = 0;
+    this.bossCastsLanded = 0;
+    this.warnedOccurrence.fill(-1);
+    this.warnedSecond.fill(0);
     this.resetsApplied = 0;
     this.resetsWasted = 0;
     // Erst das Kampfende, dann der Menü-Teppich — genau wie beim regulären
