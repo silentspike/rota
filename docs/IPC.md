@@ -491,6 +491,8 @@ Häufige Fälle:
 | `scheint nicht zu laufen`                   | Die Zielsitzung schreibt seit über 12 h nichts. Zustellung würde gelingen, aber niemand läse sie |
 | `bereits beantwortet`                       | Genau eine Antwort je Nachricht                                                                  |
 | `liest sein Postfach nicht`                 | Der Zielsitzung fehlt der Anker-Teammember — sie muss `/rota-ipc` ausführen                      |
+| `gehoert einer beendeten Sitzung`           | Verweis `~/.claude/teams/<Rolle>` einer beendeten Sitzung — dort `/rota-ipc` erneut ausführen    |
+| `nicht in einem Verzeichnis von <Rolle>`    | Verweis auf das Team einer anderen Rolle — in der Sitzung der Rolle `/rota-ipc` ausführen        |
 | `Absender passt nicht zur Sitzung`          | Aus einem fremden Rollenverzeichnis gesendet. Zurück in die eigene Worktree-Wurzel wechseln      |
 | `laesst sich keiner Sitzung zuordnen`       | Der Aufruf ist vom Prozessbaum abgetrennt (`setsid`, `nohup`) — so wird nicht gesendet           |
 | `stellt ausschliesslich unter 'Watcher' zu` | `melden` ist dem Watcher vorbehalten; aus einer Sitzung heraus gilt `senden`                     |
@@ -500,20 +502,64 @@ Fällt das System ganz aus, gilt der alte Weg: Der Orchestrator schreibt den Tex
 Auftraggeber kopiert — **ausdrücklich angesagt**, nicht stillschweigend, und mit einer
 Analyse, warum es versagt hat.
 
+## Entscheidungen des Auftraggebers — wo sie liegen
+
+Fragen an den Auftraggeber stellt nur der Orchestrator (`rota-fragen neu`); Worker wenden
+sich über den Meldeweg an ihn. Der Auftraggeber antwortet auf der Fragenseite
+`localhost:8000/work/rota/fragen/`, und der Fragendienst stellt die Antwort dem
+Orchestrator als Nachricht `[ANTWORT DES AUFTRAGGEBERS — VERBINDLICH]` zu. Eine solche
+Antwort ersetzt jede eigene Annahme dazu, auch eine, die im Plan steht.
+
+**Nachlesen kann jede Sitzung selbst, ohne den Orchestrator zu fragen:**
+
+| Was                                    | Wo                                               |
+| -------------------------------------- | ------------------------------------------------ |
+| die Entscheidungen selbst              | `/work/rota/fragen/antworten/<frage-id>.json`    |
+| der Fragenkatalog (Wortlaut, Optionen) | `/work/rota/fragen/fragen.json`                  |
+| alles nebeneinander                    | `rota-fragen zeigen`                             |
+| der zugestellte Wortlaut               | `rota-fragen antworten`                          |
+| Widersprüche zwischen beiden Dateien   | `rota-fragen stand` (Rückgabe 1 bei Widerspruch) |
+
+**Maßgeblich ist die Antwortdatei, nicht das Feld `status` in `fragen.json`.** Den Status
+`beantwortet` trägt erst `rota-fragen quittieren` nach, wenn der Orchestrator vermerkt hat,
+was er aus der Antwort macht; bis dahin steht dort `offen`, obwohl die Entscheidung
+vorliegt. Wer `fragen.json` direkt mit `jq` liest, sieht deshalb nicht den ganzen Stand.
+`rota-fragen zeigen` legt beide Dateien nebeneinander und nennt jeden Widerspruch oben.
+
+**Nur lesen.** Geschrieben wird dort ausschließlich über `rota-fragen` und den
+Fragendienst, beide unter derselben Schreibsperre (`/work/rota/fragen/.schreibsperre`).
+Ein Schreiben am Werkzeug vorbei kann eine Antwort oder Quittung überschreiben, ohne dass
+es jemand merkt.
+
+**`fragen/` ist ein eigenes, privates Repository** (`silentspike/rota-fragen`, #1095).
+Versioniert sind nur `fragen.json` und `antworten/*.json`. Der Verlauf liegt außerhalb in
+`~/.local/share/rota-fragen.git`; in der Ablage steht nur die Verweisdatei `.git`, weil
+nginx ganz `/work/` ausliefert. Der Timer `rota-fragen-sicherung.timer` committet alle
+15 Minuten und pusht nach einer Geheimnis-Prüfung; `rota-fragen-sichern stand` zeigt, was
+noch ungesichert ist. Im Spiel-Checkout `/work/rota` bleibt `fragen/` per `.gitignore`
+ausgeschlossen, und ein `git clean -x` dort löscht die Ablage weiterhin
+(`git clean -ndx -- fragen` meldet `Would remove fragen/`). Zurück kommt sie aus dem Verlauf
+oder dem Remote — der Weg steht im Kopf von `rota-fragen-sichern`. In den Worker-Worktrees
+liegt sie nicht.
+
 ## Wo was liegt
 
-| Was         | Wo                                                          |
-| ----------- | ----------------------------------------------------------- |
-| Sender      | `~/bin/rota-ipc`                                            |
-| Watcher     | `~/bin/rota-ipc-watcher`                                    |
-| Rollen      | `/work/rota-ipc/rollen.json`                                |
-| Nachrichten | `/work/rota-ipc/nachrichten/` (Klartext, nicht versioniert) |
-| Pausen      | `/work/rota-ipc/pausen.json`                                |
-| Prüflauf    | `/work/rota-ipc/pruefen.sh`                                 |
-| Plan        | `/work/rota-ipc/PLAN.md`                                    |
+| Was                              | Wo                                                              |
+| -------------------------------- | --------------------------------------------------------------- |
+| Sender                           | `~/bin/rota-ipc`                                                |
+| Watcher                          | `~/bin/rota-ipc-watcher`                                        |
+| Rollen                           | `/work/rota-ipc/rollen.json`                                    |
+| Nachrichten                      | `/work/rota-ipc/nachrichten/` (Klartext, nicht versioniert)     |
+| Pausen                           | `/work/rota-ipc/pausen.json`                                    |
+| Prüflauf                         | `/work/rota-ipc/pruefen.sh`                                     |
+| Plan                             | `/work/rota-ipc/PLAN.md`                                        |
+| Entscheidungen des Auftraggebers | `/work/rota/fragen/antworten/` (lesen mit `rota-fragen zeigen`) |
+| Fragenwerkzeug und -dienst       | `~/bin/rota-fragen`, `rota-fragen.service`                      |
 
-Der Zustand liegt **außerhalb** des Spiel-Repositories — sonst würde ein `git checkout` in
-einem Worktree Rollen umschalten oder Nachrichten überschreiben.
+Der Zustand des Nachrichtensystems liegt **außerhalb** des Spiel-Repositories — sonst würde
+ein `git checkout` in einem Worktree Rollen umschalten oder Nachrichten überschreiben. Die
+Fragenablage ist die Ausnahme: Sie liegt im Checkout `/work/rota`, nur von `.gitignore`
+ausgenommen (siehe oben).
 
 ## Verhältnis zum bestehenden openinbox
 

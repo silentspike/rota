@@ -23,8 +23,9 @@ import { SOUND_MANIFEST } from '../audio/manifest-data.js';
  */
 const NOT_YET: Readonly<Record<string, string>> = {
   'synergy.ready': 'E3 — Synergien brauchen eine zweite Schule (GAME-DESIGN 5)',
-  'boss.cast.start': 'E4 — der Testboss wirkt keine Zauber',
-  'boss.cast.success': 'E4 — der Testboss wirkt keine Zauber',
+  // `boss.cast.start` und `boss.cast.success` standen hier mit „der Testboss
+  // wirkt keine Zauber". Seit #797 sendet die Sitzung beide; bleiben sie stumm,
+  // hat der Lauf schlicht keinen Boss-Zauber gesehen — der allgemeine Grund.
   'boss.phase.change': 'E4 — der Testboss hat eine Phase',
   'boss.reaction.destabilise': 'E4 — Mechanik-Baustein 6 fehlt',
   'player.low-health': 'E4 — der Testboss teilt keinen Schaden aus',

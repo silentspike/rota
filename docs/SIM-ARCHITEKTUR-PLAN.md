@@ -941,7 +941,7 @@ Nach dem Muster der Epic-Tabelle in `greedy-skipping-russell.md`:
 | [E21](#48-e21-laufzeitvertrag-und-qualitätszertifikat)                                 | 10            | 1         | Laufzeitvertrag und Qualitätszertifikat                                             |
 | [E12](#44-e12-der-balance-optimierer)                                                  | 11            | 0         | Der Balance-Optimierer: welche Zahl macht einen toten Zauber lebendig               |
 | [E13](#e13-die-cuda-pipeline-konkretisiert)                                            | 1             | 0         | GPU-Auswerter: nur für das, was homogen ist                                         |
-| [E14](#e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen)               | 7             | 0         | Numerischer Vertrag: Werte-Deckel, Überlaufbeweis und Parität über fünf Rechenpfade |
+| [E14](#e14-der-werte-deckel-ist-ein-leistungs-engpass-deshalb-vorziehen)               | 7             | 0         | Numerischer Vertrag: Werte-Deckel, Überlaufbeweis und Parität über vier Rechenpfade |
 | [E17](#e17-lauf-zustand-pause-absturz-und-fortsetzung)                                 | 3             | 0         | Lauf-Zustand: Pause, Absturz und bitgleiche Fortsetzung                             |
 | [E18](#e18-zwei-nicht-simulations-verfahren-die-noch-fehlen)                           | 2             | 0         | Sparsame Ledger-Auswertung und frühe Schranken im laufenden Kampf                   |
 | [E19](#e19-drei-caches-statt-einem)                                                    | 2             | 0         | Drei getrennte Speicher: Ergebnis, Bewertung und Suchfortschritt                    |
@@ -1869,8 +1869,8 @@ nicht „Bereichsaufteilung" steht.
 > Zielrechner haben gleichartige Kerne: der Laptop acht Zen-3-Kerne, node3 acht Zen-5-Kerne mit
 > je 1 MiB L2 (Teil 2.1, Nachtrag). Die beiden Absätze darüber bleiben als Begründung stehen,
 > falls wieder ein Rechner mit P- und E-Kernen dazukommt. Die Erhebung der Kernklassen selbst ist
-> gebaut (E15.0, PR #1111): auf proxmox gemessen zwei, auf dem Laptop eine, auf node3 noch nicht
-> abgelesen. **Die dynamische Entnahme über den Zähler bleibt** — sie gleicht ungleiche
+> gebaut (E15.0, PR #1111): am 2026-10-28 gemessen auf proxmox zwei, auf dem Laptop und auf node3
+> je eine. **Die dynamische Entnahme über den Zähler bleibt** — sie gleicht ungleiche
 > Strang-Geschwindigkeit aus, gleich woher sie kommt, also auch aus Fremdlast; node3 trägt zwölf
 > VMs.
 
@@ -3080,9 +3080,14 @@ E14.2  jede Rechenkette hat einen MASCHINENPRÜFBAREN Überlaufbeweis
 E14.3  positive UND negative Rundungs-Testvektoren bestehen in Rust und TypeScript
        — insbesondere Math.round(-1.5) gegen f64::round(-1.5), die auseinandergehen
 E14.4  die number-vs-BigInt-Entscheidung ist getroffen und begründet
-E14.5  scalar, AVX, AVX2, GPU und TypeScript erfüllen den festgelegten Vertrag
+E14.5  scalar, AVX2, GPU und TypeScript erfüllen den festgelegten Vertrag   (AVX1 ruht)
 E14.6  die Fehlergrenze der DP-Masse UND aller daraus abgeleiteten Statistiken ist bewiesen
 ```
+
+> **Geändert am 2026-10-28.** In E14.5 und in der Epic-Übersicht standen fünf Pfade, darunter
+> **AVX** (AVX1). Er existierte nur für gonet; seit der Entscheidung „Nur node3" ruht er — kein
+> Zielrechner (Backend-Leiter in E11.7). Der Vertrag gilt damit über vier Pfade; kommt wieder ein
+> Rechner nur mit AVX1 dazu, kommt der Pfad mit seinem Paritätsnachweis zurück. Ebenso in #900.
 
 **Festkomma wird nur übernommen, wenn es dreifach besteht:** semantisch korrekt · bereichssicher
 · auf mindestens einem **End-to-End**-Pfad messbar schneller. Zwei von drei genügen nicht.
@@ -3232,6 +3237,19 @@ derselben Arbeit — aber **nicht zwei Sekunden lang**.
 >     PSI-Druck akzeptabel
 > ```
 >
+> **Präzisiert am 2026-10-28, nach der Messung auf node3 (#912).** „Streuung" heißt hier die
+> **relative Unsicherheit des Mittelwerts** — Standardfehler geteilt durch das Mittel —, nicht die
+> Streuung der einzelnen Abschnitte. Gemessen auf node3 (12 VMs und der Bau-Dienst daneben): Die
+> Abschnitte des Vollkampfs streuen 8,8–13,0 %, und auch 4-s-Abschnitte kommen nur auf 6,2 %. Die
+> Ursache ist langsame Drift des geteilten Rechners, kein Rauschen. Mit der alten Lesart wird dort
+> keine Arbeitsart je stabil, und die Kalibrierung endet immer an der Höchstdauer. Erreicht eine
+> Arbeitsart bis zur Höchstdauer die Schwelle nicht, meldet der Lauf sie als **nicht stabil**,
+> statt einen Wert abzulegen.
+>
+> **Die Drift selbst fängt der Vergleich mit der Referenz ab:** Kalibrier- und Referenzabschnitte
+> wechseln sich ab (verschränkt, gleich lang, auf denselben Kernen). Eine Referenz davor und
+> danach reicht nicht — auf node3 wanderte sie dazwischen um 10,7 %.
+>
 > **Und nicht bei jedem Start vollständig:** Profile werden nach (Rechner-Kennung ×
 > Artefakt-Hash × Kernelklasse × Taktregime) **gespeichert** und beim nächsten Lauf nur kurz
 > bestätigt. Er erfasst in einer Zahl, was aus Flags nicht ableitbar ist:
@@ -3296,12 +3314,15 @@ E-Kern-Vorrat    8 Kerne / 8 Stränge, 3,3 GHz, 512 KiB je Kern
 je mit eigener Kernbindung, eigener Kalibrierung, eigener Chunkgröße und eigenem
 Durchsatzmittel.
 
-> **Gebaut, und seit 2026-10-28 ohne Zielrechner.** Die getrennten Vorräte stehen in
-> `hostcaps::kernvorraete` (PR #1111) und sind auf proxmox belegt: zwei Vorräte, 4 Kerne mit
-> 4,4 GHz und 8 Kerne mit 3,3 GHz — genau die Zahlen oben; der Laptop meldet einen. Beide
-> Zielrechner haben gleichartige Kerne (Laptop Zen 3, node3 Zen 5). Geprüft wird die Eigenschaft
-> weiter auf proxmox, als **Prüfrechner** für diese eine Eigenschaft, nicht als Teil des Profils;
-> auf Laptop und node3 muss die Erhebung genau einen Vorrat melden (#912, AC6).
+> **Die Erkennung ist gebaut, die getrennten Vorräte nicht — und sie ruhen seit 2026-10-28.**
+> `hostcaps::kernvorraete` (PR #1111) erkennt die Kernklassen. Gemessen am 2026-10-28: proxmox
+> meldet zwei Vorräte (4 Kerne mit 4,4 GHz, 8 Kerne mit 3,3 GHz — genau die Zahlen oben), der
+> Laptop und node3 je einen. **Nicht gebaut** sind die eigene Kernbindung, Kalibrierung,
+> Paketgröße und das eigene Durchsatzmittel je Vorrat; die Vorräte werden nur ausgegeben. Diesen
+> Teil braucht der Verteiler (E11.4c), und der ruht, weil kein Zielrechner zwei Kernklassen hat.
+> Abgenommen wird in #912 AC6 deshalb die Erkennung, geprüft auf proxmox als **Prüfrechner**
+> (nicht als Teil des Profils). _(Berichtigt am 2026-10-28: Am selben Tag stand hier „Gebaut" für
+> die Vorräte selbst — das war zu stark.)_
 
 **Fertig, wenn:** die Kalibrierung auf beiden Rechnern des Referenzprofils läuft und eine
 **gleichzeitig auf derselben Maschine erhobene** Referenz innerhalb von 10 % trifft. Trifft sie
@@ -3313,7 +3334,14 @@ nicht, ist der Kalibrierlauf nicht repräsentativ für die echte Arbeit — und 
 > Teil 2.1 sind Momentanwerte unter drei verschiedenen Lasten, und ein 10-Prozent-Kriterium gegen
 > einen Momentanwert ist nur durch Lastglück erfüllbar. Maßstab ist deshalb eine Referenz, die
 > zur selben Zeit auf derselben Maschine gemessen wird — für node3 im Container, für den Laptop
-> ebenso. Der Plan folgt damit dem Issue.
+> ebenso. Der Plan folgt damit dem Issue. „Zur selben Zeit" heißt **verschränkt** (siehe die
+> Präzisierung der Abbruchregel oben).
+>
+> **Die Kontrollprobe der adaptiven Dauer misst Genauigkeit, nicht Streuung** (präzisiert am
+> 2026-10-28). Unter Drift sieht eine kurze Messung ruhiger aus, weil sie weniger sieht: Auf
+> dem Laptop streute der feste 2-s-Lauf 3,93 %, der adaptive 14,29 %, und in PR #1111 zeigte
+> gonet dasselbe. Belegt wird deshalb: Die adaptive Messung liegt näher an der verschränkten
+> Referenz als die auf 2 s verkürzte.
 
 ### E15.1 — Der Ressourcen-Balancer: drosseln ohne abzubrechen
 
@@ -3766,6 +3794,25 @@ Belegung der Ereignisschlange · Trefferquote von expire_buffs
 | `expire_buffs`-Trefferquote > 20 %                               | die Annahme aus E11.2 gilt nicht mehr | neu messen, Endausbau erreicht          |
 | Ereignisschlange > 80 % voll                                     | Kapazität wird knapp                  | **vor** dem Überlauf handeln (E11.0b)   |
 
+> **Entschieden am 2026-10-28 (Orchestrator)** — drei Stellen, die die Tabelle offen ließ, so wie
+> #934 sie umsetzt (`sim/src/engpass/regeln.rs`):
+>
+> 1. **„cycles/event +30 %" ist die gemeinsame Vorbedingung der Zeilen 1 und 2**, gemessen je
+>    Kampf. Ohne gestiegene Kosten je Ereignis gibt es keinen Engpass, nur verschobene Zähler.
+> 2. **„L3 niedrig" heißt: Weniger als die Hälfte der zusätzlichen L2-Fehlgriffe geht auch an L3
+>    vorbei.** Die relative Lesart („L3 unter +50 %") widerlegte die Speicherlage: L2-Fehlgriffe
+>    je Kampf 1,24 → 29,33 (+2274 %), L3 1,05 → 3,29 (+213 %) — von den zusätzlichen gingen 8,0 %
+>    an L3 vorbei (node3, Zen 5, 2026-10-28). Eine fast leere dritte Ebene macht aus jeder Handvoll
+>    Fehlgriffe einen großen Anteil.
+> 3. **Die Zeitzeilen — Stränge warten, CPU-Zeit je Kampf im Rückfall — prüfen nur, solange der
+>    Höchststand von PSI `some avg10` im Fenster bei höchstens 5 % cpu und 10 % memory liegt**
+>    (`hostcaps::PSI_CPU_MAX`, `PSI_IO_MEM_MAX`). Darüber schweigen sie nicht: Der Satz endet mit
+>    „Zeitdiagnose ausgesetzt: PSI cpu …".
+> 4. **Die Rückfallzeile „langsamer als die Grundlage" gilt nur auf taktfesten Rechnern.** Gemessen
+>    am 2026-10-28: node3 ±3 %, Laptop zwischen gleichen Läufen ±40 % (24,7–45,8 µs je Kampf) bei
+>    PSI ≤ 4,08 %; auf dem Laptop rechnet die CPU nicht (Entscheidung des Auftraggebers
+>    2026-10-28).
+
 **Die vorletzte Zeile ist der eigentliche Zweck dieses Issues.** Jede Optimierung von E11 beruht
 auf einer heute gemessenen Verteilung. Der Engpasswächter ist das Bauteil, das **meldet, wann
 eine dieser Annahmen abgelaufen ist** — und im Endausbau werden mehrere ablaufen (Teil 1).
@@ -4031,6 +4078,13 @@ Verteilung unzulässig; mit ihm ist sie eine Betriebsfrage.
 > **Remote lohnt, wenn `T_remote` kleiner ist als die beste lokale Alternative** — auch bei 5 %
 > Netzanteil. Praktisch skaliert der Verteiler auf eine Ziel-Rechenzeit je Paket:
 > **100–500 ms** bei interaktiven Läufen, **0,5–5 s** bei Stapelarbeit.
+>
+> **Nachgetragen am 2026-10-28.** Die Zielzeiten entstanden gegen 1,3–1,7 ms im LAN. Zu node3
+> liegt die Umlaufzeit im Median bei 54,7 ms (zum Container) bzw. 67,2 ms (zum Knoten, Teil 2.1)
+> — 11 bis 67 % einer interaktiven, 1 bis 13 % einer Stapel-Paketzeit. **Maßgeblich bleibt
+> `T_remote`, nicht die Zielzeit:** Weist das Kostenmodell für interaktive Pakete zu node3
+> keinen Gewinn aus, bleiben sie lokal. Die Zielzeiten sind keine Zusage, dass dorthin verteilt
+> wird.
 
 **LNS ist nicht kategorisch lokal.**
 
@@ -4040,6 +4094,12 @@ Verteilung unzulässig; mit ihm ist sie eine Betriebsfrage.
 > verteilt werden, wenn das Kostenmodell einen Gewinn ausweist — mit einem deterministischen
 > Sammelpunkt am Rundenende (siehe Epochenregel oben). Nur eine Runde mit wenigen hundert
 > Kandidaten bleibt lokal, weil sie eine Roundtrip-Zeit wert ist.
+>
+> **Nachgetragen am 2026-10-28.** „Wenige hundert" stammt aus der Rechnung gegen 1,5 ms im LAN.
+> Zu node3 entsprechen 67,2 ms bei 2,74 µs je Kampf rund 24 500 Kämpfen (Teil 2.1, Nachtrag);
+> eine Runde mit 10 000 Ein-Kampf-Kandidaten (27,4 ms) trägt dort mehr Netz- als Rechenzeit.
+> **Die Grenze setzt das Kostenmodell, nicht die Kandidatenzahl** — zu node3 liegt sie um
+> Größenordnungen höher als „wenige hundert".
 
 ### E15.6 — Hardware-Ausnutzung: was trägt, was nicht, und warum kein Assembler
 

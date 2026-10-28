@@ -65,6 +65,8 @@
 //! `tests/edge_cases.rs` haelt beide Seiten fest: dass eine Funktion die Grenze
 //! hat, und `tests/apl.rs`, dass eine Prioritaetenliste sie nicht mehr hat.
 
+use std::fmt;
+
 use crate::buffs::{Buffs, BUFF_KIND_CAPACITY};
 use crate::checksum::{mix_named_float, mix_named_int, FNV_OFFSET};
 use crate::cooldown_reset::{Choice, CooldownReset};
@@ -124,6 +126,117 @@ pub trait Decide {
     /// Deren Bedingungen aendern sich nur, wenn ohnehin ein Ereignis eintritt.
     fn next_wakeup(&self, _fight: &Fight) -> Option<Millis> {
         None
+    }
+
+    /// Wann eine Regel, deren Zauber **keine** globale Wartezeit auslöst,
+    /// frühestens umschlägt (#1027, Teil b).
+    ///
+    /// Während einer laufenden Wartezeit kann nur ein solcher Zauber gewirkt
+    /// werden; den Weckruf aus [`Decide::next_wakeup`] legt der Kampf deshalb
+    /// auf ihr Ende. Dieser hier gilt auch darin. Die Voreinstellung `None` ist
+    /// für Rotationen ohne zeitabhängige Bedingungen richtig.
+    fn next_wakeup_ohne_gcd(&self, _fight: &Fight) -> Option<Millis> {
+        None
+    }
+}
+
+/// Wie viele Würfe der Kampf beim **selben** Zeitstempel höchstens zulässt
+/// (Issue #1027, Teil c).
+///
+/// Nach einem Wurf entscheidet die Rotation beim selben Zeitstempel erneut
+/// ([`Fight::run_apl`], Phase 3). Das endet, sobald sie nichts mehr wählt — und
+/// das kommt, weil jeder Wurf etwas verbraucht: Ein Zauber mit Wartezeit sperrt
+/// alle anderen mit Wartezeit, jeder Zauber seine eigene Abklingzeit. Ohne
+/// Rücksetzer wirkt also jeder Zauber höchstens einmal je Zeitstempel, und die
+/// Zahl der Zauber ist eine Grenze, die kein gültiger Datensatz erreicht.
+///
+/// **Wer sie erreicht, hat einen Nullzeit-Zyklus gebaut.** Das ist ein
+/// Datenfehler und wird abgelehnt, nicht endlos gerechnet
+/// (`docs/SIM-ARCHITEKTUR-PLAN.md`, „Das Optimum-Orakel": Fortschrittsfunktion
+/// mit Nullzeit-Budget als letzter Stelle). Die Spielseite führt dieselbe
+/// Grenze (`nullzeitBudget` in `src/devtools/reference-run.ts`, die Zahl der
+/// Zauber); `gcd-freier-wurf.json` trägt ihren Wert, und
+/// `parity_gcd_freier_wurf.rs` hält beide gegeneinander.
+#[allow(clippy::cast_possible_truncation)] // SPELL_COUNT ist eine kleine Zahl aus den Daten
+pub const NULLZEIT_BUDGET: u32 = SPELL_COUNT as u32;
+
+/// Zählt die Würfe beim selben Zeitstempel gegen ein Budget (#1027, Teil c).
+///
+/// Eigener Typ, damit die Regel an einer Stelle steht und ohne Kampf prüfbar
+/// ist: Mit den heutigen Zauberdaten lässt sich kein Nullzeit-Zyklus bauen —
+/// der einzige Zauber ohne Wartezeit (QUENCH) hat 5000 ms Abklingzeit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Nullzeit {
+    budget: u32,
+    zeit: Option<Millis>,
+    wuerfe: u32,
+}
+
+/// Ein Nullzeit-Zyklus: mehr Würfe beim selben Zeitstempel, als das Budget
+/// zulässt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NullzeitZyklus {
+    /// Der Zeitstempel, an dem die Rotation weiterwählte.
+    pub zeit: Millis,
+    /// Wie viele Würfe dort schon lagen — so viele, wie das Budget erlaubt.
+    pub wuerfe: u32,
+}
+
+impl fmt::Display for NullzeitZyklus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Nullzeit-Zyklus bei {} ms: {} Würfe beim selben Zeitstempel, und die \
+             Rotation wählt weiter. Das ist ein Datenfehler — ein Zauber bleibt \
+             nach seinem Wurf bereit (#1027)",
+            self.zeit, self.wuerfe
+        )
+    }
+}
+
+impl Nullzeit {
+    /// Ein Zähler ohne Würfe, mit dem Budget `budget`.
+    #[must_use]
+    pub const fn neu(budget: u32) -> Self {
+        Self {
+            budget,
+            zeit: None,
+            wuerfe: 0,
+        }
+    }
+
+    /// Meldet einen Wurf beim Zeitstempel `jetzt` an — oder lehnt ihn ab, wenn
+    /// dort schon so viele liegen, wie das Budget erlaubt.
+    ///
+    /// Ein späterer Zeitstempel beginnt wieder bei null: Fortschritt der Zeit
+    /// ist Fortschritt.
+    ///
+    /// # Errors
+    ///
+    /// [`NullzeitZyklus`], wenn das Budget beim Zeitstempel erschöpft ist.
+    pub fn wurf(&mut self, jetzt: Millis) -> Result<(), NullzeitZyklus> {
+        if self.zeit != Some(jetzt) {
+            self.zeit = Some(jetzt);
+            self.wuerfe = 0;
+        }
+        if self.wuerfe >= self.budget {
+            return Err(NullzeitZyklus {
+                zeit: jetzt,
+                wuerfe: self.wuerfe,
+            });
+        }
+        self.wuerfe += 1;
+        Ok(())
+    }
+
+    /// Wie viele Würfe beim Zeitstempel `jetzt` liegen.
+    #[must_use]
+    pub fn wuerfe_bei(&self, jetzt: Millis) -> u32 {
+        if self.zeit == Some(jetzt) {
+            self.wuerfe
+        } else {
+            0
+        }
     }
 }
 
@@ -1374,7 +1487,7 @@ impl Fight {
     /// Ein bereits gelaufener Kampf muss vorher mit [`Fight::reset`]
     /// zurueckgesetzt werden.
     pub fn run(&mut self, rotation: Rotation) -> RunResult {
-        self.run_with(&rotation)
+        self.run_with(&rotation, NULLZEIT_BUDGET)
     }
 
     /// Rechnet den Kampf mit einer geschriebenen Prioritaetenliste durch.
@@ -1382,10 +1495,29 @@ impl Fight {
     /// Nutzt dieselbe Schleife wie [`Fight::run`] — es gibt nur **eine**
     /// Regelrechnung, nicht zwei, die auseinanderlaufen koennten.
     pub fn run_apl(&mut self, apl: &crate::apl::Apl) -> RunResult {
-        self.run_with(apl)
+        self.run_with(apl, NULLZEIT_BUDGET)
     }
 
-    fn run_with<D: Decide + ?Sized>(&mut self, decider: &D) -> RunResult {
+    /// Dasselbe mit einem anderen Nullzeit-Budget (#1027, Teil c).
+    ///
+    /// **Nur für Prüfungen.** Mit den heutigen Zauberdaten lässt sich kein
+    /// Nullzeit-Zyklus bauen; ein kleines Budget ist der einzige Weg zu zeigen,
+    /// dass der Kampf ihn tatsächlich ablehnt, statt nur zu zählen.
+    ///
+    /// # Panics
+    ///
+    /// Wie [`Fight::run_apl`]: mit [`NullzeitZyklus`], wenn die Liste beim selben
+    /// Zeitstempel mehr Würfe wählt, als `nullzeit_budget` zulässt.
+    pub fn run_apl_mit_nullzeit_budget(
+        &mut self,
+        apl: &crate::apl::Apl,
+        nullzeit_budget: u32,
+    ) -> RunResult {
+        self.run_with(apl, nullzeit_budget)
+    }
+
+    fn run_with<D: Decide + ?Sized>(&mut self, decider: &D, nullzeit_budget: u32) -> RunResult {
+        let mut nullzeit = Nullzeit::neu(nullzeit_budget);
         // Der Verfall laeuft ab Kampfbeginn, unabhaengig davon, ob ueberhaupt
         // Ressource da ist — so macht es die Referenz, und das ist auch richtig:
         // Der Takt haengt am Kampf, nicht am Fuellstand.
@@ -1450,31 +1582,53 @@ impl Fight {
             self.check_phase();
 
             // Phase 3 — die Entscheidung des Spielers.
-            let mut gewartet = false;
-            if self.gcd_ready_at <= now {
-                match decider.decide(self) {
-                    Some(index) => {
-                        self.cast(index);
-                        // **Nach einem Wurf ohne Wartezeit entscheidet die Liste
-                        // im naechsten Takt neu** (#1027) — QUENCH, oder der
-                        // Wurf, den SUBLIME befreit. Das Spiel entscheidet je
-                        // Takt einmal, solange die Wartezeit bereit ist
-                        // (`driveRotation` in `src/devtools/reference-run.ts`);
-                        // hier stand danach keine GCD-Wiedervorlage in der
-                        // Schlange, und die naechste Entscheidung fiel erst am
-                        // naechsten eingereihten Ereignis. An `first-crucible`
-                        // kam der Fueller nach QUENCH so bei 2000 statt bei 10
-                        // (`tests/parity_gcd_freier_wurf.rs`).
-                        if self.gcd_ready_at <= now {
-                            let naechster_takt = snap_up(now + TICK_MS);
-                            if naechster_takt < self.duration_ms {
-                                self.queue.push(naechster_takt, EventKind::Wakeup);
-                            }
-                        }
-                    }
-                    None => gewartet = true,
+            //
+            // **Nach jedem Wurf beim selben Zeitstempel erneut, bis die
+            // Rotation nichts mehr wählt — und auch während einer laufenden
+            // Wartezeit** (#1027, Entscheidungsmodell des Orchestrators vom
+            // 2026-10-28). Das ist, was das Spiel einem Spieler erlaubt
+            // (`Session.tick` arbeitet alle Drücke eines Takts ab, QUENCH sperrt
+            // keine Wartezeit), und dieselbe Schleife wie `driveRotation` in
+            // `src/devtools/reference-run.ts`:
+            //
+            //   (a) nach QUENCH oder dem Wurf, den SUBLIME befreit, wählt die
+            //       Rotation beim selben Zeitstempel weiter;
+            //   (b) während einer Wartezeit kommt ein Zauber ohne Wartezeit
+            //       zum Zug — `is_ready` sperrt dann alle anderen;
+            //   (c) mehr als `nullzeit_budget` Würfe beim selben Zeitstempel
+            //       sind ein Nullzeit-Zyklus und brechen ab.
+            //
+            // Bis dahin entschied der Kampf nur bei bereiter Wartezeit und
+            // einmal je Zeitpunkt, nach QUENCH also erst einen Takt später.
+            //
+            // **Ein gewählter Zauber, der nicht bereit ist, heißt warten** —
+            // wie im Spiel, wo `Combat.cast` den Druck abweist. `cast` selbst
+            // prüft nichts (die Aufrufer prüfen vorher); eine Rotation, die
+            // einen Zauber im GCD zurückgäbe, wirkte ihn sonst.
+            let gcd_bereit = self.gcd_ready_at <= now;
+            while let Some(index) = decider.decide(self) {
+                if !self.is_ready(index) {
+                    break;
+                }
+                if let Err(zyklus) = nullzeit.wurf(now) {
+                    panic!("{zyklus}");
+                }
+                self.cast(index);
+            }
+            let gewirkt = nullzeit.wuerfe_bei(now) > 0;
+            // **Nach einem Wurf, nach dem die Wartezeit bereit bleibt, ein
+            // Weckruf im nächsten Takt** (#1027, PR #1135). Er entscheidet dort
+            // nichts Neues — beim selben Zeitstempel hat die Rotation schon
+            // „warten" gesagt, und was sich danach ändert, weckt selbst. Er
+            // trägt den Leerlauf: Der Takt des Wurfs ist kein leerer Takt, die
+            // danach schon, und gezählt wird ab der nächsten Entscheidung.
+            if gewirkt && self.gcd_ready_at <= now {
+                let naechster_takt = snap_up(now + TICK_MS);
+                if naechster_takt < self.duration_ms {
+                    self.queue.push(naechster_takt, EventKind::Wakeup);
                 }
             }
+            let gewartet = gcd_bereit && !gewirkt;
 
             // Der Trace-Hash (#896), an derselben Stelle wie im Abspiel-Pfad:
             // nach der Entscheidung, wenn der Takt fertig ist.
@@ -5145,13 +5299,25 @@ impl Fight {
     /// bringen, und die Kapazitaet aus [`EVENT_CAPACITY`] waere schneller
     /// erreicht als noetig.
     ///
-    /// Vor Ablauf der globalen Wartezeit ist eine erneute Pruefung ebenfalls
-    /// zwecklos: Gewirkt werden kann ohnehin nicht.
+    /// Vor Ablauf der globalen Wartezeit ist eine erneute Pruefung nur fuer
+    /// Regeln sinnvoll, deren Zauber keine Wartezeit ausloest (#1027) — alle
+    /// anderen sperrt sie.
     fn schedule_decision_wakeup<D: Decide + ?Sized>(&mut self, decider: &D, now: Millis) {
-        let Some(wanted) = decider.next_wakeup(self) else {
+        // **Zwei Weckrufe, weil zwei Arten von Regeln** (#1027, Teil b): Eine
+        // Regel mit Wartezeit kann erst an ihrem Ende greifen, eine ohne auch
+        // darin. Der früheste Umschlag ALLER Regeln reichte nicht — läge der
+        // einer Regel mit Wartezeit früher, verdeckte er den der Regel ohne.
+        let mit_wartezeit = decider
+            .next_wakeup(self)
+            .map(|wanted| wanted.max(self.gcd_ready_at));
+        let ohne_wartezeit = if self.gcd_ready_at > now {
+            decider.next_wakeup_ohne_gcd(self)
+        } else {
+            None
+        };
+        let Some(at) = mit_wartezeit.into_iter().chain(ohne_wartezeit).min() else {
             return;
         };
-        let at = wanted.max(self.gcd_ready_at);
         if at <= now || at >= self.duration_ms {
             return;
         }
