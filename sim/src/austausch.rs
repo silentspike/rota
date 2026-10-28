@@ -75,6 +75,29 @@ pub const fn kann_durch_krit_ausgeloest_werden(ausloeser: Trigger) -> bool {
     }
 }
 
+/// Macht dieser Baustein denselben Übergang wie ein Treffer, bis auf den Betrag?
+///
+/// Dasselbe Muster wie [`kann_durch_krit_ausgeloest_werden`]: **kein
+/// Auffangzweig** (Epic #892). Ein neuer Baustein muss hier entscheiden, ob er
+/// wie ein Treffer zählt, statt still als „anderer Übergang“ durchzugehen.
+#[must_use]
+const fn macht_den_trefferuebergang(op: EffectOp) -> bool {
+    match op {
+        EffectOp::DealDamage | EffectOp::ApplyDot => true,
+        EffectOp::ApplyBuff
+        | EffectOp::ModifyResource
+        | EffectOp::ReduceCooldown
+        | EffectOp::ResetCooldown
+        | EffectOp::FreeNextGcd
+        | EffectOp::Heal
+        | EffectOp::Shield
+        | EffectOp::ConvertDamage
+        | EffectOp::ChangeBossState
+        | EffectOp::ChangePhase
+        | EffectOp::CustomSignature(_) => false,
+    }
+}
+
 /// Was die Beschreibung über die Austauschbarkeit hergibt.
 ///
 /// **Kein `bool`, sondern die Einzelbefunde.** Ein einzelnes Ja/Nein verlöre
@@ -141,9 +164,7 @@ pub fn befunde(knoten: &[EffectNode]) -> Befunde {
         .union(StateMask::BOSS_SYSTEMS);
 
     Befunde {
-        gleicher_uebergang: knoten
-            .iter()
-            .all(|n| matches!(n.op, EffectOp::DealDamage | EffectOp::ApplyDot)),
+        gleicher_uebergang: knoten.iter().all(|n| macht_den_trefferuebergang(n.op)),
         keine_phasen_oder_siegpruefung: knoten.iter().all(|n| {
             let ControlFlowEffect {
                 branches_on_hp,
