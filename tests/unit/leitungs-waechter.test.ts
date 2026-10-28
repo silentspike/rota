@@ -112,6 +112,9 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   // (`ashen-regimen.test.ts` und `sim/tests/set_effect_ashen_regimen.rs`).
   activeSetEffects: 'Eingabe des Laufs',
   wardReduction: 'Eingabe des Laufs',
+  // Die vollen Lebenspunkte folgen aus Stufe und Ausrüstung, und beide stehen
+  // in der Aufzeichnung. Die Boss-Ankündigung (#797) misst daran „tödlich".
+  playerVesselMax: 'Eingabe des Laufs — folgt aus level und wornValues',
   resourceId: 'Eigenschaft der Schule',
   resourceCap: 'Eigenschaft der Schule',
 
@@ -127,6 +130,10 @@ const EINORDNUNG: Readonly<Record<string, string>> = {
   resetArmedFor: 'Zwischenstand',
   resetChargesLeft: 'Zwischenstand',
   vulnerability: 'Zwischenstand',
+  // Die Verzögerung durch STAY auf dem anstehenden Eintrag — verbraucht, sobald
+  // er feuert. Die Boss-Ankündigung (#797) zählt damit auf den echten Zeitpunkt;
+  // dass der Eintrag später feuert, steht im Protokoll (`bossTimelineFired`).
+  pendingTimelineDelayMs: 'Zwischenstand der Zeitleiste, beim Feuern verbraucht',
 
   // ---- OFFENE BEFUNDE: kumulative Zähler ohne Leitung ---------------------
   //
