@@ -40,11 +40,17 @@
 //! - **Konservativer Ausgang:** `action-bound` für Bausteine mit Zusatz-Aktionen
 //!   (ohne Bereich keine Obergrenze) und `monotonicity` (ohne vollständigen
 //!   Hinweis kein Erlauben).
-//! - **Unverändert weitergereicht:** `kernel-choice` und `action-bound` beim
-//!   Wirken urteilen nicht über den Bereich. Sie geben ihn als Angabe weiter,
-//!   ohne eine Schranke zu erfinden, und ihr Urteil bleibt dasselbe wie mit
-//!   bekanntem Bereich. Ob es vom Bereich abhängen soll, ist eine offene
-//!   Designfrage; festgenagelt ist hier der Ist-Zustand, nicht eine Entscheidung.
+//! - **Seit #892 ebenfalls konservativ:** `kernel-choice` (bei `DealDamage`,
+//!   `ModifyResource`, `Heal`) und `action-bound` beim Wirken. Bis dahin
+//!   reichten sie `Bounds::UNKNOWN` nur als Angabe weiter und behielten ihr
+//!   Urteil; die Festlegung des Orchestrators zu DW3 (28.10.) stellt sie auf den
+//!   Rückfall um — eine Regel ohne vollständige Semantik fällt auf den
+//!   konservativen Pfad. Die beiden Fälle, die das Weiterreichen festnagelten,
+//!   sind bewusst umgedreht ([`beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck`],
+//!   [`die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck`]). Ein
+//!   **halb offener** Bereich fällt nicht zurück — die Festlegung lautet auf
+//!   `Bounds::UNKNOWN`; [`ein_halb_offener_bereich_laesst_beide_leser_beim_urteil`]
+//!   hält diese Grenze fest.
 //!
 //! # Gemessen am 2026-10-24, als Mutation (`/work/tmp`, nicht eingecheckt)
 //!
@@ -483,64 +489,106 @@ fn ohne_wertebereich_leitet_action_bound_fuer_zusatzaktionen_keine_obergrenze_ab
     }
 }
 
-#[test]
-fn beim_wirken_reicht_action_bound_einen_unbekannten_bereich_unveraendert_weiter() {
-    // Hier kommt die Obergrenze aus dem Auslöser (beim Wirken: so oft wie
-    // gewirkt), nicht aus dem Bereich — das Urteil hängt deshalb nicht an ihm.
-    // Die Angabe, die mitgeht, darf aber keinen Bereich erfinden.
-    for op in [
-        EffectOp::DealDamage,
-        EffectOp::ApplyDot,
-        EffectOp::ApplyBuff,
-        EffectOp::ModifyResource,
-        EffectOp::Heal,
-        EffectOp::Shield,
-        EffectOp::ConvertDamage,
-    ] {
-        let bekannt = ergebnis("action-bound", &beispielknoten(op));
-        let r = ergebnis("action-bound", &mit_unbekanntem_bereich(op));
+/// Die Bausteine, bei denen `pass` mit bekanntem Bereich erlaubt und genau
+/// diesen Bereich als Schranke weiterreicht — gemessen, nicht aufgezählt.
+///
+/// Genau diese Stellen meint die Festlegung zu DW3: Sie reichten bis #892 einen
+/// unbekannten Bereich als Angabe weiter und behielten ihr Urteil.
+fn reichen_den_bereich_weiter(pass: &str) -> Vec<EffectOp> {
+    bausteine()
+        .into_iter()
+        .filter(|&op| {
+            let knoten = beispielknoten(op);
+            let r = ergebnis(pass, &knoten);
+            r.verdict == Verdict::Permits && r.evidence == Evidence::Schranke(knoten.numeric_bounds)
+        })
+        .collect()
+}
+
+/// DW3 an einem Leser des Bereichs: ohne ihn der konservative Pfad.
+///
+/// # Bewusst umgedreht (Festlegung des Orchestrators für #892, 28.10.)
+///
+/// Bis dahin nagelten `beim_wirken_reicht_action_bound_einen_unbekannten_bereich_unveraendert_weiter`
+/// und `die_kernelwahl_reicht_einen_unbekannten_bereich_unveraendert_weiter`
+/// fest, dass diese Leser `Bounds::UNKNOWN` nur als Angabe weiterreichen und ihr
+/// Urteil behalten. DW3 verlangt, dass eine Regel ohne vollständige Semantik auf
+/// den konservativen Pfad fällt — ein Verbraucher, der dem Urteil traut, soll
+/// `ist_eng()` nicht selbst fragen müssen.
+fn faellt_ohne_bereich_zurueck(pass: &str, angabe: Evidence) {
+    let ops = reichen_den_bereich_weiter(pass);
+    assert!(
+        !ops.is_empty(),
+        "\"{pass}\" reicht bei keinem Baustein den bekannten Bereich weiter — dann prüft dieser \
+         Fall nichts, oder der Leser ist ein anderer geworden."
+    );
+    for op in &ops {
+        let r = ergebnis(pass, &mit_unbekanntem_bereich(*op));
         assert_eq!(
-            bekannt.evidence,
-            Evidence::Schranke(beispielknoten(op).numeric_bounds),
-            "{op:?}: Gegenpol — der bekannte Bereich kommt nicht an."
+            (r.verdict, r.evidence),
+            (Verdict::Conservative, angabe),
+            "{op:?}: Ohne Wertebereich urteilt \"{pass}\" weiter ({}). Gemessene Bausteine mit \
+             weitergereichtem Bereich: {ops:?}.",
+            r.reason
         );
-        assert_eq!(
-            r.evidence,
-            Evidence::Schranke(Bounds::UNKNOWN),
-            "{op:?}: Aus einem unbekannten Bereich ist eine Schranke geworden."
-        );
-        assert_eq!(
-            r.verdict, bekannt.verdict,
-            "{op:?}: Das Urteil liest hier den Bereich."
+        assert!(
+            r.fallback.vollstaendig(),
+            "{op:?}: nur {} von 6 konservativen Zuständen",
+            r.fallback.anzahl()
         );
     }
 }
 
 #[test]
-fn die_kernelwahl_reicht_einen_unbekannten_bereich_unveraendert_weiter() {
-    // Ist-Zustand: Die Kernelwahl urteilt über Zeitverhalten und Baustein, nicht
-    // über den Bereich; sie gibt ihn als Angabe weiter. Wer einen Kernel mit
-    // fester Darstellung daraus baut, muss `ist_eng()` selbst fragen — die
-    // Angabe sagt ihm dann „nicht eng“.
-    for op in [
-        EffectOp::DealDamage,
-        EffectOp::ModifyResource,
-        EffectOp::Heal,
-    ] {
-        let bekannt = ergebnis("kernel-choice", &beispielknoten(op));
-        let r = ergebnis("kernel-choice", &mit_unbekanntem_bereich(op));
-        assert_eq!(
-            bekannt.evidence,
-            Evidence::Schranke(beispielknoten(op).numeric_bounds),
-            "{op:?}: Gegenpol — der bekannte Bereich kommt nicht an."
-        );
-        assert_eq!(
-            r.evidence,
-            Evidence::Schranke(Bounds::UNKNOWN),
-            "{op:?}: Aus einem unbekannten Bereich ist eine Schranke geworden."
-        );
-        assert!(!matches!(r.evidence, Evidence::Schranke(b) if b.ist_eng()));
-        assert_eq!(r.verdict, bekannt.verdict);
+fn beim_wirken_faellt_action_bound_ohne_wertebereich_konservativ_zurueck() {
+    // Die Obergrenze käme hier aus dem Auslöser (beim Wirken: so oft wie
+    // gewirkt). Das Urteil reichte aber den Bereich als Schranke mit — und ohne
+    // Bereich ist die Semantik unvollständig. Die Angabe ist dieselbe wie in
+    // jedem anderen Rückfall dieses Passes: keine Obergrenze.
+    faellt_ohne_bereich_zurueck("action-bound", Evidence::Aktionsgrenze(None));
+}
+
+#[test]
+fn die_kernelwahl_faellt_ohne_wertebereich_konservativ_zurueck() {
+    // Ein spezialisierter Kernel mit fester Darstellung braucht den Bereich;
+    // ohne ihn der allgemeine Kernel. Die Angabe ist dieselbe wie im Rückfall
+    // bei einer Lücke.
+    faellt_ohne_bereich_zurueck("kernel-choice", Evidence::Keine);
+}
+
+#[test]
+fn ein_halb_offener_bereich_laesst_beide_leser_beim_urteil() {
+    // **Die Grenze der Festlegung, festgenagelt statt vergessen.** Sie lautet
+    // auf `Bounds::UNKNOWN`. Ein Bereich mit nur einer Grenze — so tragen ihn
+    // die echten Schadenszauber (`sim/build.rs`: nach oben offen) — ist eine
+    // Teilangabe: Die Leser behalten ihr Urteil und reichen ihn weiter, die
+    // Angabe sagt „nicht eng“. Wer auch hier zurückfallen lässt, ändert damit
+    // 77 Urteile an echten Knoten (gemessen am 2026-10-28) und dreht diesen Fall
+    // bewusst um.
+    for pass in ["action-bound", "kernel-choice"] {
+        for op in reichen_den_bereich_weiter(pass) {
+            for halb in [
+                Bounds {
+                    min: Some(0),
+                    max: None,
+                },
+                Bounds {
+                    min: None,
+                    max: Some(0),
+                },
+            ] {
+                let mut knoten = beispielknoten(op);
+                knoten.numeric_bounds = halb;
+                let r = ergebnis(pass, &knoten);
+                assert_eq!(
+                    (r.verdict, r.evidence),
+                    (Verdict::Permits, Evidence::Schranke(halb)),
+                    "{pass} bei {op:?} mit {halb:?}: ({})",
+                    r.reason
+                );
+                assert!(!halb.ist_eng());
+            }
+        }
     }
 }
 
