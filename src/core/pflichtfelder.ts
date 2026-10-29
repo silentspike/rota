@@ -221,8 +221,18 @@ export const SCHUL_PFLICHT: readonly Pflichtfeld[] = [
   { pfad: 'resource.highlightAt', art: 'ganzzahl', rust: ['emit_resource:highlightAt'] },
 ];
 
+/**
+ * Was `build.rs` von JEDER weiteren Zauberdatei verlangt (`zauber_liste`,
+ * `read_json_at`): die Fassung und die Liste. Name und Mechanik liest es nur
+ * aus `calcination.json`.
+ */
+export const DATEI_PFLICHT: readonly Pflichtfeld[] = SCHUL_PFLICHT.filter(
+  (eintrag) => eintrag.pfad === 'schema' || eintrag.pfad === 'spells',
+);
+
 /** `data/player/base.json` (`emit_player`). */
 export const SPIELER_PFLICHT: readonly Pflichtfeld[] = [
+  { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
   { pfad: 'vessel', art: 'ganzzahl', rust: ['emit_player:vessel'] },
   { pfad: 'wardReduction', art: 'zahl', rust: ['emit_player:wardReduction'] },
   { pfad: 'wardCapPermille', art: 'ganzzahl', rust: ['emit_player:wardCapPermille'] },
@@ -230,6 +240,7 @@ export const SPIELER_PFLICHT: readonly Pflichtfeld[] = [
 
 /** `data/player/levels.json` (`emit_levels`). */
 export const STUFEN_PFLICHT: readonly Pflichtfeld[] = [
+  { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
   { pfad: 'maxLevel', art: 'ganzzahl', rust: ['emit_levels:maxLevel'] },
   { pfad: 'factorPerMille', art: 'liste', rust: ['emit_levels:factorPerMille'] },
 ];
