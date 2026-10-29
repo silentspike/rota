@@ -454,9 +454,15 @@ impl Herkunft {
 /// Nightly-Umfeld einen anderen Stand nachmisst, soll nicht still den des
 /// Laufs eingetragen bekommen.
 fn stand_aus(args: &[String], github_sha: Option<String>) -> Option<String> {
-    // ROTER STAND (#550 AC1): noch ohne Stand.
-    let _ = (args, github_sha);
-    None
+    let schalter = args
+        .iter()
+        .position(|a| a == "--stand")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
+    schalter
+        .or(github_sha)
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
 }
 
 /// Sekunden seit 1970-01-01 als UTC-Datum mit Uhrzeit.
@@ -466,19 +472,39 @@ fn stand_aus(args: &[String], github_sha: Option<String>) -> Option<String> {
 /// der Tage ist `civil_from_days` von Howard Hinnant, eingeschränkt auf Tage
 /// ab 1970 — davor liegt keine Uhr, die hier abgelesen wird.
 fn datum_utc(sekunden: u64) -> String {
-    // ROTER STAND (#550 AC1): noch ohne Datum.
-    let _ = sekunden;
-    String::new()
+    let tage = sekunden / 86_400;
+    let rest = sekunden % 86_400;
+    let z = tage + 719_468;
+    let ara = z / 146_097;
+    let tag_der_ara = z - ara * 146_097;
+    let jahr_der_ara =
+        (tag_der_ara - tag_der_ara / 1460 + tag_der_ara / 36_524 - tag_der_ara / 146_096) / 365;
+    let tag_im_jahr = tag_der_ara - (365 * jahr_der_ara + jahr_der_ara / 4 - jahr_der_ara / 100);
+    let mp = (5 * tag_im_jahr + 2) / 153;
+    let tag = tag_im_jahr - (153 * mp + 2) / 5 + 1;
+    let monat = if mp < 10 { mp + 3 } else { mp - 9 };
+    let jahr = jahr_der_ara + ara * 400 + u64::from(monat <= 2);
+    format!(
+        "{jahr:04}-{monat:02}-{tag:02} {:02}:{:02}:{:02} UTC",
+        rest / 3600,
+        rest % 3600 / 60,
+        rest % 60
+    )
 }
 
 /// Der Bericht des Laufs ohne Schalter, Zeile für Zeile — dieselben Zeilen,
 /// die `main` druckt und der Nightly in seine Zusammenfassung schreibt.
 fn bericht(herkunft: &Herkunft, zeilen: &[Bosszeile], spielbar: &[usize]) -> Vec<String> {
-    // ROTER STAND (#550 AC1): die Ausgabe von vor dem 2026-10-29 — ohne Datum,
-    // ohne Stand, je Boss nur die Zahl.
-    let _ = herkunft;
     let mut out = vec![
-        "== Zauber-Abdeckung der ersten Instanz (Issue #550, AC5) ==".to_owned(),
+        "== Zauber-Abdeckung der ersten Instanz (Issue #550) ==".to_owned(),
+        format!("  Datum  {}", herkunft.datum),
+        format!(
+            "  Stand  {}",
+            herkunft
+                .stand
+                .as_deref()
+                .unwrap_or("unbekannt — weder --stand <commit> angegeben noch GITHUB_SHA gesetzt")
+        ),
         String::new(),
     ];
     for z in zeilen {
@@ -487,14 +513,17 @@ fn bericht(herkunft: &Herkunft, zeilen: &[Bosszeile], spielbar: &[usize]) -> Vec
         } else {
             "freie Suche"
         };
+        let best = z
+            .wert_best
+            .map_or_else(String::new, |w| format!(", von der Bestliste {w:.1}"));
         out.push(format!(
-            "  {:<10} {:>2} von {} gewirkt   {quelle:<11}  frei {:.1}, von der Bestliste {:.1}",
+            "  {:<10} {:>2} von {} gewirkt   {quelle:<11}  frei {:.1}{best}",
             z.boss,
             z.gewirkt.len(),
             spielbar.len(),
-            z.wert_frei,
-            z.wert_best.unwrap_or(0.0)
+            z.wert_frei
         ));
+        out.push(format!("  {:<10} {}", "", namen(&z.gewirkt)));
     }
     let gewirkt = irgendwo_gewirkt(zeilen, spielbar);
     out.push(String::new());
