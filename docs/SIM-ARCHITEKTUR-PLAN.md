@@ -27,6 +27,46 @@ affects:
 > `SIM-MESSUNGEN.md` ist am Bestand geschrieben. Wo eine seiner Zahlen **Teil 1** widerspricht,
 > gilt Teil 1.
 
+> **Zugeschnitten am 29.10.2026** (#891, freigegeben vom Auftraggeber). Der Plan wurde an diesem Tag
+> gegen den Masterplan zugeschnitten. **Maßgeblich für Umfang und Stand ist #891:** Dort steht für
+> jedes der 65 früheren Simulator-Issues, ob es notwendig ist, erledigt, ruht, in einem anderen
+> aufgegangen oder verworfen; widerspricht ein Abschnitt dieses Plans dem Zuschnitt, gilt #891.
+> Jeder betroffene Paket- und Epic-Abschnitt trägt den Vermerk direkt unter seiner Überschrift,
+> verworfene Abschnitte bleiben zum Nachlesen stehen, und `docs/sim-issues.json` führt dieselbe
+> Einteilung im Feld `zuschnitt`. Die Zusagen in „Was dieser Plan zusichert“ — darunter die Zielzeit
+> von zwei bis vier Stunden — stammen aus diesem Simulator-Plan, nicht aus dem Masterplan (dort läuft
+> der volle Balance-Lauf nachts „ohne Zeitdruck“), und gelten nur noch, soweit ein notwendiges Paket
+> sie trägt. Der frühere Epic-Text von #891 (E11) ist verworfen; #891 ist seither das eine Issue für
+> den Simulator.
+
+## Neue Themen aus der Umsetzung (Zuschnitt #891, Abschnitt 2)
+
+Sechs Themen hat die Umsetzung des Masterplans aufgetan, die kein früheres Paket abdeckt. Sie
+bekommen **keine Paketkennung und kein eigenes Issue**; maßgeblich ist ihr Wortlaut in #891, hier
+steht er zum Nachschlagen:
+
+- **N1** Masterplan-Ausgaben 2–4 über alle wertungsfähigen Bosse mit gesuchter Rotation — heute
+  rechnet `report.rs` nur first-crucible mit fester Liste (1 von 21 Bossen). Stufen und boss-eigene
+  Erfolge, sobald es sie im Spiel gibt.
+- **N2** Skalierungsfaktoren je Spielwert (Tempo/CATALYSIS, Kritchance/PURITY, Kritschaden/YIELD,
+  ESSENCE) — `balance::scaling` misst nur die acht Formelfaktoren; Tempo ist keiner davon,
+  Kritchance braucht Würfel.
+- **N3** Die erschöpfenden Projektionen des Masterplans: Zauber-Paare, Talent-Paare, ein
+  Referenz-Ausrüstungsstand je Schwierigkeitsstufe (Masterplan Z. 997–999). Ersetzt die
+  Projektions-Teile von #925 und #950.
+- **N4** Auslöser-Messung — der Nachtlauf gibt Wanduhr und Kampfzahl je Posten aus. An dieser Zahl
+  hängen alle ruhenden Pakete in Abschnitt 4 von #891; ohne sie würde eine Zurückstellung zur
+  stillen Streichung. Der Lauf bleibt auf `ubuntu-latest`, bis die Messung die 6-h-Grenze
+  GitHub-gehosteter Jobs erreicht; erst dann wird der Ort eine Frage.
+- **N5** Bitgleichheit node3 gegen CI einmal ablesen — `rota-sim verify --print-fingerprint`
+  desselben Commits in der CI und auf node3. Die Balance-Zahlen entstehen auf node3, Nightly und
+  Paritäts-Jobs auf `ubuntu-latest`.
+- **N6** `rota-sim verify` prüft die Strangunabhängigkeit nur ohne Würfel — für den Mehrstrangpfad
+  aus PR #1161 ist sein PASS heute einer, der nicht scheitern kann.
+
+Die meisten Auslöser ruhender Pakete setzen N4 voraus. „Masterplan-Lauf“ heißt in den Vermerken wie
+in #891 der Nachtlauf über die Masterplan-Ausgaben 1–4.
+
 ## Was dieser Plan zusichert — und was nicht
 
 **Das Ziel ist nicht Geschwindigkeit, sondern eine belastbare Balance-Aussage in bezahlbarer
@@ -1227,6 +1267,13 @@ gegeben wurde und bisher nicht gemessen wird.
 
 ### E11.0c — Die End-to-End-Kampagnenmessung
 
+> #906 · E11.0c-core — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> in der geschriebenen Form 23 Vorbedingungen und 10 Varianten; der Kern geht als N4 nach #891. Der
+> Abschnitt bleibt zum Nachlesen.
+
+> #907 · E11.0c-gpu — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> doppelt bedingt, beide Bedingungen fallen. Der Abschnitt bleibt zum Nachlesen.
+
 **Alle Faktoren dieses Plans sind Einzelmessungen.** Kernel, Cache, Suffix, Verteilung — jeder
 für sich gemessen, keiner im Zusammenspiel. **Die Zahl, die der Auftraggeber tatsächlich
 erlebt, ist eine andere:**
@@ -1239,6 +1286,10 @@ End-to-End-Beschleunigung = alte Kampagnenzeit / neue Kampagnenzeit
 Standardkampagne nicht unabnehmbar machen:
 
 #### E11.0c-core — PFLICHT
+
+> #906 · E11.0c-core — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> in der geschriebenen Form 23 Vorbedingungen und 10 Varianten; der Kern geht als N4 nach #891. Der
+> Abschnitt bleibt zum Nachlesen.
 
 ```
 Greedy-Lauf · LNS-Lauf · Standardkampagne
@@ -1277,6 +1328,9 @@ Cache kalt UND warm
 > und dass er **dieselbe** Aufgabenmenge erzeugt.
 
 #### E11.0c-gpu — BEDINGT
+
+> #907 · E11.0c-gpu — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> doppelt bedingt, beide Bedingungen fallen. Der Abschnitt bleibt zum Nachlesen.
 
 Nur wenn E13 seinen Break-even-Vertrag bestanden hat: CPU gegen GPU gegen CPU+GPU,
 GPU-Ausfall, CPU-Rückfall.
@@ -1345,6 +1399,10 @@ zuerst.
 1/50 bis 1/200 der Kampfzahl. Die Trace-Hashes aus E11.0 sind der Nachweis.
 
 ### E11.1b — Was bleibt, wenn der Krit wirklich würfelt
+
+> #915 · E11.1b — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: die gestaffelte Stichprobe
+> sprengt den Nachtlauf. Exakte Krit-Verteilung, nur AC1 · der gebaute Teil (PR #1133,
+> `--mode gestaffelt`) samt der drei Prüflücken vom 24.10. wird in #891 abgenommen.
 
 **Warum dieses Issue existiert, obwohl Maßnahme 1 den Krit heute abschafft:** `purity = 0` gilt
 für die **neutralen Faktoren** der Balance-Läufe. Sobald gegen einen realen Ausrüstungsstand
@@ -1576,6 +1634,9 @@ Größen gibt, bei denen er **nie** kippt.
 
 ### E11.3a — Der Breakpoint-Compiler: Trace-Regionen statt Stichproben
 
+> #916 · E11.3a — **Aufgegangen in #941 am 29.10.2026** (Zuschnitt #891): Trace-Regionen,
+> Vorbedingung. #941 (E12.2) ruht; der Auslöser steht in dessen Vermerk.
+
 **Was E11.3 misst, beweist E11.3a.** Für einen konkreten Trace werden alle Bedingungen
 gesammelt, die ihn erzeugt haben — Ressourcenschwellen, Bereitschaften, Brand-Restlaufzeiten,
 Ereignisreihenfolgen, Phasenschwellen:
@@ -1651,6 +1712,11 @@ der Vollkampf — bitgleich, gegen die Trace-Hashes aus E11.0.
 dem Beweisversuch, nicht nach einer Stichprobe.
 
 ### E11.4 — Inkrementelle Auswertung für Rotationsmutationen
+
+> #917 · E11.4 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: N4 zeigt, dass der
+> Masterplan-Lauf sein Fenster überschreitet, obwohl #920 steht, und Greedy-Einfügen ist der
+> Hauptanteil. Gesichert als Zweig `feat/w4-917-inkrementell` (Entscheidung „Sichern und anhalten“,
+> 29.10.).
 
 > **KORRIGIERT am 2026-08-14 nach einem Einwand von außen — und die Korrektur ist gemessen.**
 >
@@ -1827,6 +1893,10 @@ Eingabe dasselbe Ziel liefern**, geprüft über die Trace-Hashes aus E11.0.
 
 ### E11.4b — Der Evaluator-Router und der kanonische Ergebnis-Cache
 
+> #918 · E11.4b — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Speicher steht mit #913/#967, der Verteiler setzt verworfene oder ruhende Wege voraus. Der
+> Abschnitt bleibt zum Nachlesen.
+
 **Diese Ebene fehlte in der ersten Fassung, und ihr Fehlen ist der schwerwiegendste Mangel.**
 Ohne sie entstehen aus E11.1 bis E11.4 lauter Sonderpfade, die niemand zusammenführt — und
 jeder Suchlauf rechnet Kandidaten erneut, die er schon kennt.
@@ -1918,6 +1988,10 @@ eigenen Schwelle, wird er abgeschaltet, nicht der Cache insgesamt.
 
 ### E11.4c — Der Produktions-Scheduler
 
+> #919 · E11.4c — **Erledigt** (#891, Abschnitt 3): gebaut über PR #1161 (dauerhafter Strangvorrat,
+> Zähler, strang-lokaler Zustand); abzunehmen sind AC1, AC2 und AC6. AC3 (Pakete in Millisekunden),
+> AC4 (Kandidatenfenster) und AC5 (gemessene Strangzahl) entfallen.
+
 E11.0 baut eine **Messumgebung**. Wie die 16 Kerne während einer echten Suche ausgelastet
 werden, stand nirgends.
 
@@ -1977,6 +2051,12 @@ nicht „Bereichsaufteilung" steht.
 das kippen, weil dann mehr in den Cache passt.
 
 ### E11.4d — `CompiledBuild`: einmal falten statt je Kampf
+
+> #920 · E11.4d — **Zuschnitt 29.10.2026** (#891): Analytischer Krit an der Suche (Zuschnitt aus
+> E11.4d) — die zweistellige Prüfung je Aufbau × Boss einschließlich der Bossseite
+> (Lebenspunkt-Phasen, Abbruch beim Tod) auf dem gebauten `sim/src/analytisch.rs`, angeschlossen an
+> Durchgangswahl und Rotationssuche. Einziger Hebel, der den ungünstigen Endausbau-Fall allein in
+> den Nachtlauf bringt. Entfällt: AC1 (CompiledBuild-Falten), Kernelsignatur, AC5–AC7.
 
 Heute baut jeder Kampf seine Faktoren aus Talenten, Ausrüstung und Zauberdaten neu auf. Das
 gehört vor die Suche:
@@ -2117,6 +2197,10 @@ ein Feld in E11.4d.**
 
 ### E11.4f — Policy-Äquivalenz: verhaltensgleiche Rotationen einmal rechnen
 
+> #921 · E11.4f — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): die
+> eigene Messung ergab 4,8 % Gewinn, bei stillem Optimumsverlust-Risiko. Der Abschnitt bleibt zum
+> Nachlesen.
+
 **Das ist der Teil des externen Urteils, den die Messung bestätigt hat** (Anhang B.2.1). Eine
 Rotation ist eine Funktion „gültige-und-bereite Menge → gewählte Regel". Zwei Rotationen, die
 für alle **erreichbaren** Mengen dieselbe Regel wählen, sind semantisch identisch und brauchen
@@ -2194,6 +2278,10 @@ Anlässe zur Divergenz, also kleinere. Die Richtung ist **nicht** vorhersagbar �
 das Abnahmekriterium relativ formuliert und nicht als Zahl.
 
 ### E11.4e — Fortschritts-Simulation: die Schleife über dem Kampf
+
+> #922 · E11.4e — **Zuschnitt 29.10.2026** (#891): Fortschritts-Simulation — Punkte-Ausschüttung und
+> Aufwertung messen statt raten (Masterplan Z. 18–25 und 627), Fassung A. Die Kante zu #918
+> entfällt, der Ergebnisspeicher ist `speicher.rs`.
 
 **Die Frage, die dieses Issue beantwortet:** Der Simulator rechnet, was ein Ausrüstungsstand
 leistet. Er rechnet **nicht**, ob dieser Stand erreichbar ist, nach wie vielen Kämpfen, und
@@ -2332,6 +2420,11 @@ kein vollständiges Bild.
 
 ### E11.5 — Die Suche auf LNS umstellen
 
+> #923 · E11.5 — **Zuschnitt 29.10.2026** (#891): Suche auf Zerstören-und-Reparieren, darin #924
+> (nur die gekoppelten Operatoren Zauber + Talente + lokale Rotationsreparatur) und aus #944 der
+> Teil „frühere Bestlisten als Startpunkt und Gegenprobe“. AC1, AC2, AC4 von #923; das Nischenarchiv
+> (AC3, AC5, AC5b) entfällt. Reihenfolge: nach #920.
+
 Gemessen, 60 Fälle mit bekanntem Optimum:
 
 ```
@@ -2357,6 +2450,9 @@ größeren exakt lösbaren Projektionen (10–12 Kandidaten, Länge 5) — träg
 auch?
 
 ### E11.5a — Adaptive LNS: Operatoren benennen und ihr Budget messen
+
+> #924 · E11.5a — **Aufgegangen in #923 am 29.10.2026** (Zuschnitt #891): nur die gekoppelten
+> Operatoren Zauber + Talente + lokale Rotationsreparatur.
 
 „LNS" ist ein Rahmen, kein Verfahren. Was fehlt, sind die Operatoren und die Frage, wie viel
 Budget jeder bekommt.
@@ -2415,6 +2511,10 @@ und die adaptive Variante gegen feste Gleichverteilung gemessen ist. **Bringt si
 das Ergebnis die feste Gewichtung**, und die Bandit-Ebene entfällt.
 
 ### E11.5b — Exakte Löser für die Projektionen, plus ein Optimum-Orakel
+
+> #925 · E11.5b — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> bewiesene Optimalität verlangt der Masterplan nicht; die Projektionen gehen als N3 nach #891. Der
+> Abschnitt bleibt zum Nachlesen.
 
 **Die Erkenntnis, die der Plan bisher nicht ausspricht:** Verschiedene Projektionen brauchen
 verschiedene Verfahren. Ein Universal-Suchalgorithmus ist für keine davon der beste.
@@ -2553,6 +2653,9 @@ relevanten Größen schlechter sind, dürfen verworfen werden.
 
 ### E11.5d — Der exakte Prioritätslisten-Löser
 
+> #926 · E11.5d — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): steht
+> auf #925 und #921. Der Abschnitt bleibt zum Nachlesen.
+
 **Warum das freie Aktionsplan-Orakel dafür nicht genügt** — E11.5b sagt es selbst: Es optimiert
 einen **freien** Aktionsplan und ist damit nur eine **lockere** Obergrenze für eine
 Prioritätsliste. Daraus folgt:
@@ -2590,6 +2693,10 @@ ist als die des freien Plans.
 
 ### E11.5c — Boss-Active-Set: nicht jeden Kandidaten gegen 68 Bosse
 
+> #927 · E11.5c — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> höchstens 6× auf einem Teilschritt; der wertvolle Teil (AC0b) ist mit #981 gebaut. Der Abschnitt
+> bleibt zum Nachlesen.
+
 **Das ist der klarste Endausbau-Punkt des ganzen Urteils.** Der Plan sieht **68 Bosse** vor;
 der Bestand hat 17. Jeden Zwischenkandidaten gegen alle zu prüfen, wächst mit derselben Zahl,
 die das Spiel größer macht.
@@ -2622,6 +2729,11 @@ damit **innerhalb** einer Instanz — vier Bosse statt siebzehn, im Endausbau vi
 achtundsechzig. Der Einsparungspfad bleibt also, nur auf der Instanzebene.
 
 ### E11.6 — Compiler-Optimierung
+
+> #928 · E11.6 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: der Lauf überschreitet sein
+> Fenster auch nach #920; dann ist die Grundstufe (Release-Profil, `target-cpu=znver5`) der erste
+> Hebel. Bei Wiederaufnahme gehören Paritätslauf und Fingerabdruck nach dem Profilwechsel und die
+> Vertragspunkte aus #964 AC2 als Kriterium dazu.
 
 ```
 lto=fat, codegen-units=1, panic=abort
@@ -2661,6 +2773,10 @@ stille Fehlanpassung wie die Versionsdrift oben.
 identischen Trace-Hashes.
 
 ### E11.7 — AVX2, aber nur wo es homogen ist
+
+> #929 · E11.7 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> vektorisiert Arbeit, die es nicht gibt oder die der Masterplan nicht braucht; die AVX-512-Prüfung
+> hängt jetzt an #937. Der Abschnitt bleibt zum Nachlesen.
 
 **Erst nach E11.2 bis E11.4**, und mit der Korrektur des Vorschlags: `f64` heißt **4 Lanes**,
 nicht 8. Kein `std::simd` (kein nightly), sondern `std::arch::x86_64` mit
@@ -2714,6 +2830,10 @@ Parität — und die ist laut Plan Pflichttest bei jeder Änderung.
 
 ### E11.7b — `kernel_signature` muss einen Kernel auswählen, sonst ist sie ein totes Feld
 
+> #930 · E11.7b — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): 3,9 %
+> der Zyklen; dieselben Fehlsprünge greift #928 ohne Quelltextänderung an. Der Abschnitt bleibt zum
+> Nachlesen.
+
 **Ein berechtigter Befund am eigenen Plan.** E11.4d führt `kernel_signature` in `CompiledBuild`
 — aber nirgends stand, was daraus folgt. Ein Feld ohne Leser ist toter Code.
 
@@ -2742,6 +2862,9 @@ identischen Trace-Hashes — und dokumentiert ist, welche Masken monomorphisiert
 viel Codegröße das kostet.
 
 ### E11.7c — Gestufte Spezialisierung zur Laufzeit (optional)
+
+> #931 · E11.7c — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): letzte
+> Stufe einer verworfenen Kette. Der Abschnitt bleibt zum Nachlesen.
 
 Die Kernel-Spezialisierung aus E11.7b entscheidet **zur Bauzeit**. Für `StructuralKey`s, die
 millionenfach ausgewertet werden, wäre eine zweite Stufe denkbar: den Kernel zur Laufzeit
@@ -2792,6 +2915,10 @@ Kriterium.** Abgenommen wird über die **Break-even-Marge** aus E13.
 ---
 
 ### 4.4 E12 — Der Balance-Optimierer
+
+> #898 · E12 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
 
 _Bis 2026-08-14 stand E12 nur als Tabellenzeile und als Ablaufskizze in Teil 4.7. **Das war die
 größte Lücke des Plans**: E11 macht den Simulator schnell und die innere Buildsuche gut — E12
@@ -2886,6 +3013,10 @@ an einem `runaway`-Boss.
 
 #### E12.1 — Parameterdomänen: ohne sie ist das äußere Problem undefiniert
 
+> #940 · E12.1 — **Erledigt** (#891, Abschnitt 3): PR #1011 und #1014 · abgenommen 29.10. an
+> `c15b0194`: 14 von 14, zwei eigene Mutationen (AC2, AC3) rot beim Namen, Beleg im Kommentar vom
+> 29.10. zu #891.
+
 ```rust
 ParameterDomain {
     minimum, maximum, discrete_step,
@@ -2902,6 +3033,11 @@ Grund, warum die Werte-Deckel-Entscheidung (Teil 6.1) nicht nur E14 blockiert, s
 dieses Issue.
 
 #### E12.2 — Ein Parameter: exakt lösen statt suchen
+
+> #941 · E12.2 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: ein Schwellen-Sweep über die
+> 21 Bosse braucht auf node3 mehr als eine Stunde oder übersieht nachweislich einen Optimumwechsel.
+> Darin #942 (Herausforderer-Hülle) und #916 (Trace-Regionen, Vorbedingung). Bei Wiederaufnahme den
+> Festkomma-Bezug aus AC3 lösen.
 
 **Nur bei bescheinigter Monotonie** — und die kommt aus E16, nicht aus einer Annahme:
 
@@ -3010,6 +3146,9 @@ dass sie ein eigenes Issue trägt:
 
 #### E12.2b — Die parametrische Herausforderer-Hülle
 
+> #942 · E12.2b — **Aufgegangen in #941 am 29.10.2026** (Zuschnitt #891): Herausforderer-Hülle. #941
+> (E12.2) ruht; der Auslöser steht in dessen Vermerk.
+
 **Zweck:** Verhindern, dass E12.2 einen Wert als exakt zertifiziert, bei dem in Wahrheit ein
 anderes Build gewonnen hätte. Sie führt die Hülle über alle bekannten Herausforderer, hält
 `ParametricOutcome`-Vektoren statt Skalaren und ruft den inneren Löser an den Kreuzungspunkten
@@ -3035,6 +3174,9 @@ also nach wenigen Schritten, und der Regionswechsel ist der Normalfall, nicht di
 
 #### E12.3 — Mehrere gekoppelte Parameter
 
+> #943 · E12.3 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): baut
+> auf dem ruhenden #941 auf. Der Abschnitt bleibt zum Nachlesen.
+
 ```
 blockweise diskrete Trust-Region + Musterschritte
 + LNS im PARAMETERRAUM (nicht im Buildraum)
@@ -3046,16 +3188,31 @@ sobald der optimale Build wechselt — ein Gradient existiert dort nicht einmal 
 
 #### E12.4 — Warm-Start: das Archiv ist die eigentliche Investition
 
+> #944 · E12.4 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Warmstart-Archiv, ohne den Teil, der in #923 aufgeht: die übrigen Archivbestandteile haben keinen
+> Abnehmer. In #923 aufgegangen ist der Teil „frühere Bestlisten als Startpunkt und Gegenprobe“. Der
+> Abschnitt bleibt zum Nachlesen.
+
 Bei einer kleinen Parameteränderung werden **weiterverwendet**: alte Elites, Trace-Regionen,
 Boss-Active-Sets, LNS-Operatorstatistik, MAP-Elites-Archiv. Ein neuer Zauber macht Elites
 **nicht ungültig, sondern zu Warm-Starts** (E15.4).
 
 #### E12.5 — Encounter-Constraint-Generation
 
+> #945 · E12.5 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): fällt
+> mit #927 (Aktives Bossset). Der Abschnitt bleibt zum Nachlesen.
+
 Nur **verletzte** Encounter kommen ins aktive Set (E11.5c). Die Abschlussprüfung läuft immer
 gegen die **vollständige** Pflichtmenge — sonst bestätigt das Verfahren sich selbst.
 
 #### E12.6 — Viabilität: „keine Elite gefunden" ist kein Urteil
+
+> #946 · E12.6 — **Zuschnitt 29.10.2026** (#891): „Bewiesen unterlegen“ gegen „nicht gefunden“,
+> darin #953 — die Zauber-Vergleichstabelle trennt mindestens bezeugt / bewiesen dominiert / nicht
+> gefunden / ungeklärt (AC1, AC2, AC6, AC7), Beweise nur auf den erschöpfend gerechneten
+> Projektionen; aus #953 AC3 (Laufabschluss getrennt von „Vertrag verletzt“) als Zusatzzeile. Bedarf
+> belegt am 29.10.: Der Nightly meldete „Ein Zauber hat seine Nische verloren“, obwohl die frühere
+> Liste bitgleich weiterrechnet — ein Such-Befund als Balance-Befund.
 
 **Das ist die Stelle, an der ein Balance-Werkzeug am leichtesten lügt.** Ein Zauber ohne Elite
 kann fünf verschiedene Dinge bedeuten — und nur eines davon rechtfertigt, seine Zahlen zu ändern:
@@ -3117,11 +3274,18 @@ kein Lauf einen Zauber als dominiert meldet, ohne eine Schranke dafür zu haben.
 
 #### E12.7 — Der Herausforderer: gezielt nach Gegenbeispielen suchen
 
+> #947 · E12.7 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): mehr
+> Stichprobe dort, wo der Masterplan Stichprobe genügen lässt; #946 verhindert schon, dass ein Zeuge
+> als Beweis gilt. Der Abschnitt bleibt zum Nachlesen.
+
 Für jede behauptete Elite wird **gesucht, was sie schlägt** — nicht gehofft, dass nichts kommt:
 anderer Boss · andere Schwierigkeit · anderer Talentweg · andere Ausrüstungsrichtung ·
 gekoppelte Zauber-/Talent-/Gear-Mutation (E11.5a).
 
 #### E12.8 — Abschluss
+
+> #948 · E12.8 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: eine Balance-Ausgabe rechnet
+> erstmals über einen nicht-skalaren Pfad. Heute gibt es nur den skalaren.
 
 Skalarer Referenzpfad · alle Pflicht-Encounter · festes Durchgangsset oder exakte Verteilung ·
 vollständiges Zertifikat · **reproduzierbare Lauf-Kennung** (E17).
@@ -3144,6 +3308,29 @@ vollständiges Zertifikat · **reproduzierbare Lauf-Kennung** (E17).
 ### 4.5 E13 und E14 — GPU und numerischer Vertrag
 
 ### E14 — Der Werte-Deckel ist ein Leistungs-Engpass, deshalb vorziehen
+
+> #900 · E14 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
+
+> #960 · E14.1 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Festkomma-Kette (Skalierung, Überlaufbeweis, Browser-Grenze): der Auslöser verlangte den
+> verworfenen Vektorpfad #929 und kann nie eintreten. Ein künftiger Ganzzahl- oder Vektorpfad nimmt
+> die drei (#960, #961, #963) als seine Kriterien auf. Der Abschnitt bleibt zum Nachlesen.
+
+> #961 · E14.2 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Festkomma-Kette (Skalierung, Überlaufbeweis, Browser-Grenze): der Auslöser verlangte den
+> verworfenen Vektorpfad #929 und kann nie eintreten. Ein künftiger Ganzzahl- oder Vektorpfad nimmt
+> die drei (#960, #961, #963) als seine Kriterien auf. Der Abschnitt bleibt zum Nachlesen.
+
+> #963 · E14.4 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Festkomma-Kette (Skalierung, Überlaufbeweis, Browser-Grenze): der Auslöser verlangte den
+> verworfenen Vektorpfad #929 und kann nie eintreten. Ein künftiger Ganzzahl- oder Vektorpfad nimmt
+> die drei (#960, #961, #963) als seine Kriterien auf. Der Abschnitt bleibt zum Nachlesen.
+
+> #964 · E14.5 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): der
+> einzige Teil mit Bedarf, die Bitgleichheit auf node3, ist N5; die AC2-Vertragspunkte gehen an
+> #928. Der Abschnitt bleibt zum Nachlesen.
 
 **E14 hängt heute an einer Design-Entscheidung** (Werte-Deckel, Teil 6) und steht deshalb ganz
 hinten. **Das ist die falsche Reihenfolge**, denn E14 blockiert seinerseits:
@@ -3220,6 +3407,15 @@ E14.6  die Fehlergrenze der DP-Masse UND aller daraus abgeleiteten Statistiken i
 
 ### E13 — Die CUDA-Pipeline, konkretisiert
 
+> #899 · E13 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
+
+> #971 · E13.0 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: N4 zeigt, dass ein homogener
+> Teil mehr als die Hälfte der Wanduhr ausmacht und Stapel ab 50 000 Kandidaten bildet. Darin #938
+> (gemeinsame Kalibrierung). Auslöser neu; die alte Vorbedingung #906 und die verworfenen
+> Vorbedingungen gelten nicht mehr.
+
 > **Entschieden am 2026-10-28 (Auftraggeber: „NUR GPU").** Die Pipeline läuft auf der GPU des
 > Laptops, und das ist erlaubt — auf ausdrücklichen Aufruf und im zugeteilten Messfenster —, obwohl
 > seine CPU im Profil „standard" nur koordiniert. Die „Neuvergabe auf der CPU" nach einem
@@ -3271,6 +3467,9 @@ die GPU schlägt den besten CPU-Pfad um eine vorher festgelegte Mindestmarge
 
 ##### E15.0b — Gemeinsame CPU-/GPU-Kalibrierung
 
+> #938 · E15.0b — **Aufgegangen in #971 am 29.10.2026** (Zuschnitt #891): gemeinsame Kalibrierung.
+> #971 (E13.0) ruht; der Auslöser steht in dessen Vermerk.
+
 **Eine GPU-Rate allein sagt nicht, ob die GPU sich lohnt.** Auf dem Laptop teilen sich CPU,
 iGPU und dGPU ein thermisches Budget und die Speicherbandbreite — die GPU zu belasten **senkt
 den CPU-Takt**. Gemessen wird deshalb die Kombination, nicht der Summand:
@@ -3307,6 +3506,10 @@ sonst wählt der Router den SIMD-Pfad auch dort, wo das Umpacken teurer ist als 
 
 ### 4.6 E15 — Betriebsarchitektur
 
+> #904 · E15 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
+
 _Nachgetragen 2026-08-14 auf Auftrag des Auftraggebers. E11 macht den Simulator **schnell**;
 dieser Teil macht ihn **betreibbar**: drosselbar in einer geteilten Umgebung, beobachtbar
 während er läuft, erweiterbar ohne Neuberechnung, und lauffähig auf einem oder zwei Rechnern —
@@ -3321,6 +3524,9 @@ auch wenn der zweite fehlt._
 > zweite Schicht **über** dem Evaluator.
 
 ### E15.0 — Die Fähigkeitserhebung: messen statt aus Flags raten
+
+> #912 · E15.0 — **Erledigt** (#891, Abschnitt 3): abgenommen 29.10., PR #1161 (`1000c12c`), Beleg
+> im Kommentar vom 29.10. zu #891.
 
 Jede Entscheidung dieses Teils braucht dieselbe Grundlage: **Was kann dieser Rechner
 tatsächlich?**
@@ -3481,6 +3687,10 @@ wertlos. **Der Laptop wird nur bei Bedarf kalibriert:** für die Restzeit erst, 
 > Referenz als die auf 2 s verkürzte.
 
 ### E15.1 — Der Ressourcen-Balancer: drosseln ohne abzubrechen
+
+> #932 · E15.1 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: ein Lauf auf node3 bremst den
+> Bau-Dienst messbar (A,A-Kontrolle) oder trifft `memory.max`. Für die CPU gebaut und bitgleich
+> geprüft.
 
 **Die Anforderung:** Der Simulator läuft in einer geteilten Umgebung. Wird er zu gierig, muss er
 zurückweichen — **ohne den Lauf zu verlieren** und **ohne das Ergebnis zu ändern**.
@@ -3908,6 +4118,10 @@ Anzeigestrang, viermal je Sekunde.
 
 ### E15.3 — Engpasserkennung: nicht Zahlen, sondern eine Diagnose
 
+> #972 · E15.3b — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): was
+> Wert hat, baute #934; Diagnose über mehrere Rechner gibt es seit 28.10. nicht mehr. Der Abschnitt
+> bleibt zum Nachlesen.
+
 **Die Anforderung ist nicht „mehr Messwerte", sondern die Antwort auf: wo lohnt der nächste
 Umbau?**
 
@@ -4007,6 +4221,9 @@ stellt — Chunks zu groß setzen, prüfen, ob er es sagt. **Ein Wächter, der n
 ist nicht geprüft.**
 
 ### E15.4 — Was bei welcher Änderung neu gerechnet werden muss
+
+> #935 · E15.4 — **Aufgegangen in #958 am 29.10.2026** (Zuschnitt #891): Invalidierungsregeln. #958
+> (E21.7) ruht; der Auslöser steht in dessen Vermerk.
 
 **Die Kernfrage der Ausbaubarkeit.** Ohne diese Matrix ist jede Inhaltsänderung ein
 Komplettlauf — und im Endausbau ist ein Komplettlauf Stunden bis Tage.
@@ -4141,6 +4358,11 @@ leistet die Matrix. Ein Rebuild bleibt Pflicht — und weil die Datenversion in 
 wiederverwendet werden.
 
 ### E15.5 — Verteilung: 1 + n, mit Ausfall als Normalfall
+
+> #936 · E15.5 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): unter
+> „nur node3 rechnet“ ohne Bedarf; die Leistung kommt aus den Strängen von node3. Die Prüfform „2
+> Prozesse auf node3“ vom 28.10. entfällt mit, die Bitgleichheit auf node3 prüft N5. Wartet ein Lauf
+> bei Ausfall nicht mehr, gilt Abbruch und Neustart. Der Abschnitt bleibt zum Nachlesen.
 
 **Die Anforderung:** Der Lauf funktioniert auf einem Rechner. Zusatzrechner sind optional, ihr
 Ausfall ist kein Fehler, und der Nutzer kann sie einzeln ausschließen.
@@ -4307,6 +4529,9 @@ Verteilung unzulässig; mit ihm ist sie eine Betriebsfrage.
 > Größenordnungen höher als „wenige hundert".
 
 ### E15.6 — Hardware-Ausnutzung: was trägt, was nicht, und warum kein Assembler
+
+> #937 · E15.6 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: die Kernel-Rate bestimmt die
+> Laufzeit des Masterplan-Laufs. Hier hängt seit dem Verwerfen von #929 die AVX-512-Prüfung.
 
 **Der Auftrag war ausdrücklich, das genau zu prüfen — auch Assembler und eine polyglotte
 Lösung.** Die Antwort ist in beiden Fällen ein begründetes Nein, und die Begründung steht in
@@ -4633,6 +4858,20 @@ ist die Zusicherung nur eine Absicht.
 
 ### E17 — Lauf-Zustand: Pause, Absturz und Fortsetzung
 
+> #901 · E17 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
+
+> #973 · E17.0 — **Aufgegangen in #975 am 29.10.2026** (Zuschnitt #891): Manifest. #975 (E17.2)
+> ruht; der Auslöser steht in dessen Vermerk.
+
+> #974 · E17.1 — **Aufgegangen in #975 am 29.10.2026** (Zuschnitt #891): geordnetes Anhalten. #975
+> (E17.2) ruht; der Auslöser steht in dessen Vermerk.
+
+> #975 · E17.2 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: N4 zeigt einen Lauf über 4 h,
+> oder ein Lauf auf node3 bricht nachweislich ab. Darin #973 (Manifest) und #974 (geordnetes
+> Anhalten).
+
 **Was heute fehlt:** Die Steuerdatei aus E15.1 überlebt einen Neustart — aber sie enthält nur
 die **gewünschten Grenzen**, nicht den Lauf. Ein Absturz nach sechs Stunden kostet sechs
 Stunden.
@@ -4703,6 +4942,17 @@ Archiv und Operatorstatistik laden · **ab der nächsten deterministischen Epoch
 wird — und **bitgleich dasselbe Endergebnis** liefert wie ein durchgehender Lauf.
 
 ### E18 — Zwei Nicht-Simulations-Verfahren, die noch fehlen
+
+> #902 · E18 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
+
+> #976 · E18.0 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): Index
+> für ein Bauteil, das kein Paket baut. Der Abschnitt bleibt zum Nachlesen.
+
+> #977 · E18.1 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: mehr als die Hälfte der
+> Kampfzeit der Suche entfällt auf Kandidaten, die am Ende unter dem Amtsinhaber liegen. Bei
+> Wiederaufnahme die Schranke aus `ActionBoundPass` statt aus #925.
 
 **(a) Sparsame Ledger-Auswertung.** Ändert sich `spell_17.baseDamage`, wertet der Ledger heute
 **alle** Terme neu aus. Nötig sind nur die, die Zauber 17 betreffen:
@@ -4794,6 +5044,9 @@ Objective geändert
 erneut. Sie sichert nicht gegen eine offene Entscheidung, sondern gegen jede künftige.
 
 ### E20 — Ein Kommandozeilenwerkzeug, das man ohne Quelltextlektüre bedienen kann
+
+> #893 · E20 — **Erledigt** (#891, Abschnitt 3): alle vier Kind-Pakete gebaut; die Epic-Abnahme
+> „eine fremde Sitzung kann es bedienen“ steht aus.
 
 > **Anweisung des Auftraggebers, 2026-08-14:** _„der simulator soll am ende ein einfach zu
 > bedienendes CLI-Tool sein, mit guter `--help`, damit die anderen Sessions es leicht bedienen
@@ -4904,6 +5157,10 @@ einzige Abnahme in diesem Plan, die ein Mensch und kein Messwert entscheidet.
 
 ### 4.8 E21 — Laufzeitvertrag und Qualitätszertifikat
 
+> #894 · E21 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> Sammel-Issue ohne eigenen Liefergegenstand. Die Pakete des Epics tragen je einen eigenen Vermerk.
+> Der Abschnitt bleibt zum Nachlesen.
+
 _Nachgetragen 2026-08-14 aus dem vierten externen Urteil. Es trifft die Betriebsanforderung,
 um die es dem Auftraggeber eigentlich geht — und die dieser Plan bisher nicht beantwortet:_
 
@@ -4923,6 +5180,13 @@ Mindestprogramm und die Qualität eines Zwei-Stunden-Ergebnisses.
 > Ende ein **Nachweis darüber, was bewiesen und was nur gesucht wurde**.
 
 ### E21.0 — Zeitbudget und Arbeitsbudget sind zwei verschiedene Dinge
+
+> #914 · E21.0 — **Zuschnitt 29.10.2026** (#891): Rest des Laufvertrags — 10 von 14 Feldern von
+> `CampaignRunContract` haben außerhalb `kampagne.rs` keinen Leser (mission, runtime_accounting,
+> exact_obligations, interaction_coverage, minimum_niche_coverage, independent_restarts,
+> plateau_work_units, maximum_bound_gap, confidence_requirement, final_audit): entfernen. AC2 (1/2/3
+> Teilnehmer) entfällt mit #936; die Strangunabhängigkeit belegt der Prüffall
+> `jede_strangzahl_rechnet_bitgleich_wie_einer_auch_mit_wuerfel` aus PR #1161.
 
 **Ein harter Zwei-Stunden-Abbruch ist nicht reproduzierbar.** Fällt ein Zusatzrechner aus,
 werden weniger Kandidaten geprüft; wird der Laptop gedrosselt, endet der Lauf woanders. **Das
@@ -5054,6 +5318,9 @@ struct CampaignRunContract {
 
 #### E21.0b — Die Machbarkeitsprüfung: lieber melden als still weniger prüfen
 
+> #949 · E21.0b — **Erledigt** (#891, Abschnitt 3): Commit 6b2b2865 über PR #1114,
+> `docs/MACHBARKEIT.md`; Kontrollproben vom 06.09. noch nicht selbst nachgefahren.
+
 **Was passiert, wenn die Pflichtarbeit nicht ins Budget passt?** Ohne diese Prüfung tut das
 System das Naheliegende und das Falsche: Es prüft **still weniger** und meldet trotzdem
 „fertig".
@@ -5077,6 +5344,13 @@ Standardkampagne in 2 h nicht erfüllbar.
 die drei Wege nennt.
 
 ### E21.1 — Beschränkte t-Wege-Abdeckung statt „der Rest bleibt Stichprobe"
+
+> #950 · E21.1 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): ersetzt
+> eine Masterplan-Regel („Der Rest bleibt Stichprobe“); Projektionen → N3. Der Abschnitt bleibt zum
+> Nachlesen.
+
+> #951 · E21.1b — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): fällt
+> mit #950 (Wechselwirkungsabdeckung). Der Abschnitt bleibt zum Nachlesen.
 
 **Der heutige Satz „der Rest bleibt Stichprobe" ist ehrlich, aber nicht überprüfbar.** Eine
 Stichprobe kann eine Wechselwirkung systematisch verfehlen, und niemand merkt es.
@@ -5192,6 +5466,10 @@ Bedeutung.**
 
 ### E21.2 — Ein globaler Budgetverteiler, nicht nur ein Bandit je LNS-Operator
 
+> #952 · E21.2 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber):
+> beantwortet eine Betriebsfrage des Sim-Plans, keine Masterplan-Anforderung; sechs Vorbedingungen,
+> fünf ungebaut. Der Abschnitt bleibt zum Nachlesen.
+
 E11.5a verteilt Budget zwischen **Nachbarschaftsoperatoren**. Das ist die falsche Ebene für die
 Frage, die im Betrieb zählt: **Wohin gehört die nächste Stunde Rechenzeit?**
 
@@ -5247,6 +5525,12 @@ ordnet die Stufe nur die Reihenfolge — sie entscheidet nicht.
 
 ### E21.3 — Das Qualitätszertifikat: ein Lauf meldet nicht „fertig"
 
+> #953 · E21.3 — **Aufgegangen in #946 am 29.10.2026** (Zuschnitt #891): aus #953 AC3 (Laufabschluss
+> getrennt von „Vertrag verletzt“) als Zusatzzeile.
+
+> #954 · E21.3b — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: eine Masterplan-Ausgabe muss
+> über mehrere Vergleiche gestichprobt werden (setzt N1 voraus).
+
 ```
 Pflichtprojektionen vollständig          100,0 %
 Paar-Abdeckung (t=2)                     100,0 %
@@ -5289,6 +5573,10 @@ Dreier-Abdeckung und 38 offenen Zellen: ja, gezielt. Bei 100 % und 0: nein.
 
 ### E21.4 — Kampagnenprofile statt freier Parameter
 
+> #955 · E21.4 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): elf
+> Vorbedingungen; die Gate-Matrix des Masterplans leistet es schon. Der Abschnitt bleibt zum
+> Nachlesen.
+
 | Profil         |  Zielzeit | Umfang                                                                                         |
 | -------------- | --------: | ---------------------------------------------------------------------------------------------- |
 | `smoke`        |   1–5 min | Parität, Datenprüfung, wenige Referenzprojektionen                                             |
@@ -5308,6 +5596,10 @@ FEHLER  Geschätzte Laufzeit überschreitet jedes Kampagnenbudget.
 ```
 
 ### E21.5 — Was die Hardware in diesem Rahmen leisten kann
+
+> #956 · E21.5 — **Verworfen am 29.10.2026** (Zuschnitt #891, freigegeben vom Auftraggeber): eine
+> Rechnung, die im Plan steht und für keine heutige Rechnermenge mehr gilt. Der Abschnitt bleibt zum
+> Nachlesen.
 
 **Abgeleitet aus den Zielwerten dieses Plans, nicht gemessen** — der Vermerk ist Teil der
 Aussage:
@@ -5360,6 +5652,9 @@ warum eine Projektion von Stunden auf Minuten fällt.
 > hat. Sie gehören in die Planung, **nicht in einen Bericht** — und in kein Abnahmekriterium.
 
 ### E21.6 — Fortschritt exakt statt gewürfelt
+
+> #957 · E21.6 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: die Monte-Carlo-Simulation aus
+> #922 ist für die Punktekurven-Frage zu langsam.
 
 **E11.4e simuliert heute zehntausend Spielerlaufbahnen per Monte-Carlo.** Nach dem Aufbau der
 Orakel-Tabelle ist das billig — aber oft unnötig, weil die äußere Schleife **exakt lösbar** ist.
@@ -5420,6 +5715,10 @@ eine dünn besetzte Zustandsfortschreibung; für optimierbare Boss- und Anlege-E
 Markow-Entscheidungsprozess; **Monte-Carlo bleibt der Rückfall**, wenn der Zustandsraum platzt.
 
 ### E21.7 — Der dauerhafte Ergebnisspeicher: wichtiger als 10 % CPU
+
+> #958 · E21.7 — **Ruht seit 29.10.2026** (Zuschnitt #891). Auslöser: N4 zeigt einen
+> Wiederholungslauf nach kleiner Zahlenänderung ab etwa einer Stunde. Darin #935
+> (Invalidierungsregeln).
 
 **E17 sichert den Zustand _eines laufenden_ Laufs.** Was fehlt, ist die Wiederverwendung
 **über Läufe hinweg** — und im echten Arbeitsablauf ist das der größere Hebel.
