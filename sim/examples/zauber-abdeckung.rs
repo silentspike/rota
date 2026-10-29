@@ -182,14 +182,19 @@ fn erhebe(
     }
 }
 
+/// Die spielbaren Zauber als Indizes in `SPELLS` — die Grundmenge der Zahl.
+fn spielbare_zauber() -> Vec<usize> {
+    (0..rota_sim::SPELL_COUNT)
+        .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
+        .collect()
+}
+
 fn main() {
     println!("== Zauber-Abdeckung der ersten Instanz (Issue #550, AC5) ==");
     println!();
 
     let pool = all_candidates();
-    let spielbar: Vec<usize> = (0..rota_sim::SPELL_COUNT)
-        .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
-        .collect();
+    let spielbar = spielbare_zauber();
     let mut irgendwo_gewirkt: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
 
     erhebe(
@@ -489,5 +494,40 @@ fn main() {
     // Der Abbruch der Untergrenze — nach beiden Schalter-Teilen, siehe oben.
     if unterschritten {
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **Die Untergrenze hält auf dem heutigen Stand** (#550, Variante B).
+    ///
+    /// Derselbe Aufruf wie `main` ohne Schalter: `erhebe` über die vier Bosse,
+    /// ohne Ausrüstung. Er läuft hier und nicht nur im Nightly, weil der
+    /// Nightly erst am Morgen nach dem Merge rot wird — am 2026-10-28 kamen so
+    /// zwei Änderungen am Entscheidungsmodell (#1135, #1154) unbemerkt durch.
+    ///
+    /// `cargo test` baut Beispiele nur; ausgeführt wird dieser Fall von
+    /// `cargo test --all-targets` (CI-Stufe mit `--features diagnostics`).
+    #[test]
+    fn die_untergrenze_haelt_ohne_ausruestung() {
+        let pool = all_candidates();
+        let spielbar = spielbare_zauber();
+        let mut gewirkt = vec![false; rota_sim::SPELL_COUNT];
+        erhebe(&pool, &spielbar, &mut gewirkt, WornValues::none(), false);
+        let namen: Vec<&str> = spielbar
+            .iter()
+            .filter(|&&i| gewirkt[i])
+            .map(|&i| SPELLS[i].id)
+            .collect();
+        assert!(
+            namen.len() >= MINDESTENS,
+            "nur {} von {} spielbaren Zaubern ueber die vier Bosse gewirkt, erwartet mindestens \
+             {MINDESTENS}: {}",
+            namen.len(),
+            spielbar.len(),
+            namen.join(", ")
+        );
     }
 }
