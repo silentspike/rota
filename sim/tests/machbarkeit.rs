@@ -187,46 +187,86 @@ fn fehlende_pflichtrate_ist_fehler_fehlende_optionale_rate_bleibt_unbekannt() {
 
 #[test]
 fn raten_ohne_gueltigen_messbeleg_werden_zurueckgewiesen() {
-    let mut bad = Vec::new();
+    // Je Fall das Kriterium, das die Meldung nennen muss. Bis zum 29.10. hieß
+    // jede dieser Ablehnungen „ungültige oder doppelte Rate“ — auf node3 war
+    // so nicht abzulesen, dass eine stabile Messung an der Taktdrift hing.
+    let mut bad: Vec<(&str, RateModel)> = Vec::new();
     for value in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        bad.push(rate(value));
+        bad.push(("Rate nicht endlich und positiv", rate(value)));
+    }
+    for spread in [-0.1, f64::NAN, f64::INFINITY] {
+        bad.push((
+            "Streuung nicht endlich und nicht negativ",
+            RateModel {
+                spread,
+                ..rate(100.0)
+            },
+        ));
     }
     // `0.03` stand hier bis zum 28.10. als „Streuung an der Schwelle". Seitdem
     // hängt die Schwelle an der Unsicherheit des Mittels (#912): An ihr liegt
     // bei acht Abschnitten eine Streuung von `0.03 * sqrt(7)`.
     let an_der_schwelle = 0.03 * 7f64.sqrt();
-    for spread in [-0.1, an_der_schwelle, f64::NAN, f64::INFINITY] {
-        bad.push(RateModel {
-            spread,
+    bad.push((
+        "Unsicherheit des Mittels",
+        RateModel {
+            spread: an_der_schwelle,
             ..rate(100.0)
-        });
+        },
+    ));
+    bad.push((
+        "zu wenige Abschnitte: 3",
+        RateModel {
+            samples: 3,
+            ..rate(100.0)
+        },
+    ));
+    bad.push((
+        "Messdauer zu kurz: 4999 ms",
+        RateModel {
+            duration_ms: 4999,
+            ..rate(100.0)
+        },
+    ));
+    bad.push((
+        "Abbruchgrund Druck",
+        RateModel {
+            reason: Abbruchgrund::Druck,
+            ..rate(100.0)
+        },
+    ));
+    // Die Taktdrift entscheidet nicht mehr (siehe
+    // `stabile_rate_mit_taktdrift_wird_angenommen`); geprüft wird nur, ob sie
+    // ein möglicher Wert ist.
+    for drift in [f64::NAN, -0.01, f64::INFINITY] {
+        bad.push((
+            "Taktdrift nicht endlich und nicht negativ",
+            RateModel {
+                takt_drift: Some(drift),
+                ..rate(100.0)
+            },
+        ));
     }
-    bad.push(RateModel {
-        samples: 3,
-        ..rate(100.0)
-    });
-    bad.push(RateModel {
-        duration_ms: 4999,
-        ..rate(100.0)
-    });
-    bad.push(RateModel {
-        reason: Abbruchgrund::Druck,
-        ..rate(100.0)
-    });
-    bad.push(RateModel {
-        takt_drift: Some(0.11),
-        ..rate(100.0)
-    });
-    bad.push(RateModel {
-        psi_cpu: Some(f64::NAN),
-        ..rate(100.0)
-    });
-    for invalid in bad {
+    for psi in [f64::NAN, -0.5, 100.5] {
+        bad.push((
+            "PSI cpu nicht zwischen 0 und 100",
+            RateModel {
+                psi_cpu: Some(psi),
+                ..rate(100.0)
+            },
+        ));
+    }
+    for (kriterium, invalid) in bad {
         let mut profile = profile("fixture", 100.0);
         profile.raten[0].1 = invalid;
+        let error = preflight(&contract(10_000), &[work()], &[host(&profile)])
+            .expect_err(&format!("{invalid:?}"));
+        let message = error.to_string();
         assert!(
-            preflight(&contract(10_000), &[work()], &[host(&profile)]).is_err(),
-            "{invalid:?}"
+            matches!(error, FeasibilityError::InvalidInput(_))
+                && message.contains("ungültige Rate scalar_full_fight auf fixture")
+                && message.contains(kriterium),
+            "{kriterium} fehlt für {invalid:?}: {message}"
         );
     }
 }
@@ -248,6 +288,47 @@ fn stabile_rate_mit_breiter_abschnittsstreuung_wird_angenommen() {
         preflight(&contract(10_000), &[work()], &[host(&profile)]).is_ok(),
         "eine stabile Rate mit breiten Abschnitten wurde verworfen"
     );
+}
+
+#[test]
+fn stabile_rate_mit_taktdrift_wird_angenommen() {
+    // Die Kalibrierung meldet die Taktdrift und entscheidet nicht über sie
+    // (`kalibrierung.rs`, `kalibriere`): Der Takt schwankt im Leerlauf um über
+    // hundert Prozent, und was er an der Rate bewegt, steht schon in der
+    // Streuung. Entscheidung des Orchestrators vom 29.10.: Die Vorabprüfung
+    // folgt ihr. Bis dahin verwarf sie ab `TAKT_DRIFT_MAX`.
+    //
+    // Der zweite Fall ist der Messbeleg, an dem es auffiel: node3, 29.10.,
+    // `e21-0b-machbarkeit --mandatory 1000000 --target-time 1ms`, Lauf 1 von
+    // 6 — „ungültige oder doppelte Rate“ bei einer stabilen Messung.
+    let node3 = RateModel {
+        rate_per_s: 169_979.531_806,
+        spread: 0.026_107,
+        samples: 43,
+        duration_ms: 5122,
+        reason: Abbruchgrund::Stabil,
+        measured_at: 42,
+        psi_cpu: Some(0.0),
+        takt_drift: Some(0.222_755),
+    };
+    for (fall, gemessen) in [
+        (
+            "Drift 0.15",
+            RateModel {
+                takt_drift: Some(0.15),
+                ..rate(100.0)
+            },
+        ),
+        ("node3 Lauf 1", node3),
+    ] {
+        let mut profile = profile("fixture", gemessen.rate_per_s);
+        profile.raten[0].1 = gemessen;
+        let ergebnis = preflight(&contract(10_000), &[work()], &[host(&profile)]);
+        assert!(
+            ergebnis.is_ok(),
+            "{fall}: eine stabile Rate wurde wegen der Taktdrift verworfen: {ergebnis:?}"
+        );
+    }
 }
 
 #[test]
@@ -283,7 +364,13 @@ fn doppelte_hosts_und_raten_erhoehen_die_kapazitaet_nicht() {
     profile
         .raten
         .push((Arbeitsart::ScalarFullFight, rate(100.0)));
-    assert!(preflight(&contract(10_000), &[work()], &[host(&profile)]).is_err());
+    let message = preflight(&contract(10_000), &[work()], &[host(&profile)])
+        .expect_err("doppelte Rate")
+        .to_string();
+    assert!(
+        message.contains("doppelte Rate scalar_full_fight auf fixture"),
+        "{message}"
+    );
 }
 
 #[test]

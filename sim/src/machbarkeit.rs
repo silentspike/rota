@@ -8,13 +8,14 @@
 //! auf Basis der übergebenen, aktuell kompatiblen Messungen. Eine Rate gilt für
 //! den gemessenen Host-Auftrag, nicht pro Kern. Übertragung, künftige Fremdlast
 //! und die Vollständigkeit der vom Aufrufer benannten Pflichtaufträge sind hier
-//! nicht bewiesen. Der vollständige Kampagnen-Runner ist ein eigener Anschluss.
+//! nicht bewiesen. Einen Kampagnenläufer gibt es nicht; laut Zuschnitt vom
+//! 29.10. (#891) wird keiner gebaut. Entsteht doch einer, gehört der Anschluss
+//! an diese Prüfung in dessen Abnahme.
 
 use std::fmt;
 
 use crate::kalibrierung::{
     Arbeitsart, Profil, Profilschluessel, RateModel, ABSCHNITTE_MIN, MINDESTDAUER, STREUUNG_MAX,
-    TAKT_DRIFT_MAX,
 };
 use crate::kampagne::{CampaignRunContract, DeadlinePolicy, WorkUnits};
 
@@ -104,21 +105,71 @@ fn invalid(message: impl Into<String>) -> FeasibilityError {
     FeasibilityError::InvalidInput(message.into())
 }
 
-fn valid_rate(rate: &RateModel) -> bool {
-    rate.rate_per_s.is_finite()
-        && rate.rate_per_s > 0.0
-        && rate.spread.is_finite()
-        && rate.spread >= 0.0
-        && rate.unsicherheit() < STREUUNG_MAX
-        && rate.samples >= ABSCHNITTE_MIN
-        && u128::from(rate.duration_ms) >= MINDESTDAUER.as_millis()
-        && rate.reason.brauchbar()
-        && rate
-            .takt_drift
-            .is_none_or(|drift| drift.is_finite() && (0.0..=TAKT_DRIFT_MAX).contains(&drift))
-        && rate
-            .psi_cpu
-            .is_none_or(|psi| psi.is_finite() && (0.0..=100.0).contains(&psi))
+/// Welches Kriterium eine vorhandene Messung verletzt, mit dem Wert — `None`,
+/// wenn sie als Kalibrierung taugt.
+///
+/// **Die Taktdrift entscheidet nicht**, sie muss nur ein möglicher Wert sein.
+/// Die Kalibrierung meldet sie und bricht nicht an ihr ab (`kalibriere`): Der
+/// Takt schwankt im Leerlauf um über hundert Prozent, und was er an der Rate
+/// bewegt, steckt schon in der Streuung. Bis zum 29.10. verwarf diese Prüfung
+/// ab `TAKT_DRIFT_MAX` — auf node3 eine von sechs stabilen Messungen, gemeldet
+/// als „ungültige oder doppelte Rate“, ohne das Kriterium zu nennen. Beim Druck
+/// war es schon so: Geprüft wird nur, ob er ein möglicher Wert ist.
+fn rate_fehler(rate: &RateModel) -> Option<String> {
+    if !rate.rate_per_s.is_finite() || rate.rate_per_s <= 0.0 {
+        return Some(format!(
+            "Rate nicht endlich und positiv: {} je s",
+            rate.rate_per_s
+        ));
+    }
+    if !rate.spread.is_finite() || rate.spread < 0.0 {
+        return Some(format!(
+            "Streuung nicht endlich und nicht negativ: {}",
+            rate.spread
+        ));
+    }
+    if rate.samples < ABSCHNITTE_MIN {
+        return Some(format!(
+            "zu wenige Abschnitte: {}, mindestens {ABSCHNITTE_MIN}",
+            rate.samples
+        ));
+    }
+    // Ab hier endlich: Streuung endlich, mindestens zwei Abschnitte.
+    let unsicherheit = rate.unsicherheit();
+    if unsicherheit >= STREUUNG_MAX {
+        return Some(format!(
+            "Unsicherheit des Mittels {unsicherheit} nicht unter {STREUUNG_MAX} (Streuung {}, {} Abschnitte)",
+            rate.spread, rate.samples
+        ));
+    }
+    if u128::from(rate.duration_ms) < MINDESTDAUER.as_millis() {
+        return Some(format!(
+            "Messdauer zu kurz: {} ms, mindestens {} ms",
+            rate.duration_ms,
+            MINDESTDAUER.as_millis()
+        ));
+    }
+    if !rate.reason.brauchbar() {
+        return Some(format!(
+            "Abbruchgrund {:?}, verlangt ist Stabil",
+            rate.reason
+        ));
+    }
+    if let Some(drift) = rate
+        .takt_drift
+        .filter(|drift| !drift.is_finite() || *drift < 0.0)
+    {
+        return Some(format!(
+            "Taktdrift nicht endlich und nicht negativ: {drift}"
+        ));
+    }
+    if let Some(psi) = rate
+        .psi_cpu
+        .filter(|psi| !psi.is_finite() || !(0.0..=100.0).contains(psi))
+    {
+        return Some(format!("PSI cpu nicht zwischen 0 und 100: {psi}"));
+    }
+    None
 }
 
 /// Nächster größerer positiver Fließkommawert, auch bei einer Untergrenze 0.
@@ -338,9 +389,16 @@ pub fn preflight(
         }
         let mut seen_kinds = Vec::new();
         for (kind, rate) in &profile.raten {
-            if seen_kinds.contains(kind) || !valid_rate(rate) {
+            if seen_kinds.contains(kind) {
                 return Err(invalid(format!(
-                    "ungültige oder doppelte Rate {} auf {}",
+                    "doppelte Rate {} auf {}",
+                    kind.schluessel(),
+                    profile.schluessel.host
+                )));
+            }
+            if let Some(kriterium) = rate_fehler(rate) {
+                return Err(invalid(format!(
+                    "ungültige Rate {} auf {}: {kriterium}",
                     kind.schluessel(),
                     profile.schluessel.host
                 )));
