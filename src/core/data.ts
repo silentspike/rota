@@ -2687,7 +2687,51 @@ export interface InstanceDef {
    * entschieden, und Schwierigkeitsstufen gibt es im Spiel noch nicht.
    */
   readonly requires: string | null;
+  /**
+   * Ein Satz Spieltext zum Thema der Instanz (Issue #1177). Englisch; die
+   * Boss-Wahl zeigt ihn unter dem Namen.
+   */
+  readonly theme: string;
+  /**
+   * Ob Name und Thema **Arbeitsstand** sind (Freigabe des Auftraggebers vom
+   * 28.10.: „Namen und Themen als Arbeitsnamen kennzeichnen"). Wer einen Namen
+   * festlegt, setzt das Feld in den Daten auf `false`.
+   */
+  readonly workingName: boolean;
+  /**
+   * Der Prozess-Schwerpunkt: eine der fünf Schulen, `'ALL'` für alle fünf
+   * zusammen, oder `null`. Entscheidung f-instanz-prozess-schwerpunkt: erst
+   * ab Instanz 5 — die ersten vier bleiben schwerpunktfrei.
+   */
+  readonly focus: InstanceFocus | null;
+  /** Prolog, Aufstieg oder Endgame (Masterplan „Endgame-Struktur"). */
+  readonly stage: InstanceStage;
+  /**
+   * Wie viele Bosse die Instanz laut Plan trägt — 4 im Aufstieg, 6 im
+   * Endgame. **Planungsdatum**: Gebaut sind, was `data/bosses/` führt; die
+   * Kennungen der kommenden folgen `boss-<Instanz>-<Platz>`.
+   */
+  readonly plannedBosses: number;
 }
+
+/** Die Schwerpunkte, die eine Instanz tragen kann. */
+export const INSTANCE_FOCI = [
+  'CALCINATION',
+  'COAGULATION',
+  'FIXATION',
+  'PUTREFACTION',
+  'SUBLIMATION',
+  'ALL',
+] as const;
+
+/** Siehe [`INSTANCE_FOCI`]. */
+export type InstanceFocus = (typeof INSTANCE_FOCI)[number];
+
+/** Die Abschnitte des Spiels, in denen eine Instanz liegt. */
+export const INSTANCE_STAGES = ['prologue', 'ascent', 'endgame'] as const;
+
+/** Siehe [`INSTANCE_STAGES`]. */
+export type InstanceStage = (typeof INSTANCE_STAGES)[number];
 
 /**
  * Alle Instanzen, nach `order` sortiert.
@@ -2719,12 +2763,32 @@ export const INSTANCES: readonly InstanceDef[] = (() => {
           `ab 1 (src/loot/rates.ts).`,
       );
     }
+    // **Ein unbekannter Schwerpunkt bricht ab**, wie eine unbekannte
+    // Kennung oben: Ein Tippfehler („COAGULATON") hiesse sonst „kein
+    // Schwerpunkt", und die Instanz verlöre ihr Thema lautlos.
+    const focusRoh = eintrag['focus'] ?? null;
+    if (focusRoh !== null && !INSTANCE_FOCI.includes(focusRoh as InstanceFocus)) {
+      throw new Error(
+        `data/instances.json: "${id}" hat den unbekannten Schwerpunkt ${String(focusRoh)}.`,
+      );
+    }
+    const stage = eintrag['stage'] ?? 'ascent';
+    if (!INSTANCE_STAGES.includes(stage as InstanceStage)) {
+      throw new Error(
+        `data/instances.json: "${id}" liegt im unbekannten Abschnitt ${String(stage)}.`,
+      );
+    }
     alle.push({
       id,
       name: typeof eintrag['name'] === 'string' ? eintrag['name'] : id,
       number: nummer,
       order: Math.trunc(number(eintrag['order'], 0)),
       requires: typeof eintrag['requires'] === 'string' ? eintrag['requires'] : null,
+      theme: typeof eintrag['theme'] === 'string' ? eintrag['theme'] : '',
+      workingName: eintrag['workingName'] === true,
+      focus: focusRoh as InstanceFocus | null,
+      stage: stage as InstanceStage,
+      plannedBosses: Math.max(Math.trunc(number(eintrag['bosses'], 0)), 0),
     });
   }
 

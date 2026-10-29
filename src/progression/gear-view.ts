@@ -121,7 +121,12 @@ export function buildGearView(options: GearViewOptions): HTMLElement {
     const zeile = document.createElement('tr');
     zeile.className = 'gear-row';
     zeile.dataset.slot = String(slot);
-    zeile.appendChild(element('td', 'gear-slot-name', slotLabel(slot)));
+    const platzName = element('td', 'gear-slot-name', slotLabel(slot));
+    // **Der Platzname ist ein Begriff** (Issue #1177): „Phylactery" erklärt
+    // sich nicht von selbst. Die Kennung folgt `SLOT_NAMES`, mit Vorsilbe,
+    // weil „anchor" sonst den gleichnamigen Zauber träfe.
+    platzName.dataset.help = `slot-${SLOT_NAMES[slot] ?? String(slot)}`;
+    zeile.appendChild(platzName);
 
     const zelle = document.createElement('td');
     zelle.className = 'gear-choice';

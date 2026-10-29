@@ -33,6 +33,19 @@
   text-transform: uppercase;
 }
 
+/*
+ * Das Thema der Instanz (Issue #1177): ein Satz unter dem Namen. Schmal
+ * gesetzt, damit die Gruppe nicht über die Breite eines Boss-Namens
+ * hinauswächst, und so gedämpft wie die Fähigkeiten darunter.
+ */
+.boss-select-group-theme {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6f695f;
+  max-width: 30ch;
+  margin: 0 0 8px;
+}
+
 .boss-select-entry {
   font: inherit;
   text-align: left;

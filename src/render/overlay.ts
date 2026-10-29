@@ -933,6 +933,16 @@ export class Overlay {
   }
 
   /**
+   * Steht auf dem Vorbereitungs-Bildschirm schon ein Fenster (Issue #1177)?
+   *
+   * Einführung und Instanz-Text tragen beide die Klasse `intro` — dieselbe
+   * Bauart, dieselbe Geste. Ein zweites Fenster darunter wäre ein Stapel.
+   */
+  hasPreparationDialog(): boolean {
+    return this.prepare.querySelector('.intro') !== null;
+  }
+
+  /**
    * Den frisch freigeschalteten Archiv-Eintrag zeigen (Issue #85, AC1).
    *
    * **An `result` und nicht an `prepare`** — das ist der ganze Unterschied zur

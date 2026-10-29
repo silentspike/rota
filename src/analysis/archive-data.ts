@@ -1,53 +1,73 @@
 /**
- * Die Archiv-Einträge aus den Daten (Issue #85).
+ * Die Archiv-Einträge aus den Daten (Issue #85, Katalog seit #1177).
  *
- * # Warum hier heute nur Prüfeinträge stehen
+ * # Zwei Dateien, zwei Wege
  *
- * Die ~150 echten Texte sind ausdrücklich **E10**. Der Issue sagt es wörtlich
- * („Die ~150 Archiv-Texte selbst gehören zu E10 — hier entsteht nur die
- * Ansicht"), und GAME-DESIGN Zeile 2620 führt sie in der Tabelle der offenen
- * Inhalte unter E10. Was hier entsteht, ist die Leitung: von den Daten über
- * den Spielstand bis in die Ansicht.
+ * ```text
+ *   data/archive/archive.json        der Katalog — geht an den Spieler
+ *   data/archive/test-entries.json   Prüfeinträge — nur im Entwicklungs-Bau
+ * ```
  *
- * # Die Trennung liegt am Präfix und ist gemessen
+ * Bis #1177 gab es nur die zweite Datei, und das Spiel las sie: Nach dem
+ * ersten Sieg über den Prolog-Boss stand beim Spieler ein Fenster „Test Entry
+ * — Prologue Victory". Die Trennung über das Präfix `test-` filterte zwar die
+ * ausgelieferte Liste, aber Aufzeichnung und Ansicht nahmen die ungefilterte.
  *
- * `test-*` fällt aus dem ausgelieferten Stand heraus, alles andere bleibt
- * drin. Dieselbe Konvention wie bei `test-cast` (#304), `test-buff` (#420) und
- * `test-channel` (#323) — dort über `unlockLevel: 101`, hier über die Kennung,
- * weil ein Archiv-Eintrag keine Stufe hat.
+ * # Die Prüfeinträge fallen aus dem Auslieferungs-Bau heraus
  *
- * **Warum überhaupt getrennt und nicht einfach weggelassen:** Ohne Einträge
- * lässt sich die Ansicht nicht prüfen — weder dass sie gliedert, noch dass ein
- * Eintrag beim ersten Sieg erscheint und beim zweiten nicht mehr. Mit ihnen im
- * ausgelieferten Stand stünde Prüftext im Spiel.
+ * Hinter `__ROTA_DEVTOOLS__`, wie die Entwicklungs-Werkzeuge (GAME-DESIGN
+ * 19.3): In der Auslieferung ersetzt Vite die Konstante durch `false`, der
+ * Zweig fällt weg, und mit ihm der einzige Leser der Prüfdatei — sie landet
+ * nicht im Bündel. Geprüft wird das am gebauten Stand, nicht hier:
+ * `tools/auslieferung-pruefdaten.py` sucht ihre Texte in `dist/`, im CI-Job
+ * „build" nach jedem Bau.
  */
 
-import rawEntries from '../../data/archive/test-entries.json';
-import { ARCHIVE_TRIGGERS, ARCHIVE_VOICES, type ArchiveEntry } from './archive.js';
+import rawCatalog from '../../data/archive/archive.json';
+import rawTestEntries from '../../data/archive/test-entries.json';
+import {
+  ARCHIVE_OUTCOMES,
+  ARCHIVE_TRIGGERS,
+  ARCHIVE_VOICES,
+  type ArchiveEntry,
+  type ArchiveOutcome,
+} from './archive.js';
 
 /** Woran ein Prüfeintrag erkannt wird. */
 const TEST_PREFIX = 'test-';
 
 /**
- * Alle Einträge, auch die Prüfeinträge.
+ * Die Einträge, die der Spieler sehen kann: der Katalog.
  *
- * Für Prüffälle und die Ansicht im Entwicklungs-Bau. Das Spiel nimmt
- * [`PLAYABLE_ARCHIVE_ENTRIES`].
+ * Aufzeichnung (`recordRun`), Boss-Wahl und Archiv-Ansicht lesen diese Liste
+ * und keine andere.
  */
-export const ALL_ARCHIVE_ENTRIES: readonly ArchiveEntry[] = parseEntries(
-  (rawEntries as { entries?: unknown }).entries,
-);
+export const PLAYABLE_ARCHIVE_ENTRIES: readonly ArchiveEntry[] = parseEntries(
+  (rawCatalog as { entries?: unknown }).entries,
+  'data/archive/archive.json',
+).filter((entry) => !entry.id.startsWith(TEST_PREFIX));
 
 /**
- * Die Einträge, die der Spieler sehen kann.
+ * Die Prüfeinträge — im Entwicklungs-Bau und in den Prüffällen, sonst leer.
  *
- * Heute ist die Liste **leer**, und das ist kein Fehler: Es gibt noch keinen
- * Katalog-Inhalt. Sobald E10 ihn liefert, füllt sie sich von selbst — ohne
- * dass hier eine Zeile geändert werden muss.
+ * Für Prüffälle, die alle vier Stimmen in kleinem Massstab brauchen. Das
+ * Spiel liest sie nicht — auch im Entwicklungs-Bau nicht, sonst stünde dort
+ * nach dem zweiten Sieg über den Prolog-Boss wieder ein Prüftext.
  */
-export const PLAYABLE_ARCHIVE_ENTRIES: readonly ArchiveEntry[] = ALL_ARCHIVE_ENTRIES.filter(
-  (entry) => !entry.id.startsWith(TEST_PREFIX),
-);
+export const TEST_ARCHIVE_ENTRIES: readonly ArchiveEntry[] = __ROTA_DEVTOOLS__
+  ? parseEntries(
+      (rawTestEntries as { entries?: unknown }).entries,
+      'data/archive/test-entries.json',
+    )
+  : [];
+
+/** Welches Feld ein Auslöser zusätzlich verlangt — sonst erschiene er nie. */
+function pflichtfeld(trigger: string): string | null {
+  if (trigger === 'afterFirstKill') return 'bossId';
+  if (trigger === 'spellLearned') return 'spellId';
+  if (trigger === 'schoolLearned') return 'school';
+  return null;
+}
 
 /**
  * Prüft und übersetzt die rohen Einträge.
@@ -59,9 +79,9 @@ export const PLAYABLE_ARCHIVE_ENTRIES: readonly ArchiveEntry[] = ALL_ARCHIVE_ENT
  * Fall gleich mit. Gemessen an `parseSets` (#780) und `comparisonForResult`
  * (#82): zweimal dieselbe Lehre.
  */
-export function parseEntries(roh: unknown): ArchiveEntry[] {
+export function parseEntries(roh: unknown, datei = 'data/archive'): ArchiveEntry[] {
   if (!Array.isArray(roh)) {
-    throw new Error('data/archive/test-entries.json: "entries" fehlt oder ist keine Liste');
+    throw new Error(`${datei}: "entries" fehlt oder ist keine Liste`);
   }
   const vergeben = new Set<string>();
   return roh.map((eintrag) => {
@@ -87,17 +107,36 @@ export function parseEntries(roh: unknown): ArchiveEntry[] {
     if (!ARCHIVE_VOICES.includes(voice as (typeof ARCHIVE_VOICES)[number])) {
       throw new Error(`data/archive: "${id}" hat die unbekannte Stimme ${String(voice)}`);
     }
+    // **Die Instanz brauchen nur die zwei Auslöser, die an einer hängen.**
+    // Die übrigen stehen in ihrem Kapitel (`ARCHIVE_CHAPTERS`); für sie wäre
+    // eine Pflicht-Instanz eine erfundene Zuordnung.
     const instanceId = typeof e['instanceId'] === 'string' ? e['instanceId'] : '';
-    if (instanceId === '') {
+    const anInstanz = trigger === 'beforeInstance' || trigger === 'afterFirstKill';
+    if (anInstanz && instanceId === '') {
       throw new Error(`data/archive: "${id}" nennt keine Instanz — die Ansicht gliedert danach`);
     }
-    // **Ein `afterFirstKill` ohne Boss erschiene nie.** `nextAutomaticEntry`
-    // vergleicht `entry.bossId` mit dem gefallenen Boss; ohne Kennung trifft
-    // der Vergleich nie zu, und der Eintrag bliebe für immer verborgen — ohne
-    // Fehler, ohne Hinweis.
-    const bossId = typeof e['bossId'] === 'string' ? e['bossId'] : '';
-    if (trigger === 'afterFirstKill' && bossId === '') {
-      throw new Error(`data/archive: "${id}" löst nach einem Sieg aus, nennt aber keinen Boss`);
+    // **Ein Auslöser ohne sein Feld erschiene nie.** `nextAutomaticEntry`
+    // vergleicht `entry.bossId` mit dem gefallenen Boss, `discoveredEntries`
+    // den Zauber und die Schule; ohne Kennung trifft der Vergleich nie zu, und
+    // der Eintrag bliebe für immer verborgen — ohne Fehler, ohne Hinweis.
+    const feld = pflichtfeld(String(trigger));
+    if (feld !== null && (typeof e[feld] !== 'string' || e[feld] === '')) {
+      throw new Error(
+        trigger === 'afterFirstKill'
+          ? `data/archive: "${id}" löst nach einem Sieg aus, nennt aber keinen Boss`
+          : `data/archive: "${id}" löst bei ${String(trigger)} aus, nennt aber kein ${feld}`,
+      );
+    }
+    const setId = e['setId'];
+    if (trigger === 'setFound' && (typeof setId !== 'number' || !Number.isInteger(setId))) {
+      throw new Error(`data/archive: "${id}" löst bei einem Satz aus, nennt aber keinen`);
+    }
+    const outcome = e['outcome'];
+    if (
+      trigger === 'firstOutcome' &&
+      !ARCHIVE_OUTCOMES.includes(outcome as (typeof ARCHIVE_OUTCOMES)[number])
+    ) {
+      throw new Error(`data/archive: "${id}" hat den unbekannten Ausgang ${String(outcome)}`);
     }
     const title = typeof e['title'] === 'string' ? e['title'] : '';
     const body = typeof e['body'] === 'string' ? e['body'] : '';
@@ -105,14 +144,19 @@ export function parseEntries(roh: unknown): ArchiveEntry[] {
       throw new Error(`data/archive: "${id}" hat keinen Titel oder keinen Text`);
     }
 
+    const text = (name: string): string => (typeof e[name] === 'string' ? (e[name] as string) : '');
     return {
       id,
-      instanceId,
       trigger: trigger as ArchiveEntry['trigger'],
       voice: voice as ArchiveEntry['voice'],
       title,
       body,
-      ...(bossId === '' ? {} : { bossId }),
+      ...(instanceId === '' ? {} : { instanceId }),
+      ...(text('bossId') === '' ? {} : { bossId: text('bossId') }),
+      ...(text('spellId') === '' ? {} : { spellId: text('spellId') }),
+      ...(text('school') === '' ? {} : { school: text('school') }),
+      ...(trigger === 'setFound' ? { setId: setId as number } : {}),
+      ...(trigger === 'firstOutcome' ? { outcome: outcome as ArchiveOutcome } : {}),
     };
   });
 }

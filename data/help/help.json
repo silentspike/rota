@@ -1,0 +1,942 @@
+{
+  "schema": 1,
+  "_comment": "DER HILFE-KATALOG (Issue #1177, Abschnitt 5 \"Hilfe und Einfuehrung\"). Masterplan Hilfe-System, Auflage des Auftraggebers: die Begriffe sind erklaerungsbeduerftig. Drei Bausteine: Erklaerfenster bei Beruehrung (entries), gefuehrte Einfuehrung (introductions), Klartext neben dem Fachbegriff (src/analysis/help.ts). Ein Nachschlagewerk im Menue ist ausdruecklich verworfen.\n\nDIE KENNUNG IST DIE KUPPLUNG: `data-help` an Wert, Schule, Zauber und Boss-Faehigkeit traegt genau die Kennung, unter der hier der Eintrag steht (Werte klein, Schulen gross, Zauber ihre Kennung, Boss-Faehigkeiten ihr Anzeigename). tests/unit/hilfe-abdeckung.test.ts baut die Ansichten mit dem ganzen ausgelieferten Inhalt und haelt jedes gesetzte `data-help` gegen diese Datei — die Liste kommt aus dem Code, nicht von Hand.\n\nKEINE ZAHLEN IN DEN ZAUBER-TEXTEN: Die Werte eines Zaubers (Abklingzeit, Schaden, Betraege) erzeugt src/analysis/help-values.ts aus den Zauberdaten. Hier stuende sonst eine zweite Quelle, die nach der naechsten Balance-Messung falsch waere.\n\nDIE TEXTE SAGEN, WAS ETWAS TUT — NIE, WANN MAN ES BENUTZEN SOLLTE (GAME-DESIGN 21.2; tests/unit/help.test.ts haelt die verbotenen Woerter auch gegen diese Datei).\n\nDIE EINFUEHRUNGEN erscheinen auf dem Vorbereitungs-Bildschirm, hoechstens eine je Besuch, und nie beim allerersten Start (Masterplan Einstieg: kein Vorspann, dort steht nur \"Press Q\"). Welche faellig ist, entscheidet src/analysis/introduction-triggers.ts aus Boss, Leiste und Spielstand.\n\nDIE PRUEFEINTRAEGE stehen getrennt in test-help.json und gelangen nicht in den Auslieferungs-Bau. Spieltexte englisch (Design-Gesetz 5).",
+  "entries": [
+    {
+      "id": "essence",
+      "subject": "stat",
+      "title": "ESSENCE",
+      "effect": "The strength of the substance. Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "vessel",
+      "subject": "stat",
+      "title": "VESSEL",
+      "effect": "How much the vessel endures. Damage that gets through empties it; when it is empty, the run ends."
+    },
+    {
+      "id": "ward",
+      "subject": "stat",
+      "title": "WARD",
+      "effect": "Protection against backlash. Reduces the damage that reaches you. The reduction stops at 75 %."
+    },
+    {
+      "id": "catalysis",
+      "subject": "stat",
+      "title": "CATALYSIS",
+      "effect": "Speeds up reactions. Shortens every cooldown, every cast time and the gap between the ticks of a damage-over-time effect. The global cooldown is not affected."
+    },
+    {
+      "id": "purity",
+      "subject": "stat",
+      "title": "PURITY",
+      "effect": "The chance that a spell, a tick or a heal is critical. Above 100 % it has no further effect."
+    },
+    {
+      "id": "yield",
+      "subject": "stat",
+      "title": "YIELD",
+      "effect": "How much stronger a critical result is. It has no limit."
+    },
+    {
+      "id": "CALCINATION",
+      "subject": "school",
+      "title": "CALCINATION",
+      "effect": "Damage that builds up. Its spells gather HEAT, which drains slowly when nothing feeds it. Its spenders release all of the heat in one strike, harder the more there is.",
+      "synergies": "Burning effects keep working while other spells are cast. PUTREFACTION raises the damage each strike does."
+    },
+    {
+      "id": "COAGULATION",
+      "subject": "school",
+      "title": "COAGULATION",
+      "effect": "Survival, in three ways: shields that absorb blows, heals that restore what was lost, and conversions that turn part of the damage you deal into shield.",
+      "synergies": "Shields and heals also push back a reaction that runs away. TEMPER clears some taints."
+    },
+    {
+      "id": "FIXATION",
+      "subject": "school",
+      "title": "FIXATION",
+      "effect": "Control over the target. Its binding strikes gather CONTROL, which never drains. Its spenders use it to slow a cast, delay the next strike or hold back the next phase.",
+      "synergies": "PIN makes the next boss cast breakable by QUENCH. WEDGE turns control into damage."
+    },
+    {
+      "id": "PUTREFACTION",
+      "subject": "school",
+      "title": "PUTREFACTION",
+      "effect": "Weakens the target. Its spells lay DECAY: every stack makes the target take more damage from all sources. Stacks fade one by one and have a limit.",
+      "synergies": "Raises the damage of every other school. DECAY, the spell, turns the stacks against the target's own strikes."
+    },
+    {
+      "id": "SUBLIMATION",
+      "subject": "school",
+      "title": "SUBLIMATION",
+      "effect": "Works on the cooldowns themselves: shortens every cooldown still running, resets a chosen spell, or frees the next spell from the global cooldown. It deals little damage of its own.",
+      "synergies": "Brings the strongest spells of every school round again sooner."
+    },
+    {
+      "id": "school-independent",
+      "subject": "school",
+      "title": "School-independent",
+      "effect": "Spells that belong to no school. They feed no school's meter, and every alchemist knows them from the start."
+    },
+    {
+      "id": "kindle",
+      "subject": "spell",
+      "title": "Kindle",
+      "effect": "Strikes and builds heat."
+    },
+    {
+      "id": "smoulder",
+      "subject": "spell",
+      "title": "Smoulder",
+      "effect": "Burns the target over time. Every tick builds heat. Recast while it burns, it starts over and the time left is lost."
+    },
+    {
+      "id": "pyre",
+      "subject": "spell",
+      "title": "Pyre",
+      "effect": "Spends all heat and strikes with it. From the bonus threshold upward, every point of heat counts double."
+    },
+    {
+      "id": "bellows",
+      "subject": "spell",
+      "title": "Bellows",
+      "effect": "Strikes lightly and builds a lot of heat."
+    },
+    {
+      "id": "searing",
+      "subject": "spell",
+      "title": "Searing",
+      "effect": "A short, hot burn over time. Every tick builds heat. Recast while it burns, it starts over."
+    },
+    {
+      "id": "cinder",
+      "subject": "spell",
+      "title": "Cinder",
+      "effect": "A brief burn with quick ticks. Every tick builds heat."
+    },
+    {
+      "id": "slag",
+      "subject": "spell",
+      "title": "Slag",
+      "effect": "Raises the heat limit for a few global cooldowns."
+    },
+    {
+      "id": "ember",
+      "subject": "spell",
+      "title": "Ember",
+      "effect": "No damage. Builds heat and lengthens every burn already running by one tick."
+    },
+    {
+      "id": "pyroclasm",
+      "subject": "spell",
+      "title": "Pyroclasm",
+      "effect": "Spends all heat and every burn still running, and strikes with all of it at once."
+    },
+    {
+      "id": "flashpoint",
+      "subject": "spell",
+      "title": "Flashpoint",
+      "effect": "Doubles the heat gained for a few global cooldowns."
+    },
+    {
+      "id": "crust",
+      "subject": "spell",
+      "title": "Crust",
+      "effect": "Lays a shield that absorbs damage. Several can lie at once."
+    },
+    {
+      "id": "salve",
+      "subject": "spell",
+      "title": "Salve",
+      "effect": "Heals at once."
+    },
+    {
+      "id": "temper",
+      "subject": "spell",
+      "title": "Temper",
+      "effect": "For a while, part of the damage you deal turns into shield. Clears some taints."
+    },
+    {
+      "id": "scab",
+      "subject": "spell",
+      "title": "Scab",
+      "effect": "Strikes lightly and lays a small shield. Several can lie at once."
+    },
+    {
+      "id": "plate",
+      "subject": "spell",
+      "title": "Plate",
+      "effect": "Lays one heavy shield. A second plate replaces the first."
+    },
+    {
+      "id": "harden",
+      "subject": "spell",
+      "title": "Harden",
+      "effect": "Lengthens the shields already lying on you."
+    },
+    {
+      "id": "quicksilver",
+      "subject": "spell",
+      "title": "Quicksilver",
+      "effect": "Doubles the share of damage turned into shield for a few global cooldowns."
+    },
+    {
+      "id": "poultice",
+      "subject": "spell",
+      "title": "Poultice",
+      "effect": "Heals over several seconds, a little at each tick."
+    },
+    {
+      "id": "decoction",
+      "subject": "spell",
+      "title": "Decoction",
+      "effect": "A channelled working: deals its damage in steps while it draws."
+    },
+    {
+      "id": "mend",
+      "subject": "spell",
+      "title": "Mend",
+      "effect": "Heals, and heals more the more of your vessel is missing."
+    },
+    {
+      "id": "suture",
+      "subject": "spell",
+      "title": "Suture",
+      "effect": "Heals, and turns the shields lying on you into further healing."
+    },
+    {
+      "id": "riposte",
+      "subject": "spell",
+      "title": "Riposte",
+      "effect": "For a while, part of the damage that reaches you is dealt back to the target."
+    },
+    {
+      "id": "crucible-skin",
+      "subject": "spell",
+      "title": "Crucible Skin",
+      "effect": "Lays a shield, heals, and turns part of the damage you deal into shield, all at once."
+    },
+    {
+      "id": "quench",
+      "subject": "spell",
+      "title": "Quench",
+      "effect": "Breaks the target's cast while it runs. Clears some taints. Triggers no global cooldown."
+    },
+    {
+      "id": "purge",
+      "subject": "spell",
+      "title": "Purge",
+      "effect": "Lowers a rising DOOM counter, using one CLEANSE charge. Charges return over time."
+    },
+    {
+      "id": "bind",
+      "subject": "spell",
+      "title": "Bind",
+      "effect": "Strikes and gathers control."
+    },
+    {
+      "id": "stall",
+      "subject": "spell",
+      "title": "Stall",
+      "effect": "Spends control to slow the cast the target is working on."
+    },
+    {
+      "id": "stay",
+      "subject": "spell",
+      "title": "Stay",
+      "effect": "Spends control to push the target's next strike further off. Only the next one moves."
+    },
+    {
+      "id": "anchor",
+      "subject": "spell",
+      "title": "Anchor",
+      "effect": "Spends control to hold back the target's next phase change for a while."
+    },
+    {
+      "id": "wedge",
+      "subject": "spell",
+      "title": "Wedge",
+      "effect": "Spends control and turns it into damage."
+    },
+    {
+      "id": "tether",
+      "subject": "spell",
+      "title": "Tether",
+      "effect": "Strikes and gathers control."
+    },
+    {
+      "id": "capstone",
+      "subject": "spell",
+      "title": "Capstone",
+      "effect": "Spends control on all three at once: slows the cast, delays the next strike and holds back the next phase."
+    },
+    {
+      "id": "clasp",
+      "subject": "spell",
+      "title": "Clasp",
+      "effect": "Strikes and gathers a little control."
+    },
+    {
+      "id": "latch",
+      "subject": "spell",
+      "title": "Latch",
+      "effect": "Spends control to push the target's next strike further off. Only the next one moves."
+    },
+    {
+      "id": "griplock",
+      "subject": "spell",
+      "title": "Griplock",
+      "effect": "Doubles the control gathered for a few global cooldowns."
+    },
+    {
+      "id": "pin",
+      "subject": "spell",
+      "title": "Pin",
+      "effect": "Spends control to make the target's next cast breakable, even one that otherwise could not be broken."
+    },
+    {
+      "id": "canker",
+      "subject": "spell",
+      "title": "Canker",
+      "effect": "Strikes, lays decay and opens a short window in which Fester strikes harder."
+    },
+    {
+      "id": "fester",
+      "subject": "spell",
+      "title": "Fester",
+      "effect": "Strikes harder for every stack of decay on the target."
+    },
+    {
+      "id": "blight",
+      "subject": "spell",
+      "title": "Blight",
+      "effect": "Strikes lightly and lays decay."
+    },
+    {
+      "id": "rot",
+      "subject": "spell",
+      "title": "Rot",
+      "effect": "A short effect over time. Every tick lays decay."
+    },
+    {
+      "id": "sepsis",
+      "subject": "spell",
+      "title": "Sepsis",
+      "effect": "Lengthens every stack of decay already on the target by the same span."
+    },
+    {
+      "id": "virulence",
+      "subject": "spell",
+      "title": "Virulence",
+      "effect": "Doubles the decay laid for a few global cooldowns."
+    },
+    {
+      "id": "miasma",
+      "subject": "spell",
+      "title": "Miasma",
+      "effect": "Strikes harder for every stack of decay on the target. Lays none itself."
+    },
+    {
+      "id": "necrosis",
+      "subject": "spell",
+      "title": "Necrosis",
+      "effect": "Strikes with every stack of decay at once and clears them all."
+    },
+    {
+      "id": "decay",
+      "subject": "spell",
+      "title": "Decay",
+      "effect": "For a while the target deals less damage, a little less for every stack of decay it carries."
+    },
+    {
+      "id": "putrid-bloom",
+      "subject": "spell",
+      "title": "Putrid Bloom",
+      "effect": "Raises the limit of decay stacks for a while."
+    },
+    {
+      "id": "vapour",
+      "subject": "spell",
+      "title": "Vapour",
+      "effect": "No damage. Shortens every cooldown still running."
+    },
+    {
+      "id": "reflux",
+      "subject": "spell",
+      "title": "Reflux",
+      "effect": "Choose a spell to reset: the next spell key you press is made ready again."
+    },
+    {
+      "id": "wisp",
+      "subject": "spell",
+      "title": "Wisp",
+      "effect": "Strikes lightly and shortens every cooldown still running."
+    },
+    {
+      "id": "alembic",
+      "subject": "spell",
+      "title": "Alembic",
+      "effect": "Choose a spell to reset, twice: two spell keys in turn are made ready again."
+    },
+    {
+      "id": "ascend",
+      "subject": "spell",
+      "title": "Ascend",
+      "effect": "Makes every cooldown that is nearly over ready at once. Long cooldowns stay as they are."
+    },
+    {
+      "id": "decant",
+      "subject": "spell",
+      "title": "Decant",
+      "effect": "Strikes lightly and shortens the single longest cooldown still running."
+    },
+    {
+      "id": "efflux",
+      "subject": "spell",
+      "title": "Efflux",
+      "effect": "Turns the cooldown time still running on your spells into damage."
+    },
+    {
+      "id": "distil",
+      "subject": "spell",
+      "title": "Distil",
+      "effect": "Doubles every cooldown shortening for a few global cooldowns."
+    },
+    {
+      "id": "aether",
+      "subject": "spell",
+      "title": "Aether",
+      "effect": "Doubles every cooldown shortening for a long stretch of global cooldowns."
+    },
+    {
+      "id": "sublime",
+      "subject": "spell",
+      "title": "Sublime",
+      "effect": "The next spell you cast triggers no global cooldown."
+    },
+    {
+      "id": "condense",
+      "subject": "spell",
+      "title": "Condense",
+      "effect": "The next spell you cast works twice, in full."
+    },
+    {
+      "id": "retort",
+      "subject": "spell",
+      "title": "Retort",
+      "effect": "Gives back the global cooldown that a cast broken by the target had cost."
+    },
+    {
+      "id": "Kindling Roar",
+      "subject": "bossAbility",
+      "title": "Kindling Roar",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full. Each time the sequence comes round, the bar is shorter."
+    },
+    {
+      "id": "Fusion Call",
+      "subject": "bossAbility",
+      "title": "Fusion Call",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full."
+    },
+    {
+      "id": "Sealing Chant",
+      "subject": "bossAbility",
+      "title": "Sealing Chant",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full. Where the target carries a mending, a completed chant takes back part of your progress."
+    },
+    {
+      "id": "Collapse",
+      "subject": "bossAbility",
+      "title": "Collapse",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full. A heavy blow, if it completes."
+    },
+    {
+      "id": "Accelerate",
+      "subject": "bossAbility",
+      "title": "Accelerate",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full."
+    },
+    {
+      "id": "Cinder Bloom",
+      "subject": "bossAbility",
+      "title": "Cinder Bloom",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full."
+    },
+    {
+      "id": "Final Seal",
+      "subject": "bossAbility",
+      "title": "Final Seal",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full. A long cast and a heavy one."
+    },
+    {
+      "id": "Quickening Chant",
+      "subject": "bossAbility",
+      "title": "Quickening Chant",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full. Each time the sequence comes round, the bar is shorter."
+    },
+    {
+      "id": "Last Reckoning",
+      "subject": "bossAbility",
+      "title": "Last Reckoning",
+      "effect": "A cast with a visible bar. QUENCH breaks it while the bar runs, and FIXATION can slow it. If it completes, it lands in full. Only begins once the target has reached its last phase."
+    },
+    {
+      "id": "Backlash",
+      "subject": "bossAbility",
+      "title": "Backlash",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Cinder Sweep",
+      "subject": "bossAbility",
+      "title": "Cinder Sweep",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off. One of its sweeps only comes once the target has changed phase."
+    },
+    {
+      "id": "Blight Wash",
+      "subject": "bossAbility",
+      "title": "Blight Wash",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Miasma",
+      "subject": "bossAbility",
+      "title": "Miasma",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Cinder Rain",
+      "subject": "bossAbility",
+      "title": "Cinder Rain",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Surge",
+      "subject": "bossAbility",
+      "title": "Surge",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Fracture",
+      "subject": "bossAbility",
+      "title": "Fracture",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Molten Lash",
+      "subject": "bossAbility",
+      "title": "Molten Lash",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Backdraft",
+      "subject": "bossAbility",
+      "title": "Backdraft",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Chant",
+      "subject": "bossAbility",
+      "title": "Chant",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Seal Break",
+      "subject": "bossAbility",
+      "title": "Seal Break",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off. The first one only comes once the target has changed phase."
+    },
+    {
+      "id": "Brittle Lash",
+      "subject": "bossAbility",
+      "title": "Brittle Lash",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Vent",
+      "subject": "bossAbility",
+      "title": "Vent",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Cinder Choir",
+      "subject": "bossAbility",
+      "title": "Cinder Choir",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Ash Fall",
+      "subject": "bossAbility",
+      "title": "Ash Fall",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Sour Draught",
+      "subject": "bossAbility",
+      "title": "Sour Draught",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Settling Ash",
+      "subject": "bossAbility",
+      "title": "Settling Ash",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Slippage",
+      "subject": "bossAbility",
+      "title": "Slippage",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Toll",
+      "subject": "bossAbility",
+      "title": "Toll",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off."
+    },
+    {
+      "id": "Culmination",
+      "subject": "bossAbility",
+      "title": "Culmination",
+      "effect": "A strike that lands at once, with no bar to break. Shields absorb it and WARD reduces it; FIXATION can push the next one further off. Only comes once the target has changed phase."
+    },
+    {
+      "id": "calcination-trunk",
+      "subject": "talent",
+      "title": "Kindled Core",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "calcination-build",
+      "subject": "talent",
+      "title": "Faster Buildup",
+      "effect": "CALCINATION spells build heat faster."
+    },
+    {
+      "id": "calcination-release",
+      "subject": "talent",
+      "title": "Harder Release",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "calcination-hold",
+      "subject": "talent",
+      "title": "Longer Hold",
+      "effect": "Effects over time last longer, so a burn ticks more often until it ends."
+    },
+    {
+      "id": "calcination-keystone",
+      "subject": "talent",
+      "title": "Split Release",
+      "effect": "Changes how a heat spender works: it strikes twice, each time with half of the heat. An odd point stays."
+    },
+    {
+      "id": "fixation-trunk",
+      "subject": "talent",
+      "title": "Fixed Point",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "fixation-build",
+      "subject": "talent",
+      "title": "Faster Buildup",
+      "effect": "FIXATION spells gather control faster."
+    },
+    {
+      "id": "fixation-cost",
+      "subject": "talent",
+      "title": "Cheaper Spending",
+      "effect": "Control spenders cost fewer points, never less than one."
+    },
+    {
+      "id": "fixation-effect",
+      "subject": "talent",
+      "title": "Stronger Control",
+      "effect": "Slowing, delaying and holding back last longer for the same points."
+    },
+    {
+      "id": "fixation-keystone",
+      "subject": "talent",
+      "title": "Nothing Wasted",
+      "effect": "A control spender no longer fails for want of points: it works with half of what you have, and its effect shrinks to match."
+    },
+    {
+      "id": "sublimation-trunk",
+      "subject": "talent",
+      "title": "Rising Core",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "sublimation-reduction",
+      "subject": "talent",
+      "title": "Steeper Ascent",
+      "effect": "EFFLUX turns more of the remaining cooldown time into damage."
+    },
+    {
+      "id": "sublimation-charges",
+      "subject": "talent",
+      "title": "Cleaner Reset",
+      "effect": "A reset spell resets more spells."
+    },
+    {
+      "id": "sublimation-threshold",
+      "subject": "talent",
+      "title": "Wider Draw",
+      "effect": "Raises the limit below which a cooldown counts as nearly over for ASCEND."
+    },
+    {
+      "id": "sublimation-keystone",
+      "subject": "talent",
+      "title": "Certain Ascent",
+      "effect": "A reset no longer asks: it makes the spell with the longest cooldown left ready on its own."
+    },
+    {
+      "id": "coagulation-trunk",
+      "subject": "talent",
+      "title": "Set Core",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "coagulation-thicker",
+      "subject": "talent",
+      "title": "Thicker Ward",
+      "effect": "Shields absorb more."
+    },
+    {
+      "id": "coagulation-longer",
+      "subject": "talent",
+      "title": "Lasting Ward",
+      "effect": "Shields last longer."
+    },
+    {
+      "id": "coagulation-stacks",
+      "subject": "talent",
+      "title": "Layered Ward",
+      "effect": "More layers of a shield can lie on you at once."
+    },
+    {
+      "id": "coagulation-keystone",
+      "subject": "talent",
+      "title": "Second Skin",
+      "effect": "When a shield breaks, half a new layer forms at once, once for every shield laid."
+    },
+    {
+      "id": "putrefaction-trunk",
+      "subject": "talent",
+      "title": "Rotten Core",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "putrefaction-build",
+      "subject": "talent",
+      "title": "Faster Rot",
+      "effect": "Raises the limit of decay stacks the target can carry."
+    },
+    {
+      "id": "putrefaction-effect",
+      "subject": "talent",
+      "title": "Deeper Rot",
+      "effect": "Every stack of decay is worth more."
+    },
+    {
+      "id": "putrefaction-duration",
+      "subject": "talent",
+      "title": "Lasting Rot",
+      "effect": "DECAY, the spell, protects you more for every stack on the target."
+    },
+    {
+      "id": "putrefaction-keystone",
+      "subject": "talent",
+      "title": "Rot Outlives",
+      "effect": "A burn that has gone out keeps laying decay for a while, until the stacks it left behind would have faded."
+    },
+    {
+      "id": "global-trunk",
+      "subject": "talent",
+      "title": "Adept",
+      "effect": "Raises the damage of every spell, whatever its school."
+    },
+    {
+      "id": "global-build",
+      "subject": "talent",
+      "title": "Greater Catalysis",
+      "effect": "Spells that build a meter deal more damage."
+    },
+    {
+      "id": "global-release",
+      "subject": "talent",
+      "title": "Greater Purity",
+      "effect": "Spenders deal more damage: the spells that use up what was gathered."
+    },
+    {
+      "id": "global-hold",
+      "subject": "talent",
+      "title": "Greater Vessel",
+      "effect": "Effects over time, decay stacks and shields all last longer."
+    },
+    {
+      "id": "GLOBAL",
+      "subject": "talent",
+      "title": "GLOBAL",
+      "effect": "The tree that belongs to no school. Its talents work on every spell, or on every spell of one kind."
+    },
+    {
+      "id": "slot-focus",
+      "subject": "slot",
+      "title": "Focus",
+      "effect": "A place for one piece of equipment: the lens the work is seen through. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-catalyst",
+      "subject": "slot",
+      "title": "Catalyst",
+      "effect": "A place for one piece of equipment: what speeds the reaction without taking part in it. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-sigil",
+      "subject": "slot",
+      "title": "Sigil",
+      "effect": "A place for one piece of equipment: a mark that binds a working to its maker. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-relic",
+      "subject": "slot",
+      "title": "Relic",
+      "effect": "A place for one piece of equipment: something left behind by an alchemist who came this way earlier. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-grimoire",
+      "subject": "slot",
+      "title": "Grimoire",
+      "effect": "A place for one piece of equipment: the book the workings are kept in. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-shard",
+      "subject": "slot",
+      "title": "Shard",
+      "effect": "A place for one piece of equipment: a piece of a vessel that once held something. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-talisman",
+      "subject": "slot",
+      "title": "Talisman",
+      "effect": "A place for one piece of equipment: a charm against the backlash of the work. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-phylactery",
+      "subject": "slot",
+      "title": "Phylactery",
+      "effect": "A place for one piece of equipment: a sealed case that keeps something safe. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-anchor",
+      "subject": "slot",
+      "title": "Anchor",
+      "effect": "A place for one piece of equipment: what holds the alchemist in place while the reaction pulls. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    },
+    {
+      "id": "slot-prism",
+      "subject": "slot",
+      "title": "Prism",
+      "effect": "A place for one piece of equipment: what splits a working into its parts. Every piece carries ESSENCE, VESSEL and WARD; what else it carries depends on its quality and item level, not on the place."
+    }
+  ],
+  "introductions": [
+    {
+      "mechanicId": "reaction",
+      "title": "The reaction",
+      "body": "The ring is the REACTION, and its number is how much of it is left. Bring it to zero and the run is won. OVERPRESSURE IN counts down the time it has left; when the time runs out, the vessel bursts. Beside the ring the run's time, damage, casts, misinputs and state are counted as it goes."
+    },
+    {
+      "mechanicId": "cooldown",
+      "title": "Cooldown",
+      "body": "Every spell has its own cooldown, shown on its key; it starts when the spell is cast. On top of that, casting a spell starts the global cooldown, a short wait shared by all spells. QUENCH is the one spell that triggers no global cooldown."
+    },
+    {
+      "mechanicId": "synergy",
+      "title": "Synergy",
+      "body": "Spells feed each other. A feeder builds a school's meter and a spender uses it; CANKER opens a short window in which FESTER strikes harder. The preview under your bar counts, for each meter, the spells that feed it and the spells that spend it."
+    },
+    {
+      "mechanicId": "heat",
+      "title": "HEAT",
+      "body": "CALCINATION spells build HEAT, shown above the bar. It has a limit and drains slowly when nothing feeds it. Spenders such as PYRE release all of it in one strike: the more heat, the harder it lands."
+    },
+    {
+      "mechanicId": "control",
+      "title": "CONTROL",
+      "body": "FIXATION spells gather CONTROL, shown above the bar. It never drains. Spenders use it to slow the target's cast, push its next strike further off or hold back its next phase."
+    },
+    {
+      "mechanicId": "decay",
+      "title": "DECAY",
+      "body": "PUTREFACTION spells lay DECAY on the target, shown above the bar as stacks against their limit. Every stack makes the target take more damage from all sources. Stacks fade one by one."
+    },
+    {
+      "mechanicId": "reset",
+      "title": "Choose a spell to reset",
+      "body": "REFLUX and ALEMBIC arm a choice. CHOOSE A SPELL TO RESET appears above the bar, and the next spell key you press is made ready again at once."
+    },
+    {
+      "mechanicId": "interruptibleCast",
+      "title": "Interruptible cast",
+      "body": "This target casts spells that take time. While it casts, a bar under the ring carries the name of the cast and runs down. QUENCH breaks the cast while the bar runs and triggers no global cooldown. A cast that completes lands in full."
+    },
+    {
+      "mechanicId": "strike",
+      "title": "Strike",
+      "body": "This target also strikes at once, with no bar to break. Shields absorb a strike and WARD reduces it. FIXATION can push the next strike further off."
+    },
+    {
+      "mechanicId": "escalation",
+      "title": "Escalation",
+      "body": "Each time this target's sequence comes round, it casts faster: the bar to break grows shorter, down to a limit. A long fight leaves less time to react."
+    },
+    {
+      "mechanicId": "phases",
+      "title": "Phases",
+      "body": "At set points of its health this target changes and adds something new. Some of its blows only come once a phase has begun, and a phase once reached is never undone."
+    },
+    {
+      "mechanicId": "doom",
+      "title": "DOOM",
+      "body": "A counter rises on its own and kills at its threshold, whatever your vessel holds. PURGE pushes it back, using one of the CLEANSE charges shown beside it. Spent charges return over time."
+    },
+    {
+      "mechanicId": "affliction",
+      "title": "Taint",
+      "body": "From a fixed moment a taint drains your vessel, tick after tick, until it is cleared. QUENCH and TEMPER clear it. Shields and heals only buy time."
+    },
+    {
+      "mechanicId": "race",
+      "title": "Immune — break the seal",
+      "body": "For a short window this target wraps itself in a seal: IMMUNE — BREAK THE SEAL, and no damage lands on the target itself. Damage dealt in the window goes into the seal, and enough of it breaks the seal early."
+    },
+    {
+      "mechanicId": "bossHeal",
+      "title": "Mending",
+      "body": "This target mends itself when one of its casts completes, and takes back part of the progress you have made."
+    },
+    {
+      "mechanicId": "runaway",
+      "title": "Runaway reaction",
+      "body": "Here the goal is reversed. The ring fills by itself, and a full ring is a defeat. Hold out until the time runs out and the reaction is contained. Damage pushes the ring further up; shields and heals push it down."
+    },
+    {
+      "mechanicId": "resistance",
+      "title": "Resistance",
+      "body": "This target resists or welcomes a school: that school's spells deal less, or more, damage here. The preparation screen lists which."
+    },
+    {
+      "mechanicId": "energy",
+      "title": "ENERGY",
+      "body": "A bar rises with time, whatever the target's health. When it is full it discharges into a strike and falls back. A long fight means more discharges."
+    },
+    {
+      "mechanicId": "stacks",
+      "title": "Swelling",
+      "body": "Every few seconds this target adds a stack and strikes with it, and every new stack strikes far harder than the last one, up to a limit. The longer the fight, the heavier each step."
+    }
+  ]
+}
