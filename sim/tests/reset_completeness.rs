@@ -615,7 +615,10 @@ fn ein_zurueckgesetzter_kampf_rechnet_an_jedem_boss_wie_ein_frischer() {
     let listen = [
         ("senkt-die-uhr", "purge if doom >= 40\nkindle\n"),
         ("step3-good", include_str!("../apl/step3-good.apl")),
-        ("e797-mit-quench", include_str!("../apl/e797-mit-quench.apl")),
+        (
+            "e797-mit-quench",
+            include_str!("../apl/e797-mit-quench.apl"),
+        ),
         (
             "step553-alle-bedingt",
             include_str!("../apl/step553-alle-bedingt.apl"),
