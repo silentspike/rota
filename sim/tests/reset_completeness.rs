@@ -595,3 +595,63 @@ fn schluesseltalente_retry_schenkt_keine_nachlage_aus_dem_vorigen_kampf() {
         "der zweite Durchgang erbt eine Nachlage aus dem ersten"
     );
 }
+
+/// Ein zurückgesetzter Kampf rechnet an **jedem** Boss wie ein frischer
+/// (gefunden bei der Messung zu #917).
+///
+/// Die Fälle darüber fahren eine Aufzeichnung ohne Verhängnis-Uhr. `reset`
+/// ließ deshalb `next_doom_charge_at` (#561) unbemerkt stehen: Wer die Uhr
+/// im ersten Durchgang senkte, bekam im zweiten eine Ladung zur alten Zeit
+/// zurück. Gemessen an boss-1-2 mit `purge if doom >= 40` vor `kindle`,
+/// nach demselben Vorlauf: 1700 Schaden im wiederverwendeten Kampf, 3300
+/// frisch. `balance::run_range` setzt seinen Kampf je Startwert so zurück.
+///
+/// Geprüft wird über das Ergebnis, an allen Bossen, nach jedem Vorlauf.
+#[test]
+fn ein_zurueckgesetzter_kampf_rechnet_an_jedem_boss_wie_ein_frischer() {
+    use rota_sim::apl::{parse, AplName};
+    use rota_sim::data::BOSSES;
+
+    let listen = [
+        ("senkt-die-uhr", "purge if doom >= 40\nkindle\n"),
+        ("step3-good", include_str!("../apl/step3-good.apl")),
+        ("e797-mit-quench", include_str!("../apl/e797-mit-quench.apl")),
+        (
+            "step553-alle-bedingt",
+            include_str!("../apl/step553-alle-bedingt.apl"),
+        ),
+    ];
+    let apls: Vec<_> = listen
+        .iter()
+        .map(|(name, text)| (*name, parse(AplName(name), text).expect("Liste")))
+        .collect();
+    let purge = rota_sim::data::index_of("purge").expect("purge fehlt");
+    let mut gesenkt = 0;
+    for boss in &BOSSES {
+        let config = FightConfig {
+            seed: 5,
+            duration_ms: Some(60_000),
+            stop_on_kill: false,
+            log_capacity: 0,
+            boss,
+            ..FightConfig::default()
+        };
+        for (vorlauf_name, vorlauf) in &apls {
+            for (name, apl) in &apls {
+                let mut wiederholt = Fight::new(config);
+                let erster = wiederholt.run_apl(vorlauf);
+                gesenkt += erster.casts[purge];
+                wiederholt.reset(5);
+                let zweiter = wiederholt.run_apl(apl);
+                let frisch = Fight::new(config).run_apl(apl);
+                assert_eq!(
+                    zweiter, frisch,
+                    "{}: {name} nach {vorlauf_name} rechnet anders als frisch",
+                    boss.id
+                );
+            }
+        }
+    }
+    // Der Träger: Ohne eine Senkung im Vorlauf prüfte der Fall die Ladung nie.
+    assert!(gesenkt > 0, "kein Vorlauf hat die Uhr gesenkt");
+}
