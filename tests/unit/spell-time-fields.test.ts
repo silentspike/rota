@@ -25,8 +25,11 @@ function setAt(value: unknown, path: (string | number)[], replacement: unknown):
 describe('Every spell-data time has an executable validation contract (#1104)', () => {
   for (const [name, raw] of Object.entries(files)) {
     // The production loader combines all spell files with the one shared
-    // resource from CALCINATION; auxiliary files deliberately omit it.
-    const source = { ...raw, resource: files['/data/spells/calcination.json']!['resource'] };
+    // resource from CALCINATION; auxiliary files deliberately omit it — and
+    // common.json also omits the school name, which only CALCINATION carries
+    // (sim/build.rs reads both from calcination.json alone).
+    const calcination = files['/data/spells/calcination.json']!;
+    const source = { school: calcination['school'], ...raw, resource: calcination['resource'] };
     it(`${name}: accepts original data and detects every off-grid duration`, () => {
       expect(parseSchool(source).problems).toEqual([]);
       const paths = durations(source);

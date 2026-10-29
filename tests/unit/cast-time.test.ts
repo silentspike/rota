@@ -51,14 +51,45 @@ function pruefSchule(): ReturnType<typeof parseSchool> {
   return parseSchool({
     schema: 1,
     school: 'CALCINATION',
-    resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+    resource: {
+      id: 'heat',
+      name: 'Heat',
+      cap: 20,
+      decayPerStepMs: 2000,
+      decayAmount: 1,
+      highlightAt: 0,
+    },
     spells: [
-      { id: 'sofort', name: 'Sofort', cooldownMs: 4000, baseDamage: 100, castTimeMs: 0 },
-      { id: 'lang', name: 'Lang', cooldownMs: 4000, baseDamage: 100, castTimeMs: 2000 },
+      {
+        id: 'sofort',
+        name: 'Sofort',
+        unlockLevel: 1,
+        cooldownMs: 4000,
+        baseDamage: 100,
+        castTimeMs: 0,
+        triggersGcd: true,
+      },
+      {
+        id: 'lang',
+        name: 'Lang',
+        unlockLevel: 1,
+        cooldownMs: 4000,
+        baseDamage: 100,
+        castTimeMs: 2000,
+        triggersGcd: true,
+      },
       // Der Unterbrecher, wortgleich zu QUENCH: keine Wartezeit, eigene
       // Abklingzeit. Er trägt den Fall, der als einziger auslegungsbedürftig
       // war — siehe unten.
-      { id: 'quench', name: 'Quench', cooldownMs: 5000, baseDamage: 0, triggersGcd: false },
+      {
+        id: 'quench',
+        name: 'Quench',
+        unlockLevel: 1,
+        cooldownMs: 5000,
+        baseDamage: 0,
+        castTimeMs: 0,
+        triggersGcd: false,
+      },
     ],
   });
 }

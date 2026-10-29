@@ -52,11 +52,19 @@ class StreichVolllauf(unittest.TestCase):
                              f'exit {code}\n')
         self.fake.chmod(0o755)
 
-    def run_tool(self, *args):
+    def run_tool(self, *args, worktrees=True):
         # The node_modules source is always named: its default /work/rota
         # exists on this machine and not on CI — as /work itself does not,
         # which a disk check on a fixed '/work' met there (lint, PR #1160).
+        #
+        # And the checkout root is a temporary one: The default checkout
+        # /work/rota-worktrees/w3-streich-1055-volllauf existed on this machine
+        # after the real pass of 29 Oct, and three cases failed locally with
+        # "Checkout … existiert bereits" while CI, without /work, stayed green.
         env = dict(os.environ, ROTA_FENSTER=str(self.fake))
+        env.pop('ROTA_WORKTREES', None)
+        if worktrees:
+            env['ROTA_WORKTREES'] = str(self.temp / 'rota-worktrees')
         args = (*args, '--node-modules-von', str(self.source))
         result = subprocess.run([sys.executable, '-B', str(TOOL), *args], cwd=ROOT, env=env,
                                 capture_output=True, text=True, timeout=60, check=False)
@@ -122,13 +130,25 @@ class StreichVolllauf(unittest.TestCase):
         result = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
                                '--aus', str(self.temp / 'lauf'))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-volllauf ',
-                      result.stdout)
+        root = self.temp / 'rota-worktrees'
+        self.assertIn(f'git worktree add --detach {root}/w3-streich-1055-volllauf ', result.stdout)
         self.window(*FREE)
         probe = self.run_tool('--rolle', 'w3-streich', '--probe', 'clearsDoom', '--stand', 'HEAD',
                               '--trocken', '--aus', str(self.temp / 'probe'))
-        self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-probe ',
-                      probe.stdout)
+        self.assertIn(f'git worktree add --detach {root}/w3-streich-1055-probe ', probe.stdout)
+
+    def test_without_the_override_the_checkout_root_is_the_one_rota_fenster_reads(self):
+        # The override exists for these cases only. Without it the root must
+        # stay /work/rota-worktrees — checked with a role whose checkout no
+        # machine has, so the case does not depend on what lies on the disk.
+        role = f'pruefrolle-{os.getpid()}'
+        self.assertFalse(Path(f'/work/rota-worktrees/{role}-1055-volllauf').exists())
+        self.window(HELD_BY[0].format(role=role), HELD_BY[1])
+        result = self.run_tool('--rolle', role, '--stand', 'HEAD', '--trocken',
+                               '--aus', str(self.temp / 'lauf'), worktrees=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f'git worktree add --detach /work/rota-worktrees/{role}-1055-volllauf ',
+                      result.stdout)
 
     def test_free_space_is_measured_where_output_and_checkout_go(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
