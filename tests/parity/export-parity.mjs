@@ -215,8 +215,20 @@ import {
   newCalcinationPayload,
   NEW_CALCINATION_NAME,
 } from './payloads.ts';
+import { laufbahnRegelnPayload, LAUFBAHN_REGELN_NAME } from './laufbahn-regeln.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+// Die Regeln über dem Kampf (#922): Beute, Aufwertung, Punkte, Erfahrung,
+// Freischaltung, getragene Werte. Gegenstück: sim/tests/parity_laufbahn_regeln.rs.
+const laufbahnRegeln = laufbahnRegelnPayload();
+const laufbahnRegelnPath = join(here, 'recordings', `${LAUFBAHN_REGELN_NAME}.json`);
+writeFileSync(laufbahnRegelnPath, serialize(laufbahnRegeln), 'utf8');
+console.log(`geschrieben: ${laufbahnRegelnPath}`);
+console.log(
+  `  Laufbahn-Regeln ${laufbahnRegeln['wuerfe'].length} Wuerfe, ${laufbahnRegeln['punkte'].length} Punktefaelle, ` +
+    `${laufbahnRegeln['getragen'].length} Ausruestungen`,
+);
 
 const newCalcination = newCalcinationPayload();
 const newCalcinationPath = join(here, 'recordings', `${NEW_CALCINATION_NAME}.json`);
