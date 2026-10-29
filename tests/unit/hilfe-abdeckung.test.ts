@@ -33,7 +33,10 @@ import { buildStatOverview } from '../../src/progression/stat-overview-view.js';
 import { STAT_ORDER, statOverview } from '../../src/progression/stat-overview.js';
 import { baseStats } from '../../src/progression/base-stats.js';
 import { buildBossSelect, faehigkeitenVon } from '../../src/progression/boss-select.js';
-import { BOSSES, CALCINATION, INSTANCES } from '../../src/core/data.js';
+import { BOSSES, CALCINATION, INSTANCES, TALENTS } from '../../src/core/data.js';
+import { buildTalentView } from '../../src/progression/talent-view.js';
+import { buildGearView } from '../../src/progression/gear-view.js';
+import { SLOT_NAMES } from '../../src/gear/slots.js';
 import { NOTHING_WORN } from '../../src/gear/worn.js';
 import { App } from '../../src/core/app.js';
 
@@ -46,7 +49,7 @@ function hilfeMerkmale(wurzel: ParentNode): string[] {
   return [...wurzel.querySelectorAll<HTMLElement>('[data-help]')].map((n) => n.dataset.help ?? '');
 }
 
-/** Alle drei HTML-Ansichten mit dem ganzen Inhalt. */
+/** Alle HTML-Ansichten mit Begriffen, mit dem ganzen Inhalt. */
 function alleMerkmale(): string[] {
   // Jeder spielbare Zauber auf einem eigenen Platz: Dann steht er links in
   // der Liste UND rechts in der Vorschau seiner Schule.
@@ -62,7 +65,15 @@ function alleMerkmale(): string[] {
   });
   const werte = buildStatOverview(statOverview(baseStats(1), NOTHING_WORN));
   const wahl = buildBossSelect(GEBAUT, '', () => undefined);
-  return [...hilfeMerkmale(zusammenstellung), ...hilfeMerkmale(werte), ...hilfeMerkmale(wahl)];
+  const talente = buildTalentView({ allocation: {}, punkte: 50, onChange: () => true });
+  const ausruestung = buildGearView({ items: [], onEquip: () => true });
+  return [
+    ...hilfeMerkmale(zusammenstellung),
+    ...hilfeMerkmale(werte),
+    ...hilfeMerkmale(wahl),
+    ...hilfeMerkmale(talente),
+    ...hilfeMerkmale(ausruestung),
+  ];
 }
 
 describe('Jedes data-help der Ansichten hat seinen Eintrag', () => {
@@ -73,6 +84,10 @@ describe('Jedes data-help der Ansichten hat seinen Eintrag', () => {
     for (const boss of GEBAUT) {
       for (const name of faehigkeitenVon(boss)) expect(merkmale.has(name), name).toBe(true);
     }
+    // Talente und Ausrüstungsplätze sind Begriffe wie alle anderen: „Kindled
+    // Core 0/3" und „Phylactery" erklären sich nicht von selbst.
+    for (const talent of TALENTS) expect(merkmale.has(talent.id), talent.id).toBe(true);
+    for (const platz of SLOT_NAMES) expect(merkmale.has(`slot-${platz}`), platz).toBe(true);
   });
 
   it('jede gesammelte Kennung findet ihre Erklärung im ausgelieferten Katalog', () => {

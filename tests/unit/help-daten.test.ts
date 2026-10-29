@@ -22,6 +22,7 @@ import {
   parseHelpEntries,
   parseIntroductions,
   PLAYABLE_HELP_ENTRIES,
+  PLAYABLE_INTRODUCTIONS,
 } from '../../src/analysis/help-data.js';
 import { helpFor, missingSubjects } from '../../src/analysis/help.js';
 
@@ -97,7 +98,9 @@ describe('Die ausgelieferten Daten tragen, was AC2 verlangt', () => {
   it('alle drei Gruppen sind gedeckt — Symbole, Werte, Boss-Fähigkeiten', () => {
     // **Die Gruppe, die man vergisst, ist die dritte.** Sie steht nicht auf
     // der Zauberleiste, wo man beim Bauen hinsieht — deshalb prüft
-    // `missingSubjects` sie ausdrücklich mit.
+    // `missingSubjects` sie ausdrücklich mit. Seit #1177 am Katalog, der an
+    // den Spieler geht, und weiter an den Prüfdaten.
+    expect(missingSubjects(PLAYABLE_HELP_ENTRIES)).toEqual([]);
     expect(missingSubjects(ALL_HELP_ENTRIES)).toEqual([]);
   });
 
@@ -105,30 +108,40 @@ describe('Die ausgelieferten Daten tragen, was AC2 verlangt', () => {
     // Ohne diesen Fall wäre die Kupplung eine Behauptung: Die Ansicht setzt
     // `data-help` auf die Kennung des Wertes, der Schule und des Zaubers, und
     // `helpFor` muss dazu etwas finden. Ein Tippfehler bliebe sonst unsichtbar
-    // — es erschiene schlicht kein Fenster.
-    for (const id of ['essence', 'CALCINATION', 'kindle', 'Kindling Roar'])
-      expect(helpFor(ALL_HELP_ENTRIES, id), `keine Erklärung zu "${id}"`).not.toBeNull();
+    // — es erschiene schlicht kein Fenster. Die volle Abdeckung über ALLE
+    // gezeigten Kennungen hält `hilfe-abdeckung.test.ts`.
+    for (const id of ['essence', 'CALCINATION', 'kindle', 'Kindling Roar']) {
+      expect(helpFor(PLAYABLE_HELP_ENTRIES, id), `keine Erklärung zu "${id}"`).not.toBeNull();
+      expect(helpFor(ALL_HELP_ENTRIES, id), `keine Prüf-Erklärung zu "${id}"`).not.toBeNull();
+    }
   });
 
   it('es gibt Einführungen, und sie nennen ihre Mechanik', () => {
+    expect(PLAYABLE_INTRODUCTIONS.length).toBeGreaterThan(0);
     expect(ALL_INTRODUCTIONS.length).toBeGreaterThan(0);
-    for (const intro of ALL_INTRODUCTIONS)
+    for (const intro of [...PLAYABLE_INTRODUCTIONS, ...ALL_INTRODUCTIONS])
       expect(intro.mechanicId, 'eine Einführung ohne Mechanik').not.toBe('');
   });
 
-  it('der Katalog ist heute leer, und das ist die Zusage', () => {
-    // **Kein Ausnahme-Eintrag, sondern ein Fall.** `PLAYABLE_HELP_ENTRIES` ist
-    // leer, weil `data/help/help.json` noch nicht existiert — die Texte
-    // gehören zu E10. Das als „bewusster offener Rest" in eine Ausnahmeliste zu
-    // schreiben hiesse, die Zusage zu behaupten; hier steht sie gemessen da.
-    //
-    // Wenn E10 liefert, wird dieser Fall rot. Das ist sein Zweck: Dann gehört
-    // `app.ts` von `ALL_HELP_ENTRIES` auf die gefilterte Liste umgestellt, und
-    // ohne diesen Fall fiele das niemandem auf.
-    expect(PLAYABLE_HELP_ENTRIES).toEqual([]);
+  it('der Katalog ist gefüllt, und die Prüfdaten stehen getrennt', () => {
+    // **Bis #1177 stand hier die Zusage „der Katalog ist heute leer"** — mit
+    // dem Vermerk, dieser Fall werde rot, sobald E10 liefert, und dann gehöre
+    // `app.ts` auf die gefilterte Liste umgestellt. Beides ist geschehen:
+    // `data/help/help.json` liefert, und `app.ts` hängt `PLAYABLE_HELP_ENTRIES`
+    // ein (`hilfe-anschluss.test.ts`, „die Fenster tragen die Erklärung aus den
+    // Daten").
+    expect(PLAYABLE_HELP_ENTRIES.length).toBeGreaterThan(0);
+    // Die Prüfdaten gibt es weiter — im Entwicklungs-Bau, in dem auch diese
+    // Fälle laufen. Im Auslieferungs-Bau sind sie leer; das misst
+    // `tools/auslieferung-pruefdaten.py` am gebauten Stand.
     expect(
       ALL_HELP_ENTRIES.length,
-      'die Prüfdaten sind leer — dann zeigt die Ansicht nichts',
+      'die Prüfdaten sind leer — dann zeigt die Prüfseite nichts',
     ).toBeGreaterThan(0);
+    // **Nie dieselbe Liste:** Beide tragen „essence"; `helpFor` nähme den
+    // ersten Treffer, und welcher es wäre, hinge an der Reihenfolge.
+    const pruef = helpFor(ALL_HELP_ENTRIES, 'essence');
+    const katalog = helpFor(PLAYABLE_HELP_ENTRIES, 'essence');
+    expect(katalog?.effect).not.toBe(pruef?.effect);
   });
 });

@@ -25,7 +25,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../../src/core/app.js';
 import { attachHelp, buildIntroduction } from '../../src/analysis/archive-view.js';
-import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../../src/analysis/help-data.js';
+import { PLAYABLE_HELP_ENTRIES, PLAYABLE_INTRODUCTIONS } from '../../src/analysis/help-data.js';
 import { helpFor, markSeen, nextIntroduction } from '../../src/analysis/help.js';
 import { buildStatOverview } from '../../src/progression/stat-overview-view.js';
 import { statOverview } from '../../src/progression/stat-overview.js';
@@ -116,7 +116,7 @@ describe('AC2 — die Ansicht setzt das Merkmal, an dem das Fenster hängt', () 
     const ziel = document.createElement('span');
     ziel.dataset.help = 'essence';
     wurzel.appendChild(ziel);
-    attachHelp(wurzel, ALL_HELP_ENTRIES);
+    attachHelp(wurzel, PLAYABLE_HELP_ENTRIES);
 
     ziel.dispatchEvent(new MouseEvent('mouseenter'));
     const fenster = ziel.querySelector('.help-popover');
@@ -137,9 +137,9 @@ describe('AC2 — die Ansicht setzt das Merkmal, an dem das Fenster hängt', () 
     ziel.dataset.help = 'essence';
     wurzel.appendChild(ziel);
 
-    attachHelp(wurzel, ALL_HELP_ENTRIES);
+    attachHelp(wurzel, PLAYABLE_HELP_ENTRIES);
     expect(ziel.dataset.helpAttached).toBe('yes');
-    attachHelp(wurzel, ALL_HELP_ENTRIES);
+    attachHelp(wurzel, PLAYABLE_HELP_ENTRIES);
 
     ziel.dispatchEvent(new MouseEvent('mouseenter'));
     expect(ziel.querySelectorAll('.help-popover'), 'zwei Fenster übereinander').toHaveLength(1);
@@ -152,7 +152,7 @@ describe('AC2 — die Ansicht setzt das Merkmal, an dem das Fenster hängt', () 
     const ziel = document.createElement('span');
     ziel.dataset.help = 'gibt-es-nicht';
     wurzel.appendChild(ziel);
-    attachHelp(wurzel, ALL_HELP_ENTRIES);
+    attachHelp(wurzel, PLAYABLE_HELP_ENTRIES);
     ziel.dispatchEvent(new MouseEvent('mouseenter'));
     expect(ziel.querySelector('.help-popover')).toBeNull();
   });
@@ -230,12 +230,13 @@ describe('Der Anschluss selbst — nicht die Teile, sondern die Stelle, die sie 
   it('die Fenster tragen die Erklärung aus den Daten, nicht irgendeine', () => {
     // Ohne diese Zeile bliebe offen, ob die App dieselbe Liste einhängt, die
     // `help-data.ts` prüft — ein leeres Array wäre ebenso „angeschlossen".
+    // Seit #1177 ist das der Katalog; bis dahin waren es die Prüfeinträge.
     const app = baueApp();
     app.openHome();
     const ziel = document.querySelector<HTMLElement>('.stats-label[data-help]') as HTMLElement;
     ziel.dispatchEvent(new MouseEvent('mouseenter'));
     expect(ziel.querySelector('.help-effect')?.textContent).toBe(
-      helpFor(ALL_HELP_ENTRIES, ziel.dataset.help ?? '')?.effect,
+      helpFor(PLAYABLE_HELP_ENTRIES, ziel.dataset.help ?? '')?.effect,
     );
   });
 });
@@ -257,7 +258,7 @@ describe('AC4 — die geführte Einführung', () => {
 
   it('sie kommt einmal, und Überspringen zählt als gesehen', () => {
     let stand = { seenMechanicIds: [] as readonly string[] };
-    const faellig = nextIntroduction(ALL_INTRODUCTIONS, stand, 'interruptibleCast');
+    const faellig = nextIntroduction(PLAYABLE_INTRODUCTIONS, stand, 'interruptibleCast');
     expect(faellig, 'keine Einführung zu interruptibleCast').not.toBeNull();
 
     const fenster = buildIntroduction(faellig as never, (id) => {
@@ -269,6 +270,6 @@ describe('AC4 — die geführte Einführung', () => {
 
     expect(stand.seenMechanicIds).toContain('interruptibleCast');
     // Und danach kommt sie nicht wieder — das ist der Sinn des Knopfes.
-    expect(nextIntroduction(ALL_INTRODUCTIONS, stand, 'interruptibleCast')).toBeNull();
+    expect(nextIntroduction(PLAYABLE_INTRODUCTIONS, stand, 'interruptibleCast')).toBeNull();
   });
 });

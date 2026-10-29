@@ -108,7 +108,11 @@ export function buildTalentView(options: TalentViewOptions): HTMLElement {
     // `withPlainText` gibt unbekannte Begriffe unverändert zurück. Das trifft
     // den Baum `global`, der kein alchemistischer Prozess ist und deshalb auch
     // keinen Klartext hat — er bleibt „GLOBAL", und das ist richtig so.
-    block.appendChild(element('h4', 'talents-tree-name', withPlainText(baum.id.toUpperCase())));
+    const baumName = element('h4', 'talents-tree-name', withPlainText(baum.id.toUpperCase()));
+    // **Erklärt wie die Schule in der Zusammenstellung** (Issue #1177):
+    // dieselbe Kennung, derselbe Eintrag. Der Baum `global` hat seinen eigenen.
+    baumName.dataset.help = baum.id.toUpperCase();
+    block.appendChild(baumName);
 
     for (const talent of baum.talente) {
       const zeile = element('div', 'talents-row');
@@ -116,13 +120,17 @@ export function buildTalentView(options: TalentViewOptions): HTMLElement {
       const raenge = effectiveRanks(options.allocation, talent);
       const offen = freigeschaltet(talent, options.allocation);
 
-      zeile.appendChild(
-        element(
-          'span',
-          'talents-name',
-          `${talent.name} ${String(raenge)}/${String(talent.maxRanks)}`,
-        ),
+      const name = element(
+        'span',
+        'talents-name',
+        `${talent.name} ${String(raenge)}/${String(talent.maxRanks)}`,
       );
+      // **Jedes Talent hat sein Erklärfenster** (Issue #1177): Der Name allein
+      // sagt nicht, was ein Rang bewirkt. Über die Tastatur erreichbar wie die
+      // Boss-Fähigkeiten, weil `attachHelp` auch auf `focus` hört.
+      name.dataset.help = talent.id;
+      name.tabIndex = 0;
+      zeile.appendChild(name);
 
       for (const [aktion, zeichen, ziel] of [
         ['remove', '-', raenge - 1],

@@ -17,7 +17,7 @@ import {
   type BossDef,
   type SpellDef,
 } from './data.js';
-import { buildBossSelect, mechanikenVon, waehlbareBosse } from '../progression/boss-select.js';
+import { buildBossSelect, waehlbareBosse } from '../progression/boss-select.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
   applyBindings,
@@ -61,14 +61,22 @@ import { levelUpDisplayFor } from '../analysis/level-up-display.js';
 import { buildHistoryView } from '../analysis/history-view.js';
 import {
   attachHelp,
+  ARCHIVE_CHAPTER_TITLES,
   buildArchiveView,
   buildEntryPopup,
   buildIntroduction,
 } from '../analysis/archive-view.js';
-import { ALL_HELP_ENTRIES, ALL_INTRODUCTIONS } from '../analysis/help-data.js';
+import { PLAYABLE_HELP_ENTRIES, PLAYABLE_INTRODUCTIONS } from '../analysis/help-data.js';
 import { markSeen, nextIntroduction } from '../analysis/help.js';
-import { buildArchive } from '../analysis/archive.js';
-import { ALL_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
+import {
+  buildArchive,
+  discoveredEntries,
+  nextAutomaticEntry,
+  unlock,
+  unlockAll,
+} from '../analysis/archive.js';
+import { PLAYABLE_ARCHIVE_ENTRIES } from '../analysis/archive-data.js';
+import { dueMechanics, firstPressHint } from '../analysis/introduction-triggers.js';
 import { DEFAULT_DUMMY, buildDummy, type DummySettings } from '../analysis/training.js';
 import { buildTrainingSettings } from '../analysis/training-settings-view.js';
 import '../analysis/training.css';
@@ -105,9 +113,9 @@ import '../analysis/archive.css';
 import { resistanceLines } from '../progression/schools.js';
 import { HudRenderer } from '../render/hud.js';
 import { Surface } from '../render/surface.js';
-import { rotationEffectsFrom, wornFrom } from '../gear/catalog.js';
+import { itemById, rotationEffectsFrom, wornFrom } from '../gear/catalog.js';
 import { allocationProblem } from '../progression/talents.js';
-import { talentPointsAtLevel } from '../progression/unlocks.js';
+import { isSpellUnlocked, talentPointsAtLevel } from '../progression/unlocks.js';
 import { equip, equippedBySlot, unequip } from '../gear/equip.js';
 import type { OwnedItem } from '../analysis/save-format.js';
 
@@ -369,7 +377,14 @@ export class App {
         onResume: () => this.resume(),
         onWipe: () => this.wipe(),
         onRestart: () => this.restart(),
-        onBackToMenu: () => this.backToMenu(),
+        // **Zurück in die Vorbereitung heißt: dort wird erklärt** (Issue
+        // #1177). Nicht in `backToMenu` selbst — `restart` ruft es auch und
+        // beginnt den Countdown sofort danach; eine Einführung dort läge
+        // unsichtbar hinter dem laufenden Kampf.
+        onBackToMenu: () => {
+          this.backToMenu();
+          this.showPreparationGuide();
+        },
         onOpenHome: () => {
           this.openHome();
         },
@@ -494,12 +509,15 @@ export class App {
     // was der Spieler gesehen hat. Nach einem einzelnen Kampf hätte es nichts
     // zu suchen — dieselbe Begründung wie beim Verlauf darüber.
     //
-    // **Die Einträge kommen aus `ALL_ARCHIVE_ENTRIES`, nicht aus
-    // `PLAYABLE_ARCHIVE_ENTRIES`**: Heute sind das ausschliesslich
-    // Prüfeinträge, und die ausgelieferte Liste wäre leer. Die Ansicht zeigte
-    // dann dauerhaft „Nothing recorded yet" — sichtbar gebaut, aber nicht
-    // belegbar. Sobald E10 echte Texte liefert, gehört hier die gefilterte
-    // Liste hin; der Vermerk steht in `archive-data.ts`.
+    // **Die Einträge kommen aus dem Katalog** (`PLAYABLE_ARCHIVE_ENTRIES`,
+    // Issue #1177). Bis dahin stand hier die ungefilterte Liste mit den
+    // Prüfeinträgen, weil es keinen Katalog gab; der Vermerk dazu in
+    // `archive-data.ts` ist mit dem Katalog eingelöst.
+    //
+    // **Vorher die stillen Einträge** (Zauber, Schulen, Sätze): Ein frischer
+    // Stand kennt seine Start-Zauber, und ein Stand von vor #1177 kennt
+    // längst mehr — beide sollen sie im Archiv finden, ohne erst zu kämpfen.
+    this.syncArchiveDiscoveries();
     this.home.addSection({
       id: 'archive',
       title: 'Archive',
@@ -517,11 +535,8 @@ export class App {
     // Zauber-Symbol oder ein Wert, und keine Gruppe kann vergessen werden,
     // weil sie woanders im Baum steht.
     //
-    // **Die Einträge kommen aus `ALL_HELP_ENTRIES`, nicht aus
-    // `PLAYABLE_HELP_ENTRIES`** — heute sind das ausschliesslich Prüfeinträge,
-    // und die ausgelieferte Liste wäre leer. Ohne Einträge erschiene kein
-    // einziges Fenster: sichtbar gebaut, aber nicht belegbar. Dieselbe
-    // Entscheidung wie beim Archiv (#85); der Vermerk steht in `help-data.ts`.
+    // **Die Einträge kommen aus dem Katalog** (`PLAYABLE_HELP_ENTRIES`,
+    // Issue #1177) — bis dahin aus den Prüfeinträgen, weil es keinen gab.
     this.attachHelpToHome();
 
     // Treffer gehen an die Anzeige und an den Klang. Beide lesen nur mit — ein
@@ -586,6 +601,10 @@ export class App {
       // der Vergleich eine Zeile hoeher, damit Linie und Tabelle denselben
       // Bestlauf zeigen.
       () => this.bestCurveForResult(),
+      // **„Press Q" beim allerersten Kampf** (Issue #1177; Masterplan,
+      // Einstieg). Benannte Methode statt Rückruf, damit ein Fall sie fassen
+      // kann.
+      () => this.firstPressHint(),
     );
     this.hud = renderer;
     this.loop = new GameLoop({
@@ -616,6 +635,11 @@ export class App {
     };
     this.refreshSpellDraft();
     if (this.persistence.spellbook.pendingSpellIds.length > 0) this.home.show();
+    // **Die Vorbereitung, die der Spieler jetzt sieht, erklärt** (Issue
+    // #1177). Beim allerersten Start bleibt sie leer — dort steht nur
+    // „Press Q" (Masterplan, Einstieg); ein Spieler, der zurückkommt, bekommt
+    // die nächste fällige Einführung.
+    this.showPreparationGuide();
   }
 
   private ownedSpells(): readonly SpellDef[] {
@@ -644,7 +668,81 @@ export class App {
     this.applyBindings();
     this.refreshSpellDraft();
     this.refreshLoadout();
+    // **Der gewählte Zauber kommt ins Archiv** (Issue #1177) — still, wie
+    // jeder gelernte. Hier und nicht erst beim nächsten Öffnen: Sonst stünde
+    // er in der Zusammenstellung und fehlte im Archiv darunter.
+    if (this.syncArchiveDiscoveries()) {
+      this.home.replaceSection('archive', this.buildArchiveSection());
+    }
     return true;
+  }
+
+  /**
+   * Die Zeile „Press Q" für die Zeichenfläche, oder `null` (Issue #1177).
+   *
+   * Öffentlich und benannt, damit ein Prüffall sie fassen kann. Die Taste ist
+   * die des ersten Platzes in der Beschriftung des Spielers.
+   */
+  firstPressHint(): string | null {
+    return firstPressHint(
+      this.persistence.state.runHistory.length > 0,
+      this.session.acceptedCount,
+      this.labels.label(0),
+    );
+  }
+
+  /**
+   * Was der Spieler kennt, für die stillen Archiv-Einträge (Issue #1177).
+   *
+   * Die Zauber genau so, wie die Zusammenstellung sie anbietet — gelernt UND
+   * auf seiner Stufe frei. Ein gelernter Zauber über der eigenen Stufe steht
+   * dort noch nicht, also auch nicht im Archiv.
+   */
+  private archiveKnowledge(): { spellIds: string[]; schools: string[]; setIds: number[] } {
+    const stufe = this.persistence.state.level;
+    const zauber = this.ownedSpells().filter((s) => isSpellUnlocked(s, stufe));
+    const schulen = [...new Set(zauber.flatMap((s) => (s.school === null ? [] : [s.school])))];
+    const saetze = [
+      ...new Set(
+        this.persistence.state.items.flatMap((item) => {
+          const satz = itemById(item.itemId)?.setId;
+          return satz === undefined || satz < 0 ? [] : [satz];
+        }),
+      ),
+    ];
+    return { spellIds: zauber.map((s) => s.id), schools: schulen, setIds: saetze };
+  }
+
+  /**
+   * Die stillen Einträge freischalten und ablegen (Issue #1177).
+   *
+   * Gibt zurück, ob etwas dazukam — dann muss der Archiv-Abschnitt neu
+   * gebaut werden. **Abgelegt wird hier**, nicht erst beim nächsten Lauf: Bei
+   * #85 riss die Kette genau zwischen Rechnung und Spielstand.
+   */
+  private syncArchiveDiscoveries(): boolean {
+    const stand = { unlockedEntryIds: this.persistence.state.unlockedEntryIds };
+    const neu = discoveredEntries(PLAYABLE_ARCHIVE_ENTRIES, stand, this.archiveKnowledge());
+    if (neu.length === 0) return false;
+    this.persistence.persistUnlockedEntries(
+      unlockAll(
+        stand,
+        neu.map((e) => e.id),
+      ).unlockedEntryIds,
+    );
+    return true;
+  }
+
+  /** Die Zauber, die gerade auf der Leiste liegen — jeder einmal. */
+  private barSpells(): SpellDef[] {
+    const out: SpellDef[] = [];
+    for (let slot = 0; slot < SLOT_COUNT; slot++) {
+      const index = this.session.spellOnSlot(slot);
+      if (index < 0) continue;
+      const spell = this.combat.spellAt(index);
+      if (spell !== undefined && !out.includes(spell)) out.push(spell);
+    }
+    return out;
   }
 
   // ------------------------------------------------------------ Kampfablauf
@@ -780,37 +878,14 @@ export class App {
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
-    // **Die geführte Einführung** (AC4 von #811, GAME-DESIGN 17.3). Zuletzt,
-    // nach `home.hide()`: Sie liegt über dem Vorbereitungs-Bildschirm, den der
-    // Spieler jetzt sieht — „an Ort und Stelle" heisst dort, wo die Mechanik
-    // gleich auftritt.
-    this.showIntroductionFor(gewaehlt);
+    // **Der Text vor der Instanz, dann die geführte Einführung** (Issue
+    // #1177; AC4 von #811, GAME-DESIGN 17.3). Zuletzt, nach `home.hide()`:
+    // Beide liegen über dem Vorbereitungs-Bildschirm, den der Spieler jetzt
+    // sieht — „an Ort und Stelle" heisst dort, wo die Mechanik gleich
+    // auftritt.
+    if (!this.showInstanceEntry(gewaehlt)) this.showPreparationGuide();
   }
 
-  /**
-   * Die Einführung zur ersten noch unbekannten Mechanik dieses Bosses.
-   *
-   * # Der Auslöser ist die WAHL, nicht der Takt im Kampf
-   *
-   * 17.3 sagt „beim ersten Auftreten einer Mechanik hält das Spiel kurz an".
-   * Hier hält nichts an, weil noch nichts läuft: Zwischen Wahl und erstem Takt
-   * liegt der Vorbereitungs-Bildschirm, und der Spieler begegnet der Mechanik
-   * genau hier zum ersten Mal.
-   *
-   * **Warum nicht mitten im Kampf:** Der Kampf ist der Gegenstand der Parität.
-   * Der Simulator kennt kein Anhalten; ein Halt im Spiel, den `sim/` nicht
-   * nachvollzieht, wäre eine Regel, die nur eine Seite kennt — und die bricht
-   * nicht sofort, sondern beim ersten Lauf, in dem jemand pausiert. Diese
-   * Auslegung liegt dem Auftraggeber vor; wandert der Auslöser, wandert diese
-   * Methode und sonst nichts.
-   *
-   * # Höchstens eine, und Überspringen zählt
-   *
-   * `nextIntroduction` liefert die erste ungesehene — mehrere Fenster
-   * übereinander wären keine Führung, sondern ein Stapel. Beide Knöpfe
-   * vermerken sie als gesehen, weil `buildIntroduction` beide gleich behandelt:
-   * Wer überspringt, will sie nicht wiedersehen.
-   */
   /**
    * Den frisch freigeschalteten Archiv-Eintrag zeigen (Issue #85, AC1).
    *
@@ -847,13 +922,82 @@ export class App {
     this.overlay.showArchiveEntry(buildEntryPopup(eintrag, () => undefined));
   }
 
-  private showIntroductionFor(boss: BossDef): void {
+  /**
+   * Der Text vor einer Instanz, beim ersten Boss aus ihr (Issue #1177).
+   *
+   * Masterplan: „Vor jeder Instanz und nach jedem ersten Boss-Sieg ein kurzer
+   * Text — danach nie wieder automatisch." Der Auslöser `beforeInstance`
+   * stand seit #85 im Parser und in keiner Zeile außerhalb — kein einziger
+   * Text vor einer Instanz kam je beim Spieler an.
+   *
+   * **„Vor" heisst bei der Wahl**, nicht bei der Freischaltung: Erst wer einen
+   * Boss der Instanz wählt, betritt sie. Freigeschaltet wird beim Zeigen, auf
+   * demselben Weg wie nach einem Sieg — ein Neuladen zeigt ihn nicht noch
+   * einmal.
+   *
+   * Gibt zurück, ob ein Fenster erschien. Sein CONTINUE führt zur nächsten
+   * Einführung: erst die Instanz, dann ihre Mechanik — nie beides übereinander.
+   */
+  private showInstanceEntry(boss: BossDef): boolean {
+    const stand = { unlockedEntryIds: this.persistence.state.unlockedEntryIds };
+    const eintrag = nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, stand, {
+      trigger: 'beforeInstance',
+      instanceId: boss.instance,
+    });
+    if (eintrag === null) return false;
+    this.persistence.persistUnlockedEntries(unlock(stand, eintrag.id).unlockedEntryIds);
+    this.home.replaceSection('archive', this.buildArchiveSection());
+    this.attachHelpToHome();
+    // **Erst weg, dann die Einführung**: `buildEntryPopup` ruft den Rückruf
+    // VOR dem eigenen Entfernen. Stünde das Fenster dann noch da, hielte
+    // `showPreparationGuide` es für ein offenes und zeigte nichts.
+    const fenster = buildEntryPopup(eintrag, () => {
+      fenster.remove();
+      this.showPreparationGuide();
+    });
+    this.overlay.showIntroduction(fenster);
+    return true;
+  }
+
+  /**
+   * Die nächste fällige Einführung auf dem Vorbereitungs-Bildschirm (Issue
+   * #1177; GAME-DESIGN 17.3).
+   *
+   * Welche fällig ist, entscheidet `dueMechanics` aus Spielstand, Boss und
+   * Leiste; diese Methode zeigt die erste ungesehene. **Steht schon ein
+   * Fenster da, kommt kein zweites** — sonst stapelten sich bei zwei Aufrufen
+   * hintereinander zwei Fenster, und der Spieler läse dieselbe Sache doppelt.
+   *
+   * # Der Ort ist die Vorbereitung, nicht der Takt im Kampf
+   *
+   * 17.3 sagt „beim ersten Auftreten einer Mechanik hält das Spiel kurz an".
+   * Hier hält nichts an, weil noch nichts läuft: Zwischen Wahl und erstem Takt
+   * liegt der Vorbereitungs-Bildschirm, und der Spieler begegnet der Mechanik
+   * genau hier zum ersten Mal.
+   *
+   * **Warum nicht mitten im Kampf:** Der Kampf ist der Gegenstand der Parität.
+   * Der Simulator kennt kein Anhalten; ein Halt im Spiel, den `sim/` nicht
+   * nachvollzieht, wäre eine Regel, die nur eine Seite kennt. Und F.2 des
+   * Plans verwirft „Erklärungen während des Kampfes" ausdrücklich.
+   *
+   * # Überspringen zählt
+   *
+   * Beide Knöpfe vermerken die Einführung als gesehen, weil `buildIntroduction`
+   * beide gleich behandelt: Wer überspringt, will sie nicht wiedersehen.
+   */
+  private showPreparationGuide(): void {
+    if (this.overlay.hasPreparationDialog()) return;
     const stand = { seenMechanicIds: this.persistence.state.seenMechanicIds };
-    for (const mechanik of mechanikenVon(boss)) {
-      const faellig = nextIntroduction(ALL_INTRODUCTIONS, stand, mechanik);
-      if (faellig === null) continue;
+    const faellig = dueMechanics(
+      this.persistence.state.runHistory.length > 0,
+      this.combat.boss,
+      this.barSpells(),
+    );
+    for (const mechanik of faellig) {
+      const intro = nextIntroduction(PLAYABLE_INTRODUCTIONS, stand, mechanik);
+      if (intro === null) continue;
       this.overlay.showIntroduction(
-        buildIntroduction(faellig, (mechanicId) => {
+        buildIntroduction(intro, (mechanicId) => {
           // **Der Spielstand muss es annehmen, nicht nur die Rechnung.** Genau
           // hier ist bei #85 die Kette gerissen: `recordRun` schaltete den
           // Eintrag frei, und `persist` übertrug ihn nicht — ohne Fehler und
@@ -1158,6 +1302,11 @@ export class App {
     // Archiv leer — und nach einem Neuladen war der Eintrag da. Genau der
     // Fehler, den die Kommentare darüber für Stufe, Werte und Ausrüstung
     // beschreiben.
+    //
+    // **Mit den stillen Einträgen davor** (Issue #1177): Ein Aufstieg kann
+    // einen gelernten Zauber freigeben, und er soll im Archiv stehen, sobald
+    // er in der Zusammenstellung steht.
+    this.syncArchiveDiscoveries();
     this.home.replaceSection('archive', this.buildArchiveSection());
     // **Und die Erklärfenster, aus demselben Grund wie alles darüber.** Jeder
     // `replaceSection`-Aufruf wirft den alten Teilbaum weg — mitsamt der
@@ -1180,7 +1329,7 @@ export class App {
    * (gemessen bei `comparisonForResult` in #82 und `parseSets` in #780).
    */
   private attachHelpToHome(): void {
-    attachHelp(this.home.root, ALL_HELP_ENTRIES);
+    attachHelp(this.home.root, PLAYABLE_HELP_ENTRIES);
   }
 
   /**
@@ -1192,9 +1341,13 @@ export class App {
    */
   private buildArchiveSection(): HTMLElement {
     return buildArchiveView(
-      buildArchive(ALL_ARCHIVE_ENTRIES, {
+      buildArchive(PLAYABLE_ARCHIVE_ENTRIES, {
         unlockedEntryIds: this.persistence.state.unlockedEntryIds,
       }),
+      // **Der Name statt der Kennung** (Issue #1177): „The Cold Athanor",
+      // nicht „instance-1"; die Kapitel ohne Instanz mit ihrem Titel.
+      (sectionId) =>
+        instanceById(sectionId)?.name ?? ARCHIVE_CHAPTER_TITLES[sectionId] ?? sectionId,
     );
   }
 
