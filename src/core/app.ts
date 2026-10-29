@@ -1435,6 +1435,21 @@ export class App {
     }
     if (event.code === 'Enter' || event.code === 'NumpadEnter') {
       event.preventDefault();
+      // **Ein fokussierter Knopf der Boss-Wahl geht vor** (Issue #1177, im
+      // Browser gefunden): Die Knöpfe sind mit Tab erreichbar, aber Eingabe
+      // startete den Countdown des LAUFENDEN Bosses — `preventDefault` darüber
+      // nimmt dem Knopf sein Standardverhalten, und die Leertaste ist eine
+      // Zauber-Taste. Nur dieser Bereich: Er ist der einzige, dessen Wahl den
+      // nächsten Kampf bestimmt, und außerhalb bleibt Eingabe „Ready“.
+      const fokus = document.activeElement;
+      if (
+        fokus instanceof HTMLButtonElement &&
+        !fokus.disabled &&
+        fokus.closest('.boss-select') !== null
+      ) {
+        fokus.click();
+        return;
+      }
       if (this.session.phase === PHASE_PREPARE) this.ready();
       else if (this.session.phase === PHASE_ENDED) this.restart();
     }
