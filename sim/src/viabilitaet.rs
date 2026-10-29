@@ -955,9 +955,9 @@ pub struct Schulprobe {
 /// Die gefundene Liste, wenn sie jeden Durchgang gewinnt.
 ///
 /// **Ein Zeuge, kein Beweis.** Gesucht wird mit derselben Wertung wie überall
-/// (Schaden): Bei einem Boss mit umgekehrtem Ziel sucht sie damit das
-/// Falsche, und ein Sieg bleibt unentdeckt. Dann fehlt ein Zeuge — ein Fach
-/// wird dadurch nie zu Unrecht erfüllt.
+/// ([`crate::rotation_search::bewerte`]): Schaden, bei umgekehrtem Ziel seit
+/// #891 N1 der Ring am Fristende. Findet die gierige Suche keinen Sieg, fehlt
+/// ein Zeuge — ein Fach wird dadurch nie zu Unrecht erfüllt.
 fn siegliste(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Option<Apl> {
     if pool.is_empty() {
         return None;

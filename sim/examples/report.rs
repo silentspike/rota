@@ -20,8 +20,10 @@
 //! sucht die gierige Suche die Rotation, und auf ihr stehen alle drei
 //! Abschnitte: der Zauber-Vergleich mit vier Befunden je Zauber (Issue #946),
 //! die Machbarkeit nach der Siegbedingung des Bosses und der Erfolgs-Prüflauf.
-//! Bis #891 N1 rechneten Abschnitt 2 und 3 nur first-crucible, mit der festen
-//! Liste `step1-good`.
+//! Bis #891 N1 rechnete der Bericht nur first-crucible, Abschnitt 2 und 3
+//! dazu mit der festen Liste `step1-good`. Gesucht wird nach derselben
+//! Siegbedingung (`rotation_search::bewerte`): Schaden, bei `runaway` der Ring
+//! am Fristende.
 //!
 //! **Das Budget** begrenzt jede Projektion auf
 //! [`rota_sim::auslieferung::BUDGET`] Listen. Was darüber liegt, wird nicht
@@ -164,6 +166,15 @@ fn text_vergleich(p: &Pruefung) -> Vec<String> {
             t.budget
         ),
         format!("   {EINORDNUNG}"),
+        format!(
+            "   Wertung der Suche: {}",
+            if p.machbarkeit.ziel.is_inverted() {
+                "Ring am Fristende (umgekehrtes Ziel; Niederlage hoechstens 0) — \
+                 Schaden und Anteil unten sind Beschreibung, nicht Wertung"
+            } else {
+                "Schaden"
+            }
+        ),
         format!("   Elite ({:.1}):", t.elite.best.mean),
     ];
     for rule in &t.elite.best.apl.rules {

@@ -21,7 +21,9 @@ use rota_sim::apl::AplName;
 use rota_sim::balance::BalanceConfig;
 use rota_sim::data::{boss_by_id, index_of, SPELLS};
 use rota_sim::factors::NEUTRAL;
-use rota_sim::rotation_search::{all_candidates, greedy, greedy_from, Candidate, Origin, Stop};
+use rota_sim::rotation_search::{
+    all_candidates, bewerte, greedy, greedy_from, Candidate, Origin, Stop,
+};
 
 /// Durchgänge je gemessener Rotation.
 const RUNS: u32 = 50;
@@ -706,7 +708,10 @@ fn main() {
         let gefunden = greedy(&config, &pool, max_len);
         let hand = rota_sim::apl::parse(AplName("step1-good"), STEP1_GOOD)
             .expect("step1-good ist gueltig");
-        let hand_result = rota_sim::balance::run(&config, &hand);
+        // **Mit derselben Wertung wie die Suche** (#891 N1): Bei umgekehrtem
+        // Ziel ist das der Ring am Fristende, nicht der Schaden — sonst stuende
+        // hier ein Vergleich zweier verschiedener Groessen.
+        let hand_result = bewerte(&config, hand);
 
         println!("Boss {boss_id}");
         println!(
@@ -715,16 +720,16 @@ fn main() {
         );
         println!(
             "  step1-good   {:9.1} +/- {:.1}",
-            hand_result.damage.mean, hand_result.damage.stderr
+            hand_result.mean, hand_result.stderr
         );
 
         // AC1: erreicht oder uebertrifft — und der Bericht sagt, welches von
         // beiden. „Erreicht" ist ein Befund ueber die Handschrift, kein Mangel
         // der Suche.
-        let unschaerfe = gefunden.best.stderr + hand_result.damage.stderr;
-        let urteil = if gefunden.best.mean - hand_result.damage.mean > unschaerfe {
+        let unschaerfe = gefunden.best.stderr + hand_result.stderr;
+        let urteil = if gefunden.best.mean - hand_result.mean > unschaerfe {
             "UEBERTRIFFT die Handschrift messbar"
-        } else if hand_result.damage.mean - gefunden.best.mean > unschaerfe {
+        } else if hand_result.mean - gefunden.best.mean > unschaerfe {
             "BLEIBT unter der Handschrift — die Suche findet sie nicht"
         } else {
             "ERREICHT die Handschrift (Unterschied im Rauschen)"
