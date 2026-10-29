@@ -258,7 +258,16 @@ fn main() {
         spielbar.len()
     );
 
-    if gewirkt.len() < MINDESTENS {
+    // **Das Urteil steht hier, der Abbruch erst am Ende von `main`** (#550).
+    //
+    // Bis zum 2026-10-29 stand `exit(1)` an dieser Stelle. Solange die
+    // Untergrenze hielt, fiel das nicht auf; an `2f0c0d77` ist sie rot, und
+    // `--mit-ausruestung` lieferte dieselbe Ausgabe wie der Lauf ohne Schalter,
+    // Exit 1 — die AC4-Messung war nicht mehr zu fahren, genau dann, wenn sie
+    // erklären soll, was sich verschoben hat. Der Nightly sieht keinen
+    // Unterschied: Er fährt ohne Schalter, Ausgabe und Exit-Code bleiben gleich.
+    let unterschritten = gewirkt.len() < MINDESTENS;
+    if unterschritten {
         eprintln!(
             "FEHLGESCHLAGEN: nur {} von {} spielbaren Zaubern werden ueber die {} \
              Bosse der ersten Instanz gewirkt — erwartet mindestens {}.",
@@ -272,15 +281,14 @@ fn main() {
              Die Schwelle steht in `sim/examples/zauber-abdeckung.rs` (MINDESTENS) und \
              darf nur mit einer neuen Messung bewegt werden."
         );
-        std::process::exit(1);
+    } else {
+        println!(
+            "BESTANDEN: {} von {} >= {} (Untergrenze vom 2026-08-14)",
+            gewirkt.len(),
+            spielbar.len(),
+            MINDESTENS
+        );
     }
-
-    println!(
-        "BESTANDEN: {} von {} >= {} (Untergrenze vom 2026-08-14)",
-        gewirkt.len(),
-        spielbar.len(),
-        MINDESTENS
-    );
 
     // **AC4 aus #550, hinter einem Schalter.** Die Frage lautet: Ändert
     // Ausrüstung, WELCHE Zauber vorkommen — oder nur, wie viel Schaden sie
@@ -477,4 +485,9 @@ fn main() {
     // Läufer hält genau eine Zahl. `AplName` wird nur importiert, damit die
     // Signatur von `greedy` erfüllt ist — ohne Verwendung meldet clippy.
     let _ = AplName("zauber-abdeckung");
+
+    // Der Abbruch der Untergrenze — nach beiden Schalter-Teilen, siehe oben.
+    if unterschritten {
+        std::process::exit(1);
+    }
 }
