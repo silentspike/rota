@@ -44,11 +44,17 @@ fn stufen() -> Vec<Value> {
 #[test]
 fn beide_seiten_kennen_dieselben_stufen() {
     let liste = stufen();
-    // 21 Bosse auf je zwei Stufen ueber Normal — gezaehlt an der Rust-Seite,
-    // nicht abgeschrieben.
+    // 21 Bosse auf je zwei Stufen ueber Normal. Gezaehlt an der AUFZEICHNUNG,
+    // nicht an der Konstanten: `STAGED_BOSS_COUNT >= 21` waere zur
+    // Uebersetzungszeit entschieden und prueft nichts, was sich noch aendern
+    // koennte (clippy lehnt es mit -D warnings ab).
+    let mut kennungen: Vec<&str> = liste.iter().filter_map(|e| e["id"].as_str()).collect();
+    kennungen.sort_unstable();
+    kennungen.dedup();
     assert!(
-        STAGED_BOSS_COUNT >= 21,
-        "nur {STAGED_BOSS_COUNT} Bosse mit Stufen"
+        kennungen.len() >= 21,
+        "die Aufzeichnung fuehrt nur {} Bosse mit Stufen",
+        kennungen.len()
     );
     assert_eq!(
         liste.len(),
