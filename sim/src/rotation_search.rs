@@ -1620,58 +1620,19 @@ fn buff_aus_bedingung(condition: &Condition) -> Option<usize> {
 /// verlieren, und die Gegenprobe maesse dann die Streuung statt der Suche.
 #[must_use]
 pub fn exhaustive(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> SearchResult {
-    let mut best: Option<(Vec<Candidate>, Measured)> = None;
-    let mut measured = 0;
-    let mut aktuell: Vec<usize> = Vec::new();
-    let mut benutzt = vec![false; pool.len()];
-
-    fn rekursion(
-        config: &BalanceConfig,
-        pool: &[Candidate],
-        max_len: usize,
-        aktuell: &mut Vec<usize>,
-        benutzt: &mut Vec<bool>,
-        measured: &mut usize,
-        best: &mut Option<(Vec<Candidate>, Measured)>,
-    ) {
-        if !aktuell.is_empty() {
-            let zeilen: Vec<Candidate> = aktuell.iter().map(|&i| pool[i].clone()).collect();
-            let gemessen = measure(config, "erschoepfend", &zeilen);
-            *measured += 1;
-            let besser = match best.as_ref() {
-                None => true,
-                Some((_, bisher)) => gemessen.mean > bisher.mean,
-            };
-            if besser {
-                *best = Some((zeilen, gemessen));
-            }
+    let mut best: Option<(Vec<usize>, Measured)> = None;
+    let measured = exhaustive_besuchen(config, pool, max_len, &mut |liste, gemessen| {
+        let besser = match best.as_ref() {
+            None => true,
+            Some((_, bisher)) => gemessen.mean > bisher.mean,
+        };
+        if besser {
+            best = Some((liste.to_vec(), gemessen));
         }
-        if aktuell.len() >= max_len {
-            return;
-        }
-        for i in 0..pool.len() {
-            if benutzt[i] {
-                continue;
-            }
-            benutzt[i] = true;
-            aktuell.push(i);
-            rekursion(config, pool, max_len, aktuell, benutzt, measured, best);
-            aktuell.pop();
-            benutzt[i] = false;
-        }
-    }
+    });
 
-    rekursion(
-        config,
-        pool,
-        max_len,
-        &mut aktuell,
-        &mut benutzt,
-        &mut measured,
-        &mut best,
-    );
-
-    let (chosen, gemessen) = best.expect("kein einziger Kandidat — dann gibt es nichts zu suchen");
+    let (liste, gemessen) = best.expect("kein einziger Kandidat — dann gibt es nichts zu suchen");
+    let chosen = liste.iter().map(|&i| pool[i].clone()).collect();
     SearchResult {
         best: gemessen,
         chosen,
@@ -1692,6 +1653,98 @@ pub fn exhaustive(config: &BalanceConfig, pool: &[Candidate], max_len: usize) ->
         // Und sie kennt keine Laengengrenze als Runde: Sie zaehlt Teilmengen auf.
         grenzrunden: 0,
     }
+}
+
+/// Der Kern von [`exhaustive`]: jede Reihenfolge jeder Teilmenge bis
+/// `max_len`, jede genau einmal gemessen (Issue #946).
+///
+/// # Warum er offen liegt
+///
+/// [`exhaustive`] behält nur die beste Liste. Die Viabilitätsbefunde
+/// ([`crate::viabilitaet`]) brauchen mehr: die beste Liste, **in der ein
+/// bestimmter Zauber vorkommt**. Erst sie ist eine Schranke — und ohne
+/// Schranke darf kein Zauber „dominiert" heißen. Ein zweiter Aufzähler daneben
+/// liefe beim nächsten Umbau auseinander; beide gehen deshalb über diesen.
+///
+/// `besuch` bekommt jede Liste als Positionen im Vorrat, in ihrer Reihenfolge,
+/// und ihre Messung aus [`measure`]. Besucht wird in Tiefensuche: eine Liste
+/// vor ihren Verlängerungen, der Vorrat in seiner Reihenfolge — dieselbe
+/// Reihenfolge wie vor #946, und an ihr hängt, welche von zwei gleich guten
+/// Listen [`exhaustive`] meldet.
+///
+/// Gibt zurück, wie viele Listen gemessen wurden. Es sind genau
+/// [`exhaustive_messungen`] — wer weniger zählt, hat nicht alles gesehen.
+pub fn exhaustive_besuchen(
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    max_len: usize,
+    besuch: &mut dyn FnMut(&[usize], Measured),
+) -> usize {
+    fn rekursion(
+        config: &BalanceConfig,
+        pool: &[Candidate],
+        max_len: usize,
+        aktuell: &mut Vec<usize>,
+        benutzt: &mut Vec<bool>,
+        measured: &mut usize,
+        besuch: &mut dyn FnMut(&[usize], Measured),
+    ) {
+        if !aktuell.is_empty() {
+            let zeilen: Vec<Candidate> = aktuell.iter().map(|&i| pool[i].clone()).collect();
+            let gemessen = measure(config, "erschoepfend", &zeilen);
+            *measured += 1;
+            besuch(aktuell, gemessen);
+        }
+        if aktuell.len() >= max_len {
+            return;
+        }
+        for i in 0..pool.len() {
+            if benutzt[i] {
+                continue;
+            }
+            benutzt[i] = true;
+            aktuell.push(i);
+            rekursion(config, pool, max_len, aktuell, benutzt, measured, besuch);
+            aktuell.pop();
+            benutzt[i] = false;
+        }
+    }
+
+    let mut measured = 0;
+    let mut aktuell: Vec<usize> = Vec::new();
+    let mut benutzt = vec![false; pool.len()];
+    rekursion(
+        config,
+        pool,
+        max_len,
+        &mut aktuell,
+        &mut benutzt,
+        &mut measured,
+        besuch,
+    );
+    measured
+}
+
+/// Wie viele Listen [`exhaustive`] bei `n` Kandidaten und Länge `max_len`
+/// misst: die Summe von `n! / (n - k)!` für `k = 1 … min(n, max_len)`.
+///
+/// Bei sieben Kandidaten und Länge 4 sind das 7 + 42 + 210 + 840 = 1099.
+///
+/// **Vorher ausrechenbar, und darum geht es** (Issue #946): Ein Budget für die
+/// erschöpfende Suche lässt sich nur prüfen, bevor sie läuft. Läuft sie
+/// erst, ist die Zeit schon ausgegeben. Sättigt statt überzulaufen — eine
+/// Zahl über `u64::MAX` liegt ohnehin über jedem Budget.
+#[must_use]
+pub const fn exhaustive_messungen(n: usize, max_len: usize) -> u64 {
+    let mut summe: u64 = 0;
+    let mut glied: u64 = 1;
+    let mut k = 0;
+    while k < max_len && k < n {
+        glied = glied.saturating_mul((n - k) as u64);
+        summe = summe.saturating_add(glied);
+        k += 1;
+    }
+    summe
 }
 
 #[cfg(test)]
