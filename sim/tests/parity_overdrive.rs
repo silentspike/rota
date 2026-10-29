@@ -112,7 +112,10 @@ fn der_fall_kann_den_unterschied_ueberhaupt_zeigen() {
         .iter()
         .filter(|p| p["slot"].as_u64() == Some(u64::from(OVERDRIVE_PRESS)))
         .count();
-    assert_eq!(drucke_auf_g, 3, "gemessen: ein Zünden, zwei verworfene Drücke");
+    assert_eq!(
+        drucke_auf_g, 3,
+        "gemessen: ein Zünden, zwei verworfene Drücke"
+    );
 
     let erwartet = &json["expected"];
     assert_eq!(erwartet["overdriveIgnitedAtMs"].as_i64(), Some(4000));
@@ -125,7 +128,11 @@ fn der_fall_kann_den_unterschied_ueberhaupt_zeigen() {
         erwartet["rejected"].as_u64().unwrap_or(0) >= 2,
         "die zwei späteren Drücke auf G sind Fehleingaben"
     );
-    assert_eq!(erwartet["quenchCasts"].as_u64(), Some(1), "der Grenz-Takt fehlt");
+    assert_eq!(
+        erwartet["quenchCasts"].as_u64(),
+        Some(1),
+        "der Grenz-Takt fehlt"
+    );
 }
 
 #[test]
@@ -165,8 +172,14 @@ fn der_schluss_stand_stimmt() {
     let (fight, result) = replay(&json);
     let erwartet = &json["expected"];
     assert_eq!(Some(i64::from(result.damage)), erwartet["damage"].as_i64());
-    assert_eq!(Some(u64::from(result.accepted)), erwartet["accepted"].as_u64());
-    assert_eq!(Some(u64::from(result.rejected)), erwartet["rejected"].as_u64());
+    assert_eq!(
+        Some(u64::from(result.accepted)),
+        erwartet["accepted"].as_u64()
+    );
+    assert_eq!(
+        Some(u64::from(result.rejected)),
+        erwartet["rejected"].as_u64()
+    );
     assert_eq!(
         Some(u64::from(result.casts_cancelled)),
         erwartet["castsCancelled"].as_u64()
