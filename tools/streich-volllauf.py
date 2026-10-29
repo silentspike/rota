@@ -109,7 +109,8 @@ def main():
                                    "/work/rota-worktrees/<Rolle>-1055-volllauf bzw. -probe")
     ap.add_argument("--node-modules-von", default="/work/rota",
                     help="Checkout, dessen node_modules per Reflink übernommen werden")
-    ap.add_argument("--timeout", type=int, default=1800, help="je Stufe, an streich-mutation.py")
+    ap.add_argument("--timeout", type=int, default=1800,
+                    help="je Stufe und Versuch (nach Exit 75 neu), an streich-mutation.py")
     ap.add_argument("--trocken", action="store_true", help="nur prüfen und den Befehl zeigen")
     ap.add_argument("--probe", action="append", metavar="FELD",
                     help="nur diese Felder (mehrfach); verlangt ein FREIES Fenster")

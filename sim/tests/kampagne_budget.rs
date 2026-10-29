@@ -28,10 +28,9 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
-    CoverageSpec, CpuReservation, CpuRole, DateTimeUtc, DeadlinePolicy, DeployedHost, Hash,
-    HostRequirement, Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile,
-    ResultGuarantee, RunDeployment, RuntimeAccounting, WorkUnits, REFERENCE_PROFILE_STANDARD,
+    CampaignDefinition, CampaignRunContract, ComputeRequirement, CpuReservation, CpuRole,
+    DateTimeUtc, DeadlinePolicy, DeployedHost, Hash, HostRequirement, NetworkRequirement,
+    ReferenceProfile, ResultGuarantee, RunDeployment, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
 const LAPTOP: CpuReservation = CpuReservation {
@@ -81,16 +80,6 @@ fn kampagne() -> CampaignDefinition {
         },
         target_wall_time: ZWEI_STUNDEN,
         canonical_work_budget: WorkUnits(1_000_000),
-        exact_obligations: ProjectionSet { required: 12 },
-        coverage_spec: CoverageSpec { strength: 2 },
-        quality_targets: QualityTargets {
-            minimum_niche_coverage: 0.95,
-            independent_restarts: 8,
-            plateau_work_units: WorkUnits(50_000),
-            maximum_bound_gap: None,
-            confidence_requirement: ConfidenceSpec { level: 0.99 },
-            final_audit: AuditPolicy::ScalarReplayAll,
-        },
     }
 }
 
@@ -205,9 +194,7 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 
     let abdruecke: Vec<Hash> = d
         .iter()
-        .map(|_| {
-            CampaignRunContract::from_campaign(&k, Mission::FullBalance).campaign_definition_hash
-        })
+        .map(|_| CampaignRunContract::from_campaign(&k).campaign_definition_hash)
         .collect();
     assert_eq!(
         abdruecke[0], abdruecke[1],
@@ -220,7 +207,7 @@ fn ac2_der_fingerabdruck_haengt_nicht_am_deployment() {
 
     // Und die Arbeitsmenge selbst ist dieselbe, nicht nur ihr Abdruck.
     for d_i in &d {
-        let vertrag = CampaignRunContract::from_campaign(&k, Mission::FullBalance);
+        let vertrag = CampaignRunContract::from_campaign(&k);
         assert_eq!(
             vertrag.deterministic_work_budget,
             k.canonical_work_budget,
@@ -268,38 +255,6 @@ fn ac2_kontrolle_jedes_feld_aendert_den_fingerabdruck() {
     k.canonical_work_budget = WorkUnits(1_000_001);
     abweichungen.push(("canonical_work_budget", k.fingerprint()));
 
-    let mut k = kampagne();
-    k.exact_obligations.required = 13;
-    abweichungen.push(("exact_obligations", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.coverage_spec.strength = 3;
-    abweichungen.push(("coverage_spec", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.quality_targets.minimum_niche_coverage = 0.96;
-    abweichungen.push(("minimum_niche_coverage", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.quality_targets.independent_restarts = 9;
-    abweichungen.push(("independent_restarts", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.quality_targets.plateau_work_units = WorkUnits(50_001);
-    abweichungen.push(("plateau_work_units", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.quality_targets.maximum_bound_gap = Some(0.0);
-    abweichungen.push(("maximum_bound_gap None->Some(0.0)", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.quality_targets.confidence_requirement.level = 0.999;
-    abweichungen.push(("confidence_requirement", k.fingerprint()));
-
-    let mut k = kampagne();
-    k.quality_targets.final_audit = AuditPolicy::ScalarReplayDecisive;
-    abweichungen.push(("final_audit", k.fingerprint()));
-
     for (feld, abdruck) in &abweichungen {
         assert_ne!(
             *abdruck, basis,
@@ -309,34 +264,16 @@ fn ac2_kontrolle_jedes_feld_aendert_den_fingerabdruck() {
     }
 
     // Die Zahl steht in der MELDUNG, nicht in der Bedingung: Eine feste Zahl
-    // hier bräche bei jedem neuen Feld, statt es zu prüfen.
+    // hier bräche bei jedem neuen Feld, statt es zu prüfen. Bis zum
+    // 2026-10-29 dreizehn; Pflichtprojektionen, Abdeckung und die sechs
+    // Qualitätsvorgaben sind mit dem Zuschnitt in #891 aus der Kampagne
+    // entfernt, weil kein Produktionspfad sie las.
     assert_eq!(
         abweichungen.len(),
-        13,
+        5,
         "Es wurden {} Felder geprüft. Kommt ein Feld zur Kampagne dazu, gehört \
          es hier dazu — sonst wächst die Struktur schneller als ihr Schutz.",
         abweichungen.len()
-    );
-}
-
-/// **AC2, die schärfere Kontrolle** — `Some(0.0)` und `None` sind verschiedene
-/// Aussagen.
-///
-/// „Keine Schranke verlangt" gegen „Schranke muss exakt eingehalten werden".
-/// Ein Fingerabdruck, der den fehlenden Wert wie die 0.0 behandelt, wirft beide
-/// zusammen — und der Unterschied fällt erst auf, wenn ein Lauf eine Schranke
-/// einhält, die nie verlangt war.
-#[test]
-fn ac2_fehlender_wert_ist_nicht_der_wert_null() {
-    let mut ohne = kampagne();
-    ohne.quality_targets.maximum_bound_gap = None;
-    let mut mit_null = kampagne();
-    mit_null.quality_targets.maximum_bound_gap = Some(0.0);
-
-    assert_ne!(
-        ohne.fingerprint(),
-        mit_null.fingerprint(),
-        "None und Some(0.0) ergeben denselben Fingerabdruck."
     );
 }
 
@@ -386,7 +323,7 @@ fn ac4_die_anzeige_trennt_rechenvorgabe_von_unbekannter_kernbindung() {
 /// **AC5** — ein Zeitabbruch ist nicht die Voreinstellung.
 #[test]
 fn ac5_ohne_ausdruecklichen_wunsch_gibt_es_keine_frist() {
-    let vertrag = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
+    let vertrag = CampaignRunContract::from_campaign(&kampagne());
     assert!(
         vertrag.hard_deadline.is_none(),
         "Der abgeleitete Vertrag bringt eine Frist mit, ohne dass sie verlangt \
@@ -438,10 +375,14 @@ fn ac5_ein_abgeschnittener_lauf_traegt_eine_eigene_garantie() {
     assert!(ResultGuarantee::StatisticalEstimate { confidence: 0.5 }.is_complete());
 }
 
-/// **AC6** — die Bedeutung der Frist ist benannt, und die drei Festlegungen
-/// stehen im Vertrag.
+/// **AC6** — die Bedeutung der Frist ist benannt.
+///
+/// Bis zum 2026-10-29 hieß der Fall `…_und_die_zaehlung_steht_fest` und
+/// prüfte dazu die drei Festlegungen zur Zählung der Rechenzeit. Sie standen
+/// als eigenes Vertragsfeld, das kein Produktionspfad las, und sind mit dem
+/// Zuschnitt in #891 entfernt.
 #[test]
-fn ac6_beide_fristarten_sind_unterscheidbar_und_die_zaehlung_steht_fest() {
+fn ac6_beide_fristarten_sind_unterscheidbar() {
     let wanduhr = DeadlinePolicy::WallClockUtc {
         deadline: DateTimeUtc {
             unix_seconds: 1_800_000_000,
@@ -454,14 +395,6 @@ fn ac6_beide_fristarten_sind_unterscheidbar_und_die_zaehlung_steht_fest() {
         wanduhr, rechenzeit,
         "Die beiden Fristarten sind nicht unterscheidbar."
     );
-
-    let z = RuntimeAccounting::REPRODUCIBLE;
-    assert!(!z.counts_paused_time, "Pausezeit zählt mit.");
-    assert!(
-        !z.counts_coordinator_outage,
-        "Ein Koordinatorausfall zählt mit."
-    );
-    assert!(!z.counts_host_wait, "Wartezeit auf Rechner zählt mit.");
 }
 
 /// **AC7** — die Zielzeit gehört zur Kampagne, und eine andere ist ein anderes
@@ -479,8 +412,8 @@ fn ac7_die_zielzeit_kommt_aus_der_kampagne_und_ist_teil_ihrer_identitaet() {
     let mut vier = kampagne();
     vier.target_wall_time = Duration::from_secs(14_400);
 
-    let v_zwei = CampaignRunContract::from_campaign(&zwei, Mission::FullBalance);
-    let v_vier = CampaignRunContract::from_campaign(&vier, Mission::FullBalance);
+    let v_zwei = CampaignRunContract::from_campaign(&zwei);
+    let v_vier = CampaignRunContract::from_campaign(&vier);
     assert_eq!(v_zwei.target_wall_time, ZWEI_STUNDEN);
     assert_eq!(v_vier.target_wall_time, Duration::from_secs(14_400));
     assert_eq!(
@@ -503,36 +436,261 @@ fn ac7_die_zielzeit_kommt_aus_der_kampagne_und_ist_teil_ihrer_identitaet() {
 #[test]
 fn ac1_der_vertrag_entsteht_aus_der_kampagne_allein() {
     let k = kampagne();
-    let vertrag = CampaignRunContract::from_campaign(&k, Mission::FullBalance);
+    let vertrag = CampaignRunContract::from_campaign(&k);
 
-    // Jedes Feld der Kampagne hat einen Leser im Vertrag (AC0).
+    // Was der Vertrag aus der Kampagne übernimmt, kommt unverändert an. Wer es
+    // dort liest, prüft `ac0_jedes_vertragsfeld_hat_einen_leser_im_produktionspfad`.
     assert_eq!(vertrag.target_wall_time, k.target_wall_time);
     assert_eq!(vertrag.deterministic_work_budget, k.canonical_work_budget);
-    assert_eq!(vertrag.exact_obligations, k.exact_obligations);
-    assert_eq!(vertrag.interaction_coverage, k.coverage_spec);
-    assert_eq!(
-        vertrag.minimum_niche_coverage,
-        k.quality_targets.minimum_niche_coverage
-    );
-    assert_eq!(
-        vertrag.independent_restarts,
-        k.quality_targets.independent_restarts
-    );
-    assert_eq!(
-        vertrag.plateau_work_units,
-        k.quality_targets.plateau_work_units
-    );
-    assert_eq!(
-        vertrag.maximum_bound_gap,
-        k.quality_targets.maximum_bound_gap
-    );
-    assert_eq!(
-        vertrag.confidence_requirement,
-        k.quality_targets.confidence_requirement
-    );
-    assert_eq!(vertrag.final_audit, k.quality_targets.final_audit);
     assert_eq!(vertrag.campaign_definition_hash, k.fingerprint());
-    assert_eq!(vertrag.mission, Mission::FullBalance);
+    assert!(vertrag.hard_deadline.is_none());
+}
+
+/// Die Quelltexte, in denen die Leser des Laufvertrags stehen.
+const KAMPAGNE_RS: &str = include_str!("../src/kampagne.rs");
+const MACHBARKEIT_RS: &str = include_str!("../src/machbarkeit.rs");
+
+/// Jedes Feld des Laufvertrags und die Funktion, die es im Produktionspfad
+/// liest: (Feld, Datei, Funktion, Zugriff).
+///
+/// Ein Feld ohne Zeile hier ist ein Feld ohne Leser. Bis zum 2026-10-29 trug
+/// der Vertrag vierzehn Felder, und zehn davon las niemand außer
+/// Fingerabdruck, JSON und Herkunftsvergleich (Zuschnitt in #891). Ein solches
+/// Feld verhält sich in jedem Test genau wie eines, das korrekt gelesen wird.
+const LESER: &[(&str, &str, &str, &str)] = &[
+    (
+        "target_wall_time",
+        "src/machbarkeit.rs",
+        "preflight",
+        "contract.target_wall_time",
+    ),
+    (
+        "campaign_definition_hash",
+        "src/kampagne.rs",
+        "origin",
+        "contract.campaign_definition_hash",
+    ),
+    (
+        "deterministic_work_budget",
+        "src/machbarkeit.rs",
+        "preflight",
+        "contract.deterministic_work_budget",
+    ),
+    (
+        "hard_deadline",
+        "src/machbarkeit.rs",
+        "preflight",
+        "contract.hard_deadline",
+    ),
+];
+
+/// Funktionen, die einen Wert nur abbilden oder weiterreichen. Sie zählen
+/// nicht als Leser: Ein Feld, das nur in Fingerabdruck und JSON eingeht,
+/// ändert nichts daran, was ein Lauf tut.
+const KEIN_LESER: &[&str] = &[
+    "to_json",
+    "fingerprint",
+    "from_campaign",
+    "with_hard_deadline",
+    "eq",
+    "fmt",
+];
+
+fn quelltext(datei: &str) -> &'static str {
+    match datei {
+        "src/kampagne.rs" => KAMPAGNE_RS,
+        "src/machbarkeit.rs" => MACHBARKEIT_RS,
+        _ => panic!("{datei}: kein eingebundener Quelltext"),
+    }
+}
+
+/// Ein Block ohne Kommentare und ohne den Inhalt von Zeichenketten und
+/// Zeichenliteralen; die Zeilen bleiben erhalten. Ein Feldname im Kommentar
+/// oder in einer Meldung darf weder als Feld noch als Lesezugriff zählen.
+fn nur_code(quelle: &str) -> String {
+    let z: Vec<char> = quelle.chars().collect();
+    let mut code = String::with_capacity(quelle.len());
+    let mut i = 0;
+    while i < z.len() {
+        match z[i] {
+            '/' if z.get(i + 1) == Some(&'/') => {
+                while i < z.len() && z[i] != '\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            '"' => {
+                i += 1;
+                while i < z.len() && z[i] != '"' {
+                    if z[i] == '\\' {
+                        i += 1;
+                    } else if z[i] == '\n' {
+                        code.push('\n');
+                    }
+                    i += 1;
+                }
+                code.push_str("\"\"");
+            }
+            // Zeichenliteral mit Escape, etwa '\\' oder '\u{1f}'.
+            '\'' if z.get(i + 1) == Some(&'\\') => {
+                i += 3;
+                while i < z.len() && z[i] != '\'' {
+                    i += 1;
+                }
+                code.push_str("' '");
+            }
+            // Einfaches Zeichenliteral wie '"'; eine Lebensdauer wie 'a bleibt.
+            '\'' if z.get(i + 2) == Some(&'\'') => {
+                i += 2;
+                code.push_str("' '");
+            }
+            c => code.push(c),
+        }
+        i += 1;
+    }
+    code
+}
+
+/// Der Block, dessen Kopf `kopf` enthält: vom Kopf bis zur schließenden
+/// Klammer auf der Einrückung des Kopfes. Der Kopf muss genau einmal außerhalb
+/// eines Kommentars stehen, sonst liest der Wächter womöglich den falschen.
+fn block<'a>(quelle: &'a str, kopf: &str) -> &'a str {
+    let treffer: Vec<usize> = quelle
+        .match_indices(kopf)
+        .map(|(i, _)| i)
+        .filter(|&i| {
+            let zeile = quelle[..i].rfind('\n').map_or(0, |z| z + 1);
+            !quelle[zeile..i].trim_start().starts_with("//")
+        })
+        .collect();
+    assert_eq!(treffer.len(), 1, "»{kopf}« steht {} Mal", treffer.len());
+    let beginn = treffer[0];
+    let zeile = quelle[..beginn].rfind('\n').map_or(0, |z| z + 1);
+    let davor = &quelle[zeile..beginn];
+    let einzug = davor.len() - davor.trim_start().len();
+    let schluss = format!("\n{}}}\n", " ".repeat(einzug));
+    let ende = quelle[beginn..]
+        .find(&schluss)
+        .unwrap_or_else(|| panic!("Ende von »{kopf}« nicht gefunden"));
+    &quelle[beginn..beginn + ende]
+}
+
+/// Die Feldnamen eines Struct-Rumpfs, ohne Kommentare und Attribute.
+fn feldnamen(rumpf: &str) -> Vec<String> {
+    nur_code(rumpf)
+        .lines()
+        .skip(1)
+        .map(str::trim)
+        .filter(|z| !z.is_empty() && !z.starts_with("#["))
+        .filter_map(|z| {
+            let z = z
+                .strip_prefix("pub(crate) ")
+                .or_else(|| z.strip_prefix("pub "))
+                .unwrap_or(z);
+            let (name, rest) = z.split_once(':')?;
+            let bezeichner = !name.is_empty()
+                && name
+                    .chars()
+                    .all(|c| c == '_' || c.is_ascii_lowercase() || c.is_ascii_digit());
+            (bezeichner && !rest.starts_with(':')).then(|| name.to_owned())
+        })
+        .collect()
+}
+
+/// Liest der Rumpf `zugriff` — ohne Kommentare, Zeichenketten und Leerraum,
+/// damit ein umbrochener Zugriff nicht unsichtbar wird?
+fn liest(rumpf: &str, zugriff: &str) -> bool {
+    let code: String = nur_code(rumpf)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let gesucht: String = zugriff.chars().filter(|c| !c.is_whitespace()).collect();
+    code.contains(&gesucht)
+}
+
+/// **AC0, „jedes Feld hat einen Leser"** — der Laufvertrag trägt nur Felder,
+/// die ein Produktionspfad liest.
+///
+/// Gelesen wird der Quelltext, weil Rust keine Felder aufzählen kann. Die
+/// Feldmenge muss der Liste [`LESER`] GLEICH sein, nicht nur in ihr enthalten:
+/// Fände der Wächter das Struct nicht oder läse null Felder, wäre „jedes
+/// gefundene Feld hat einen Leser" trivial wahr.
+#[test]
+fn ac0_jedes_vertragsfeld_hat_einen_leser_im_produktionspfad() {
+    let felder = feldnamen(block(KAMPAGNE_RS, "pub struct CampaignRunContract {"));
+    let eingetragen: Vec<&str> = LESER.iter().map(|l| l.0).collect();
+
+    let ohne_leser: Vec<&str> = felder
+        .iter()
+        .map(String::as_str)
+        .filter(|f| !eingetragen.contains(f))
+        .collect();
+    assert!(
+        ohne_leser.is_empty(),
+        "Felder des Laufvertrags ohne Leser im Produktionspfad: {ohne_leser:?}. \
+         Ein neues Feld braucht eine Funktion außerhalb der Tests, die es liest \
+         und danach handelt — Fingerabdruck und JSON zählen nicht. Gibt es \
+         keine, gehört das Feld nicht in den Vertrag."
+    );
+    let verschwunden: Vec<&str> = eingetragen
+        .iter()
+        .filter(|f| !felder.iter().any(|g| g == **f))
+        .copied()
+        .collect();
+    assert!(
+        verschwunden.is_empty(),
+        "Eingetragene Leser für Felder, die der Vertrag nicht hat: {verschwunden:?} \
+         (gefunden: {felder:?})"
+    );
+
+    for (feld, datei, funktion, zugriff) in LESER {
+        assert!(
+            !KEIN_LESER.contains(funktion),
+            "{feld}: {funktion} bildet nur ab und ist kein Leser"
+        );
+        let rumpf = block(quelltext(datei), &format!("fn {funktion}("));
+        assert!(
+            liest(rumpf, zugriff),
+            "{feld}: {datei} {funktion} liest »{zugriff}« nicht"
+        );
+    }
+}
+
+/// Gegenprobe des Wächters an einem erfundenen Quelltext: Ein Feldname oder
+/// Zugriff in Kommentar oder Zeichenkette zählt nicht, ein umbrochener Zugriff
+/// schon — auch hinter Zeichenliteralen, die ein Anführungszeichen enthalten.
+#[test]
+fn ac0_waechter_kontrolle_kommentare_zaehlen_nicht() {
+    const PROBE: &str = "\
+/// pub erfunden: u8,
+pub struct Probe {
+    /// pub auch_erfunden: u8,
+    pub echt: u8, // pub im_kommentar: u8,
+    #[allow(dead_code)]
+    intern: std::time::Duration,
+}
+
+pub fn leser(contract: &Probe) -> u8 {
+    // contract.intern
+    let text: &'static str = \"// contract.intern\";
+    let zeichen = ['\"', '\\\\', '\\u{1f}'];
+    contract
+        .echt
+}
+";
+    assert_eq!(
+        feldnamen(block(PROBE, "pub struct Probe {")),
+        vec!["echt", "intern"]
+    );
+    let rumpf = block(PROBE, "fn leser(");
+    assert!(
+        liest(rumpf, "contract.echt"),
+        "umbrochener Zugriff übersehen"
+    );
+    assert!(
+        !liest(rumpf, "contract.intern"),
+        "Zugriff aus Kommentar oder Zeichenkette gezählt"
+    );
 }
 
 /// **AC3** — das Referenzprofil nennt Mindestressourcen, nicht Erreichbarkeit.

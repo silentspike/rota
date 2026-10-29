@@ -36,8 +36,7 @@ use rota_sim::kalibrierung::{
     kalibriere, schluessel_erheben, Arbeitsart, Profil, Profilschluessel, RateModel,
 };
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    DeadlinePolicy, Mission, ProjectionSet, QualityTargets, ReferenceProfile, WorkUnits,
+    CampaignDefinition, CampaignRunContract, DeadlinePolicy, ReferenceProfile, WorkUnits,
 };
 use rota_sim::machbarkeit::{preflight, CalibratedHost, FeasibilityError, WorkEstimate};
 
@@ -277,19 +276,8 @@ fn pruefe(argumente: &[String], rechner: &impl Rechner) -> Result<(), Ausgang> {
         // Seit #914 gehört die Zielzeit zur Kampagne; der Vertrag übernimmt sie.
         target_wall_time: Duration::from_millis(target_ms),
         canonical_work_budget: WorkUnits(work_budget),
-        exact_obligations: ProjectionSet { required: 1 },
-        coverage_spec: CoverageSpec { strength: 0 },
-        quality_targets: QualityTargets {
-            minimum_niche_coverage: 0.0,
-            independent_restarts: 1,
-            plateau_work_units: WorkUnits(0),
-            maximum_bound_gap: None,
-            confidence_requirement: ConfidenceSpec { level: 0.99 },
-            final_audit: AuditPolicy::ScalarReplayAll,
-        },
     };
-    let mut contract =
-        CampaignRunContract::from_campaign(&campaign, Mission::SingleBoss { boss: BOSS });
+    let mut contract = CampaignRunContract::from_campaign(&campaign);
     if hard_deadline {
         contract = contract.with_hard_deadline(DeadlinePolicy::ActiveRuntime {
             remaining: Duration::from_millis(target_ms),
