@@ -188,9 +188,7 @@ fn main() {
     // Bosse und gehen durch dieselben Pruefungen — wer hier abbricht, nennt
     // die Stufe, nicht erst einen Paritaetsbruch im Kampf.
     let stufen = lies_stufen(&read_json(DIFFICULTY_JSON));
-    // NOCH OHNE ABLEITUNG (Zwischenstand des roten Prueffalls): keine Stufen.
-    let gestufte: Vec<(String, Vec<Value>)> = Vec::new();
-    let _ = leite_stufen_ab;
+    let gestufte = leite_stufen_ab(&bosses, &stufen);
 
     let mut out = String::with_capacity(8 * 1024);
     out.push_str(
