@@ -338,14 +338,15 @@ jobs:
       #        Gefunden über einen Vergleich der `--list`-Ausgaben beider
       #        Bauten: `cargo test -- --list` gegen `cargo test --all-targets
       #        --features diagnostics -- --list`, die Namen je Suite
-      #        gegeneinander gehalten. Am 2026-10-29: 1582 Fälle gegen 1632,
+      #        gegeneinander gehalten. Am 2026-10-29: 1581 Fälle gegen 1631,
       #        die lib-Suite von 275 auf 278. Die 5 Doc-Tests fährt nur der
       #        erste Lauf; `--all-targets` schließt sie aus. Wer die Zahl erneut
       #        prüfen will, nimmt denselben Weg — eine Zahl allein wäre in
       #        einem Jahr wieder eine unbelegte Angabe. Beide Ausgaben in EINE
       #        Datei umgeleitet, stehen die `Running`-Zeilen (stderr) nicht
       #        immer vor ihrer Liste (stdout): Die Summen stimmen dann, die
-      #        Zuordnung zu Suiten nicht — gemessen, sieben Fälle wanderten.
+      #        Zuordnung zu Suiten nicht — gemessen, einmal wanderten sieben
+      #        Fälle, einmal die 25 aus src/bin/rota-sim.rs in die Bibliothek.
       #
       # Die 8 sind die wichtigsten: Sie prüfen, ob die Auswertung überhaupt
       # etwas zu rechnen BEKOMMT. Die 7 in diagnostics.rs prüfen nur, dass sie
