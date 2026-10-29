@@ -201,6 +201,44 @@ fn ac2_nur_bewiesen_dominiert_heisst_zu_schwach() {
     }
 }
 
+#[test]
+fn auflage_bewiesen_dominiert_nie_ohne_geltungsbereich() {
+    // Auflage vom 2026-10-29, aus dem eigenen Befund: Ohne Budgetgrenze heißt
+    // `smoulder` in der Projektion der Länge 1 dominiert und ist bei Länge 3
+    // bezeugt. Ein Beweis ist so viel wert wie seine Projektion — also steht
+    // sie in der Befund-Spalte, nicht nur im Beleg.
+    let t = lauf(
+        &["kindle", "smoulder", "pyre", "crust", "quench", "fester"],
+        3,
+        1_000_000,
+    );
+    let bereich = "in der Projektion Elite-Zeilen + eigene Zeilen, Laenge <= 3, \
+                   ohne Ausruestung, first-crucible";
+    let mut dominiert = 0;
+    for zeile in &t.zeilen {
+        if zeile.befund.art() == Befundart::BewiesenDominiert {
+            dominiert += 1;
+            assert_eq!(
+                zeile.befund.bezeichnung(),
+                format!("bewiesen dominiert — {bereich}"),
+                "{}",
+                zeile.id
+            );
+            assert_eq!(
+                zeile.befund.geltungsbereich().as_deref(),
+                Some(bereich),
+                "{}",
+                zeile.id
+            );
+            assert!(zeile.befund.beleg().contains(bereich), "{}", zeile.id);
+        } else {
+            assert_eq!(zeile.befund.geltungsbereich(), None, "{}", zeile.id);
+            assert_eq!(zeile.befund.bezeichnung(), zeile.befund.art().name());
+        }
+    }
+    assert!(dominiert >= 2, "{:?}", arten(&t));
+}
+
 // ------------------------------------------------------------------- AC7
 
 #[test]

@@ -38,10 +38,10 @@ use rota_sim::report::{
     achievement_run, feasibility, is_shippable, meaningless, time_tiers, AchievementCheck,
     Feasibility,
 };
-use rota_sim::rotation_search::all_candidates;
+use rota_sim::rotation_search::{all_candidates, Candidate};
 use rota_sim::viabilitaet::{
     befunde, mechanikproben, portfolio, schulproben, spielbare_zauber, Befundart, Befundtabelle,
-    Mechanikprobe, Schulprobe,
+    Mechanikprobe, Schulprobe, EINORDNUNG,
 };
 use rota_sim::{Fight, FightConfig, RunResult, BOSS, SPELLS};
 
@@ -93,13 +93,28 @@ struct Vergleich {
 }
 
 fn vergleich(budget: u64) -> Vergleich {
+    vergleich_mit(
+        &befund_config(),
+        &all_candidates(),
+        &spielbare_zauber(),
+        MAX_LEN,
+        budget,
+    )
+}
+
+/// Abschnitt 1 für einen beliebigen Vorrat — der Prüffall unten rechnet ihn
+/// auf einem kleinen.
+fn vergleich_mit(
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    grundmenge: &[usize],
+    max_len: usize,
+    budget: u64,
+) -> Vergleich {
     let beginn = Instant::now();
-    let config = befund_config();
-    let pool = all_candidates();
-    let grundmenge = spielbare_zauber();
-    let tabelle = befunde(&config, &pool, &grundmenge, MAX_LEN, budget);
-    let schulen = schulproben(&config, &pool, &grundmenge, MAX_LEN);
-    let mechaniken = mechanikproben(&config, &pool, MAX_LEN);
+    let tabelle = befunde(config, pool, grundmenge, max_len, budget);
+    let schulen = schulproben(config, pool, grundmenge, max_len);
+    let mechaniken = mechanikproben(config, pool, max_len);
 
     // Schaden je Zauber gibt der Balance-Lauf nicht her, nur der einzelne
     // Kampf. Derselbe Kampf wie im Lauf — und das wird geprüft, nicht
@@ -107,6 +122,7 @@ fn vergleich(budget: u64) -> Vergleich {
     // Kampfs.
     let elite_lauf = Fight::new(FightConfig {
         stop_on_kill: config.stop_on_kill,
+        boss: config.boss,
         log_capacity: 0,
         ..FightConfig::default()
     })
@@ -178,28 +194,31 @@ fn coverage_text(c: Coverage) -> String {
     }
 }
 
-fn print_vergleich(v: &Vergleich) {
+/// Abschnitt 1 als Zeilen — dieselben, die gedruckt werden.
+fn text_vergleich(v: &Vergleich) -> Vec<String> {
     let t = &v.tabelle;
-    println!("1. ZAUBER-VERGLEICH — vier Befunde je Zauber (Issue #946)");
-    println!(
-        "   Boss \"{}\", gesuchte Rotation (gierig, Laenge bis {}), 1 Durchgang, Startwert 0,",
-        t.boss, t.max_len
-    );
-    println!(
-        "   Budget {} Listen je Projektion, gerechnet in {:.1} s",
-        t.budget, v.sekunden
-    );
-    println!("   Elite ({:.1}):", t.elite.best.mean);
+    let mut out = vec![
+        "1. ZAUBER-VERGLEICH — vier Befunde je Zauber (Issue #946)".to_owned(),
+        format!(
+            "   Boss \"{}\", gesuchte Rotation (gierig, Laenge bis {}), 1 Durchgang, Startwert 0,",
+            t.boss, t.max_len
+        ),
+        format!(
+            "   Budget {} Listen je Projektion, gerechnet in {:.1} s",
+            t.budget, v.sekunden
+        ),
+        format!("   Elite ({:.1}):", t.elite.best.mean),
+    ];
     for rule in &t.elite.best.apl.rules {
-        println!("     {rule}");
+        out.push(format!("     {rule}"));
     }
-    println!();
+    out.push(String::new());
 
     let gesamt = f64::from(v.elite_lauf.damage);
-    println!(
-        "   {:<14} {:<13} {:>5} {:>8} {:>7}  {:<19} Beleg",
-        "Zauber", "Schule", "Wirkt", "Schaden", "Anteil", "Befund"
-    );
+    out.push(format!(
+        "   {:<14} {:<13} {:>5} {:>8} {:>7}  Befund",
+        "Zauber", "Schule", "Wirkt", "Schaden", "Anteil"
+    ));
     let mut zeilen: Vec<_> = t.zeilen.iter().collect();
     // Nach Befund, darin nach Schaden — der stabile Sort laesst gleiche in der
     // Reihenfolge der Daten.
@@ -210,8 +229,8 @@ fn print_vergleich(v: &Vergleich) {
     });
     for zeile in zeilen {
         let schaden = v.elite_lauf.damage_by_spell[zeile.spell];
-        println!(
-            "   {:<14} {:<13} {:>5} {:>8} {:>5.1} %  {:<19} {}",
+        out.push(format!(
+            "   {:<14} {:<13} {:>5} {:>8} {:>5.1} %  {}",
             zeile.id,
             SPELLS[zeile.spell].school.unwrap_or("-"),
             zeile.casts,
@@ -221,46 +240,46 @@ fn print_vergleich(v: &Vergleich) {
             } else {
                 0.0
             },
-            zeile.befund.art().name(),
-            zeile.befund.beleg()
-        );
+            zeile.befund.bezeichnung()
+        ));
+        out.push(format!("{:>18}Beleg: {}", "", zeile.befund.beleg()));
     }
 
-    println!();
+    out.push(String::new());
     for zeile in t.zusammenfassung().iter().take(Befundart::ALLE.len()) {
-        println!("   {zeile}");
+        out.push(format!("   {zeile}"));
     }
     let schwach: Vec<&str> = t.zu_schwach().iter().map(|z| z.id).collect();
-    println!();
-    println!("   Zu schwach — NUR bewiesen dominiert, und nur in der eigenen Projektion");
-    println!(
-        "   (Zeilen der Elite + eigene Zeilen, Laenge bis {}, Boss \"{}\"):",
+    out.push(String::new());
+    out.push("   Zu schwach — NUR bewiesen dominiert, und nur in der eigenen Projektion".to_owned());
+    out.push(format!(
+        "   (Elite-Zeilen + eigene Zeilen, Laenge <= {}, Boss \"{}\"):",
         t.max_len, t.boss
-    );
-    println!(
+    ));
+    out.push(format!(
         "     {}",
         if schwach.is_empty() {
             "keiner".to_owned()
         } else {
             schwach.join(", ")
         }
-    );
-    println!("   \"nicht gefunden\" ist ein Such-Befund und heisst NICHT zu schwach.");
+    ));
+    out.push("   \"nicht gefunden\" ist ein Such-Befund und heisst NICHT zu schwach.".to_owned());
 
-    println!();
-    println!("   Faecher des Zielvertrags (#939), aus diesem Lauf:");
+    out.push(String::new());
+    out.push("   Faecher des Zielvertrags (#939), aus diesem Lauf:".to_owned());
     let kampagne = t.kampagnenabdeckung();
     let menge = portfolio(&v.schulen, &v.mechaniken);
-    println!(
+    out.push(format!(
         "     every_spell_has_viable_niche                   {}",
         coverage_text(kampagne.every_spell_has_viable_niche)
-    );
-    println!(
+    ));
+    out.push(format!(
         "     no_school_is_globally_mandatory                {}",
         coverage_text(menge.no_school_is_globally_mandatory)
-    );
+    ));
     for probe in &v.schulen {
-        println!(
+        out.push(format!(
             "       ohne {:<13} {}",
             probe.schule,
             if probe.sieg_ohne.is_some() {
@@ -268,15 +287,17 @@ fn print_vergleich(v: &Vergleich) {
             } else {
                 "kein Sieg gefunden"
             }
-        );
+        ));
     }
-    println!(
+    out.push(format!(
         "     every_mechanic_has_multiple_solution_families  {}",
         coverage_text(menge.every_mechanic_has_multiple_solution_families)
-    );
+    ));
     match &v.mechaniken {
         Ok(liste) if liste.is_empty() => {
-            println!("       der Boss hat keine Mechanik — nichts zu loesen, nichts verletzt");
+            out.push(
+                "       der Boss hat keine Mechanik — nichts zu loesen, nichts verletzt".to_owned(),
+            );
         }
         Ok(liste) => {
             for probe in liste {
@@ -286,28 +307,29 @@ fn print_vergleich(v: &Vergleich) {
                     .filter(|(_, sieg)| sieg.is_some())
                     .map(|(weg, _)| weg.name())
                     .collect();
-                println!(
+                out.push(format!(
                     "       {:<18} {} Weg(e): {}",
                     probe.mechanik.name(),
                     probe.loesende(),
                     wege.join(", ")
-                );
+                ));
             }
         }
-        Err(bausteine) => println!(
+        Err(bausteine) => out.push(format!(
             "       nicht gezaehlt — der Boss traegt {}, die sich nicht allein messen lassen",
             bausteine.join(", ")
-        ),
+        )),
     }
-    println!(
+    out.push(format!(
         "     robustness_across_encounters                   {} (braucht mehr als einen Boss)",
         coverage_text(menge.robustness_across_encounters)
-    );
+    ));
 
-    println!();
+    out.push(String::new());
     for zeile in t.zusammenfassung().iter().skip(Befundart::ALLE.len() + 1) {
-        println!("   {zeile}");
+        out.push(format!("   {zeile}"));
     }
+    out
 }
 
 fn print_text(
@@ -326,7 +348,9 @@ fn print_text(
     println!("{}", "=".repeat(74));
 
     println!();
-    print_vergleich(v);
+    for zeile in text_vergleich(v) {
+        println!("{zeile}");
+    }
 
     println!();
     println!("2. BOSS-MACHBARKEIT");
@@ -398,26 +422,23 @@ fn print_text(
     println!("Aussage in seinem Geltungsbereich, kein Urteil ueber den Zauber im Spiel.");
 }
 
-fn print_json(
-    apl: &Apl,
-    result: &RunResult,
-    v: &Vergleich,
-    feas: &Feasibility,
-    checks: &[AchievementCheck],
-    shippable: bool,
-) {
+/// Abschnitt 1 als JSON-Objekt — dasselbe, das `--json` ausgibt.
+fn json_vergleich(v: &Vergleich) -> String {
     let t = &v.tabelle;
     let zeilen: Vec<String> = t
         .zeilen
         .iter()
         .map(|z| {
             format!(
-                "{{\"id\":{:?},\"school\":{:?},\"casts\":{},\"damage\":{},\"befund\":{:?},\"beleg\":{:?},\"zuSchwach\":{}}}",
+                "{{\"id\":{:?},\"school\":{:?},\"casts\":{},\"damage\":{},\"befund\":{:?},\"geltungsbereich\":{},\"beleg\":{:?},\"zuSchwach\":{}}}",
                 z.id,
                 SPELLS[z.spell].school.unwrap_or(""),
                 z.casts,
                 v.elite_lauf.damage_by_spell[z.spell],
-                z.befund.art().name(),
+                z.befund.bezeichnung(),
+                z.befund
+                    .geltungsbereich()
+                    .map_or_else(|| "null".to_owned(), |g| format!("{g:?}")),
                 z.befund.beleg(),
                 z.befund.ist_zu_schwach()
             )
@@ -439,28 +460,11 @@ fn print_json(
         .unwrap_or_default();
     let menge = portfolio(&v.schulen, &v.mechaniken);
     let kampagne = t.kampagnenabdeckung();
-
-    let achievements: Vec<String> = checks
-        .iter()
-        .map(|c| {
-            format!(
-                "{{\"name\":{:?},\"solved\":{},\"meaningful\":{},\"evidence\":{:?}}}",
-                c.name, c.solved, c.meaningful, c.evidence
-            )
-        })
-        .collect();
-
-    println!(
-        "{{\"apl\":{:?},\"boss\":{:?},\"damage\":{},\
-         \"zauberVergleich\":{{\"boss\":{:?},\"maxLen\":{},\"budget\":{},\"elite\":{:?},\"eliteWert\":{:?},\
+    format!(
+        "{{\"boss\":{:?},\"maxLen\":{},\"budget\":{},\"elite\":{:?},\"eliteWert\":{:?},\
          \"grundmenge\":{},\"befunde\":{{{}}},\"zeilen\":[{}],\"lauf\":{:?},\"vertrag\":{:?},\
          \"faecher\":{{\"everySpellHasViableNiche\":{:?},\"noSchoolIsGloballyMandatory\":{:?},\
-         \"everyMechanicHasMultipleSolutionFamilies\":{:?},\"robustnessAcrossEncounters\":{:?}}}}},\
-         \"feasibility\":{{\"limitMs\":{},\"defeated\":{},\"killTimeMs\":{},\"reserveMs\":{},\"reserveShare\":{:?},\"hpShare\":{:?}}},\
-         \"achievements\":[{}],\"shippable\":{}}}",
-        apl.name,
-        feas.boss,
-        result.damage,
+         \"everyMechanicHasMultipleSolutionFamilies\":{:?},\"robustnessAcrossEncounters\":{:?}}}}}",
         t.boss,
         t.max_len,
         t.budget,
@@ -475,6 +479,35 @@ fn print_json(
         coverage_text(menge.no_school_is_globally_mandatory),
         coverage_text(menge.every_mechanic_has_multiple_solution_families),
         coverage_text(menge.robustness_across_encounters),
+    )
+}
+
+fn print_json(
+    apl: &Apl,
+    result: &RunResult,
+    v: &Vergleich,
+    feas: &Feasibility,
+    checks: &[AchievementCheck],
+    shippable: bool,
+) {
+    let achievements: Vec<String> = checks
+        .iter()
+        .map(|c| {
+            format!(
+                "{{\"name\":{:?},\"solved\":{},\"meaningful\":{},\"evidence\":{:?}}}",
+                c.name, c.solved, c.meaningful, c.evidence
+            )
+        })
+        .collect();
+
+    println!(
+        "{{\"apl\":{:?},\"boss\":{:?},\"damage\":{},\"zauberVergleich\":{},\
+         \"feasibility\":{{\"limitMs\":{},\"defeated\":{},\"killTimeMs\":{},\"reserveMs\":{},\"reserveShare\":{:?},\"hpShare\":{:?}}},\
+         \"achievements\":[{}],\"shippable\":{}}}",
+        apl.name,
+        feas.boss,
+        result.damage,
+        json_vergleich(v),
         feas.limit_ms,
         feas.defeated,
         feas.kill_time_ms.map_or(-1_i64, i64::from),
@@ -484,4 +517,76 @@ fn print_json(
         achievements.join(","),
         shippable
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rota_sim::data::index_of;
+    use rota_sim::rotation_search::candidates_for;
+
+    /// Ein kleiner Lauf mit zwei bewiesen dominierten Zaubern (`crust`,
+    /// `fester`; gemessen auf node3 am 2026-10-29) — so klein, dass er im
+    /// Debug-Bau in Millisekunden durch ist.
+    fn klein() -> Vergleich {
+        let ids = ["kindle", "smoulder", "pyre", "crust", "quench", "fester"];
+        let grundmenge: Vec<usize> = ids
+            .iter()
+            .map(|id| index_of(id).expect("Zauber"))
+            .collect();
+        let pool: Vec<Candidate> = grundmenge.iter().flat_map(|&i| candidates_for(i)).collect();
+        vergleich_mit(&befund_config(), &pool, &grundmenge, 3, 1_000_000)
+    }
+
+    #[test]
+    fn jede_dominiert_zeile_nennt_ihren_geltungsbereich() {
+        // Auflage des Orchestrators vom 2026-10-29: Wer nur die Befund-Spalte
+        // liest, darf nicht „tot an first-crucible" verstehen. Geprüft wird
+        // die AUSGABE, nicht die Bibliothek — Text und JSON, genau wie sie
+        // gedruckt werden.
+        let v = klein();
+        let bereich = "in der Projektion Elite-Zeilen + eigene Zeilen, Laenge <= 3, \
+                       ohne Ausruestung, first-crucible";
+
+        let text = text_vergleich(&v);
+        // Die Zeile jedes dominierten Zaubers, gesucht über die Tabelle — nicht
+        // über das Wort, das geprüft wird.
+        let ids: Vec<&str> = v
+            .tabelle
+            .zeilen
+            .iter()
+            .filter(|z| z.befund.art() == Befundart::BewiesenDominiert)
+            .map(|z| z.id)
+            .collect();
+        assert!(ids.len() >= 2, "der kleine Lauf traegt zwei dominierte Zauber: {ids:?}");
+        for id in &ids {
+            let anfang = format!("   {id:<14} ");
+            let zeile = text
+                .iter()
+                .find(|z| z.starts_with(&anfang))
+                .unwrap_or_else(|| panic!("{id} hat keine Zeile im Text"));
+            assert!(
+                zeile.contains(&format!("bewiesen dominiert — {bereich}")),
+                "die Zeile nennt bewiesen dominiert ohne Geltungsbereich:\n{zeile}"
+            );
+        }
+        assert!(
+            text.iter().any(|z| z.contains(EINORDNUNG)),
+            "der Kopf nennt die Einordnung nicht"
+        );
+
+        let json = json_vergleich(&v);
+        assert!(json.contains(&format!("\"einordnung\":{EINORDNUNG:?}")));
+        let mit_dominiert = json.matches("\"befund\":\"bewiesen dominiert").count();
+        let mit_bereich = json
+            .matches(&format!(
+                "\"befund\":\"bewiesen dominiert — {bereich}\",\"geltungsbereich\":\"{bereich}\""
+            ))
+            .count();
+        assert!(mit_dominiert >= 2, "{json}");
+        assert_eq!(
+            mit_bereich, mit_dominiert,
+            "im JSON steht bewiesen dominiert ohne Geltungsbereich: {json}"
+        );
+    }
 }
