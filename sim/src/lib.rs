@@ -131,6 +131,9 @@ pub mod time;
 // Issue #915: exakte Krit-Verteilung und zaehlerbasierter Zufall — NEBEN dem
 // Kampf, weil drei Paritaets-Aufzeichnungen wirklich wuerfeln.
 pub mod verteilung;
+// Issue #946: vier Befunde statt „TOT" — bezeugt, dominiert, nicht gefunden,
+// ungeklaert; ein Beweis nur aus der erschoepfenden Projektion.
+pub mod viabilitaet;
 
 pub use apl::{Apl, AplError};
 pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
