@@ -2,7 +2,7 @@
   "schema": 1,
   "note": "Verzeichnis aller Klaenge (GAME-DESIGN 17.1). Prompt-Regeln: suno/suno-sfx.md 2, Erzeugung: suno/suno_api.py batch — beide im privaten Werkzeug-Repo silentspike/rota-werkzeuge. Nachbearbeitung: tools/sfx-post.sh.",
   "coverage": {
-    "note": "Soll aus GAME-DESIGN 17.1. Die 47 ableitbaren Slots sind vollstaendig beschrieben. Was fehlt, steht unter 'placeholders' mit dem Epic, das es ausarbeitet — es fehlt nicht aus Nachlaessigkeit, sondern weil die Vorlage dafuer noch nicht existiert (GAME-DESIGN 22).",
+    "note": "Soll aus GAME-DESIGN 17.1. Die 61 ableitbaren Slots sind vollstaendig beschrieben. Was fehlt, steht unter 'placeholders' mit dem Epic, das es ausarbeitet — es fehlt nicht aus Nachlaessigkeit, sondern weil die Vorlage dafuer noch nicht existiert (GAME-DESIGN 22).",
     "groups": {
       "spells": {
         "target": 60,
@@ -39,6 +39,10 @@
       "music": {
         "target": 19,
         "present": 5
+      },
+      "announce": {
+        "target": 9,
+        "present": 9
       }
     },
     "placeholders": [
@@ -623,7 +627,7 @@
     },
     {
       "id": "boss-warning-debuff",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Ankuendigung, Art Schwaechung auf dir (GAME-DESIGN 11.5): trifft nur den Spieler und verlangt persoenliche Reaktion. Eigener Klang, sofortiges Handeln.",
       "kind": "oneshot",
       "bus": "sfx",
@@ -631,11 +635,13 @@
       "targetSeconds": 0.9,
       "pitchJitterCents": 0,
       "prompt": "dark curse sting, rising whispered hiss, short one shot, eerie alchemy",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.debuff — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "trigger": {
+        "on": "boss.warning.debuff"
+      }
     },
     {
       "id": "boss-warning-damage",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Ankuendigung, Art Allgemeiner Schaden (GAME-DESIGN 11.5) ab Stufe 2: trifft ohne Zutun, man kann nur vorher heilen oder schuetzen. Ruhigere Ankuendigung.",
       "kind": "oneshot",
       "bus": "sfx",
@@ -643,11 +649,13 @@
       "targetSeconds": 0.8,
       "pitchJitterCents": 0,
       "prompt": "low muffled war drum hit, short one shot, dark fantasy warning",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.damage — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "trigger": {
+        "on": "boss.warning.damage"
+      }
     },
     {
       "id": "boss-warning-lethal",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Ankuendigung, Art Jetzt handeln oder sterben (GAME-DESIGN 11.5), Stufe 3: der eigene Klang der hoechsten Stufe, vor dem gesprochenen Countdown.",
       "kind": "oneshot",
       "bus": "sfx",
@@ -655,11 +663,13 @@
       "targetSeconds": 1.2,
       "pitchJitterCents": 0,
       "prompt": "harsh alarm stinger, metallic shriek with deep boom, urgent dark fantasy",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.lethal — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "trigger": {
+        "on": "boss.warning.lethal"
+      }
     },
     {
       "id": "boss-warning-opportunity",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Ankuendigung, Art Gelegenheit (GAME-DESIGN 11.5): ein Schadensfenster oeffnet sich. Muss sich klar von den Warnungen abheben.",
       "kind": "oneshot",
       "bus": "sfx",
@@ -667,67 +677,79 @@
       "targetSeconds": 0.9,
       "pitchJitterCents": 0,
       "prompt": "bright rising chime shimmer, short one shot, hopeful magic sparkle",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.warning.opportunity — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "trigger": {
+        "on": "boss.warning.opportunity"
+      }
     },
     {
       "id": "boss-countdown-5",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort fuenf.",
       "kind": "oneshot",
       "bus": "sfx",
       "file": "audio/boss-countdown-5.ogg",
-      "targetSeconds": 0.6,
+      "targetSeconds": 0.75,
       "pitchJitterCents": 0,
-      "prompt": "deep calm voice saying five, dry, close microphone, short one shot",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.5 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "prompt": "Suno Speech, not Sounds: script 'Five... Four... Three... Two... One.', tone 'Deep, calm male announcer counting down slowly. Each number spoken clearly on its own, with a full second of silence between the numbers. Dry studio voice, close microphone, no reverb.', vocal gender male, background music off. One take for all five numbers, so voice and level match; this entry is the word five, cut at the silence around it.",
+      "trigger": {
+        "on": "boss.countdown.5"
+      }
     },
     {
       "id": "boss-countdown-4",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort vier.",
       "kind": "oneshot",
       "bus": "sfx",
       "file": "audio/boss-countdown-4.ogg",
-      "targetSeconds": 0.6,
+      "targetSeconds": 0.54,
       "pitchJitterCents": 0,
-      "prompt": "deep calm voice saying four, dry, close microphone, short one shot",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.4 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "prompt": "Suno Speech, not Sounds: script 'Five... Four... Three... Two... One.', tone 'Deep, calm male announcer counting down slowly. Each number spoken clearly on its own, with a full second of silence between the numbers. Dry studio voice, close microphone, no reverb.', vocal gender male, background music off. One take for all five numbers, so voice and level match; this entry is the word four, cut at the silence around it.",
+      "trigger": {
+        "on": "boss.countdown.4"
+      }
     },
     {
       "id": "boss-countdown-3",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort drei.",
       "kind": "oneshot",
       "bus": "sfx",
       "file": "audio/boss-countdown-3.ogg",
-      "targetSeconds": 0.6,
+      "targetSeconds": 0.61,
       "pitchJitterCents": 0,
-      "prompt": "deep calm voice saying three, dry, close microphone, short one shot",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.3 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "prompt": "Suno Speech, not Sounds: script 'Five... Four... Three... Two... One.', tone 'Deep, calm male announcer counting down slowly. Each number spoken clearly on its own, with a full second of silence between the numbers. Dry studio voice, close microphone, no reverb.', vocal gender male, background music off. One take for all five numbers, so voice and level match; this entry is the word three, cut at the silence around it.",
+      "trigger": {
+        "on": "boss.countdown.3"
+      }
     },
     {
       "id": "boss-countdown-2",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort zwei.",
       "kind": "oneshot",
       "bus": "sfx",
       "file": "audio/boss-countdown-2.ogg",
-      "targetSeconds": 0.6,
+      "targetSeconds": 0.46,
       "pitchJitterCents": 0,
-      "prompt": "deep calm voice saying two, dry, close microphone, short one shot",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.2 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "prompt": "Suno Speech, not Sounds: script 'Five... Four... Three... Two... One.', tone 'Deep, calm male announcer counting down slowly. Each number spoken clearly on its own, with a full second of silence between the numbers. Dry studio voice, close microphone, no reverb.', vocal gender male, background music off. One take for all five numbers, so voice and level match; this entry is the word two, cut at the silence around it.",
+      "trigger": {
+        "on": "boss.countdown.2"
+      }
     },
     {
       "id": "boss-countdown-1",
-      "group": "boss",
+      "group": "announce",
       "purpose": "Gesprochener Countdown der Stufe 3 (GAME-DESIGN 11.5), das Wort eins.",
       "kind": "oneshot",
       "bus": "sfx",
       "file": "audio/boss-countdown-1.ogg",
-      "targetSeconds": 0.6,
+      "targetSeconds": 0.34,
       "pitchJitterCents": 0,
-      "prompt": "deep calm voice saying one, dry, close microphone, short one shot",
-      "provisional": "Datei fehlt (Issue #797). Ausloeser, sobald sie liegt: boss.countdown.1 — dann diese Zeile durch den trigger ersetzen. GAME-DESIGN 17.1 fuehrt die Ankuendigungs-Klaenge nicht unter den 126; deshalb zaehlt der Eintrag nicht zur Abdeckung."
+      "prompt": "Suno Speech, not Sounds: script 'Five... Four... Three... Two... One.', tone 'Deep, calm male announcer counting down slowly. Each number spoken clearly on its own, with a full second of silence between the numbers. Dry studio voice, close microphone, no reverb.', vocal gender male, background music off. One take for all five numbers, so voice and level match; this entry is the word one, cut at the silence around it.",
+      "trigger": {
+        "on": "boss.countdown.1"
+      }
     },
     {
       "id": "state-countdown-tick",
