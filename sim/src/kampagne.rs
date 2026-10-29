@@ -32,8 +32,16 @@
 //! Umbenannt wurde der beschriebene, nicht der gebaute — deshalb trägt der
 //! Laufvertrag den Namen [`CampaignRunContract`], und seine **Feldnamen und
 //! -typen** stehen wörtlich wie im Plan (`docs/SIM-ARCHITEKTUR-PLAN.md`, E21.0).
-//! Das einzige Feld darüber hinaus ist `runtime_accounting`: AC6 verlangt die
-//! drei Festlegungen ausdrücklich „im Vertrag".
+//!
+//! # Nur Felder mit Leser
+//!
+//! Bis zum 2026-10-29 trug der Vertrag vierzehn Felder. Zehn davon las kein
+//! Produktionspfad, nur Fingerabdruck, JSON und Herkunftsvergleich; ihre
+//! geplanten Leser (#950, #953, #954, #924, #925, #948) sind verworfen oder
+//! ruhen. Sie sind mit ihren Typen und ihren Gegenstücken in
+//! [`CampaignDefinition`] entfernt (Zuschnitt in #891, vom Auftraggeber
+//! freigegeben). Geblieben sind Zielzeit, Herkunft, Arbeitsbudget und Frist.
+//! `tests/kampagne_budget.rs` bricht, wenn ein Feld ohne Leser dazukommt.
 //!
 //! # Das Referenzprofil „standard"
 //!
@@ -131,62 +139,6 @@ pub struct DateTimeUtc {
     pub unix_seconds: i64,
 }
 
-/// Wozu ein Lauf da ist.
-///
-/// Die Mission steht im Vertrag, weil zwei Läufe mit gleichem Budget und
-/// verschiedener Mission **nicht** vergleichbar sind — und ein Vergleich, den
-/// niemand verboten hat, wird irgendwann gezogen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Mission {
-    /// Die vollständige Balance-Kampagne über alle Instanzen.
-    FullBalance,
-    /// Eine einzelne Instanz.
-    SingleInstance {
-        /// Nummer der Instanz.
-        instance: u8,
-    },
-    /// Ein gezielter Nachlauf über einen einzelnen Boss.
-    SingleBoss {
-        /// Kennung des Bosses, wie in den Bossdaten.
-        boss: &'static str,
-    },
-}
-
-/// Was **vollständig** gerechnet werden muss, nicht nur gesucht.
-///
-/// Die Zahl ist eine Menge von Projektionen, keine Obergrenze: Sie sind
-/// Pflicht, und ein Lauf, der sie nicht erledigt hat, ist nicht fertig — egal
-/// wie viel Budget er sonst verbraucht hat.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ProjectionSet {
-    /// Wie viele Pflichtprojektionen zu dieser Kampagne gehören.
-    pub required: u16,
-}
-
-/// Die vorgeschriebene Wechselwirkungsabdeckung (t-Wege, siehe E21.1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CoverageSpec {
-    /// Die Stärke t: Für welche Größe von Kombinationen wird Abdeckung
-    /// verlangt.
-    pub strength: u8,
-}
-
-/// Welche statistische Sicherheit ein Ergebnis tragen muss.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ConfidenceSpec {
-    /// Verlangte Sicherheit, etwa 0.99.
-    pub level: f64,
-}
-
-/// Was am Ende eines Laufs nachgewiesen wird.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AuditPolicy {
-    /// Der skalare Referenzpfad läuft über jede finale Aussage nach.
-    ScalarReplayAll,
-    /// Nur über die Aussagen, die eine Entscheidung tragen.
-    ScalarReplayDecisive,
-}
-
 /// Was eine Frist **bedeutet** (AC6).
 ///
 /// Ein prozesslokaler Zeitzähler überlebt keinen Neustart und ist damit für
@@ -205,39 +157,16 @@ pub enum DeadlinePolicy {
     },
     /// „Zwei Stunden RECHENZEIT" — zählt nur, was wirklich gerechnet wurde.
     ///
-    /// Für ein reproduzierbares Teilergebnis die sauberere Wahl.
+    /// Für ein reproduzierbares Teilergebnis die sauberere Wahl. Ob Pausen,
+    /// ein Koordinatorausfall oder Wartezeit auf Zusatzrechner mitzählen, legt
+    /// erst ein Läufer fest, der pausieren kann. Bis zum 2026-10-29 stand das
+    /// als eigenes Vertragsfeld, das niemand las; heute liest nur
+    /// [`crate::machbarkeit::preflight`] die Restzeit, als Zahl gegen die
+    /// Schätzung.
     ActiveRuntime {
         /// Verbleibende Rechenzeit.
         remaining: Duration,
     },
-}
-
-/// Die drei Festlegungen, ohne die `ActiveRuntime` mehrdeutig bleibt.
-///
-/// Der Plan verlangt sie ausdrücklich: Zählt Pausezeit? Zählt ein
-/// Koordinatorausfall? Zählt Wartezeit auf Zusatzrechner? **Ohne Antwort misst
-/// jeder Lauf etwas anderes und nennt es gleich.**
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RuntimeAccounting {
-    /// Zählt die Zeit, in der ein Lauf ausdrücklich pausiert ist?
-    pub counts_paused_time: bool,
-    /// Zählt die Zeit, in der der Koordinator ausgefallen ist?
-    pub counts_coordinator_outage: bool,
-    /// Zählt die Wartezeit auf Zusatzrechner, die noch nicht antworten?
-    pub counts_host_wait: bool,
-}
-
-impl RuntimeAccounting {
-    /// Die reproduzierbare Wahl: Es zählt nur, was gerechnet wurde.
-    ///
-    /// Alle drei stehen auf `false`, und das ist kein Vorgabewert aus Bequemheit
-    /// — jede `true`-Antwort macht die verbrauchte Frist von etwas abhängig, das
-    /// nicht die Arbeit ist.
-    pub const REPRODUCIBLE: Self = Self {
-        counts_paused_time: false,
-        counts_coordinator_outage: false,
-        counts_host_wait: false,
-    };
 }
 
 /// Wie viele physische Kerne für einen Lauf vorgesehen sind (AC4).
@@ -959,24 +888,6 @@ pub const REFERENCE_PROFILE_STANDARD: ReferenceProfile = ReferenceProfile {
     }),
 };
 
-/// Welche Qualität ein Ergebnis erreichen muss.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct QualityTargets {
-    /// Mindestanteil abgedeckter Nischen.
-    pub minimum_niche_coverage: f64,
-    /// Wie viele unabhängige Neustarts die Suche fährt.
-    pub independent_restarts: u16,
-    /// Nach wie vielen Arbeitseinheiten ohne Verbesserung abgebrochen wird —
-    /// die Abbruchregel, endlich benannt.
-    pub plateau_work_units: WorkUnits,
-    /// Erlaubter Abstand zwischen unterer und oberer Schranke, falls verlangt.
-    pub maximum_bound_gap: Option<f64>,
-    /// Verlangte statistische Sicherheit.
-    pub confidence_requirement: ConfidenceSpec,
-    /// Was am Ende nachgewiesen wird.
-    pub final_audit: AuditPolicy,
-}
-
 /// Die versionierte, hardwareunabhängige Kampagne (AC1, AC7).
 ///
 /// # Warum eine neue Zielzeit ein NEUES Profil erzeugt
@@ -1006,12 +917,6 @@ pub struct CampaignDefinition {
     /// Kalibrierung des laufenden Rechners — das ist der Fehler, gegen den
     /// dieses ganze Modul steht.
     pub canonical_work_budget: WorkUnits,
-    /// Was vollständig gerechnet werden muss.
-    pub exact_obligations: ProjectionSet,
-    /// Die vorgeschriebene Wechselwirkungsabdeckung.
-    pub coverage_spec: CoverageSpec,
-    /// Welche Qualität erreicht werden muss.
-    pub quality_targets: QualityTargets,
 }
 
 impl CampaignDefinition {
@@ -1039,11 +944,13 @@ impl CampaignDefinition {
     /// Kerne gehen nur für einen Rechner ein, dessen CPU rechnet, weil ein
     /// Koordinator keine hat. Die Grafik-Einschaltdauer geht für jeden ein —
     /// auch ein Koordinator darf seine GPU rechnen lassen. Die aktuelle Hardware
-    /// im Deployment bleibt ausgeschlossen.
+    /// im Deployment bleibt ausgeschlossen. Format 5 (#914, 2026-10-29) endet
+    /// mit dem Budget: Pflichtprojektionen, Abdeckung und Qualitätsvorgaben
+    /// sind aus der Kampagne entfernt, weil kein Produktionspfad sie las.
     #[must_use]
     pub fn fingerprint(&self) -> Hash {
         let profil = &self.reference_profile;
-        let mut h = mix_int(FNV_OFFSET, 4);
+        let mut h = mix_int(FNV_OFFSET, 5);
         h = mix_int(h, self.profile_version as i32);
         h = mix_text(h, profil.name);
         h = mix_int(h, profil.version as i32);
@@ -1076,21 +983,7 @@ impl CampaignDefinition {
             h = mix_int(h, i32::from(host.thermal_throttling));
         }
         h = mix_duration(h, self.target_wall_time);
-        h = mix_u64(h, self.canonical_work_budget.get());
-        h = mix_int(h, i32::from(self.exact_obligations.required));
-        h = mix_int(h, i32::from(self.coverage_spec.strength));
-        h = mix_f64(h, self.quality_targets.minimum_niche_coverage);
-        h = mix_int(h, i32::from(self.quality_targets.independent_restarts));
-        h = mix_u64(h, self.quality_targets.plateau_work_units.get());
-        // Ein fehlender Wert und der Wert 0.0 sind verschiedene Aussagen —
-        // "keine Schranke verlangt" gegen "Schranke muss exakt sein". Ohne die
-        // Kennzeichnung wären beide derselbe Fingerabdruck.
-        h = match self.quality_targets.maximum_bound_gap {
-            Some(g) => mix_f64(mix_int(h, 1), g),
-            None => mix_int(h, 0),
-        };
-        h = mix_f64(h, self.quality_targets.confidence_requirement.level);
-        Hash(mix_int(h, audit_code(self.quality_targets.final_audit)))
+        Hash(mix_u64(h, self.canonical_work_budget.get()))
     }
 
     /// Die Kampagne als JSON — samt ihrem Fingerabdruck.
@@ -1131,15 +1024,10 @@ impl CampaignDefinition {
             ),
             None => "null".to_owned(),
         };
-        let q = &self.quality_targets;
         Ok(format!(
             "{{\"profileVersion\":{},\"fingerprint\":{},\
              \"referenceProfile\":{{\"name\":{},\"version\":{},\"hosts\":[{}],\"network\":{}}},\
-             \"targetWallTime\":{},\
-             \"canonicalWorkBudget\":{},\"exactObligations\":{},\
-             \"coverageStrength\":{},\"minimumNicheCoverage\":{},\
-             \"independentRestarts\":{},\"plateauWorkUnits\":{},\
-             \"maximumBoundGap\":{},\"confidence\":{},\"finalAudit\":{:?}}}",
+             \"targetWallTime\":{},\"canonicalWorkBudget\":{}}}",
             self.profile_version,
             self.fingerprint().get(),
             json_string(profil.name),
@@ -1148,17 +1036,6 @@ impl CampaignDefinition {
             netz,
             json_duration(self.target_wall_time),
             self.canonical_work_budget.get(),
-            self.exact_obligations.required,
-            self.coverage_spec.strength,
-            json_number(q.minimum_niche_coverage, "minimumNicheCoverage")?,
-            q.independent_restarts,
-            q.plateau_work_units.get(),
-            // `null` und eine Zahl sind verschiedene Aussagen — "keine Schranke
-            // verlangt" gegen "Schranke muss exakt sein". Eine 0.0 an dieser
-            // Stelle wäre die zweite, gemeint ist beim fehlenden Wert die erste.
-            json_optional_number(q.maximum_bound_gap, "maximumBoundGap")?,
-            json_number(q.confidence_requirement.level, "confidence")?,
-            audit_name(q.final_audit),
         ))
     }
 }
@@ -1396,8 +1273,7 @@ impl ProfileCatalog {
     /// zum Fingerabdruck und prüft **jedes** Feld, das der Vertrag aus ihm
     /// übernommen hat. Ein Vertrag, dessen Budget nachträglich geändert wurde,
     /// trägt sonst einen gültigen Fingerabdruck neben einer fremden
-    /// Arbeitsmenge. Mission, Frist und Zählweise sind Laufsache und gehören
-    /// nicht zur Herkunft.
+    /// Arbeitsmenge. Die Frist ist Laufsache und gehört nicht zur Herkunft.
     ///
     /// # Errors
     /// Unbekannter Fingerabdruck oder ein abweichendes übernommenes Feld.
@@ -1412,7 +1288,6 @@ impl ProfileCatalog {
             .ok_or(ProfileError::UnknownOrigin {
                 campaign_definition_hash: contract.campaign_definition_hash,
             })?;
-        let q = &d.quality_targets;
         let felder = [
             (
                 "target_wall_time",
@@ -1422,53 +1297,12 @@ impl ProfileCatalog {
                 "deterministic_work_budget",
                 contract.deterministic_work_budget == d.canonical_work_budget,
             ),
-            (
-                "exact_obligations",
-                contract.exact_obligations == d.exact_obligations,
-            ),
-            (
-                "interaction_coverage",
-                contract.interaction_coverage == d.coverage_spec,
-            ),
-            (
-                "minimum_niche_coverage",
-                gleiche_bits(contract.minimum_niche_coverage, q.minimum_niche_coverage),
-            ),
-            (
-                "independent_restarts",
-                contract.independent_restarts == q.independent_restarts,
-            ),
-            (
-                "plateau_work_units",
-                contract.plateau_work_units == q.plateau_work_units,
-            ),
-            (
-                "maximum_bound_gap",
-                match (contract.maximum_bound_gap, q.maximum_bound_gap) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => gleiche_bits(a, b),
-                    _ => false,
-                },
-            ),
-            (
-                "confidence_requirement",
-                gleiche_bits(
-                    contract.confidence_requirement.level,
-                    q.confidence_requirement.level,
-                ),
-            ),
-            ("final_audit", contract.final_audit == q.final_audit),
         ];
         match felder.iter().find(|(_, gleich)| !gleich) {
             Some((field, _)) => Err(ProfileError::ContractDiverges { field }),
             None => Ok(d),
         }
     }
-}
-
-/// Gleitkommawerte über ihre Bits vergleichen — wie der Fingerabdruck.
-fn gleiche_bits(a: f64, b: f64) -> bool {
-    a.to_bits() == b.to_bits()
 }
 
 impl CampaignRunContract {
@@ -1478,18 +1312,14 @@ impl CampaignRunContract {
     /// Arbeitsmenge** ein Ergebnis entstanden ist. Ein Ergebnis ohne diese Zahl
     /// ist mit keinem anderen vergleichbar.
     ///
-    /// # Errors
-    /// Nichtendliche Qualitätsvorgaben werden mit Feldname abgelehnt.
-    pub fn to_json(&self) -> Result<String, JsonError> {
-        Ok(format!(
-            "{{\"mission\":{},\"targetWallTime\":{},\
+    /// Seit 2026-10-29 kann das nicht mehr scheitern: Der Vertrag trägt keine
+    /// Fließkommazahl mehr, die nichtendlich sein könnte.
+    #[must_use]
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"targetWallTime\":{},\
              \"campaignDefinitionHash\":{},\"deterministicWorkBudget\":{},\
-             \"hardDeadline\":{},\"runtimeAccounting\":{},\
-             \"exactObligations\":{},\"coverageStrength\":{},\
-             \"minimumNicheCoverage\":{},\"independentRestarts\":{},\
-             \"plateauWorkUnits\":{},\"maximumBoundGap\":{},\
-             \"confidence\":{},\"finalAudit\":{:?}}}",
-            mission_json(self.mission),
+             \"hardDeadline\":{}}}",
             json_duration(self.target_wall_time),
             self.campaign_definition_hash.get(),
             self.deterministic_work_budget.get(),
@@ -1507,35 +1337,7 @@ impl CampaignRunContract {
                 ),
                 None => "null".to_string(),
             },
-            format_args!(
-                "{{\"countsPausedTime\":{},\"countsCoordinatorOutage\":{},\
-                 \"countsHostWait\":{}}}",
-                self.runtime_accounting.counts_paused_time,
-                self.runtime_accounting.counts_coordinator_outage,
-                self.runtime_accounting.counts_host_wait,
-            ),
-            self.exact_obligations.required,
-            self.interaction_coverage.strength,
-            json_number(self.minimum_niche_coverage, "minimumNicheCoverage")?,
-            self.independent_restarts,
-            self.plateau_work_units.get(),
-            json_optional_number(self.maximum_bound_gap, "maximumBoundGap")?,
-            json_number(self.confidence_requirement.level, "confidence")?,
-            audit_name(self.final_audit),
-        ))
-    }
-}
-
-/// Die Mission als JSON-Wert.
-fn mission_json(m: Mission) -> String {
-    match m {
-        Mission::FullBalance => "{\"kind\":\"fullBalance\"}".to_string(),
-        Mission::SingleInstance { instance } => {
-            format!("{{\"kind\":\"singleInstance\",\"instance\":{instance}}}")
-        }
-        Mission::SingleBoss { boss } => {
-            format!("{{\"kind\":\"singleBoss\",\"boss\":{}}}", json_string(boss))
-        }
+        )
     }
 }
 
@@ -1588,15 +1390,6 @@ fn json_u32_array(values: &[u32]) -> String {
     format!("[{}]", teile.join(","))
 }
 
-/// Der Name der Auditregel im JSON — stabil, unabhängig von der Reihenfolge im
-/// `enum`.
-const fn audit_name(policy: AuditPolicy) -> &'static str {
-    match policy {
-        AuditPolicy::ScalarReplayAll => "scalarReplayAll",
-        AuditPolicy::ScalarReplayDecisive => "scalarReplayDecisive",
-    }
-}
-
 /// Der Name der CPU-Rolle im JSON — stabil, unabhängig von der Reihenfolge im
 /// `enum`.
 const fn role_name(role: CpuRole) -> &'static str {
@@ -1606,10 +1399,14 @@ const fn role_name(role: CpuRole) -> &'static str {
     }
 }
 
-/// Die CPU-Rolle als feste Zahl im Fingerabdruck — aus demselben Grund wie bei
-/// [`audit_code`]. Sie steht auch vor den CPU-Angaben, damit ein Koordinator
-/// nicht mit einem rechnenden Rechner zusammenfällt, dessen Angaben zufällig
-/// die Werte der folgenden Felder ergeben.
+/// Die CPU-Rolle als feste Zahl im Fingerabdruck.
+///
+/// **Nicht die Reihenfolge im `enum` benutzen:** Eine später eingefügte Variante
+/// verschöbe alle folgenden und änderte jeden bereits vergebenen Fingerabdruck,
+/// ohne dass sich eine Kampagne geändert hätte. Die Zahl steht auch vor den
+/// CPU-Angaben, damit ein Koordinator nicht mit einem rechnenden Rechner
+/// zusammenfällt, dessen Angaben zufällig die Werte der folgenden Felder
+/// ergeben.
 const fn role_code(role: CpuRole) -> i32 {
     match role {
         CpuRole::Compute(_) => 1,
@@ -1642,18 +1439,6 @@ const fn mix_f64(hash: u32, value: f64) -> u32 {
 /// 2 h und 2 h + 1 ns derselbe Fingerabdruck.
 const fn mix_duration(hash: u32, value: Duration) -> u32 {
     mix_int(mix_u64(hash, value.as_secs()), value.subsec_nanos() as i32)
-}
-
-/// Jede Variante bekommt eine feste Zahl.
-///
-/// **Nicht die Reihenfolge im `enum` benutzen:** Eine später eingefügte Variante
-/// verschöbe alle folgenden und änderte jeden bereits vergebenen Fingerabdruck,
-/// ohne dass sich eine Kampagne geändert hätte.
-const fn audit_code(policy: AuditPolicy) -> i32 {
-    match policy {
-        AuditPolicy::ScalarReplayAll => 1,
-        AuditPolicy::ScalarReplayDecisive => 2,
-    }
 }
 
 /// Ein einzelner Rechner, wie er in diesem Lauf tatsächlich zur Verfügung steht.
@@ -1705,12 +1490,15 @@ impl RunDeployment {
 /// Der Name unterscheidet ihn vom Zielvertrag [`crate::objective::RunContract`]
 /// aus #939, der im Plan bis zum 2026-08-22 denselben Namen trug und etwas
 /// völlig anderes beschreibt — siehe Modulkopf.
+///
+/// **Jedes Feld hat einen Leser im Produktionspfad**; welcher es ist, steht
+/// je Feld unten und als Liste in `tests/kampagne_budget.rs`. Ein Feld ohne
+/// Leser verhält sich in jedem Test genau wie eines, das korrekt gelesen wird.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CampaignRunContract {
-    /// Wozu dieser Lauf da ist.
-    pub mission: Mission,
     /// Die angestrebte Wanduhrzeit — ein **Ziel**, keine Frist. Übernommen aus
-    /// der Kampagne, für die das Budget bemessen ist.
+    /// der Kampagne, für die das Budget bemessen ist. Gelesen von
+    /// [`crate::machbarkeit::preflight`].
     pub target_wall_time: Duration,
     /// Woher das Budget stammt: der Fingerabdruck der Kampagne.
     ///
@@ -1718,32 +1506,16 @@ pub struct CampaignRunContract {
     /// welche Arbeitsmenge ein Ergebnis entstanden ist. Geprüft wird es von
     /// [`ProfileCatalog::origin`].
     pub campaign_definition_hash: Hash,
-    /// Die eingefrorene Arbeitsmenge, übernommen aus der Kampagne.
+    /// Die eingefrorene Arbeitsmenge, übernommen aus der Kampagne. Gelesen von
+    /// [`crate::machbarkeit::preflight`] und [`Self::anytime_partial`].
     pub deterministic_work_budget: WorkUnits,
     /// Ein echter Zeitabbruch — **nur auf ausdrücklichen Wunsch** (AC5).
     ///
     /// `None` ist die Voreinstellung, und das ist eine inhaltliche Festlegung:
     /// Ein Lauf bricht nach erledigter Arbeit ab, nicht nach Ablauf einer Uhr.
+    /// Gelesen von [`crate::machbarkeit::preflight`] und
+    /// [`Self::anytime_partial`].
     pub hard_deadline: Option<DeadlinePolicy>,
-    /// Wie Rechenzeit gezählt wird, falls eine Frist gesetzt ist (AC6: die drei
-    /// Festlegungen stehen „im Vertrag").
-    pub runtime_accounting: RuntimeAccounting,
-    /// Was vollständig gerechnet werden muss.
-    pub exact_obligations: ProjectionSet,
-    /// Die vorgeschriebene Wechselwirkungsabdeckung.
-    pub interaction_coverage: CoverageSpec,
-    /// Mindestanteil abgedeckter Nischen.
-    pub minimum_niche_coverage: f64,
-    /// Wie viele unabhängige Neustarts.
-    pub independent_restarts: u16,
-    /// Die Abbruchregel bei ausbleibender Verbesserung.
-    pub plateau_work_units: WorkUnits,
-    /// Erlaubter Schrankenabstand, falls verlangt.
-    pub maximum_bound_gap: Option<f64>,
-    /// Verlangte statistische Sicherheit.
-    pub confidence_requirement: ConfidenceSpec,
-    /// Was am Ende nachgewiesen wird.
-    pub final_audit: AuditPolicy,
 }
 
 impl CampaignRunContract {
@@ -1756,22 +1528,12 @@ impl CampaignRunContract {
     /// Deployment ist hier kein Parameter, aus demselben Grund wie bei
     /// [`CampaignDefinition::fingerprint`].
     #[must_use]
-    pub fn from_campaign(campaign: &CampaignDefinition, mission: Mission) -> Self {
+    pub fn from_campaign(campaign: &CampaignDefinition) -> Self {
         Self {
-            mission,
             target_wall_time: campaign.target_wall_time,
             campaign_definition_hash: campaign.fingerprint(),
             deterministic_work_budget: campaign.canonical_work_budget,
             hard_deadline: None,
-            runtime_accounting: RuntimeAccounting::REPRODUCIBLE,
-            exact_obligations: campaign.exact_obligations,
-            interaction_coverage: campaign.coverage_spec,
-            minimum_niche_coverage: campaign.quality_targets.minimum_niche_coverage,
-            independent_restarts: campaign.quality_targets.independent_restarts,
-            plateau_work_units: campaign.quality_targets.plateau_work_units,
-            maximum_bound_gap: campaign.quality_targets.maximum_bound_gap,
-            confidence_requirement: campaign.quality_targets.confidence_requirement,
-            final_audit: campaign.quality_targets.final_audit,
         }
     }
 
