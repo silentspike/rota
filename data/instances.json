@@ -1,48 +1,54 @@
 {
   "schema": 1,
-  "_comment": "Die Instanzen (GAME-DESIGN 12.7, 13.4, 20.4).\n\n=== WARUM ES DIESE DATEI GIBT ===\nDie Zuordnung Boss->Instanz gab es schon: jeder Boss traegt `instance` als Kennung, und `data.ts` liest sie. Was fehlte, war die Instanz als eigenes OBJEKT — Name, Reihenfolge, Freischaltung.\nVorher standen Titel und Spielbarkeit HARTKODIERT in src/progression/boss-select.ts (INSTANZ_TITEL und SPIELBAR). Wer eine Instanz hinzufuegte, musste sie an zwei Stellen eintragen und konnte eine vergessen — genau die doppelte Wahrheit, die am 2026-08-10 schon beim Affix-Verlust zugeschlagen hat.\n\n=== DIE NUMMER IST NICHT DIE KENNUNG ===\n`number` ist die Nummer aus src/loot/rates.ts (1..INSTANCE_COUNT). Sie bestimmt Beute-Stufe und Qualitaets-Obergrenze (13.4). Die KENNUNG ist eine Zeichenkette ('instance-1'); beide auseinanderzuhalten ist noetig, weil `itemLevelOf` mit der Zahl rechnet und der Boss die Zeichenkette traegt.\nACHTUNG: app.ts uebergibt heute noch eine feste 1 an den Beute-Wurf. Diese Datei liefert die richtige Nummer, aber die Zeile in app.ts liest sie noch nicht — das ist ein eigener Schritt und ausdruecklich NICHT Teil von #421c.\n\n=== FREISCHALTUNG: NUR DER HAUPTPFAD ===\n12.7 nennt vier Kriterien NEBENEINANDER: Instanz abgeschlossen (Hauptpfad), Punkte-Schwelle (Ventil gegen Feststecken), Schwierigkeitsstufe, Meisterschafts-Schluessel (nur Geheim-Instanzen).\nHier steht NUR das erste: `requires` nennt die Instanz, die abgeschlossen sein muss. Die anderen drei sind bewusst nicht abgebildet — das Punkte-Ventil braucht eine Schwelle, die niemand entschieden hat, und Schwierigkeitsstufen gibt es im Spiel noch nicht (app.ts fuehrt eine feste `difficulty: 1`). Wer sie ergaenzt, ergaenzt Felder; die Struktur steht.\n\n=== level FEHLT WEITERHIN AN ALLEN BOSSEN ===\nKein Boss traegt ein `level`-Feld, also sind alle auf Stufe 1 (data.ts:2187 setzt 1, wenn es fehlt). `stufenBereich` steht deshalb NICHT in dieser Datei: Welcher Boss welche Stufe traegt, ist laut data.ts:1071 Inhalt und entscheidet E10. Eine Kurve hier einzutragen hiesse, sie nebenbei festzulegen.\n\n=== DIE REIHENFOLGE ===\n`order` ist die Reihenfolge in der Auswahl, nicht die Freischaltung. Beide auseinanderzuhalten lohnt: 12.7 sagt 'innerhalb einer freigeschalteten Instanz sind die Bosse frei waehlbar', also ist die Anzeige-Reihenfolge eine Frage der Oberflaeche und die Freischaltung eine des Fortschritts.",
+  "_comment": "Die Instanzen (GAME-DESIGN 12.7, 13.4, 20.4).\n\n=== WARUM ES DIESE DATEI GIBT ===\nDie Zuordnung Boss->Instanz gab es schon: jeder Boss traegt `instance` als Kennung, und `data.ts` liest sie. Was fehlte, war die Instanz als eigenes OBJEKT — Name, Reihenfolge, Freischaltung.\nVorher standen Titel und Spielbarkeit HARTKODIERT in src/progression/boss-select.ts (INSTANZ_TITEL und SPIELBAR). Wer eine Instanz hinzufuegte, musste sie an zwei Stellen eintragen und konnte eine vergessen — genau die doppelte Wahrheit, die am 2026-08-10 schon beim Affix-Verlust zugeschlagen hat.\n\n=== DIE NUMMER IST NICHT DIE KENNUNG ===\n`number` ist die Nummer aus src/loot/rates.ts (1..INSTANCE_COUNT). Sie bestimmt Beute-Stufe und Qualitaets-Obergrenze (13.4). Die KENNUNG ist eine Zeichenkette ('instance-1'); beide auseinanderzuhalten ist noetig, weil `itemLevelOf` mit der Zahl rechnet und der Boss die Zeichenkette traegt.\napp.ts liest die Nummer beim Beute-Wurf (`instanceById(...).number`, seit #421c); bis dahin stand dort eine feste 1.\n\n=== FREISCHALTUNG: DREI DER VIER KRITERIEN ===\n12.7 nennt vier Kriterien NEBENEINANDER: Instanz abgeschlossen (Hauptpfad), Punkte-Schwelle (Ventil gegen Feststecken), Schwierigkeitsstufe, Meisterschafts-Schlüssel (nur Geheim-Instanzen, nach V1 — Entscheidung des Auftraggebers vom 29.10.).\n`requires` nennt die Instanz, die abgeschlossen sein muss — der Hauptpfad. `pointsThreshold` öffnet dieselbe Instanz OHNE diesen Abschluss, sobald so viele Punkte VERDIENT sind (nicht: als Guthaben übrig — Entscheidung vom 29.10.: ‚ohne Ausgeben‘). Die Schwierigkeitsstufen stehen nicht hier, sondern gelten je Instanz: Heroisch öffnet, wenn jeder Boss der Instanz auf Normal liegt, Mythisch, wenn jeder auf Heroisch liegt (src/progression/boss-select.ts, `offeneStufen`).\n\n=== pointsThreshold: VORLÄUFIG, ABGELEITET, NICHT GEMESSEN (#1177) ===\nWer am letzten Boss von Instanz k−1 feststeckt, hat bis dahin 4(k−1) Bosse besiegt: den Prolog, je vier der Instanzen 1 bis k−2 und drei von k−1. Ein sauberer Normal-Sieg mit einem Viertel Restzeit (15 von 60 s) zahlt 2 · 15² = 450 Punkte, ein perfektionierter mit der Hälfte (30 s) 2 · 30² = 1800 (reward.json: pointsPerSecond 2, pointsExponent 2; die Differenz-Auszahlung summiert sich je Boss auf den Wert des Bestlaufs).\nDie Schwelle setzt 1500 je besiegtem Boss an — das entspricht rund 27 s Restzeit: weit über dem bloßen Durchkommen (wer nur durchkommt, öffnet nichts damit), aber unter dem Perfektionierten, und die heroischen Stufen der abgeschlossenen Instanzen zahlen doppelt (data/difficulty.json). Also Schwelle = 4(k−1) · 1500: Instanz 2 → 6000, 3 → 12000, 4 → 18000, 5 → 24000.\nWAS DIESE HERLEITUNG NICHT KENNT: den Abstandsfaktor. Heute tragen alle Bosse Stufe 1 (siehe unten); ein Spieler, der ihnen entwächst, verdient nach falloffPerMille nur noch einen Bruchteil, und die Schwelle rückt in die Ferne. Sie gehört nachgemessen, sobald die Stufenkurve steht (#791) — mit der Fortschritts-Simulation (#922).\n`tests/unit/difficulty-unlock.test.ts` prüft die Eigenschaften, nicht die Zahlen: die Schwelle steigt mit der Instanz, liegt über dem bloßen Durchkommen und unter dem, was die bis dahin offenen Kämpfe hergeben.\n\n=== level FEHLT WEITERHIN AN ALLEN BOSSEN ===\nKein Boss traegt ein `level`-Feld, also sind alle auf Stufe 1 (data.ts:2187 setzt 1, wenn es fehlt). `stufenBereich` steht deshalb NICHT in dieser Datei: Welcher Boss welche Stufe traegt, ist laut data.ts:1071 Inhalt und entscheidet E10. Eine Kurve hier einzutragen hiesse, sie nebenbei festzulegen.\n\n=== DIE REIHENFOLGE ===\n`order` ist die Reihenfolge in der Auswahl, nicht die Freischaltung. Beide auseinanderzuhalten lohnt: 12.7 sagt 'innerhalb einer freigeschalteten Instanz sind die Bosse frei waehlbar', also ist die Anzeige-Reihenfolge eine Frage der Oberflaeche und die Freischaltung eine des Fortschritts.",
   "instances": [
     {
       "id": "prologue",
       "name": "Prologue",
       "number": 1,
       "order": 0,
-      "requires": null
+      "requires": null,
+      "pointsThreshold": null
     },
     {
       "id": "instance-1",
       "name": "Instance One",
       "number": 1,
       "order": 1,
-      "requires": null
+      "requires": null,
+      "pointsThreshold": null
     },
     {
       "id": "instance-2",
       "name": "Instance Two",
       "number": 2,
       "order": 2,
-      "requires": "instance-1"
+      "requires": "instance-1",
+      "pointsThreshold": 6000
     },
     {
       "id": "instance-3",
       "name": "The Sealed Furnace",
       "number": 3,
       "order": 3,
-      "requires": "instance-2"
+      "requires": "instance-2",
+      "pointsThreshold": 12000
     },
     {
       "id": "instance-4",
       "name": "Instance Four",
       "number": 4,
       "order": 4,
-      "requires": "instance-3"
+      "requires": "instance-3",
+      "pointsThreshold": 18000
     },
     {
       "id": "instance-5",
       "name": "Instance Five",
       "number": 5,
       "order": 5,
-      "requires": "instance-4"
+      "requires": "instance-4",
+      "pointsThreshold": 24000
     }
   ]
 }
