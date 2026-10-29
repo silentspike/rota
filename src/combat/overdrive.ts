@@ -68,9 +68,9 @@ export class Overdrive {
    * Zeitpunkts, zu dem man zum zweiten Mal drückt.
    */
   ignite(timeMs: number): boolean {
-    // ROTER STAND (#1177): noch ohne Wirkung — die Prüffälle zuerst.
-    void timeMs;
-    return false;
+    if (this.ignitedAt !== NOT_IGNITED) return false;
+    this.ignitedAt = timeMs;
+    return true;
   }
 
   /** Wann gezündet wurde, oder -1. */
@@ -97,9 +97,8 @@ export class Overdrive {
    * Takte also, keiner mehr und keiner weniger.
    */
   isActive(timeMs: number): boolean {
-    // ROTER STAND (#1177): noch ohne Wirkung.
-    void timeMs;
-    return false;
+    if (this.ignitedAt === NOT_IGNITED) return false;
+    return timeMs >= this.ignitedAt && timeMs < this.endsAtMs;
   }
 
   /** Restlaufzeit in ms; 0, wenn er nicht wirkt. */
