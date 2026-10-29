@@ -535,6 +535,250 @@ fn ac1_der_vertrag_entsteht_aus_der_kampagne_allein() {
     assert_eq!(vertrag.mission, Mission::FullBalance);
 }
 
+/// Die Quelltexte, in denen die Leser des Laufvertrags stehen.
+const KAMPAGNE_RS: &str = include_str!("../src/kampagne.rs");
+const MACHBARKEIT_RS: &str = include_str!("../src/machbarkeit.rs");
+
+/// Jedes Feld des Laufvertrags und die Funktion, die es im Produktionspfad
+/// liest: (Feld, Datei, Funktion, Zugriff).
+///
+/// Ein Feld ohne Zeile hier ist ein Feld ohne Leser. Bis zum 2026-10-29 trug
+/// der Vertrag vierzehn Felder, und zehn davon las niemand außer
+/// Fingerabdruck, JSON und Herkunftsvergleich (Zuschnitt in #891). Ein solches
+/// Feld verhält sich in jedem Test genau wie eines, das korrekt gelesen wird.
+const LESER: &[(&str, &str, &str, &str)] = &[
+    (
+        "target_wall_time",
+        "src/machbarkeit.rs",
+        "preflight",
+        "contract.target_wall_time",
+    ),
+    (
+        "campaign_definition_hash",
+        "src/kampagne.rs",
+        "origin",
+        "contract.campaign_definition_hash",
+    ),
+    (
+        "deterministic_work_budget",
+        "src/machbarkeit.rs",
+        "preflight",
+        "contract.deterministic_work_budget",
+    ),
+    (
+        "hard_deadline",
+        "src/machbarkeit.rs",
+        "preflight",
+        "contract.hard_deadline",
+    ),
+];
+
+/// Funktionen, die einen Wert nur abbilden oder weiterreichen. Sie zählen
+/// nicht als Leser: Ein Feld, das nur in Fingerabdruck und JSON eingeht,
+/// ändert nichts daran, was ein Lauf tut.
+const KEIN_LESER: &[&str] = &[
+    "to_json",
+    "fingerprint",
+    "from_campaign",
+    "with_hard_deadline",
+    "eq",
+    "fmt",
+];
+
+fn quelltext(datei: &str) -> &'static str {
+    match datei {
+        "src/kampagne.rs" => KAMPAGNE_RS,
+        "src/machbarkeit.rs" => MACHBARKEIT_RS,
+        _ => panic!("{datei}: kein eingebundener Quelltext"),
+    }
+}
+
+/// Ein Block ohne Kommentare und ohne den Inhalt von Zeichenketten und
+/// Zeichenliteralen; die Zeilen bleiben erhalten. Ein Feldname im Kommentar
+/// oder in einer Meldung darf weder als Feld noch als Lesezugriff zählen.
+fn nur_code(quelle: &str) -> String {
+    let z: Vec<char> = quelle.chars().collect();
+    let mut code = String::with_capacity(quelle.len());
+    let mut i = 0;
+    while i < z.len() {
+        match z[i] {
+            '/' if z.get(i + 1) == Some(&'/') => {
+                while i < z.len() && z[i] != '\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            '"' => {
+                i += 1;
+                while i < z.len() && z[i] != '"' {
+                    if z[i] == '\\' {
+                        i += 1;
+                    } else if z[i] == '\n' {
+                        code.push('\n');
+                    }
+                    i += 1;
+                }
+                code.push_str("\"\"");
+            }
+            // Zeichenliteral mit Escape, etwa '\\' oder '\u{1f}'.
+            '\'' if z.get(i + 1) == Some(&'\\') => {
+                i += 3;
+                while i < z.len() && z[i] != '\'' {
+                    i += 1;
+                }
+                code.push_str("' '");
+            }
+            // Einfaches Zeichenliteral wie '"'; eine Lebensdauer wie 'a bleibt.
+            '\'' if z.get(i + 2) == Some(&'\'') => {
+                i += 2;
+                code.push_str("' '");
+            }
+            c => code.push(c),
+        }
+        i += 1;
+    }
+    code
+}
+
+/// Der Block, dessen Kopf `kopf` enthält: vom Kopf bis zur schließenden
+/// Klammer auf der Einrückung des Kopfes. Der Kopf muss genau einmal außerhalb
+/// eines Kommentars stehen, sonst liest der Wächter womöglich den falschen.
+fn block<'a>(quelle: &'a str, kopf: &str) -> &'a str {
+    let treffer: Vec<usize> = quelle
+        .match_indices(kopf)
+        .map(|(i, _)| i)
+        .filter(|&i| {
+            let zeile = quelle[..i].rfind('\n').map_or(0, |z| z + 1);
+            !quelle[zeile..i].trim_start().starts_with("//")
+        })
+        .collect();
+    assert_eq!(treffer.len(), 1, "»{kopf}« steht {} Mal", treffer.len());
+    let beginn = treffer[0];
+    let zeile = quelle[..beginn].rfind('\n').map_or(0, |z| z + 1);
+    let davor = &quelle[zeile..beginn];
+    let einzug = davor.len() - davor.trim_start().len();
+    let schluss = format!("\n{}}}\n", " ".repeat(einzug));
+    let ende = quelle[beginn..]
+        .find(&schluss)
+        .unwrap_or_else(|| panic!("Ende von »{kopf}« nicht gefunden"));
+    &quelle[beginn..beginn + ende]
+}
+
+/// Die Feldnamen eines Struct-Rumpfs, ohne Kommentare und Attribute.
+fn feldnamen(rumpf: &str) -> Vec<String> {
+    nur_code(rumpf)
+        .lines()
+        .skip(1)
+        .map(str::trim)
+        .filter(|z| !z.is_empty() && !z.starts_with("#["))
+        .filter_map(|z| {
+            let z = z
+                .strip_prefix("pub(crate) ")
+                .or_else(|| z.strip_prefix("pub "))
+                .unwrap_or(z);
+            let (name, rest) = z.split_once(':')?;
+            let bezeichner = !name.is_empty()
+                && name
+                    .chars()
+                    .all(|c| c == '_' || c.is_ascii_lowercase() || c.is_ascii_digit());
+            (bezeichner && !rest.starts_with(':')).then(|| name.to_owned())
+        })
+        .collect()
+}
+
+/// Liest der Rumpf `zugriff` — ohne Kommentare, Zeichenketten und Leerraum,
+/// damit ein umbrochener Zugriff nicht unsichtbar wird?
+fn liest(rumpf: &str, zugriff: &str) -> bool {
+    let code: String = nur_code(rumpf)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let gesucht: String = zugriff.chars().filter(|c| !c.is_whitespace()).collect();
+    code.contains(&gesucht)
+}
+
+/// **AC0, „jedes Feld hat einen Leser"** — der Laufvertrag trägt nur Felder,
+/// die ein Produktionspfad liest.
+///
+/// Gelesen wird der Quelltext, weil Rust keine Felder aufzählen kann. Die
+/// Feldmenge muss der Liste [`LESER`] GLEICH sein, nicht nur in ihr enthalten:
+/// Fände der Wächter das Struct nicht oder läse null Felder, wäre „jedes
+/// gefundene Feld hat einen Leser" trivial wahr.
+#[test]
+fn ac0_jedes_vertragsfeld_hat_einen_leser_im_produktionspfad() {
+    let felder = feldnamen(block(KAMPAGNE_RS, "pub struct CampaignRunContract {"));
+    let eingetragen: Vec<&str> = LESER.iter().map(|l| l.0).collect();
+
+    let ohne_leser: Vec<&str> = felder
+        .iter()
+        .map(String::as_str)
+        .filter(|f| !eingetragen.contains(f))
+        .collect();
+    assert!(
+        ohne_leser.is_empty(),
+        "Felder des Laufvertrags ohne Leser im Produktionspfad: {ohne_leser:?}. \
+         Ein neues Feld braucht eine Funktion außerhalb der Tests, die es liest \
+         und danach handelt — Fingerabdruck und JSON zählen nicht. Gibt es \
+         keine, gehört das Feld nicht in den Vertrag."
+    );
+    let verschwunden: Vec<&str> = eingetragen
+        .iter()
+        .filter(|f| !felder.iter().any(|g| g == **f))
+        .copied()
+        .collect();
+    assert!(
+        verschwunden.is_empty(),
+        "Eingetragene Leser für Felder, die der Vertrag nicht hat: {verschwunden:?} \
+         (gefunden: {felder:?})"
+    );
+
+    for (feld, datei, funktion, zugriff) in LESER {
+        assert!(
+            !KEIN_LESER.contains(funktion),
+            "{feld}: {funktion} bildet nur ab und ist kein Leser"
+        );
+        let rumpf = block(quelltext(datei), &format!("fn {funktion}("));
+        assert!(
+            liest(rumpf, zugriff),
+            "{feld}: {datei} {funktion} liest »{zugriff}« nicht"
+        );
+    }
+}
+
+/// Gegenprobe des Wächters an einem erfundenen Quelltext: Ein Feldname oder
+/// Zugriff in Kommentar oder Zeichenkette zählt nicht, ein umbrochener Zugriff
+/// schon — auch hinter Zeichenliteralen, die ein Anführungszeichen enthalten.
+#[test]
+fn ac0_waechter_kontrolle_kommentare_zaehlen_nicht() {
+    const PROBE: &str = "\
+/// pub erfunden: u8,
+pub struct Probe {
+    /// pub auch_erfunden: u8,
+    pub echt: u8, // pub im_kommentar: u8,
+    #[allow(dead_code)]
+    intern: std::time::Duration,
+}
+
+pub fn leser(contract: &Probe) -> u8 {
+    // contract.intern
+    let text: &'static str = \"// contract.intern\";
+    let zeichen = ['\"', '\\\\', '\\u{1f}'];
+    contract
+        .echt
+}
+";
+    assert_eq!(
+        feldnamen(block(PROBE, "pub struct Probe {")),
+        vec!["echt", "intern"]
+    );
+    let rumpf = block(PROBE, "fn leser(");
+    assert!(liest(rumpf, "contract.echt"), "umbrochener Zugriff übersehen");
+    assert!(
+        !liest(rumpf, "contract.intern"),
+        "Zugriff aus Kommentar oder Zeichenkette gezählt"
+    );
+}
+
 /// **AC3** — das Referenzprofil nennt Mindestressourcen, nicht Erreichbarkeit.
 ///
 /// Der Unterschied zwischen `None` und einer Zahl ist hier inhaltlich:
