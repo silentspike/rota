@@ -400,7 +400,10 @@
       "file": "audio/special-overdrive.ogg",
       "targetSeconds": 1.6,
       "pitchJitterCents": 0,
-      "prompt": "rising energy surge, bright empowering swell, battle haste activation"
+      "prompt": "rising energy surge, bright empowering swell, battle haste activation",
+      "trigger": {
+        "on": "overdrive.ignite"
+      }
     },
     {
       "id": "special-cooldown-reset",

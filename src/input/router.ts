@@ -139,8 +139,7 @@ export class InputRouter {
     // dem Buchstaben, der dort gerade steht. Umschalt ändert nichts: G hat
     // keine zweite Ebene, und wer für einen Umschalt-Zauber die Taste noch
     // hält, soll Overdrive trotzdem zünden können.
-    // ROTER STAND (#1177): die Taste ist noch nicht angeschlossen.
-    if (event.code === `${OVERDRIVE_CODE}-roter-stand`) {
+    if (event.code === OVERDRIVE_CODE) {
       event.preventDefault();
       // Dieselben zwei Sperren wie für die Leiste (Design-Gesetz 1): Halten
       // zündet nicht nach, auch wenn ein Browser `repeat` nicht setzt.

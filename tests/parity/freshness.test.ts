@@ -133,6 +133,8 @@ import eingecheckterPin from './recordings/pin-befreiung.json';
 import eingecheckterDecayWard from './recordings/decay-ward.json';
 import eingecheckteRestzeit from './recordings/efflux-restzeit.json';
 import eingecheckteKrit from './recordings/krit-umwandlung.json';
+import eingecheckterOverdrive from './recordings/overdrive.json';
+import { overdrivePayload } from './overdrive-payload.js';
 import {
   bossStatePayload,
   doomStacksPayload,
@@ -226,6 +228,13 @@ const HINWEIS =
 describe('Gemeinsame Vergleichsdateien', () => {
   it('die Produktionsbosse behalten ihre gemessenen Phasenbindungen', () => {
     expect(productionPhases, HINWEIS).toEqual(productionPhasesPayload());
+  });
+
+  it('die Runde mit Overdrive entspricht dem heutigen Spielstand (#1177)', () => {
+    // Zündung, zwei verworfene Drücke, beide Grenz-Takte des Fensters. Veraltet
+    // die Datei, prüft `parity_overdrive.rs` gegen eine Regel, die das Spiel
+    // nicht mehr hat.
+    expect(eingecheckterOverdrive, HINWEIS).toEqual(overdrivePayload());
   });
 
   it('die aufgezeichnete Runde entspricht dem heutigen Spielstand', () => {
@@ -1049,6 +1058,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'schluessel-nachlauf',
   'schluessel-nachlage',
   'schluessel-nachlage-ablauf',
+  'overdrive',
 ];
 
 describe('Die Frische-Liste ist vollständig', () => {

@@ -215,6 +215,7 @@ import {
   newCalcinationPayload,
   NEW_CALCINATION_NAME,
 } from './payloads.ts';
+import { overdrivePayload, OVERDRIVE_NAME } from './overdrive-payload.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -876,3 +877,14 @@ console.log(
 );
 console.log(`geschrieben: ${newCalcinationPath}`);
 console.log(`  neue Zauber   ${JSON.stringify(newCalcination['expected']['casts'])}`);
+
+// Overdrive (#1177, Abschnitt 2): eine Zündung, zwei verworfene Drücke, beide
+// Grenz-Takte des Fensters. Gegenstück: sim/tests/parity_overdrive.rs.
+const overdrive = overdrivePayload();
+const overdrivePath = join(here, 'recordings', `${OVERDRIVE_NAME}.json`);
+writeFileSync(overdrivePath, serialize(overdrive), 'utf8');
+console.log(`geschrieben: ${overdrivePath}`);
+console.log(
+  `  Overdrive     gezuendet bei ${overdrive['expected']['overdriveIgnitedAtMs']} ms, ` +
+    `${overdrive['expected']['rejected']} verworfen, ${overdrive['checksums'].length} Takte`,
+);
