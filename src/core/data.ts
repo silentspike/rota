@@ -27,6 +27,7 @@ import rawLevels from '../../data/player/levels.json';
 import rawReward from '../../data/player/reward.json';
 import rawTalents from '../../data/player/talents.json';
 import { TICK_MS } from './loop.js';
+import { BOSS_PFLICHT, pflichtProbleme, ZAUBER_PFLICHT } from './pflichtfelder.js';
 import { BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -1688,6 +1689,20 @@ function parseSpell(raw: unknown, problems: string[]): SpellDef | null {
     problems.push('Ein Zauber-Eintrag ist kein Objekt.');
     return null;
   }
+  // **Was `sim/build.rs` zwingend liest, liest das Spiel nicht mit einer
+  // Vorgabe weiter** (#1055). Ohne `dot.tickIntervalMs` brach der Rust-Bau ab,
+  // hier entstand ein Brand mit Tick-Abstand 0, und die Zauberleiste zeichnete
+  // `durationMs / 0` Tick-Marken. Fehlt ein Pflichtfeld, steht es im Problem
+  // beim Namen, und der Zauber kommt gar nicht erst in die Schule.
+  const fehlend = pflichtProbleme(
+    raw,
+    ZAUBER_PFLICHT,
+    `Zauber "${typeof raw['id'] === 'string' ? raw['id'] : '?'}"`,
+  );
+  if (fehlend.length > 0) {
+    problems.push(...fehlend);
+    return null;
+  }
   const id = raw['id'];
   if (typeof id !== 'string' || id.length === 0) {
     problems.push('Ein Zauber hat keine Kennung.');
@@ -2604,12 +2619,19 @@ export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
  * Verzeichnis sortiert. **Beide Seiten müssen dieselbe Menge sehen**, sonst
  * kennt einer einen Boss, den der andere nicht rechnen kann.
  */
-export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = bossVerzeichnis(
+const BOSS_VERZEICHNIS = bossVerzeichnis(
   import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
     eager: true,
     import: 'default',
   }),
-).bosse;
+);
+export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = BOSS_VERZEICHNIS.bosse;
+
+/**
+ * Was beim Lesen des Boss-Verzeichnisses verworfen wurde (#1055) — leer im
+ * ausgelieferten Stand. Die App zeigt es neben den Problemen der Schule.
+ */
+export const VERWORFENE_BOSSE: readonly string[] = BOSS_VERZEICHNIS.verworfen;
 
 /** Ein gelesenes Boss-Verzeichnis: die Bosse und was beim Lesen verworfen wurde. */
 export interface BossVerzeichnis {
@@ -2631,11 +2653,23 @@ export function bossVerzeichnis(dateien: Readonly<Record<string, unknown>>): Bos
   // feste Reihenfolge, keine Hash-Container).
   const pfade = Object.keys(dateien).sort();
   const out = new Map<string, ParseResult<BossDef>>();
+  const verworfen: string[] = [];
   for (const pfad of pfade) {
-    const gelesen = parseBoss(dateien[pfad]);
+    const roh = dateien[pfad];
+    // Dieselbe Regel wie für Zauber (#1055): Ein Boss, dem ein Feld fehlt, das
+    // `build.rs` zwingend liest, kommt nicht ins Verzeichnis. Der Simulator
+    // kennte ihn sonst nicht, das Spiel aber schon — „beide Seiten müssen
+    // dieselbe Menge sehen".
+    const id = isRecord(roh) && typeof roh['id'] === 'string' ? roh['id'] : pfad;
+    const fehlend = pflichtProbleme(roh, BOSS_PFLICHT, `Boss "${id}"`);
+    if (fehlend.length > 0) {
+      verworfen.push(...fehlend);
+      continue;
+    }
+    const gelesen = parseBoss(roh);
     out.set(gelesen.value.id, gelesen);
   }
-  return { bosse: out, verworfen: [] };
+  return { bosse: out, verworfen };
 }
 
 /**

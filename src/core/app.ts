@@ -12,6 +12,7 @@ import {
   BOSSES,
   CALCINATION,
   FIRST_CRUCIBLE,
+  VERWORFENE_BOSSE,
   bossById,
   instanceById,
   type BossDef,
@@ -244,7 +245,7 @@ export class App {
 
   constructor(parent: HTMLElement) {
     const boss = startBoss();
-    this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems];
+    this.dataProblems = [...CALCINATION.problems, ...FIRST_CRUCIBLE.problems, ...VERWORFENE_BOSSE];
     this.surface = new Surface(parent);
     this.combat = new Combat({ school: CALCINATION.value, boss });
     this.session = new Session(this.pressQueue, this.combat, this.audio);
