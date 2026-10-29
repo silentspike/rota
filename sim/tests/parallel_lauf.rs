@@ -7,7 +7,9 @@
 use rota_sim::apl::{parse, Apl, AplName};
 use std::time::{Duration, Instant};
 
-use rota_sim::balance::{run, run_vollstaendig, strom, BalanceConfig};
+use rota_sim::balance::{run, run_vollstaendig, strom, BalanceConfig, BalanceResult};
+use rota_sim::fingerabdruck::{abdruck, abweichungen};
+use rota_sim::fortschritt::Zaehlwerk;
 use rota_sim::gear::WornValues;
 
 const GOOD: &str = include_str!("../apl/step1-good.apl");
@@ -30,39 +32,73 @@ fn konfiguration(iterations: u32, threads: usize, base_seed: u32) -> BalanceConf
     }
 }
 
-/// **Bitgleich über jede Strangzahl — mit Würfel.** Die Strangvergleiche in
-/// `tests/balance.rs` und in `rota-sim verify` fahren ohne Würfel; seit #908
-/// schrumpft ein solcher Lauf auf einen Kampf und berührt den parallelen
-/// Pfad gar nicht (`verify` meldet „Kaempfe gerechnet: 3"). Hier würfelt
-/// jeder Kampf, und 997 Durchgänge teilen sich auf keine Strangzahl glatt auf.
+/// Ein Lauf mit eigenem Zählwerk: das Ergebnis, die Kämpfe je Platz.
+///
+/// Das Zählwerk zählt im heißen Pfad (#933), also das, was wirklich gerechnet
+/// wurde — nicht das, was bestellt war. Platz 0 ist der Leitstrang, ab Platz 1
+/// stehen die Teilnehmer des parallelen Laufs.
+fn gezaehlt(config: &BalanceConfig, liste: &Apl) -> (BalanceResult, Vec<u64>) {
+    let werk = Zaehlwerk::neu(config.threads);
+    let anmeldung = werk.anmelden();
+    let ergebnis = run_vollstaendig(config, liste);
+    drop(anmeldung);
+    (ergebnis, werk.momentaufnahme().kaempfe_je_strang)
+}
+
+/// **Bitgleich über jede Strangzahl — mit Würfel, über das ganze Ergebnis**
+/// (#919 AC6).
+///
+/// Die Strangvergleiche in `tests/balance.rs` und in `rota-sim verify`
+/// fuhren bis #891 N6 ohne Würfel; seit #908 schrumpft ein solcher Lauf auf
+/// einen Kampf und berührt den parallelen Pfad gar nicht (`verify` meldete
+/// „Kaempfe gerechnet: 3"). Hier würfelt jeder Kampf, und 997 Durchgänge
+/// teilen sich auf keine Strangzahl glatt auf.
+///
+/// **Verglichen wird der Fingerabdruck über jedes Feld**, nicht eine Auswahl.
+/// Bis zum 29.10. standen hier Mittelwerte, min/max, Siege und Wirkungen. Ohne
+/// die Sortierung nach Startwert in `balance::run` blieb der Fall grün (Job
+/// d27fee0e, nachgefahren in Job dfe079cf), obwohl der Kommentar dort sie den
+/// entscheidenden Schritt nennt: Keines dieser Felder wich ab. Rot wird er
+/// seitdem an den Streuungen und an der Probenfolge — welche Felder es waren,
+/// steht im Kopf von `fingerabdruck.rs`.
 #[test]
 fn jede_strangzahl_rechnet_bitgleich_wie_einer_auch_mit_wuerfel() {
     let liste = gute_liste();
-    let einer = run_vollstaendig(&konfiguration(997, 1, 5), &liste);
+    let (einer, plaetze) = gezaehlt(&konfiguration(997, 1, 5), &liste);
+    // Positive Kontrollen: Der Lauf hat gewürfelt — ohne Würfel streut er
+    // nicht —, und er hat jeden Durchgang selbst gerechnet statt einen zu
+    // vervielfachen (#908). Sonst verglichen die Läufe unten nichts, was eine
+    // Reihenfolge haben kann.
+    assert!(
+        einer.damage.stddev > 0.0,
+        "der Lauf streut nicht — es wurde nicht gewuerfelt"
+    );
+    assert_eq!(
+        plaetze.iter().sum::<u64>(),
+        997,
+        "ein Strang rechnete nicht jeden Durchgang: {plaetze:?}"
+    );
+    let bezug = abdruck(&einer);
     for threads in [2usize, 3, 4, 8, 16] {
-        let viele = run_vollstaendig(&konfiguration(997, threads, 5), &liste);
+        let (viele, plaetze) = gezaehlt(&konfiguration(997, threads, 5), &liste);
         assert_eq!(
-            (
-                viele.damage.mean.to_bits(),
-                viele.damage_taken.mean.to_bits(),
-                viele.healed.mean.to_bits(),
-                viele.absorbed.mean.to_bits(),
-                viele.damage.min.to_bits(),
-                viele.damage.max.to_bits(),
-                viele.kills,
-                &viele.casts,
-            ),
-            (
-                einer.damage.mean.to_bits(),
-                einer.damage_taken.mean.to_bits(),
-                einer.healed.mean.to_bits(),
-                einer.absorbed.mean.to_bits(),
-                einer.damage.min.to_bits(),
-                einer.damage.max.to_bits(),
-                einer.kills,
-                &einer.casts,
-            ),
-            "{threads} Straenge rechnen anders als einer"
+            plaetze.iter().sum::<u64>(),
+            997,
+            "{threads} Straenge rechneten nicht jeden Durchgang: {plaetze:?}"
+        );
+        // Und der Lauf war wirklich parallel: Mindestens zwei Teilnehmer
+        // haben gerechnet. Rechnete einer allein, käme die Folge in seiner
+        // Reihenfolge an — und die ist ohnehin die nach Startwert.
+        let beteiligt = plaetze.iter().filter(|k| **k > 0).count();
+        assert!(
+            beteiligt >= 2,
+            "{threads} Straenge, aber nur {beteiligt} rechnete: {plaetze:?}"
+        );
+        assert_eq!(
+            abdruck(&viele),
+            bezug,
+            "{threads} Straenge rechnen anders als einer, abweichend: {:?}",
+            abweichungen(&viele, &einer)
         );
     }
 }
