@@ -30,9 +30,9 @@ use rota_sim::rotation_search::{
     candidates_for, exhaustive, exhaustive_messungen, measure, Candidate,
 };
 use rota_sim::viabilitaet::{
-    befunde, keine_schule_pflicht, mechanikproben, mehrere_wege, portfolio, schulen,
-    schulproben, spielbare_zauber, Antwort, Befund, Befundart, Befundtabelle, Laufabschluss,
-    Suchgrund, Vertragsstand,
+    befunde, keine_schule_pflicht, mechanikproben, mehrere_wege, portfolio, schulen, schulproben,
+    spielbare_zauber, Antwort, Befund, Befundart, Befundtabelle, Laufabschluss, Suchgrund,
+    Vertragsstand,
 };
 use rota_sim::Boss;
 
@@ -67,8 +67,7 @@ fn lauf(ids: &[&str], max_len: usize, budget: u64) -> Befundtabelle {
 }
 
 fn befund<'a>(t: &'a Befundtabelle, id: &str) -> &'a Befund {
-    &t
-        .zeilen
+    &t.zeilen
         .iter()
         .find(|z| z.id == id)
         .unwrap_or_else(|| panic!("{id} hat keine Zeile"))
@@ -114,7 +113,10 @@ fn ac1_lebensfaehig_unter_knappem_budget_heisst_nicht_gefunden() {
     for id in ["smoulder", "pyre"] {
         let b = befund(&knapp, id);
         assert!(
-            matches!(b, Befund::NichtGefunden(Suchgrund::UeberBudget { budget: 0, .. })),
+            matches!(
+                b,
+                Befund::NichtGefunden(Suchgrund::UeberBudget { budget: 0, .. })
+            ),
             "{id} ist lebensfaehig und wurde nur nicht gefunden — gemeldet: {} ({})",
             b.art().name(),
             b.beleg()
@@ -162,7 +164,8 @@ fn ac2_nur_bewiesen_dominiert_heisst_zu_schwach() {
     );
     let gezaehlt = t.zaehlung();
     assert!(
-        gezaehlt.von(Befundart::NichtGefunden) >= 1 && gezaehlt.von(Befundart::BewiesenDominiert) >= 1,
+        gezaehlt.von(Befundart::NichtGefunden) >= 1
+            && gezaehlt.von(Befundart::BewiesenDominiert) >= 1,
         "der Fall braucht beide Arten, sonst trennt er nichts: {:?}",
         arten(&t)
     );
@@ -254,7 +257,12 @@ fn ac7_jede_schranke_ist_nachgemessen_und_wirkt_den_zauber() {
             continue;
         };
         geprueft += 1;
-        assert!(s.mit_zauber < s.bester, "{}: {}", zeile.id, zeile.befund.beleg());
+        assert!(
+            s.mit_zauber < s.bester,
+            "{}: {}",
+            zeile.id,
+            zeile.befund.beleg()
+        );
         assert!(
             s.projektion.vollstaendig(),
             "{}: {} Listen, die Projektion braucht {}",
@@ -278,7 +286,12 @@ fn ac7_jede_schranke_ist_nachgemessen_und_wirkt_den_zauber() {
         // Und `bester` ist wirklich das Optimum der Projektion: dieselbe Zahl,
         // die `exhaustive` selbst auf diesen Zeilen findet.
         let gesamt = exhaustive(&config(), &s.projektion.zeilen, s.projektion.max_len);
-        assert_eq!(gesamt.best.mean.to_bits(), s.bester.to_bits(), "{}", zeile.id);
+        assert_eq!(
+            gesamt.best.mean.to_bits(),
+            s.bester.to_bits(),
+            "{}",
+            zeile.id
+        );
     }
     assert!(
         geprueft >= 2,
@@ -344,7 +357,11 @@ fn p953_ac3_lauf_abgeschlossen_und_vertrag_verletzt_sind_zwei_zeilen() {
         .collect();
     assert_eq!(lauf_zeilen.len(), 1, "{text:#?}");
     assert_eq!(vertrag_zeilen.len(), 1, "{text:#?}");
-    assert!(lauf_zeilen[0].contains("abgeschlossen"), "{}", lauf_zeilen[0]);
+    assert!(
+        lauf_zeilen[0].contains("abgeschlossen"),
+        "{}",
+        lauf_zeilen[0]
+    );
     assert!(!lauf_zeilen[0].contains("VERTRAG"), "{}", lauf_zeilen[0]);
     assert!(
         vertrag_zeilen[0].contains("NICHT ERFUELLT"),
@@ -404,7 +421,11 @@ fn p953_ac3_lauf_abgeschlossen_und_vertrag_verletzt_sind_zwei_zeilen() {
 /// `quench`, COAGULATION mit `riposte`.
 fn ein_weg() -> &'static Boss {
     let basis = boss_by_id("test-lethal-strike").expect("test-lethal-strike");
-    assert_eq!(basis.timeline.len(), 1, "der Zwilling traegt genau einen Schlag");
+    assert_eq!(
+        basis.timeline.len(),
+        1,
+        "der Zwilling traegt genau einen Schlag"
+    );
     let schlag = TimelineEntry {
         at_ms: 1000,
         ..basis.timeline[0]
@@ -416,14 +437,14 @@ fn ein_weg() -> &'static Boss {
 }
 
 fn mit_boss(boss: &'static Boss) -> BalanceConfig {
-    BalanceConfig {
-        boss,
-        ..config()
-    }
+    BalanceConfig { boss, ..config() }
 }
 
 fn voller_vorrat() -> Vec<Candidate> {
-    spielbare_zauber().into_iter().flat_map(candidates_for).collect()
+    spielbare_zauber()
+        .into_iter()
+        .flat_map(candidates_for)
+        .collect()
 }
 
 #[test]
@@ -439,7 +460,13 @@ fn ac6_eine_mechanik_mit_nur_einem_weg_faellt_auf() {
         .collect();
     assert_eq!(wege, [Antwort::Koagulation], "{:?}", liste[0].wege);
     let fach = mehrere_wege(&proben);
-    assert_eq!(fach, Coverage::Measured { covered: 0, required: 1 });
+    assert_eq!(
+        fach,
+        Coverage::Measured {
+            covered: 0,
+            required: 1
+        }
+    );
     assert!(!fach.is_met(), "eine Mechanik mit einem Weg muss auffallen");
 
     // Der Zwilling: derselbe Schlag bei 12000 ms. Ohne ihn wüsste niemand, ob
@@ -457,7 +484,10 @@ fn ac6_eine_mechanik_mit_nur_einem_weg_faellt_auf() {
     );
     assert_eq!(
         mehrere_wege(&zwilling),
-        Coverage::Measured { covered: 1, required: 1 }
+        Coverage::Measured {
+            covered: 1,
+            required: 1
+        }
     );
 }
 
@@ -532,7 +562,11 @@ fn exhaustive_misst_so_viele_listen_wie_vorhergesagt() {
     // dem, was `exhaustive` tatsächlich misst, prüfte das Budget eine andere
     // Projektion als die gerechnete.
     assert_eq!(exhaustive_messungen(7, 4), 7 + 42 + 210 + 840);
-    assert_eq!(exhaustive_messungen(3, 6), 3 + 6 + 6, "Laenge ueber dem Vorrat");
+    assert_eq!(
+        exhaustive_messungen(3, 6),
+        3 + 6 + 6,
+        "Laenge ueber dem Vorrat"
+    );
     assert_eq!(exhaustive_messungen(0, 6), 0);
     for (ids, max_len) in [
         (&["kindle", "smoulder", "pyre"][..], 3),
@@ -558,7 +592,10 @@ fn ein_zeuge_aus_einer_zeile_wird_gegen_die_leere_liste_gemessen() {
 
     let knapp = lauf(&SCHRITT1, 1, 0);
     let Befund::MindestensBezeugt(zeuge) = befund(&knapp, "kindle") else {
-        panic!("kindle ist die Elite der Laenge 1: {}", befund(&knapp, "kindle").beleg());
+        panic!(
+            "kindle ist die Elite der Laenge 1: {}",
+            befund(&knapp, "kindle").beleg()
+        );
     };
     assert_eq!(zeuge.liste.rules.len(), 1);
     assert_eq!(zeuge.ohne_zauber.to_bits(), 0.0_f64.to_bits());
