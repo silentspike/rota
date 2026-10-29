@@ -109,7 +109,7 @@ fn valid_rate(rate: &RateModel) -> bool {
         && rate.rate_per_s > 0.0
         && rate.spread.is_finite()
         && rate.spread >= 0.0
-        && rate.spread < STREUUNG_MAX
+        && rate.unsicherheit() < STREUUNG_MAX
         && rate.samples >= ABSCHNITTE_MIN
         && u128::from(rate.duration_ms) >= MINDESTDAUER.as_millis()
         && rate.reason.brauchbar()

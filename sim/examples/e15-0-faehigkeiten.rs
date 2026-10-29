@@ -26,12 +26,46 @@
 //! der Lauf unter Last, der die Abweichung meldet. Wer nur den zweiten fährt,
 //! hat kein gespeichertes Profil und bekommt `Fehlt` statt `Abweichung`.
 //!
+//! # AC1: die Referenz läuft im selben Programm
+//!
+//! AC1 verlangt eine Referenz, die **gleichzeitig auf derselben Maschine**
+//! erhoben ist — gleiche Konfiguration, gleicher Zeitraum, gleiche Last. Sie
+//! ist die echte Arbeit am Stück, so wie die Werte in #912 entstanden sind:
+//! [`REFERENZ_KAEMPFE`] Kämpfe in EINEM Aufruf von `balance::run`, mit
+//! derselben Rotation, denselben Strängen und denselben getragenen Werten
+//! wie die Kalibrierung, nach einem Aufwärmlauf.
+//!
+//! Sie läuft **verschränkt** mit der Kalibrierung des Vollkampfs: ein
+//! Fenster des durchgehenden Laufs, dann ein Referenzlauf am Stück, wieder
+//! ein Fenster, wieder ein Referenzlauf — jedes Fenster so lang wie der
+//! letzte Referenzabschnitt, auf denselben Kernen
+//! (`kalibrierung::kalibriere_verschraenkt`). Verglichen wird Mittel gegen
+//! Mittel (`Verschraenkt::ac1`).
+//!
+//! # Der Vollkampf wird als durchgehender Lauf kalibriert (Weg b)
+//!
+//! Entscheidung des Orchestrators vom 28.10.: Die echte Arbeit läuft in
+//! langen Abschnitten, nicht in 20k-Happen. Bis dahin kalibrierte dieses
+//! Programm mit Paketen zu 20 000 Kämpfen und maß so neben der Rechenrate die
+//! Sperre am Ende jedes Pakets mit — auf node3 unter 8 Fremdsträngen
+//! 10–13 ms je Paket, und die Kalibrierung lag 12,7 bis 16,6 % unter der
+//! Arbeit am Stück. Jetzt misst `balance::strom`: Helfer rechnen ohne Sperre,
+//! und die Kampfzahl eines Fensters kommt aus dem Zählwerk. Diese Fenster
+//! sind die Abschnitte der Abbruchregel.
+//!
+//! Bis zum 28.10. lief die Referenz einmal davor und einmal danach. Auf node3
+//! lagen die zwei 10,7 % auseinander: Unter dieser Drift trägt ein
+//! Vorher/Nachher-Vergleich kein 10-Prozent-Kriterium. Und der Lauf davor
+//! schob auf dem belasteten Laptop den Druck so hoch, dass die Kalibrierung
+//! danach mit `Druck` abbrach.
+//!
 //! # `--kontrolle`
 //!
-//! Fährt zusätzlich einen Lauf mit **fester** Dauer von zwei Sekunden und
-//! stellt seine Streuung neben die des adaptiven. #912 verlangt diesen
-//! Vergleich ausdrücklich: Ohne ihn ist nicht belegt, dass die Adaptivität
-//! etwas bringt.
+//! Fährt zusätzlich den verschränkten Lauf mit **fester** Dauer von zwei
+//! Sekunden und fragt, ob die adaptive Messung näher an ihrer Referenz liegt
+//! als die verkürzte (`kalibrierung::genauigkeitsprobe`). #912 verlangt diese
+//! Kontrolle: Ohne sie ist nicht belegt, dass die Adaptivität etwas bringt.
+//! Braucht die volle Erhebung des Vollkampfs, also einen Lauf ohne Profil.
 //!
 //! # Warum das Programm nicht schreibt, was es misst
 //!
@@ -39,7 +73,7 @@
 //! nebenbei Dateien anlegt, tut zwei Dinge, und beim nächsten Fehler weiß
 //! niemand, welches davon schiefging.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rota_sim::akkumulator::TrialIdSet;
 use rota_sim::apl::{Apl, Rule};
@@ -51,9 +85,11 @@ use rota_sim::gear::WornValues;
 use rota_sim::gear_balance;
 use rota_sim::hostcaps::{drucksignale, erlaubte_kerne, kernvorraete, psi_some_avg10, HostCaps};
 use rota_sim::kalibrierung::{
-    abweichung_von_referenz, bestaetigen, gespeicherte_rate, kalibriere, kontrolllauf_feste_dauer,
-    profildatei, profilverzeichnis, referenz_fights_per_s, schluessel_erheben, Arbeitsart,
-    Bestaetigung, HostPerfVector, Profil, RateModel, AC1_TOLERANZ, STREUUNG_MAX, TAKT_DRIFT_MAX,
+    bestaetigungslauf, erheben_mit, genauigkeitsprobe, gespeicherte_rate, kalibriere,
+    kalibriere_verschraenkt, profildatei, profilverzeichnis, schluessel_erheben,
+    verschraenkt_feste_dauer, Abschnittswert, Ac1Urteil, Arbeitsart, Bestaetigung, Erhebung,
+    HostPerfVector, Lauf, Profil, RateModel, Verschraenkt, AC1_TOLERANZ, STREUUNG_MAX,
+    TAKT_DRIFT_MAX,
 };
 use rota_sim::rotation_search::{all_candidates, greedy};
 use rota_sim::verteilung::{verteilung_ueber, Treffer};
@@ -62,14 +98,50 @@ use rota_sim::verteilung::{verteilung_ueber, Treffer};
 /// Rechnern trägt — eine andere Zeitleiste ist eine andere Arbeit.
 const BOSS: &str = "boss-1-1";
 
-/// Wie viele Kämpfe ein Messabschnitt des Vollkampfs umfasst.
+/// Wie viele Kämpfe der Referenzlauf aus AC1 am Stück rechnet.
 ///
-/// **Ein Paket, keine Gesamtmenge.** Die Zahl der Pakete entscheidet der
-/// adaptive Lauf; hier steht nur, wie groß eines ist. 20 000 Kämpfe brauchen
-/// auf dem Laptop rund 0,1 Sekunden und auf gonet rund 0,17 — klein genug, dass
-/// die Abbruchbedingung feinkörnig greift, groß genug, dass der Aufruf-Aufwand
-/// nicht mitgemessen wird.
-const KAEMPFE_JE_PAKET: u32 = 20_000;
+/// Dieselbe Menge wie das Programm, mit dem die Werte in #912 erhoben sind
+/// (`orch-verteilung`: 200 000 Kämpfe, feste Rotation, Aufwärmlauf davor), in
+/// einem einzigen Aufruf: die Arbeit am Stück.
+const REFERENZ_KAEMPFE: u32 = 200_000;
+
+/// Wie lang ein Fenster des durchgehenden Laufs im Bestätigungslauf ist —
+/// und im verschränkten Lauf, bis der erste Referenzabschnitt seine Dauer
+/// vorgibt.
+///
+/// Eine halbe Sekunde ist auf node3 die Größenordnung eines Referenzlaufs
+/// am Stück (200 000 Kämpfe bei rund 400 000 je Sekunde); zehn Fenster
+/// füllen die Mindestdauer.
+const STROM_FENSTER: Duration = Duration::from_millis(500);
+
+/// Ein Fenster des durchgehenden Laufs als Abschnitt der Kalibrierung: die
+/// Kämpfe, die das Zählwerk bis zum Fensterende zählte, und das Fenster
+/// selbst.
+fn stromfenster(cfg: &BalanceConfig, apl: &Apl, dauer: Duration) -> Abschnittswert {
+    let m = balance::strom(cfg, apl, dauer);
+    Abschnittswert {
+        #[allow(clippy::cast_precision_loss)]
+        einheiten: m.kaempfe as f64,
+        fenster: Some(m.fenster),
+    }
+}
+
+/// Ein Referenzabschnitt: [`REFERENZ_KAEMPFE`] Kämpfe in EINEM Aufruf.
+///
+/// Konfiguration und Rotation sind dieselben wie bei der Kalibrierung — eine
+/// andere Zeitleiste oder ein anderer Krit wäre eine andere Arbeit.
+fn referenzblock(cfg_stueck: &BalanceConfig, apl: &Apl) -> f64 {
+    let r = balance::run(cfg_stueck, apl);
+    // `count` ist bei der Reduktion aus #908 immer `iterations` und belegt
+    // deshalb nicht, dass gerechnet wurde — das belegt
+    // `ein_durchgang_genuegt` weiter unten. Hier sichert er nur, dass die
+    // Statistik die angeforderte Menge hat.
+    assert_eq!(
+        r.damage.count, REFERENZ_KAEMPFE as usize,
+        "der Referenzlauf hat nicht die angeforderte Menge"
+    );
+    f64::from(REFERENZ_KAEMPFE)
+}
 
 /// Getragene Sonderwerte mit **echtem** Krit-Zufall.
 ///
@@ -131,15 +203,54 @@ fn feste_rotation() -> Apl {
     }
 }
 
-/// Misst eine Arbeitsart und druckt die Zeile dazu.
-fn miss(art: Arbeitsart, arbeit: impl FnMut() -> f64) -> RateModel {
-    let r = kalibriere(arbeit);
+/// Erhebt eine Arbeitsart (AC4, AC5) und druckt, was gelaufen ist: mit
+/// Profil den Bestätigungslauf und, wenn er abwich, die volle Erhebung.
+fn erhebe(
+    art: Arbeitsart,
+    gespeichert: Option<f64>,
+    messen: impl FnMut(Lauf) -> RateModel,
+) -> Erhebung {
+    let e = erheben_mit(gespeichert, messen);
+    let (name, einheit) = (art.schluessel(), art.einheit());
+    match &e {
+        Erhebung::Fehlt { voll } => zeile(name, "voll", einheit, voll),
+        Erhebung::Bestaetigt { kurz } | Erhebung::NichtGemessen { kurz } => {
+            zeile(name, "kurz", einheit, kurz);
+        }
+        Erhebung::NeuErhoben { kurz, voll, .. } => {
+            zeile(name, "kurz", einheit, kurz);
+            zeile(name, "voll", einheit, voll);
+        }
+    }
+    e
+}
+
+/// [`erhebe`] für eine Arbeit, die kurz wie voll dieselbe ist.
+fn erhebe_einfach(
+    art: Arbeitsart,
+    gespeichert: Option<f64>,
+    mut arbeit: impl FnMut() -> f64,
+) -> Erhebung {
+    erhebe(art, gespeichert, |lauf| match lauf {
+        Lauf::Kurz => bestaetigungslauf(&mut arbeit),
+        Lauf::Voll => kalibriere(&mut arbeit),
+    })
+}
+
+/// Eine Zeile je gemessener Rate.
+///
+/// **Streuung und Unsicherheit stehen beide da**: Die Streuung beschreibt die
+/// Abschnitte, die Unsicherheit das Mittel — an ihr hängt `Stabil`
+/// (`STREUUNG_MAX`).
+fn zeile(name: &str, lauf: &str, einheit: &str, r: &RateModel) {
     println!(
-        "  {:<20} {:>14.1} {:<22} Streuung {:>6.2} %  {:>3} Abschnitte  {:>6} ms  PSI {:>5}  Drift {:>7}  {:?}",
-        art.schluessel(),
+        "  {:<20} {:<4} {:>14.1} {:<22} Streuung {:>6.2} %  Unsicherheit {:>5.2} %  {:>4} Abschnitte  {:>6} ms  PSI {:>5}  Drift {:>7}  {:?}",
+        name,
+        lauf,
         r.rate_per_s,
-        art.einheit(),
+        einheit,
         r.spread * 100.0,
+        r.unsicherheit() * 100.0,
         r.samples,
         r.duration_ms,
         r.psi_cpu
@@ -160,7 +271,6 @@ fn miss(art: Arbeitsart, arbeit: impl FnMut() -> f64) -> RateModel {
         ),
         r.reason
     );
-    r
 }
 
 /// Belegt Stränge mit Rechenarbeit, bis das Signal fällt.
@@ -288,21 +398,69 @@ fn main() {
         "  Rotation               {} Zeilen aus greedy",
         apl.rules.len()
     );
-    println!("  Kaempfe je Paket       {KAEMPFE_JE_PAKET}");
+    println!(
+        "  Vollkampf              durchgehender Lauf (balance::strom), Fenster aus dem Zaehlwerk"
+    );
+    println!(
+        "  Referenz (AC1)         {REFERENZ_KAEMPFE} Kaempfe am Stueck, verschraenkt, \
+         jedes Fenster so lang wie der letzte Referenzabschnitt"
+    );
     println!();
 
+    // **Das Profil wird VOR der Messung gelesen.** Mit Profil läuft je
+    // Arbeitsart nur ein kurzer Bestätigungslauf (AC4); erst wenn er um mehr
+    // als 25 % abweicht, die volle Erhebung (AC5). Bis zum 28.10. lief immer
+    // die volle Erhebung, und das Profil wurde danach nur verglichen — mit
+    // Profil auf node3 2:13 gegen 2:39 ohne.
+    let verzeichnis = profilverzeichnis();
+    let pfad = verzeichnis.join(profildatei(&schluessel));
+    let vorher = std::fs::read_to_string(&pfad).ok();
+    let gespeichert = |art: Arbeitsart| vorher.as_deref().and_then(|t| gespeicherte_rate(t, art));
+
     let druck_vorher = psi_some_avg10("/proc/pressure/cpu").unwrap_or(-1.0);
-    println!("== Gemessene Raten (AC1, AC3) ==");
+    println!("== Gemessene Raten (AC1, AC3, AC4) ==");
+    println!(
+        "  Profil                 {}",
+        if vorher.is_some() {
+            "liegt vor — je Art ein Bestaetigungslauf, voll nur bei Abweichung"
+        } else {
+            "fehlt — volle Erhebung"
+        }
+    );
+    let beginn = Instant::now();
 
     let threads = caps.threads_usable.max(1);
-    let cfg_voll = config(threads, KAEMPFE_JE_PAKET);
-    let scalar_full_fight = miss(Arbeitsart::ScalarFullFight, || {
-        let r = balance::run(&cfg_voll, &apl);
-        #[allow(clippy::cast_precision_loss)]
-        {
-            r.damage.count as f64
-        }
-    });
+    let cfg_strom = config(threads, REFERENZ_KAEMPFE);
+    let cfg_stueck = config(threads, REFERENZ_KAEMPFE);
+    // **Die volle Erhebung des Vollkampfs IST der verschränkte Lauf** mit der
+    // Referenz aus AC1: Fenster des durchgehenden Laufs, Lauf am Stück,
+    // Fenster, Lauf … Jedes Fenster ist so lang wie der Referenzabschnitt vor
+    // ihm, damit eine Drift beide Reihen gleich trifft. Der Bestätigungslauf
+    // misst dieselben Fenster, eine halbe Sekunde lang.
+    let fenster = std::cell::Cell::new(STROM_FENSTER);
+    let mut kalibrierabschnitt = || stromfenster(&cfg_strom, &apl, fenster.get());
+    let mut referenzabschnitt = || {
+        let t = Instant::now();
+        let n = referenzblock(&cfg_stueck, &apl);
+        fenster.set(t.elapsed());
+        n
+    };
+    let mut ac1_lauf: Option<Verschraenkt> = None;
+    let scalar = erhebe(
+        Arbeitsart::ScalarFullFight,
+        gespeichert(Arbeitsart::ScalarFullFight),
+        |lauf| match lauf {
+            Lauf::Kurz => bestaetigungslauf(|| stromfenster(&cfg_strom, &apl, STROM_FENSTER)),
+            Lauf::Voll => {
+                let v = kalibriere_verschraenkt(&mut kalibrierabschnitt, &mut referenzabschnitt);
+                ac1_lauf = Some(v);
+                v.kalibrierung
+            }
+        },
+    );
+    if let Some(v) = &ac1_lauf {
+        zeile("referenz (AC1)", "voll", "Kaempfe/s am Stueck", &v.referenz);
+    }
 
     // **Kein vektorisierter Pfad im Simulator.** `caps.isa.vektorisierbar()`
     // sagt nur, dass die MASCHINE ihn könnte. Eine Rate hier wäre eine über
@@ -310,33 +468,37 @@ fn main() {
     // zwei Rechner in einer Disziplin, die keiner von beiden fährt.
     let avx_full_fight: Option<RateModel> = None;
     println!(
-        "  {:<20} {:>14} — der Simulator hat keinen vektorisierten Vollkampf (ISA koennte: {})",
+        "  {:<20}       {:>14} — der Simulator hat keinen vektorisierten Vollkampf (ISA koennte: {})",
         Arbeitsart::AvxFullFight.schluessel(),
         "n/v",
         caps.isa.vektorisierbar()
     );
 
     // Bereichsrechnung: ein Register mit vielen Lücken, dann Abfragen darauf.
-    let ledger_eval = miss(Arbeitsart::LedgerEval, || {
-        let mut menge = TrialIdSet::leer();
-        for i in 0..2000u32 {
-            menge.vereinige(&TrialIdSet::aus_bereich(i * 4, i * 4 + 2));
-        }
-        let mut treffer = 0u64;
-        for i in 0..20_000u32 {
-            if menge.enthaelt(i) {
-                treffer += 1;
+    let ledger = erhebe_einfach(
+        Arbeitsart::LedgerEval,
+        gespeichert(Arbeitsart::LedgerEval),
+        || {
+            let mut menge = TrialIdSet::leer();
+            for i in 0..2000u32 {
+                menge.vereinige(&TrialIdSet::aus_bereich(i * 4, i * 4 + 2));
             }
-        }
-        // Der Rückgabewert darf nicht wegoptimiert werden dürfen: Ohne die
-        // Verwendung von `treffer` stünde hier eine Rate für eine Schleife,
-        // die nichts tut.
-        assert!(
-            treffer > 0,
-            "die Bereichsabfrage traf nie — Messung ungueltig"
-        );
-        20_000.0
-    });
+            let mut treffer = 0u64;
+            for i in 0..20_000u32 {
+                if menge.enthaelt(i) {
+                    treffer += 1;
+                }
+            }
+            // Der Rückgabewert darf nicht wegoptimiert werden dürfen: Ohne die
+            // Verwendung von `treffer` stünde hier eine Rate für eine Schleife,
+            // die nichts tut.
+            assert!(
+                treffer > 0,
+                "die Bereichsabfrage traf nie — Messung ungueltig"
+            );
+            20_000.0
+        },
+    );
 
     // Krit-Dynamikprogrammierung: eine Treffer-Folge durch den DP.
     let ledger_treffer: Vec<Treffer> = (0..60)
@@ -345,7 +507,7 @@ fn main() {
             mit_krit: 200 + i * 2,
         })
         .collect();
-    let crit_dp = miss(Arbeitsart::CritDp, || {
+    let crit = erhebe_einfach(Arbeitsart::CritDp, gespeichert(Arbeitsart::CritDp), || {
         let v = verteilung_ueber(&ledger_treffer, 0.375, &[500, 1000, 2000]);
         let _ = &v;
         60.0
@@ -355,29 +517,38 @@ fn main() {
     let pool = all_candidates();
     let pool_len = pool.len();
     let cfg_suche = config(threads, 200);
-    let branch_and_bound = miss(Arbeitsart::BranchAndBound, || {
-        let r = greedy(&cfg_suche, &pool, 4);
-        assert!(
-            !r.chosen.is_empty(),
-            "die Suche fand nichts — Messung ungueltig"
-        );
-        #[allow(clippy::cast_precision_loss)]
-        {
-            pool_len as f64
-        }
-    });
+    let suche = erhebe_einfach(
+        Arbeitsart::BranchAndBound,
+        gespeichert(Arbeitsart::BranchAndBound),
+        || {
+            let r = greedy(&cfg_suche, &pool, 4);
+            assert!(
+                !r.chosen.is_empty(),
+                "die Suche fand nichts — Messung ungueltig"
+            );
+            #[allow(clippy::cast_precision_loss)]
+            {
+                pool_len as f64
+            }
+        },
+    );
 
     // Der Ausrüstungsdurchlauf.
-    let gear_sweep = miss(Arbeitsart::GearSweep, || {
-        // **Eine Million statt 400.** Beim ersten Lauf auf gonet brauchten 400
-        // Fälle weniger als eine Millisekunde, bei 20 000 waren es drei — die
-        // Rate stand daraufhin bei 32 029 405 Varianten je Sekunde, einer Zahl
-        // aus der Uhrauflösung. `ABSCHNITT_MIN` fängt das jetzt, aber ein Paket,
-        // das dauernd in den Abbruch läuft, misst gar nichts.
-        let v = gear_balance::compare_variants(1_000_000, 3, 3);
-        let _ = &v;
-        1_000_000.0
-    });
+    let gear = erhebe_einfach(
+        Arbeitsart::GearSweep,
+        gespeichert(Arbeitsart::GearSweep),
+        || {
+            // **Eine Million statt 400.** Beim ersten Lauf auf gonet brauchten 400
+            // Fälle weniger als eine Millisekunde, bei 20 000 waren es drei — die
+            // Rate stand daraufhin bei 32 029 405 Varianten je Sekunde, einer Zahl
+            // aus der Uhrauflösung. `ABSCHNITT_MIN` fängt das jetzt, aber ein Paket,
+            // das dauernd in den Abbruch läuft, misst gar nichts.
+            let v = gear_balance::compare_variants(1_000_000, 3, 3);
+            let _ = &v;
+            1_000_000.0
+        },
+    );
+    let dauer_erhebung = beginn.elapsed();
 
     let druck_nachher = psi_some_avg10("/proc/pressure/cpu").unwrap_or(-1.0);
     println!();
@@ -400,72 +571,76 @@ fn main() {
     println!();
 
     // -------------------------------------------------- Kontrollprobe zu AC2
+    //
+    // **Genauigkeit, nicht Streuung** (Entscheidung des Orchestrators vom
+    // 28.10.): Eine auf zwei Sekunden verkürzte Messung sieht unter Drift
+    // ruhiger aus, weil sie weniger sieht. Gefragt wird deshalb, welche der
+    // zwei näher an ihrer verschränkten Referenz liegt — beide verschränkt,
+    // mit denselben Fenstern und Läufen am Stück.
     if kontrolle {
-        println!("== Kontrollprobe AC2: feste zwei Sekunden gegen adaptiv ==");
-        let cfg_k = config(threads, KAEMPFE_JE_PAKET);
-        let fest = kontrolllauf_feste_dauer(
-            || {
-                #[allow(clippy::cast_precision_loss)]
-                {
-                    balance::run(&cfg_k, &apl).damage.count as f64
+        println!("== Kontrollprobe AC2: verschraenkt fest 2 s gegen verschraenkt adaptiv ==");
+        match ac1_lauf {
+            None => println!(
+                "  Nicht moeglich: keine volle Erhebung des Vollkampfs in diesem Lauf\n\
+                 \x20 (Profil bestaetigt). Ohne Profil fahren."
+            ),
+            Some(adaptiv) => {
+                let fest = verschraenkt_feste_dauer(
+                    &mut kalibrierabschnitt,
+                    &mut referenzabschnitt,
+                    Duration::from_secs(2),
+                );
+                for (name, v) in [("adaptiv", &adaptiv), ("fest 2 s", &fest)] {
+                    println!(
+                        "  {name:<9} Kalibrierung {:>12.1}  Referenz {:>12.1}  Streuung {:>6.2} / {:>6.2} %  \
+                         {:>3} Paare  {:>6} ms  {:?}",
+                        v.kalibrierung.rate_per_s,
+                        v.referenz.rate_per_s,
+                        v.kalibrierung.spread * 100.0,
+                        v.referenz.spread * 100.0,
+                        v.kalibrierung.samples,
+                        v.kalibrierung.duration_ms,
+                        v.kalibrierung.reason
+                    );
                 }
-            },
-            Duration::from_secs(2),
-        );
-        println!(
-            "  fest   {:>12.1} Kaempfe/s   Streuung {:>6.2} %  {:>2} Abschnitte  {:>5} ms",
-            fest.rate_per_s,
-            fest.spread * 100.0,
-            fest.samples,
-            fest.duration_ms
-        );
-        println!(
-            "  adaptiv{:>12.1} Kaempfe/s   Streuung {:>6.2} %  {:>2} Abschnitte  {:>5} ms",
-            scalar_full_fight.rate_per_s,
-            scalar_full_fight.spread * 100.0,
-            scalar_full_fight.samples,
-            scalar_full_fight.duration_ms
-        );
-        println!();
-        let unterschied = (fest.rate_per_s - scalar_full_fight.rate_per_s)
-            / scalar_full_fight.rate_per_s.max(1e-9)
-            * 100.0;
-        println!("  Unterschied der RATEN: {unterschied:+.1} %");
-        println!();
-        if fest.spread > scalar_full_fight.spread {
-            println!(
-                "  DIE ADAPTIVITAET BRINGT ETWAS: der feste Lauf streut um Faktor {:.2} staerker.",
-                fest.spread / scalar_full_fight.spread.max(1e-9)
-            );
-        } else {
-            println!(
-                "  DER FESTE LAUF STREUT WENIGER — UND DAS IST DER BEFUND, NICHT DAS GEGENTEIL.\n\
-                 \x20\n\
-                 \x20 Eine kurze Messung sieht ruhiger aus, weil sie WENIGER SIEHT. Zwei Sekunden\n\
-                 \x20 erfassen einen Ausschnitt, in dem die Maschine zufaellig gleichmaessig lief;\n\
-                 \x20 dreissig Sekunden erfassen die Unruhe, die es wirklich gibt.\n\
-                 \x20\n\
-                 \x20 Die kleine Streuung des festen Laufs ist also KEINE Guete, sondern ihr\n\
-                 \x20 Schein — und die Raten unterscheiden sich um die Zahl oben. Wer nach zwei\n\
-                 \x20 Sekunden aufhoert, bekommt eine Zahl mit einem Fehlerbalken, der zu klein\n\
-                 \x20 ist, und verteilt die Arbeit dauerhaft danach.\n\
-                 \x20\n\
-                 \x20 Das Issue hat den umgekehrten Ausgang erwartet. Gemessen ist dieser, und er\n\
-                 \x20 traegt dieselbe Folgerung staerker: nicht 'kurz streut mehr', sondern 'kurz\n\
-                 \x20 kann gar nicht wissen, ob es streut'."
-            );
+                match genauigkeitsprobe(&adaptiv, &fest) {
+                    None => println!("  NICHT BEURTEILBAR — eine der vier Zahlen ist keine Rate."),
+                    Some(p) => {
+                        println!(
+                            "  Abstand zur eigenen Referenz: adaptiv {:.2} %, fest 2 s {:.2} %",
+                            p.fehler_adaptiv * 100.0,
+                            p.fehler_fest * 100.0
+                        );
+                        if p.adaptiv_genauer {
+                            println!("  DIE ADAPTIVITAET BRINGT ETWAS: die adaptive Messung liegt naeher.");
+                        } else {
+                            println!(
+                                "  BEFUND GEGEN DIE ADAPTIVITAET: die verkuerzte Messung liegt nicht\n\
+                                 \x20 weiter weg. Die Zahlen oben sind der Beleg."
+                            );
+                        }
+                    }
+                }
+            }
         }
         println!();
     }
 
     // ----------------------------------------------------------- das Profil
+    let erhebungen = [
+        (Arbeitsart::ScalarFullFight, scalar),
+        (Arbeitsart::LedgerEval, ledger),
+        (Arbeitsart::CritDp, crit),
+        (Arbeitsart::BranchAndBound, suche),
+        (Arbeitsart::GearSweep, gear),
+    ];
     let vektor = HostPerfVector {
-        scalar_full_fight,
+        scalar_full_fight: *scalar.rate(),
         avx_full_fight,
-        ledger_eval,
-        crit_dp,
-        branch_and_bound,
-        gear_sweep,
+        ledger_eval: *ledger.rate(),
+        crit_dp: *crit.rate(),
+        branch_and_bound: *suche.rate(),
+        gear_sweep: *gear.rate(),
         gpu_bulk: None,
         network_rtt: None,
         network_bandwidth: None,
@@ -477,100 +652,61 @@ fn main() {
     caps_gemessen.calibration_spread = vektor.scalar_full_fight.spread;
     caps_gemessen.measured_at = vektor.scalar_full_fight.measured_at;
 
-    let profil = Profil {
-        schluessel,
-        caps: caps_gemessen,
-        raten: Arbeitsart::alle()
-            .into_iter()
-            .filter_map(|a| vektor.rate(a).map(|r| (a, *r)))
-            .collect(),
-    };
-
-    // ------------------------------------------------- Profil, AC4 und AC5
-    //
-    // **Erst bestaetigen, dann ablegen.** Umgekehrt verglichen wir die frische
-    // Messung mit sich selbst, und die Bestaetigung waere immer positiv — der
-    // teuerste denkbare Fehler an dieser Stelle, weil er wie ein Erfolg
-    // aussieht.
-    let verzeichnis = profilverzeichnis();
-    let pfad = verzeichnis.join(profildatei(&profil.schluessel));
     println!("== Profil (AC4, AC5) ==");
     println!("  Ablage                 {}", pfad.display());
-
-    let vorher = std::fs::read_to_string(&pfad).ok();
-    let mut abgewichen: Vec<Arbeitsart> = Vec::new();
-    for art in Arbeitsart::alle() {
-        let Some(r) = vektor.rate(art) else { continue };
-        if r.samples == 0 {
-            println!(
-                "  {:<20} NICHT GEMESSEN ({:?}) — kein Vergleich, keine Ablage",
-                art.schluessel(),
-                r.reason
-            );
-            continue;
-        }
-        let gespeichert = vorher.as_deref().and_then(|t| gespeicherte_rate(t, art));
-        let urteil = bestaetigen(gespeichert, r);
-        if urteil == Bestaetigung::Abweichung {
-            abgewichen.push(art);
-        }
-        let abweichung = gespeichert.map_or(f64::NAN, |g| (r.rate_per_s - g) / g * 100.0);
-        println!(
-            "  {:<20} {:<12?} gespeichert {:>14}  gemessen {:>14.1}  {:>7}",
-            art.schluessel(),
-            urteil,
-            gespeichert.map_or_else(|| "—".to_owned(), |g| format!("{g:.1}")),
-            r.rate_per_s,
-            if abweichung.is_nan() {
-                "—".to_owned()
-            } else {
-                format!("{abweichung:+.1} %")
+    for (art, e) in &erhebungen {
+        let g = gespeichert(*art);
+        let gegen = |r: &RateModel| {
+            g.filter(|_| r.samples > 0).map_or_else(
+                || "—".to_owned(),
+                |g| format!("{:+.1} %", (r.rate_per_s - g) / g * 100.0),
+            )
+        };
+        let (was, kurz, voll) = match e {
+            Erhebung::Fehlt { voll } => ("Fehlt".to_owned(), None, Some(voll)),
+            Erhebung::Bestaetigt { kurz } => ("Bestaetigt".to_owned(), Some(kurz), None),
+            Erhebung::NeuErhoben { kurz, voll, urteil } => {
+                (format!("NeuErhoben/{urteil:?}"), Some(kurz), Some(voll))
             }
+            Erhebung::NichtGemessen { kurz } => ("NichtGemessen".to_owned(), Some(kurz), None),
+        };
+        println!(
+            "  {:<20} {:<22} gespeichert {:>14}  kurz {:>14} {:>8}  voll {:>14} {:>8}",
+            art.schluessel(),
+            was,
+            g.map_or_else(|| "—".to_owned(), |g| format!("{g:.1}")),
+            kurz.map_or_else(|| "—".to_owned(), |r| format!("{:.1}", r.rate_per_s)),
+            kurz.map_or_else(|| "—".to_owned(), gegen),
+            voll.map_or_else(|| "—".to_owned(), |r| format!("{:.1}", r.rate_per_s)),
+            voll.map_or_else(|| "—".to_owned(), gegen),
         );
     }
 
-    // **Abgelegt wird JE RATE, und nur wenn sie stabil ist.**
-    //
-    // Gemessen am 2026-08-22 auf gonet: Der Lauf unter künstlicher Fremdlast
-    // überschrieb das gute Profil mit seinen gedrückten Raten — und beim
-    // nächsten ruhigen Lauf stand die Bestätigung dann wieder auf
-    // `Abweichung`, diesmal nach oben. Eine Ablage, die jede Zahl nimmt,
-    // vernichtet genau den Bezug, den sie herstellen soll.
-    //
-    // **Je Rate und nicht je Lauf**, weil beides vorkommt: Auf gonet ist
-    // `crit_dp` stabil und `scalar_full_fight` nicht — der Knoten trägt
-    // fremde Maschinen. Wer nur vollständige Läufe ablegt, hätte dort nie ein
-    // Profil, und AC4 wäre auf einem der drei Rechner unerreichbar.
-    //
-    // Die alten Raten bleiben stehen, wo die neuen nichts taugen: Ein alter
-    // Wert ist eine Messung von gestern, ein gedrückter ist keine.
-    // **Eine abgewichene Rate legt NICHT ab.**
-    //
-    // AC5 sagt, was bei Abweichung zu tun ist: neu erheben. Die abweichende
-    // Zahl ist der BEFUND, nicht die neue Wahrheit — wer sie ablegt, hat den
-    // Befund beim nächsten Lauf verloren und die Ursache dazu.
-    //
-    // Gemessen am 2026-08-22 auf gonet: Unter zwölf Strängen Fremdlast meldete
-    // `crit_dp` eine Abweichung von −43,5 Prozent, war dabei aber `Stabil` —
-    // gleichmäßiger Druck erzeugt gleichmäßig falsche Raten mit kleiner
-    // Streuung. Ohne diese Zeile hätte der Lauf den guten Wert überschrieben.
-    let stabile: Vec<(Arbeitsart, RateModel)> = profil
-        .raten
+    // **Abgelegt wird JE RATE, und nur eine stabile volle Erhebung ohne
+    // Abweichung** (`Erhebung::abzulegen`). Gemessen am 2026-08-22 auf gonet:
+    // Ein Lauf unter Fremdlast überschrieb das gute Profil mit gedrückten
+    // Raten, und beim nächsten ruhigen Lauf stand die Bestätigung wieder auf
+    // `Abweichung`. Die alten Raten bleiben stehen, wo die neuen nichts
+    // taugen — ein alter Wert ist eine Messung von gestern, ein gedrückter
+    // ist keine.
+    let mut neue: Vec<(Arbeitsart, RateModel)> = erhebungen
         .iter()
-        .filter(|(a, r)| r.reason.brauchbar() && !abgewichen.contains(a))
-        .copied()
+        .filter_map(|(a, e)| e.abzulegen().map(|r| (*a, *r)))
         .collect();
-    let mut zum_ablegen = profil.clone();
-    zum_ablegen.raten = stabile.clone();
-    zum_ablegen.raten.sort_by_key(|(a, _)| a.schluessel());
+    neue.sort_by_key(|(a, _)| a.schluessel());
+    let zum_ablegen = Profil {
+        schluessel,
+        caps: caps_gemessen,
+        raten: neue.clone(),
+    };
     let profiltext = zum_ablegen.speichern_mit_vorherigem(vorher.as_deref());
     let uebernommen = Profil::raten_lesen(&profiltext)
         .len()
-        .saturating_sub(stabile.len());
+        .saturating_sub(neue.len());
 
-    if stabile.is_empty() {
+    if neue.is_empty() {
         println!(
-            "  NICHT ABGELEGT — keine einzige Rate ist eine Kalibrierung.\n\
+            "  NICHTS NEU ABGELEGT — keine Rate dieses Laufs ist eine neue Kalibrierung.\n\
              \x20 Ein vorhandenes Profil bleibt unberuehrt."
         );
     } else if std::fs::create_dir_all(&verzeichnis).is_ok()
@@ -578,7 +714,7 @@ fn main() {
     {
         println!(
             "  abgelegt: {} neue Rate(n), {} aus dem alten Profil uebernommen.",
-            stabile.len(),
+            neue.len(),
             uebernommen
         );
     } else {
@@ -593,11 +729,11 @@ fn main() {
 
     // -------------------------------------------------------- AC1: Referenz
     //
-    // **Der Beleg dafür, dass die Referenz eine andere Arbeit misst**, steht
-    // hier und nicht in einer Nachricht: ein einziger Lauf mit
-    // `WornValues::none()` — der Einstellung, mit der die Referenz erhoben
-    // wurde. Er kostet Millisekunden und beantwortet die Frage, die den
-    // ganzen Vergleich trägt.
+    // **Der Beleg dafür, dass Kalibrierung und Referenz echte Kämpfe
+    // rechnen**, steht hier und nicht in einer Nachricht: Beide fahren
+    // `worn_mit_zufall()`, und die Reduktion aus #908 greift dort nicht. Die
+    // Abfrage kostet Millisekunden und beantwortet die Frage, die den ganzen
+    // Vergleich trägt — mit `WornValues::none()` daneben als Gegenprobe.
     // **`damage.count` beantwortet die Frage NICHT**, und das ist der zweite
     // Anlauf dieser Stelle: Die Reduktion aus #908 rechnet einen Kampf und
     // VERVIELFACHT ihn — `(0..iterations).map(|i| Sample { seed: .., ..muster })`
@@ -608,7 +744,7 @@ fn main() {
     // Funktion, an der die Entscheidung wirklich hängt.
     let ein_durchgang = ein_durchgang_genuegt(EFFECT_NODES, &WornValues::none());
     let ein_durchgang_hier = ein_durchgang_genuegt(EFFECT_NODES, &worn_mit_zufall());
-    println!("== Warum die Referenz gilt und die heutige orch-Zahl nicht ==");
+    println!("== Ob Kalibrierung und Referenz echte Kaempfe rechnen ==");
     println!(
         "  mit WornValues::none()   ein_durchgang_genuegt = {ein_durchgang}{}",
         if ein_durchgang {
@@ -620,68 +756,114 @@ fn main() {
     println!(
         "  mit purity 375           ein_durchgang_genuegt = {ein_durchgang_hier}{}",
         if ein_durchgang_hier {
-            "   <- die Messung oben waere wertlos"
+            "   <- Kalibrierung und Referenz oben waeren wertlos"
         } else {
-            "   <- die Messung oben rechnet echte Kaempfe"
+            "   <- Kalibrierung und Referenz oben rechnen echte Kaempfe"
         }
     );
     println!(
-        "  orch-verteilung faehrt `none()`. Es ist EINEN TAG AELTER als die Reduktion\n\
-         \x20 (b2244dc6 vom 18.08. gegen 7af79720 vom 19.08.) — seine Referenzwerte sind\n\
-         \x20 echte Durchsatzzahlen. Was es HEUTE meldet, ist es nicht: 9 788 279 auf\n\
-         \x20 diesem Laptop, Zaehler aus der Anforderung und Nenner aus einem Lauf.\n\
-         \x20 Repariert im selben PR."
+        "  orch-verteilung faehrt `none()` und ist deshalb seit #908 keine\n\
+         \x20 Durchsatzmessung mehr; es sagt das selbst. Die Referenz unten faehrt\n\
+         \x20 dieselben getragenen Werte wie die Kalibrierung."
     );
     println!();
 
-    println!("== AC1: gegen die Referenz aus #912 ==");
-    match abweichung_von_referenz(&profil.schluessel.host, vektor.scalar_full_fight.rate_per_s) {
-        None => println!(
-            "  Fuer '{}' steht keine Referenz im Issue — AC1 ist hier nicht pruefbar.",
-            profil.schluessel.host
-        ),
-        Some(a) => {
-            println!(
-                "  Referenz  {:>12.1}   gemessen  {:>12.1}   Abweichung {:>+7.1} %   Toleranz +-{:.0} %",
-                referenz_fights_per_s(&profil.schluessel.host).unwrap_or(0.0),
-                vektor.scalar_full_fight.rate_per_s,
-                a * 100.0,
-                AC1_TOLERANZ * 100.0
-            );
-            if a.abs() <= AC1_TOLERANZ {
-                println!("  AC1 ERFUELLT.");
-            } else {
-                println!(
-                    "  AC1 NICHT ERFUELLT — und die Ursache ist NICHT belegt.\n\
-                     \x20\n\
-                     \x20 Die Referenz gilt: Das Werkzeug, das sie erhoben hat, ist aelter als die\n\
-                     \x20 Reduktion aus #908. Und diese Kalibrierung misst mit echtem Zufall, also\n\
-                     \x20 gegen denselben Bestand — auf proxmox trifft sie auf 0,4 Prozent.\n\
-                     \x20\n\
-                     \x20 Woher die Abweichung hier kommt, ist offen. Verdacht: Fremdlast auf\n\
-                     \x20 einem geteilten Knoten. NICHT gemessen, und deshalb steht hier ein\n\
-                     \x20 Verdacht und kein Grund."
-                );
+    println!("== AC1: gegen die Referenz, verschraenkt im selben Lauf ==");
+    if let Some(ac1_lauf) = ac1_lauf {
+        let ac1 = ac1_lauf.ac1();
+        println!(
+            "  Referenz am Stueck {:>12.1}   Unsicherheit {:>5.2} %   {} Abschnitte",
+            ac1_lauf.referenz.rate_per_s,
+            ac1_lauf.referenz.unsicherheit() * 100.0,
+            ac1_lauf.referenz.samples
+        );
+        println!(
+            "  Kalibrierung       {:>12.1}   Unsicherheit {:>5.2} %   {} Abschnitte   {:?}",
+            ac1_lauf.kalibrierung.rate_per_s,
+            ac1_lauf.kalibrierung.unsicherheit() * 100.0,
+            ac1_lauf.kalibrierung.samples,
+            ac1_lauf.kalibrierung.reason
+        );
+        println!(
+            "  Abweichung         {:>+12.2} %   Toleranz +-{:.0} %",
+            ac1.abweichung * 100.0,
+            AC1_TOLERANZ * 100.0
+        );
+        match ac1.urteil {
+            Ac1Urteil::Erfuellt => println!("  AC1 ERFUELLT."),
+            Ac1Urteil::NichtErfuellt => println!(
+                "  AC1 NICHT ERFUELLT — die Kalibrierung verfehlt die Arbeit am Stueck\n\
+             \x20 unter derselben Last. Das Kriterium wird nicht gesenkt (#912)."
+            ),
+            Ac1Urteil::KeineKalibrierung => println!(
+                "  AC1 NICHT BEURTEILBAR — mindestens eine Reihe ist nicht stabil ({:?}),\n\
+             \x20 ihr Mittel nicht genau genug. Die Abweichung oben steht zur Auskunft da.",
+                ac1_lauf.kalibrierung.reason
+            ),
+            Ac1Urteil::Ungueltig => {
+                println!("  AC1 NICHT BEURTEILBAR — eine der Zahlen ist keine Rate.")
             }
         }
+    } else {
+        println!(
+            "  In diesem Lauf nicht gemessen: Das Profil wurde bestaetigt, ohne volle\n\
+             \x20 Erhebung. Fuer AC1 ohne Profil fahren (ROTA_PROFILVERZEICHNIS leer)."
+        );
     }
     println!();
 
     // ------------------------------------------------------------- das Urteil
     println!("== Urteil ==");
-    let mut brauchbar = true;
-    for art in Arbeitsart::alle() {
-        let Some(r) = vektor.rate(art) else { continue };
-        if !r.reason.brauchbar() {
-            println!(
-                "  {:<20} NICHT BRAUCHBAR: {:?} bei Streuung {:.2} %",
-                art.schluessel(),
-                r.reason,
-                r.spread * 100.0
-            );
-            brauchbar = false;
+    let mut alles_gut = true;
+    for (art, e) in &erhebungen {
+        match e {
+            Erhebung::Bestaetigt { .. } => {
+                println!("  {:<20} bestaetigt — das Profil gilt", art.schluessel());
+            }
+            Erhebung::NichtGemessen { kurz } => {
+                println!(
+                    "  {:<20} NICHT GEMESSEN ({:?}) — weder bestaetigt noch neu erhoben",
+                    art.schluessel(),
+                    kurz.reason
+                );
+                alles_gut = false;
+            }
+            Erhebung::Fehlt { voll } | Erhebung::NeuErhoben { voll, .. }
+                if !voll.reason.brauchbar() =>
+            {
+                println!(
+                    "  {:<20} NICHT STABIL: {:?} bei Unsicherheit {:.2} %",
+                    art.schluessel(),
+                    voll.reason,
+                    voll.unsicherheit() * 100.0
+                );
+                alles_gut = false;
+            }
+            Erhebung::NeuErhoben {
+                urteil: Bestaetigung::Abweichung,
+                ..
+            } => {
+                println!(
+                    "  {:<20} ABWEICHUNG — neu erhoben, die Rate weicht weiter ab und wird \
+                     nicht abgelegt",
+                    art.schluessel()
+                );
+                alles_gut = false;
+            }
+            Erhebung::Fehlt { .. } | Erhebung::NeuErhoben { .. } => {
+                println!("  {:<20} kalibriert", art.schluessel());
+            }
         }
     }
+    println!(
+        "  Dauer der Erhebung     {} ms  ({})",
+        dauer_erhebung.as_millis(),
+        if vorher.is_some() {
+            "mit Profil"
+        } else {
+            "ohne Profil"
+        }
+    );
     // **Die Fremdlast wird angehalten, bevor gedruckt wird.** Ein Strang, der
     // nach dem Programmende weiterläuft, ist genau die Sorte Prozess, die
     // später jemand anders in seiner Messung findet und nicht zuordnen kann.
@@ -689,15 +871,15 @@ fn main() {
         flag.store(false, std::sync::atomic::Ordering::Relaxed);
         println!("  Die Fremdlast ist angehalten.");
     }
-    if brauchbar {
+    if alles_gut {
         println!(
-            "  Alle Raten stabil (Streuung unter {:.0} %).",
+            "  Jede Rate ist kalibriert oder bestaetigt (Unsicherheit unter {:.0} %).",
             STREUUNG_MAX * 100.0
         );
     } else {
         println!(
-            "  MINDESTENS EINE RATE IST KEINE KALIBRIERUNG. Sie steht oben trotzdem —\n\
-             \x20 eine verschwiegene Zahl waere schlimmer als eine mit ihrem Grund daneben."
+            "  MINDESTENS EINE RATE IST WEDER KALIBRIERT NOCH BESTAETIGT. Sie steht oben\n\
+             \x20 trotzdem — eine verschwiegene Zahl waere schlimmer als eine mit ihrem Grund."
         );
     }
 }
