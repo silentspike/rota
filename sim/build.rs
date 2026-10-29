@@ -2523,7 +2523,20 @@ fn knoten_fuer_zauber(knoten: &mut Vec<Knoten>, spell: &Value) {
 
     let kanal = zahl("channelMs") > 0;
 
-    if zahl("baseDamage") > 0 {
+    // **Schaden, der kritet — nicht nur Grundschaden** (#920). Der Kampf zieht
+    // den Krit-Wurf, sobald ein Wurf Schaden austeilt (`Fight::cast`:
+    // `teilt_schaden_aus = base_damage > 0 || spender.is_some() ||
+    // pending_control_damage > 0`). Bis #920 stand hier nur `baseDamage`, und
+    // vier Zauber wuerfelten, ohne dass ein Knoten es sagte: die Entlader PYRE
+    // und PYROCLASM, WEDGE (Kontroll-Punkte in Schaden, `convertToDamage`) und
+    // EFFLUX (Abklingzeit in Schaden, `convert`). Die Abhaengigkeitsmaske hielt
+    // den Krit einer Liste aus ihnen deshalb fuer ruhend.
+    let wandelt_kontrolle_in_schaden = spell
+        .get("control")
+        .and_then(|c| c.get("effect"))
+        .and_then(Value::as_str)
+        == Some("convertToDamage");
+    if zahl("baseDamage") > 0 || hat("spender") || hat("convert") || wandelt_kontrolle_in_schaden {
         knoten.push(Knoten {
             trigger: if kanal {
                 "Trigger::OnTick"
@@ -2531,7 +2544,12 @@ fn knoten_fuer_zauber(knoten: &mut Vec<Knoten>, spell: &Value) {
                 "Trigger::OnCast"
             },
             target: "Target::Boss",
-            reads: masken(&["RESOURCE", "BUFFS", "DECAY_STACKS", "RNG"]),
+            // EFFLUX rechnet seinen Betrag aus den laufenden Abklingzeiten.
+            reads: if hat("convert") {
+                masken(&["RESOURCE", "BUFFS", "DECAY_STACKS", "RNG", "COOLDOWNS"])
+            } else {
+                masken(&["RESOURCE", "BUFFS", "DECAY_STACKS", "RNG"])
+            },
             writes: masken(&["BOSS_HP", "RNG"]),
             // Ein Kanal liest bei jedem Tick neu, ein einzelner Wurf nicht.
             timing: if kanal {
@@ -2944,6 +2962,15 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
     // Der Ueberdruck — die harte Zeitgrenze des Kampfes. Er entscheidet ueber
     // Sieg und Niederlage und ist damit der Fall, vor dem AC6 ausdruecklich
     // warnt: Hier traegt kein Monotonie-Hinweis.
+    //
+    // **Er liest die Uhr, nicht die Lebenspunkte** (#920). Der Kampf endet bei
+    // `duration_ms`, das `Fight::new` aus `overpressure_ms` setzt — gleich, wie
+    // viel Schaden gefallen ist. Den Fortschritt liest die Sieg-Pruefung in
+    // `Fight::run_with`, und die ist kein Knoten dieses Bosses, sondern ein
+    // Leser des Laufs (`analytisch::Fundstelle::AbbruchBeimSieg`). Stand hier
+    // `BOSS_HP`, beruehrte der Krit an JEDEM Boss den Kontrollfluss, weil jeder
+    // Boss einen Ueberdruck hat — die Ableitung aus #920 haette nie
+    // „unberuehrt" sagen koennen.
     if boss
         .get("overpressureMs")
         .and_then(Value::as_u64)
@@ -2953,7 +2980,7 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
             op: "CustomSignature(crate::effects::SignatureId(\"overpressure\"))".to_string(),
             trigger: "Trigger::OnTimeline",
             target: "Target::Player",
-            reads: masken(&["TIMELINE", "BOSS_HP"]),
+            reads: masken(&["TIMELINE"]),
             writes: masken(&["PLAYER_HP"]),
             timing: "TimingSemantics::Live",
             stacking: "StackingSemantics::None",
@@ -2969,17 +2996,34 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
 
     // Die uebrigen zehn bekannten Systeme. Jedes bekommt eine Signatur MIT
     // Semantik — der Unterschied zu einem unbekannten Feld ist genau das.
-    for (schluessel, verzweigt_am_sieg) in [
-        ("energy", false),
-        ("doom", true),
-        ("affliction", false),
-        ("race", true),
-        ("runaway", true),
-        ("stacks", false),
-        ("escalation", false),
-        ("bossHeal", false),
-        ("timelineLoopMs", false),
-        ("resistances", false),
+    //
+    // **Die dritte Spalte: liest das System den Fortschritt am Boss?** Bis #920
+    // stand `BOSS_HP` bei allen zehn unter `reads`. Gemessen am Kampf lesen ihn
+    // nur drei: das Rennen in `Fight::deal` (`race_progress += amount`, der
+    // Betrag jedes Treffers im Fenster), der davonlaufende Ring in
+    // `Fight::runaway_tick` (`killed_at` beendet ihn) und die Boss-Heilung in
+    // `Fight::undo_progress` (`amount.min(self.damage)`). Die uebrigen laufen
+    // nach der Uhr oder der Zeitleiste: `energy_tick`, `doom_tick`,
+    // `affliction_tick`, `stack_tick`, `escalated_cast_time`, `cycle`, und die
+    // Widerstaende sind ein fester Faktor je Zauber (`resistance_by_spell`).
+    //
+    // Der Unterschied ist nicht kosmetisch: Die Abhaengigkeitsmaske aus #920
+    // haelt jeden Boss fuer krit-beruehrt, an dem ein verzweigender Knoten den
+    // Fortschritt liest. Mit der alten Angabe waeren es 20 von 21
+    // wertungsfaehigen Bossen gewesen, und der analytische Weg haette nur an
+    // first-crucible gegriffen. Ein System, das den Fortschritt doch liest und
+    // hier `false` traegt, faellt beim Randabgleich in `analytisch.rs` auf.
+    for (schluessel, verzweigt_am_sieg, liest_den_fortschritt) in [
+        ("energy", false, false),
+        ("doom", true, false),
+        ("affliction", false, false),
+        ("race", true, true),
+        ("runaway", true, true),
+        ("stacks", false, false),
+        ("escalation", false, false),
+        ("bossHeal", false, true),
+        ("timelineLoopMs", false, false),
+        ("resistances", false, false),
     ] {
         // Aus demselben Grund wie bei `phases` oben: `energy: null` bei 29 von
         // 33 Bossen, `resistances: {}` bei 31 von 35. Wer hier `contains_key`
@@ -2991,7 +3035,11 @@ fn knoten_fuer_boss(knoten: &mut Vec<Knoten>, datei: &str, boss: &Value) {
             op: format!("CustomSignature(crate::effects::SignatureId({schluessel:?}))"),
             trigger: "Trigger::OnTimeline",
             target: "Target::Boss",
-            reads: masken(&["BOSS_SYSTEMS", "TIMELINE", "BOSS_HP", "PLAYER_HP"]),
+            reads: if liest_den_fortschritt {
+                masken(&["BOSS_SYSTEMS", "TIMELINE", "BOSS_HP", "PLAYER_HP"])
+            } else {
+                masken(&["BOSS_SYSTEMS", "TIMELINE", "PLAYER_HP"])
+            },
             writes: masken(&["BOSS_SYSTEMS", "BOSS_HP", "PLAYER_HP"]),
             timing: "TimingSemantics::Live",
             stacking: "StackingSemantics::Additive",
