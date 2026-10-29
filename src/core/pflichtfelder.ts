@@ -347,3 +347,26 @@ function pruefe(
   }
   pruefe(kind, rest, eintrag, `${wo}/${name}`, probleme);
 }
+
+/**
+ * Für die Dateien, die das Spiel SELBST sind: Fehlt ein Pflichtfeld, bricht
+ * das Laden ab, mit Datei und Feld im Wortlaut von `build.rs`.
+ *
+ * # Warum hier Abbruch und bei Zauber und Boss Verwerfen
+ *
+ * „Ein einzelner kaputter Datensatz darf nicht das ganze Spiel verhindern"
+ * (`App.start`) gilt für einen Datensatz unter vielen — ohne einen Zauber oder
+ * einen Boss bleibt ein Spiel übrig. Ohne Schuldatei, Startboss oder Spieler
+ * bleibt keines: Verwerfen hieße hier, mit einer Ressource ohne Obergrenze
+ * oder einem Spieler ohne Lebenspunkte weiterzumachen. `build.rs` bricht an
+ * denselben Stellen ab, und für `data/player/` tat `data.ts` es schon vorher
+ * (Entscheidung des Orchestrators vom 2026-10-29).
+ */
+export function abbrechenBeiLuecke(
+  datensatz: unknown,
+  tafel: readonly Pflichtfeld[],
+  datei: string,
+): void {
+  const probleme = pflichtProbleme(datensatz, tafel, datei);
+  if (probleme.length > 0) throw new Error(probleme.join('\n'));
+}

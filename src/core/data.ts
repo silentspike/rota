@@ -27,7 +27,16 @@ import rawLevels from '../../data/player/levels.json';
 import rawReward from '../../data/player/reward.json';
 import rawTalents from '../../data/player/talents.json';
 import { TICK_MS } from './loop.js';
-import { BOSS_PFLICHT, pflichtProbleme, ZAUBER_PFLICHT } from './pflichtfelder.js';
+import {
+  abbrechenBeiLuecke,
+  BOSS_PFLICHT,
+  DATEI_PFLICHT,
+  pflichtProbleme,
+  SCHUL_PFLICHT,
+  SPIELER_PFLICHT,
+  STUFEN_PFLICHT,
+  ZAUBER_PFLICHT,
+} from './pflichtfelder.js';
 import { BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
@@ -1997,6 +2006,10 @@ export function parseSchool(raw: unknown): ParseResult<SchoolDef> {
     spells.push(spell);
   }
   if (spells.length === 0) problems.push('Die Schule enthält keinen einzigen Zauber.');
+  // Die Felder, die `build.rs` von der Schuldatei zwingend liest, beim Namen
+  // (#1055). Hier nur gemeldet — abgebrochen wird für die echte Schuldatei in
+  // `CALCINATION`, siehe `abbrechenBeiLuecke`.
+  problems.push(...pflichtProbleme(source, SCHUL_PFLICHT, 'Schule'));
 
   return {
     value: {
@@ -2465,6 +2478,26 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
   // (GAME-DESIGN 18.3): Sie bestimmt die Indizes, und die stehen in jeder
   // aufgezeichneten Runde. Sie umzustellen deutete jede alte Aufzeichnung
   // still um — und `sim/build.rs` fügt sie an derselben Stelle an.
+  //
+  // **Zuerst die Dateien selbst** (#1055): Die Schuldatei ist das Spiel, ohne
+  // ihre Mechanik oder ihre Liste bleibt nichts zu spielen — anders als bei
+  // einem einzelnen Zauber, der verworfen wird. Von den weiteren Dateien
+  // verlangt `build.rs` Fassung und Liste.
+  abbrechenBeiLuecke(rawSchool, SCHUL_PFLICHT, 'data/spells/calcination.json');
+  for (const [datei, inhalt] of [
+    ['common', rawCommonSpells],
+    ['coagulation', rawCoagulation],
+    ['fixation', rawFixation],
+    ['sublimation', rawSublimation],
+    ['putrefaction', rawPutrefaction],
+    ['test-cast', rawTestCast],
+    ['test-buff', rawTestBuff],
+    ['test-channel', rawTestChannel],
+    ['test-channel-heal', rawTestChannelHeal],
+    ['test-channel-shield', rawTestChannelShield],
+  ] as const) {
+    abbrechenBeiLuecke(inhalt, DATEI_PFLICHT, `data/spells/${datei}.json`);
+  }
   const roh = rawSchool as Record<string, unknown>;
   const gemeinsam = (rawCommonSpells as Record<string, unknown>)['spells'];
   const koagulation = (rawCoagulation as Record<string, unknown>)['spells'];
@@ -2602,8 +2635,17 @@ export const CALCINATION: ParseResult<SchoolDef> = (() => {
   return parseSchool(zusammen);
 })();
 
-/** Der Testboss aus Schritt 1, fertig gelesen. */
-export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
+/**
+ * Der Testboss aus Schritt 1, fertig gelesen — und der Startboss des Spiels.
+ *
+ * Ein Boss, dem ein Pflichtfeld fehlt, wird sonst verworfen
+ * (`bossVerzeichnis`). Der Startboss nicht: Ohne ihn beginnt kein Kampf,
+ * deshalb bricht das Laden hier ab (#1055, siehe `abbrechenBeiLuecke`).
+ */
+export const FIRST_CRUCIBLE: ParseResult<BossDef> = (() => {
+  abbrechenBeiLuecke(rawBoss, BOSS_PFLICHT, 'data/bosses/first-crucible.json');
+  return parseBoss(rawBoss);
+})();
 
 /**
  * **Alle** Bosse, nach Bezeichner — aus dem Verzeichnis gelesen, nicht einzeln
@@ -2803,6 +2845,9 @@ export function instanceById(id: string): InstanceDef | undefined {
 
 export const PLAYER: PlayerBaseDef = (() => {
   const roh = rawPlayer as Record<string, unknown>;
+  // Zuerst, was `build.rs` zwingend liest (#1055): `wardReduction` fehlte bis
+  // dahin still als 0 — der Simulator brach an derselben Stelle ab.
+  abbrechenBeiLuecke(roh, SPIELER_PFLICHT, 'data/player/base.json');
   const vessel = number(roh['vessel'], 0);
   const wardReduction = number(roh['wardReduction'], 0);
   const wardCapPermille = number(roh['wardCapPermille'], 0);
@@ -2833,6 +2878,9 @@ export const PLAYER: PlayerBaseDef = (() => {
 
 export const LEVELS: LevelGrowthDef = (() => {
   const roh = rawLevels as Record<string, unknown>;
+  // Zuerst, was `build.rs` zwingend liest (#1055): Ohne `factorPerMille` hieß
+  // die Meldung bis dahin „0 Faktoren für 100 Stufen" — ohne das Feld zu nennen.
+  abbrechenBeiLuecke(roh, STUFEN_PFLICHT, 'data/player/levels.json');
   const maxLevel = number(roh['maxLevel'], 0);
   const growthPerLevelPercent = number(roh['growthPerLevelPercent'], 0);
   const factorPerMille = Array.isArray(roh['factorPerMille'])

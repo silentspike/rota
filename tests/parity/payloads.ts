@@ -5149,7 +5149,14 @@ export function cooldownResetPayload(): Record<string, unknown> {
   const school = parseSchool({
     schema: 1,
     school: 'CALCINATION',
-    resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+    resource: {
+      id: 'heat',
+      name: 'Heat',
+      cap: 20,
+      decayPerStepMs: 2000,
+      decayAmount: 1,
+      highlightAt: 0,
+    },
     spells: [
       {
         id: 'lang',
