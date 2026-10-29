@@ -38,10 +38,11 @@ pub const CACHE_ZEILE: usize = 128;
 
 /// Die Auswertungswege, die es heute gibt.
 ///
-/// **Genau drei, und keiner ist erfunden.** Der Plan nennt in seiner
-/// Beispielzeile Cache, analytisch, Ledger und Suffix — keiner davon steht
-/// heute in einem Lauf (siehe [`WEGE_OHNE_LAUF`]). Sie hier mit 0 % zu führen
-/// hieße, „der Cache trifft nie" zu behaupten, wo es gar keinen gibt.
+/// **Genau vier, und keiner ist erfunden.** Der Plan nennt in seiner
+/// Beispielzeile Cache, analytisch, Ledger und Suffix — seit #920 steht
+/// `analytisch` in einem Lauf, die übrigen nicht (siehe [`WEGE_OHNE_LAUF`]).
+/// Sie hier mit 0 % zu führen hieße, „der Cache trifft nie" zu behaupten, wo
+/// es gar keinen gibt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Weg {
     /// Ein Kampf entscheidet: Nirgends wird gewürfelt, sein Ausgang ist exakt
@@ -51,14 +52,22 @@ pub enum Weg {
     Stichprobe,
     /// Die gestaffelte Stichprobe (#915, AC3): Kämpfe, bis die Aussage sicher ist.
     Gestaffelt,
+    /// Der Krit ausintegriert (#920): zwei Randläufe statt einer Stichprobe,
+    /// wo die Abhängigkeitsmaske keinen verzweigenden Leser findet.
+    Analytisch,
 }
 
 impl Weg {
     /// Wie viele Wege es gibt — die Länge der Zählerfelder.
-    pub const ANZAHL: usize = 3;
+    pub const ANZAHL: usize = 4;
 
     /// Alle Wege in fester Reihenfolge.
-    pub const ALLE: [Self; Self::ANZAHL] = [Self::EinKampf, Self::Stichprobe, Self::Gestaffelt];
+    pub const ALLE: [Self; Self::ANZAHL] = [
+        Self::EinKampf,
+        Self::Stichprobe,
+        Self::Gestaffelt,
+        Self::Analytisch,
+    ];
 
     /// Der Platz im Zählerfeld.
     #[must_use]
@@ -67,6 +76,7 @@ impl Weg {
             Self::EinKampf => 0,
             Self::Stichprobe => 1,
             Self::Gestaffelt => 2,
+            Self::Analytisch => 3,
         }
     }
 
@@ -77,6 +87,7 @@ impl Weg {
             Self::EinKampf => "one_fight",
             Self::Stichprobe => "fixed_sample",
             Self::Gestaffelt => "sequential",
+            Self::Analytisch => "analytic",
         }
     }
 
@@ -87,6 +98,7 @@ impl Weg {
             Self::EinKampf => "ein Kampf",
             Self::Stichprobe => "Stichprobe",
             Self::Gestaffelt => "gestaffelt",
+            Self::Analytisch => "analytisch",
         }
     }
 }
@@ -95,9 +107,10 @@ impl Weg {
 ///
 /// Sie stehen in beiden Ausgaben **mit Namen**, nicht als 0 %: Wer die Zeile
 /// liest, soll sehen, dass es sie nicht gibt — nicht, dass sie nie greifen.
-/// `analytisch` ist dabei kein Versehen: [`crate::analytisch`] existiert als
-/// Funktion, aber kein Lauf ruft sie; ohne Router gibt es keinen Weg dorthin.
-pub const WEGE_OHNE_LAUF: [&str; 5] = ["cache", "analytic", "ledger", "suffix", "avx2"];
+/// `analytic` stand bis #920 hier: [`crate::analytisch`] existierte als
+/// Funktion, aber kein Lauf rief sie. Seit die Durchgangswahl ihn wählt, ist
+/// er [`Weg::Analytisch`].
+pub const WEGE_OHNE_LAUF: [&str; 4] = ["cache", "ledger", "suffix", "avx2"];
 
 /// Die Zähler eines Strangs, auf einer eigenen Cache-Zeile.
 ///
