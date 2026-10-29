@@ -207,6 +207,7 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
             "   Budget {} Listen je Projektion, gerechnet in {:.1} s",
             t.budget, v.sekunden
         ),
+        format!("   {EINORDNUNG}"),
         format!("   Elite ({:.1}):", t.elite.best.mean),
     ];
     for rule in &t.elite.best.apl.rules {
@@ -461,13 +462,14 @@ fn json_vergleich(v: &Vergleich) -> String {
     let menge = portfolio(&v.schulen, &v.mechaniken);
     let kampagne = t.kampagnenabdeckung();
     format!(
-        "{{\"boss\":{:?},\"maxLen\":{},\"budget\":{},\"elite\":{:?},\"eliteWert\":{:?},\
+        "{{\"boss\":{:?},\"maxLen\":{},\"budget\":{},\"einordnung\":{:?},\"elite\":{:?},\"eliteWert\":{:?},\
          \"grundmenge\":{},\"befunde\":{{{}}},\"zeilen\":[{}],\"lauf\":{:?},\"vertrag\":{:?},\
          \"faecher\":{{\"everySpellHasViableNiche\":{:?},\"noSchoolIsGloballyMandatory\":{:?},\
          \"everyMechanicHasMultipleSolutionFamilies\":{:?},\"robustnessAcrossEncounters\":{:?}}}}}",
         t.boss,
         t.max_len,
         t.budget,
+        EINORDNUNG,
         t.elite.best.apl.to_string(),
         t.elite.best.mean,
         zaehlung.grundmenge,
