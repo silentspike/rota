@@ -78,6 +78,14 @@ const GEWICHTE: [f64; 12] = [
 /// ob sie verallgemeinerbar ist. `boss-2-3` traegt `runaway` und damit ein
 /// anderes Ziel — liegt die Kurve dort anders, ist eine Entscheidung ueber
 /// `prevented_weight` keine allgemeine, sondern eine ueber boss-1-1.
+///
+/// **Seit #891 N1 ist die Kurve an `boss-2-3` flach, und das ist Absicht:**
+/// Die Suche wertet dort den Ring am Fristende, und `prevented_weight` geht in
+/// diese Wertung nicht ein (`rotation_search::bewerte`, Festlegung des
+/// Orchestrators vom 2026-10-29). Gemessen am 29.10. (Job a7db21cc): fuer
+/// alle zwoelf Gewichte dieselbe Liste aus poultice, crucible-skin, ascend,
+/// decant und sublime; vorher (Job 9bf755c8) wechselte sie zwischen 1 und 2.
+/// An boss-1-1 und boss-1-2 ist die Ausgabe in beiden Laeufen gleich.
 const BOSSE: [&str; 3] = ["boss-1-1", "boss-1-2", "boss-2-3"];
 const ARTEN: [&str; 5] = ["Schaden", "Schutz", "Kontrolle", "Heilung", "sonstige"];
 

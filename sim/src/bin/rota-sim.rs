@@ -1661,6 +1661,9 @@ fn berichte_suche(
         "Bester Wert          {:.1}  (Standardfehler {:.2})",
         ergebnis.best.mean, ergebnis.best.stderr
     );
+    // #891 N1: Der Wert ist bei umgekehrtem Ziel kein Schaden — wer die Zahl
+    // liest, muss sehen, welche Groesse sie ist.
+    println!("Wertung              {}", wertung_text(boss));
     println!("Kandidatenzeilen     {}", ergebnis.pool_size);
     println!(
         "Messungen            {}  (Zuege der Suche, ohne Start- und Fundliste)",
@@ -1690,6 +1693,15 @@ fn berichte_suche(
     println!("Kaempfe gerechnet: {}", zaehlung.kaempfe);
 }
 
+/// Wonach die Suche an diesem Boss wertet (`rotation_search::bewerte`).
+fn wertung_text(boss: &Boss) -> &'static str {
+    if rota_sim::objective::WinCondition::of(boss).is_inverted() {
+        "Ring am Fristende (umgekehrtes Ziel; Niederlage hoechstens 0)"
+    } else {
+        "Schaden"
+    }
+}
+
 fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64, zaehlung: Zaehlung) -> String {
     let zeilen: Vec<String> = ergebnis
         .chosen
@@ -1704,13 +1716,14 @@ fn such_json(ergebnis: &SearchResult, boss: &Boss, dauer: f64, zaehlung: Zaehlun
         .collect();
     let stop = format!("{:?}", ergebnis.stop);
     format!(
-        "{{\"boss\":{:?},\"elapsedMs\":{:?},\"mean\":{:?},\"stderr\":{:?},\
+        "{{\"boss\":{:?},\"elapsedMs\":{:?},\"mean\":{:?},\"stderr\":{:?},\"wertung\":{:?},\
          \"poolSize\":{},\"measured\":{},\"evaluations\":{},\"fightsRun\":{},\
          \"stop\":{:?},\"rotation\":[{}]}}",
         boss.id,
         dauer * 1000.0,
         ergebnis.best.mean,
         ergebnis.best.stderr,
+        wertung_text(boss),
         ergebnis.pool_size,
         ergebnis.measured,
         zaehlung.auswertungen,

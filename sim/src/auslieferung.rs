@@ -43,6 +43,9 @@
 //! Boss der Kombination ([`loesung_suchen`]). Ob sie siegt, entscheidet die
 //! Siegbedingung des Bosses ([`crate::objective::Outcome::of`]) — bei
 //! `runaway` ist das Überstehen der Frist der Sieg, nicht der Fall des Rings.
+//! Dieselbe Bedingung bestimmt, **wonach** gesucht wird
+//! ([`crate::rotation_search::bewerte`]): Schaden, bei `runaway` der Ring am
+//! Fristende (Festlegung des Orchestrators vom 2026-10-29).
 //!
 //! **Eine nicht gefundene Lösung ist ein Such-Befund**, kein Beweis, dass es
 //! keine gibt. Der Masterplan lässt trotzdem nur die gefundene gelten: Ein

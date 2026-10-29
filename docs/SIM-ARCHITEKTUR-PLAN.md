@@ -2987,6 +2987,14 @@ CampaignCoverage {              // gilt für den LAUF als Ganzes
 8  → Ressourceneffizienz
 ```
 
+**Stufe 5 bei umgekehrtem Ziel — Festlegung des Orchestrators vom 2026-10-29** (#891 N1,
+Entscheidung (A)): Die Eindämmungszeit bleibt ungemessen. Die Rotationssuche wertet an einem Boss
+mit `runaway` stattdessen den **Ring am Fristende**: Reserve = Lebenspunkte minus Fortschritt, ein
+gestorbener oder verlorener Durchgang höchstens 0. Damit liegt jeder Sieg über jeder Niederlage,
+und unter Siegen gewinnt mehr Reserve (`sim/src/rotation_search.rs`, `bewerte` und
+`ring_am_fristende`). Anlass: Mit Schaden als Zielgröße fand die Suche an `boss-2-3` und `boss-5-3`
+genau die Liste, die verliert, obwohl schon die leere Liste beide gewinnt.
+
 **Stufe 8 kam am 2026-08-17 dazu** (6.1). Ein Aufbau, der mit halbem Ressourceneinsatz
 dasselbe erreicht, spielt sich merklich besser — ohne eigene Stufe gälte er als gleichwertig.
 Sie steht zuletzt, weil sie nur bei Gleichstand aller sieben oberen greifen soll.

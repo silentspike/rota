@@ -9,6 +9,7 @@
 //! | `jede_kombination_traegt_die_erfolge_ihres_gegners` | die Erfolgsachse kommt aus `report::erfolge`, nicht aus einem Literal |
 //! | `an_beiden_runaway_bossen_findet_die_suche_einen_sieg` | bei umgekehrtem Ziel sucht die Suche den Sieg, nicht den Schaden |
 //! | `bei_umgekehrtem_ziel_ist_der_wert_der_ring_am_fristende` | die Wertung: Reserve bei Sieg, höchstens 0 sonst |
+//! | `ein_tod_bei_umgekehrtem_ziel_zaehlt_hoechstens_null` | ein früher Tod lässt viel Ring stehen und gewinnt trotzdem nicht |
 //! | `an_den_uebrigen_bossen_bleibt_der_schaden_die_zielgroesse` | die 19 übrigen Bosse rechnen bitgleich wie vorher |
 //!
 //! # Wogegen gemessen wird
@@ -26,7 +27,7 @@ use rota_sim::balance;
 use rota_sim::data::{self, boss_by_id, index_of};
 use rota_sim::objective::{Outcome, WinCondition};
 use rota_sim::report::{erfolge, erfolge_pruefen, feasibility_gegen, is_shippable};
-use rota_sim::rotation_search::{bewerte, candidates_for, Candidate};
+use rota_sim::rotation_search::{bewerte, candidates_for, reserve_am_fristende, Candidate};
 use rota_sim::scoring::ScoringSet;
 use rota_sim::Boss;
 
@@ -358,4 +359,42 @@ fn an_den_uebrigen_bossen_bleibt_der_schaden_die_zielgroesse() {
         !geprueft.is_empty(),
         "kein Boss mit gewoehnlichem Ziel geprueft — der Fall misst dann nichts"
     );
+}
+
+#[test]
+fn ein_tod_bei_umgekehrtem_ziel_zaehlt_hoechstens_null() {
+    // Nach dem Tod läuft der Ring nicht weiter. Ein Durchgang, der nach zehn
+    // Sekunden stirbt, hinterlässt deshalb fast den ganzen Ring — als Reserve
+    // gezählt, gewänne die Liste, die am schnellsten stirbt.
+    let boss = boss_by_id("boss-2-3").expect("Boss");
+    let tot = rota_sim::Sample {
+        seed: 0,
+        damage: 800,
+        killed_at_ms: None,
+        damage_taken: 1000,
+        absorbed: 0,
+        healed: 0,
+        boss_healed: 0,
+        died: true,
+        died_at_ms: Some(10_000),
+    };
+    let ueberlebt = rota_sim::Sample {
+        died: false,
+        died_at_ms: None,
+        damage: 4720,
+        ..tot
+    };
+    assert_eq!(
+        Outcome::of(&tot, WinCondition::of(boss)),
+        Outcome::Died,
+        "Voraussetzung: der gebaute Durchgang ist ein Tod"
+    );
+    let wert_tot = reserve_am_fristende(&tot, boss);
+    let wert_sieg = reserve_am_fristende(&ueberlebt, boss);
+    assert!(
+        wert_tot <= 0.0,
+        "ein Tod nach 10 s zaehlt {wert_tot} — er stuende ueber jedem knappen Sieg"
+    );
+    assert_eq!(wert_sieg.to_bits(), (f64::from(boss.hp) - 4720.0).to_bits());
+    assert!(wert_sieg > wert_tot);
 }

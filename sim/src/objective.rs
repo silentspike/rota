@@ -661,6 +661,13 @@ pub enum RankingStage {
     /// Zeit bis zur **Eindaemmung**: der frueheste Zeitpunkt, ab dem der Ring
     /// nicht mehr steigt. Sie braucht den Kampfverlauf und bleibt deshalb aus
     /// einem Balance-Ergebnis ungemessen.
+    ///
+    /// **Die Rotationssuche braucht trotzdem eine Zahl** und nimmt dort seit
+    /// #891 N1 den Ring am Fristende (Festlegung des Orchestrators vom
+    /// 2026-10-29: Reserve = Lebenspunkte minus Fortschritt, eine Niederlage
+    /// hoechstens 0; [`crate::rotation_search::bewerte`]). Diese Stufe bleibt
+    /// davon unberuehrt: Sie misst die Eindaemmung, und die ist weiter
+    /// ungemessen.
     TimeToWin,
     /// 6 — Robustheit.
     ///
