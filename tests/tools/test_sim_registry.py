@@ -163,6 +163,90 @@ class SimRegistry(unittest.TestCase):
         self.assertEqual([h['anchor'] for h in REGISTRY.headings(document)],
                          ['wirkungs-ir', 'wirkungs-ir-1'])
 
+    def zuschnitt(self, ident, **fields):
+        """Replace the Zuschnitt fields of one entry, whether or not it had any."""
+        entry = self.entries[ident]
+        for key in [key for key in entry if key.startswith('zuschnitt')]:
+            del entry[key]
+        entry.update(fields)
+
+    def inventory(self):
+        return self.registry.setdefault('zuschnitt_inventar', {})
+
+    def test_zuschnitt_of_891_assigns_each_of_the_65_numbers_once(self):
+        result, _ = self.cli()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Zuschnitt (#891): 65 issues, 64 with registry entry, 1 without (#550); '
+                      'notwendig 6, erledigt 5, ruht 13, aufgegangen 8, verworfen 33 '
+                      '(partly absorbed: #944).', result.stdout)
+
+    def test_invalid_zuschnitt_value_is_rejected_by_name(self):
+        self.zuschnitt('E11.5a', zuschnitt='fertig', zuschnitt_grund='Operatoren.')
+        self.assert_rejected("E11.5a (#924): invalid zuschnitt 'fertig'")
+
+    def test_two_values_for_one_package_are_rejected_by_name(self):
+        self.zuschnitt('E11.4', zuschnitt=['ruht', 'verworfen'], zuschnitt_grund='Auslöser.')
+        self.assert_rejected("E11.4 (#917): invalid zuschnitt ['ruht', 'verworfen']")
+
+    def test_aufgegangen_without_target_is_rejected_by_name(self):
+        self.zuschnitt('E17.0', zuschnitt='aufgegangen', zuschnitt_grund='Manifest.')
+        self.assert_rejected('E17.0 (#973): aufgegangen without zuschnitt_ziel')
+
+    def test_target_must_be_a_planned_package_of_the_inventory(self):
+        for target, message in [
+            (974, 'zuschnitt_ziel #974 is aufgegangen, not notwendig, erledigt or ruht'),
+            (906, 'zuschnitt_ziel #906 is verworfen, not notwendig, erledigt or ruht'),
+            (896, 'zuschnitt_ziel #896 is not in the #891 inventory'),
+            (973, 'zuschnitt_ziel #973 is the package itself'),
+            ('975', "zuschnitt_ziel '975' is not an issue number"),
+        ]:
+            with self.subTest(target=target):
+                self.setUp()
+                self.zuschnitt('E17.0', zuschnitt='aufgegangen', zuschnitt_grund='Manifest.',
+                               zuschnitt_ziel=target)
+                self.assert_rejected('E17.0 (#973): ' + message)
+
+    def test_target_only_where_a_part_is_absorbed(self):
+        self.zuschnitt('E11.5', zuschnitt='notwendig', zuschnitt_grund='Suche.', zuschnitt_ziel=946)
+        self.assert_rejected('E11.5 (#923): zuschnitt_ziel only for aufgegangen '
+                             'or a partly absorbed verworfen')
+
+    def test_zuschnitt_needs_a_reason(self):
+        self.zuschnitt('E12.6', zuschnitt='notwendig', zuschnitt_grund=' ')
+        self.assert_rejected('E12.6 (#946): zuschnitt without zuschnitt_grund')
+
+    def test_inventory_number_without_decision_is_rejected_by_name(self):
+        self.zuschnitt('E12.6')
+        self.assert_rejected('E12.6 (#946): no zuschnitt although #946 is in the #891 inventory')
+
+    def test_inventory_number_without_entry_needs_its_own_record(self):
+        inventory = self.inventory()
+        inventory['ohne_eintrag'] = [record for record in inventory.get('ohne_eintrag', [])
+                                     if record.get('issue') != 550]
+        self.assert_rejected('#550: in the #891 inventory without registry entry '
+                             'or ohne_eintrag record')
+
+    def test_record_without_entry_cannot_shadow_an_entry(self):
+        inventory = self.inventory()
+        inventory['ohne_eintrag'] = inventory.get('ohne_eintrag', []) + [{
+            'issue': 946, 'zuschnitt': 'notwendig', 'zuschnitt_grund': 'Viabilität.',
+            'warum_ohne_eintrag': 'erfunden'}]
+        self.assert_rejected('#946: ohne_eintrag record although E12.6 is a registry entry')
+
+    def test_zuschnitt_outside_the_inventory_is_rejected_by_name(self):
+        self.zuschnitt('E11.0', zuschnitt='erledigt', zuschnitt_grund='Messumgebung.')
+        self.assert_rejected('E11.0 (#896): zuschnitt outside the #891 inventory')
+
+    def test_two_entries_cannot_share_one_number_of_the_inventory(self):
+        self.entries['E11.0']['issue'] = 946
+        self.zuschnitt('E11.0', zuschnitt='verworfen', zuschnitt_grund='Messumgebung.')
+        self.assert_rejected('#946: two registry entries, E11.0 and E12.6')
+
+    def test_inventory_number_listed_twice_is_rejected(self):
+        inventory = self.inventory()
+        inventory['issues'] = inventory.get('issues', []) + [946]
+        self.assert_rejected('duplicate number in the #891 inventory: #946')
+
 
 if __name__ == '__main__':
     unittest.main()
