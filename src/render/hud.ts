@@ -105,6 +105,12 @@ export const LABEL_DECAY = 'DECAY';
  */
 export const LABEL_RESET_ARMED = 'CHOOSE A SPELL TO RESET';
 
+/**
+ * Abstand der Zeile „Press Q" vom linken Rand der Leiste (Issue #1177): genug,
+ * um „DIRECT" in `FONT_SMALL` davor frei zu lassen.
+ */
+const FIRST_PRESS_OFFSET = 132;
+
 export const LABEL_PERCENT = 'REACTION';
 export const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
 // Spieltexte englisch (Design-Gesetz 5).
@@ -788,10 +794,12 @@ export class HudRenderer {
    * Druck (Issue #1177; Masterplan, Einstieg: „ein Symbol leuchtet, eine
    * Zeile sagt ‚Press Q'").
    *
-   * Dieselbe Stelle wie der Auswahlmodus darüber, weil der Blick dort ist; im
-   * ersten Kampf gibt es keinen Rücksetzer, die beiden treffen nie zusammen.
-   * Das Leuchten des Symbols besorgt die Leiste selbst: Ein bereiter Zauber
-   * leuchtet ohnehin (GAME-DESIGN 9).
+   * Über der Leiste, weil der Blick dort ist — und **rechts neben** der
+   * Ebenen-Beschriftung „DIRECT", die `spellbar.ts` auf dieselbe Höhe setzt.
+   * Im Browser gesehen: Auf `BAR_LEFT` lagen beide Wörter übereinander. Im
+   * ersten Kampf gibt es keinen Rücksetzer, der Auswahlmodus trifft die Zeile
+   * also nie. Das Leuchten des Symbols besorgt die Leiste selbst: Ein bereiter
+   * Zauber leuchtet ohnehin (GAME-DESIGN 9).
    */
   private drawFirstPress(ctx: CanvasRenderingContext2D): void {
     const phase = this.session.phase;
@@ -802,7 +810,7 @@ export class HudRenderer {
     ctx.textAlign = 'left';
     ctx.font = FONT_TEXT;
     ctx.fillStyle = INK;
-    ctx.fillText(zeile, BAR_LEFT, BLOCK_TOP - 18);
+    ctx.fillText(zeile, BAR_LEFT + FIRST_PRESS_OFFSET, BLOCK_TOP - 18);
   }
 
   /**
