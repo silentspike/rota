@@ -356,8 +356,9 @@ pub const fn im_bau() -> bool {
 
 /// Rechnet die Zaehler eines anderen Strangs in die des laufenden ein (#934).
 ///
-/// **Wozu.** Die Zaehler sind strang-lokal, und [`crate::balance`] legt je
-/// Auswertung neue Arbeitsstraenge an. Ohne diese Vereinigung saehe ein
+/// **Wozu.** Die Zaehler sind strang-lokal, und [`crate::balance`] verteilt
+/// eine Auswertung auf Helfer (seit #912 aus einem Vorrat, der ihre Zaehler
+/// nach jeder Teilnahme leert). Ohne diese Vereinigung saehe ein
 /// Leitstrang, der die Erfassung eingeschaltet hat, von einem mehrstraengigen
 /// Lauf nichts — `examples/messumgebung.rs` kalibriert deshalb bis heute
 /// einstraengig. `balance` reicht den Schalter an seine Arbeitsstraenge weiter

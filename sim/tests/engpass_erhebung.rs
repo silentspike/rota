@@ -501,11 +501,22 @@ fn ac1_zu_wenige_pakete_lassen_straenge_den_ganzen_abschnitt_warten() {
     drop(anmeldung);
     let s = werk.momentaufnahme().engpass.straenge;
     assert_eq!(s.len(), 4, "ein Eintrag je Arbeitsplatz");
-    assert!(s[0].arbeit_ns > 0 && s[1].arbeit_ns > 0, "{s:?}");
-    assert_eq!((s[2].arbeit_ns, s[3].arbeit_ns), (0, 0), "{s:?}");
+    // **Je Strang, nicht je festem Bereich** (Entscheidung des Orchestrators
+    // vom 2026-10-28, #912): Wer bei dynamischer Entnahme die zwei Kämpfe
+    // rechnet, hängt an der Einplanung. Fest steht nur, dass zwei Kämpfe
+    // nicht für vier Stränge reichen — mindestens zwei gehen leer aus und
+    // warten den ganzen Abschnitt.
+    let rechnend: Vec<_> = s.iter().filter(|x| x.arbeit_ns > 0).collect();
+    let leer: Vec<_> = s.iter().filter(|x| x.arbeit_ns == 0).collect();
+    assert!(!rechnend.is_empty(), "niemand hat gerechnet: {s:?}");
     assert!(
-        s[2].warten_ns >= s[0].arbeit_ns.min(s[1].arbeit_ns),
-        "{s:?}"
+        leer.len() >= 2,
+        "zwei Kaempfe, und weniger als zwei Straenge leer: {s:?}"
+    );
+    let teuerste = rechnend.iter().map(|x| x.arbeit_ns).max().unwrap_or(0);
+    assert!(
+        leer.iter().all(|x| x.warten_ns >= teuerste),
+        "ein leerer Strang wartet nicht den ganzen Abschnitt: {s:?}"
     );
     let arbeit: u64 = s.iter().map(|x| x.arbeit_ns).sum();
     let warten: u64 = s.iter().map(|x| x.warten_ns).sum();
