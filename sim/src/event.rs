@@ -377,6 +377,33 @@ pub fn schluessel_breiten_passen(raenge: &[u8]) -> bool {
 /// Ausnahme bleiben, nicht der Normalfall.
 pub const FELD_KAPAZITAET: usize = 48;
 
+/// Die offenen Ereignisse einer [`EventQueue`], gesichert für einen Prüfpunkt
+/// der inkrementellen Auswertung (Issue #917).
+///
+/// Nur so viele Einträge wie offen sind, nicht das ganze Feld: Ein Kampf hat
+/// gemessen höchstens 18 offene Ereignisse (siehe [`FELD_KAPAZITAET`]), das Feld
+/// fasst 48.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Schlangenstand {
+    feld: Vec<(Schluessel, EventKind)>,
+    halde: Vec<Event>,
+    next_seq: u32,
+}
+
+impl Schlangenstand {
+    /// Wie viele Ereignisse offen waren.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.feld.len() + self.halde.len()
+    }
+
+    /// Ob keines offen war.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.feld.is_empty() && self.halde.is_empty()
+    }
+}
+
 /// Die Warteschlange: festes Feld, Halde nur als Rueckfall.
 ///
 /// # Warum kein Halden-Baum mehr
@@ -540,6 +567,41 @@ impl EventQueue {
     #[must_use]
     pub fn capacity(&self) -> usize {
         self.heap.capacity()
+    }
+
+    /// Sichert die offenen Ereignisse in `ziel` (Issue #917).
+    ///
+    /// Gesichert wird, was die Reihenfolge bestimmt: die Schlüssel samt Art und
+    /// die nächste Einfüge-Nummer. Die Lage im Feld gehört nicht dazu — das Feld
+    /// ist unsortiert, [`EventQueue::pop`] nimmt das Minimum über eindeutige
+    /// Schlüssel. Der Rückfall wird nach Schlüssel sortiert gesichert, damit zwei
+    /// gleiche Schlangen auch gleiche Sicherungen ergeben.
+    ///
+    /// `ziel` wird überschrieben und behält seinen Speicher; in einer Folge von
+    /// Sicherungen fordert das nur beim ersten Mal Speicher an.
+    pub fn sichern(&self, ziel: &mut Schlangenstand) {
+        ziel.feld.clear();
+        ziel.feld.extend_from_slice(&self.feld[..self.len]);
+        ziel.halde.clear();
+        ziel.halde.extend(self.heap.iter().map(|Reverse(e)| *e));
+        ziel.halde.sort_unstable();
+        ziel.next_seq = self.next_seq;
+    }
+
+    /// Stellt die Schlange auf einen gesicherten Stand zurück (Issue #917).
+    ///
+    /// Die freien Plätze des Feldes werden geleert wie in
+    /// [`EventQueue::clear`]; danach entnimmt [`EventQueue::pop`] dieselben
+    /// Ereignisse in derselben Reihenfolge wie die gesicherte Schlange.
+    pub fn laden(&mut self, stand: &Schlangenstand) {
+        self.feld = [(Schluessel(0), EventKind::Wakeup); FELD_KAPAZITAET];
+        self.feld[..stand.feld.len()].copy_from_slice(&stand.feld);
+        self.len = stand.feld.len();
+        self.heap.clear();
+        for event in &stand.halde {
+            self.heap.push(Reverse(*event));
+        }
+        self.next_seq = stand.next_seq;
     }
 
     /// Leert die Schlange, behaelt aber den Speicher.

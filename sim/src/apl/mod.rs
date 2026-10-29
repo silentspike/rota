@@ -553,33 +553,53 @@ impl Apl {
     }
 
     /// Der früheste Umschlag über die Regeln, die `beachten` zulässt.
+    ///
+    /// Das Minimum über [`Rule::umschlag`] — seit #917 je Regel abrufbar, weil
+    /// die inkrementelle Auswertung wissen muss, welche Regel einen Weckruf
+    /// stellt: Eine eingefügte Zeile mit zeitabhängiger Bedingung kann einen
+    /// Entscheidungspunkt schaffen, den die Basisliste nicht hatte.
     fn wakeup_ueber(&self, fight: &Fight, beachten: impl Fn(&Rule) -> bool) -> Option<Millis> {
+        self.rules
+            .iter()
+            .filter(|rule| beachten(rule))
+            .filter_map(|rule| rule.umschlag(fight))
+            .min()
+    }
+}
+
+impl Rule {
+    /// Wann die Bedingung dieser Regel frühestens allein durch verstreichende
+    /// Zeit umschlagen kann — ein Zeitpunkt **echt nach** `fight.time()`, oder
+    /// `None`.
+    ///
+    /// Die Rechnung aus [`Apl::next_wakeup`], für eine einzelne Regel. Gefragt
+    /// wird ohne Rücksicht darauf, ob ihr Zauber bereit ist — genau wie dort.
+    #[must_use]
+    pub(crate) fn umschlag(&self, fight: &Fight) -> Option<Millis> {
         let now = fight.time();
         let mut earliest: Option<Millis> = None;
 
-        for rule in self.rules.iter().filter(|rule| beachten(rule)) {
-            for term in rule.condition.terms() {
-                for (value, other, compare) in [
-                    (term.left, term.right, term.compare),
-                    (term.right, term.left, term.compare.reversed()),
-                ] {
-                    if !value.is_time_dependent() {
-                        continue;
-                    }
-                    // Der Schwellwert ist nur dann bekannt, wenn die andere
-                    // Seite selbst nicht von der Uhr abhängt. Zwei zeitabhängige
-                    // Seiten (`dot.a.remains < dot.b.remains`) laufen aufeinander
-                    // zu; dafür gäbe es einen Umschlagpunkt, aber keine der
-                    // gebrauchten Rotationen schreibt so etwas. Solche Vergleiche
-                    // werden hier übersprungen — sie werden weiterhin an jedem
-                    // Ereignis geprüft, nur eben nicht dazwischen.
-                    if other.is_time_dependent() {
-                        continue;
-                    }
-                    if let Some(at) = switch_point(value, other.read(fight), compare, fight) {
-                        if at > now {
-                            earliest = Some(earliest.map_or(at, |best| best.min(at)));
-                        }
+        for term in self.condition.terms() {
+            for (value, other, compare) in [
+                (term.left, term.right, term.compare),
+                (term.right, term.left, term.compare.reversed()),
+            ] {
+                if !value.is_time_dependent() {
+                    continue;
+                }
+                // Der Schwellwert ist nur dann bekannt, wenn die andere
+                // Seite selbst nicht von der Uhr abhängt. Zwei zeitabhängige
+                // Seiten (`dot.a.remains < dot.b.remains`) laufen aufeinander
+                // zu; dafür gäbe es einen Umschlagpunkt, aber keine der
+                // gebrauchten Rotationen schreibt so etwas. Solche Vergleiche
+                // werden hier übersprungen — sie werden weiterhin an jedem
+                // Ereignis geprüft, nur eben nicht dazwischen.
+                if other.is_time_dependent() {
+                    continue;
+                }
+                if let Some(at) = switch_point(value, other.read(fight), compare, fight) {
+                    if at > now {
+                        earliest = Some(earliest.map_or(at, |best| best.min(at)));
                     }
                 }
             }
