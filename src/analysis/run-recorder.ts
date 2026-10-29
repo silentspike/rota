@@ -394,7 +394,13 @@ export function recordRun(
       ? 0
       : pointsForRun(
           summary,
-          { bossLevel: context.bossLevel, playerLevel: state.level },
+          // Die Stufe des Kampfes (Issue #1177): „mehr Punkte“ auf Heroisch und
+          // Mythisch. Der Bestwert in `best.previous` stammt aus derselben Stufe.
+          {
+            bossLevel: context.bossLevel,
+            playerLevel: state.level,
+            difficulty: context.difficulty,
+          },
           best?.previous ?? null,
         );
 
