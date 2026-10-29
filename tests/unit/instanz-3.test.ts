@@ -235,6 +235,17 @@ describe('Das Instanz-Objekt und die Freischaltung (12.7)', () => {
       'instance-3',
       'instance-4',
       'instance-5',
+      // Seit #1177 stehen alle vierzehn da, die acht ohne Boss als
+      // Planungsdaten für die Boss-Pakete (instanz-katalog.test.ts).
+      'instance-6',
+      'instance-7',
+      'instance-8',
+      'instance-9',
+      'instance-10',
+      'instance-11',
+      'instance-12',
+      'instance-13',
+      'instance-14',
     ]);
   });
 

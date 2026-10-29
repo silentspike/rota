@@ -119,7 +119,13 @@ describe('Der Prozess-Schwerpunkt — erst ab Instanz 5', () => {
 });
 
 describe('Eine Instanz ohne Boss bricht nichts', () => {
-  const instanz5 = ['boss-5-1', 'boss-5-2', 'boss-5-3', 'boss-5-4'];
+  // **Alle Bosse bis einschliesslich Instanz 5** — erst dann ist Instanz 5
+  // selbst offen UND abgeschlossen. Nur ihre vier reichten nicht: Ohne die
+  // davor bliebe sie gesperrt, und der Fall prüfte eine Kette, die nie anfängt.
+  const instanz5 = [...BOSSES.values()]
+    .map((b) => b.value)
+    .filter((b) => /^(prologue|instance-[1-5])$/.test(b.instance))
+    .map((b) => b.id);
 
   it('ZUSICHERUNG: instance-6 hat heute keinen Boss', () => {
     // Sonst prüfte der Fall darunter eine gefüllte Instanz und sagte über
