@@ -1030,6 +1030,9 @@ pub fn strom(config: &BalanceConfig, apl: &Apl, dauer: Duration) -> Strommessung
     thread::sleep(dauer);
     let kaempfe = werk.momentaufnahme().kaempfe;
     let fenster = beginn.elapsed();
+    if let Some(verzug) = verzug() {
+        thread::sleep(verzug);
+    }
     halt.store(true, Ordering::Relaxed);
     for ende in sammlung.abwarten() {
         ende.expect("ein Strang ist abgestuerzt");
@@ -1397,6 +1400,26 @@ const fn bremse() -> Option<(usize, Duration)> {
 /// Die Bremse für Teilnehmer `nummer`, falls er gemeint ist.
 fn bremse_fuer(bremse: Option<(usize, Duration)>, nummer: usize) -> Option<Duration> {
     bremse.and_then(|(wer, je_kampf)| (wer == nummer).then_some(je_kampf))
+}
+
+// Ein Verzug für Prüffälle (#912): Der Aufrufer von `strom` wird nach dem
+// Fensterende so lange aufgehalten, als würde er verdrängt. Gesetzt auf dem
+// aufrufenden Strang; außerhalb der Prüffälle gibt es ihn nicht.
+#[cfg(test)]
+thread_local! {
+    static VERZUG: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+/// Der Verzug dieses Stroms, gelesen auf dem aufrufenden Strang.
+#[cfg(test)]
+fn verzug() -> Option<Duration> {
+    VERZUG.with(std::cell::Cell::get)
+}
+
+/// Außerhalb der Prüffälle gibt es keinen Verzug.
+#[cfg(not(test))]
+const fn verzug() -> Option<Duration> {
+    None
 }
 
 /// Die Helfer der parallelen Läufe: Stränge, die über die Läufe leben (#912).
@@ -2086,6 +2109,43 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **Ein verdrängter Aufrufer verlängert den Nachlauf nicht** (#912).
+    ///
+    /// Der Strom verspricht höchstens einen Kampf je Helfer nach dem Fenster:
+    /// den, der beim Halt schon lief. Das hält nur, wenn nach dem Fensterende
+    /// zuerst angehalten und dann abgelesen wird. Liegt der Aufrufer dazwischen
+    /// fest — verdrängt auf einem belasteten Rechner, hier 30 ms Verzug —,
+    /// rechnen die Helfer sonst weiter, und jeder Kampf dieser Zeit stünde im
+    /// Nachlauf.
+    #[test]
+    fn ein_verdraengter_aufrufer_verlaengert_den_nachlauf_nicht() {
+        let mut worn = crate::gear::WornValues::none();
+        worn.purity = 500;
+        let config = BalanceConfig {
+            iterations: 20_000,
+            threads: 4,
+            worn,
+            ..BalanceConfig::default()
+        };
+        super::VERZUG.with(|v| v.set(Some(std::time::Duration::from_millis(30))));
+        let m = super::strom(
+            &config,
+            &gute_liste(),
+            std::time::Duration::from_millis(100),
+        );
+        super::VERZUG.with(|v| v.set(None));
+        assert!(
+            m.kaempfe >= 100,
+            "Zusicherung: nur {} Kaempfe im Fenster — der Strom rechnete gar nicht",
+            m.kaempfe
+        );
+        assert!(
+            m.nachlauf <= 4,
+            "nach 30 ms Verzug liefen {} Kaempfe nach — mehr als einer je Helfer",
+            m.nachlauf
+        );
     }
 
     /// **AC3: bitgleich, nicht „ungefähr gleich"** (Issue #908).
