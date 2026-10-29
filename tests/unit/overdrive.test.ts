@@ -20,7 +20,12 @@ import { Combat, alsSpellIndex } from '../../src/core/combat.js';
 import { CALCINATION, FIRST_CRUCIBLE, PLAYER } from '../../src/core/data.js';
 import { TICK_MS } from '../../src/core/loop.js';
 import { hastedMs } from '../../src/core/haste.js';
-import { EV_INPUT_REJECTED, EV_OVERDRIVE, NO_KEY, type FeedbackSink } from '../../src/core/events.js';
+import {
+  EV_INPUT_REJECTED,
+  EV_OVERDRIVE,
+  NO_KEY,
+  type FeedbackSink,
+} from '../../src/core/events.js';
 import { Session } from '../../src/core/session.js';
 import { PHASE_FIGHTING } from '../../src/core/phases.js';
 import {
@@ -316,7 +321,11 @@ class FensterAttrappe {
   }
 }
 
-function router(): { readonly queue: PressQueue; readonly fenster: FensterAttrappe; readonly r: InputRouter } {
+function router(): {
+  readonly queue: PressQueue;
+  readonly fenster: FensterAttrappe;
+  readonly r: InputRouter;
+} {
   const queue = new PressQueue();
   const fenster = new FensterAttrappe();
   const r = new InputRouter({ queue, nextTickIndex: () => 0, frameIndex: () => 0 });
