@@ -113,7 +113,7 @@ fn runde(laenge: usize) -> (usize, usize, usize) {
     let mut suchkampf = basis.suchkampf();
     let liste = basis.basis();
     let (mut kandidaten, mut erkannt, mut folge_gleich) = (0, 0, 0);
-    for k in 0..offen.len() {
+    for (k, zeile) in offen.iter().enumerate() {
         for stelle in 0..=liste.len() {
             let abgewandelt = eingefuegt(&liste, stelle, basis.vorrat(k));
             let apl = basis.apl(&abgewandelt);
@@ -125,7 +125,7 @@ fn runde(laenge: usize) -> (usize, usize, usize) {
                 auswertung.ziel(),
                 ziel,
                 "Basislänge {laenge}: {:?} an Stelle {stelle}",
-                offen[k].condition
+                zeile.condition
             );
             // Die Eigenschaft je Kandidat: erkannt genau dann, wenn unverändert.
             assert_eq!(
@@ -133,8 +133,8 @@ fn runde(laenge: usize) -> (usize, usize, usize) {
                 unveraendert && ziel == basis_ziel,
                 "Basislänge {laenge}: Zeile {} ({:?}) an Stelle {stelle} — erkannt {}, \
                  Cast-Folge unverändert {unveraendert}",
-                offen[k].spell,
-                offen[k].condition,
+                zeile.spell,
+                zeile.condition,
                 auswertung.unveraendert()
             );
             kandidaten += 1;
