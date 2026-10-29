@@ -119,6 +119,13 @@ const RECORDINGS_DIR: &str = "../tests/parity/recordings";
 /// Die Grundwerte des Spielers, relativ zum Paketverzeichnis `sim/`.
 const PLAYER_JSON: &str = "../data/player/base.json";
 const LEVELS_JSON: &str = "../data/player/levels.json";
+/// Die Daten der Fortschritts-Simulation (Issue #922): Gegenstaende samt
+/// Fallrate, der Ertrag eines Sieges und die Instanzen mit ihrer
+/// Freischaltung. Sie gehen in `laufbahn_generated.rs`, nicht in
+/// `data_generated.rs` — der Kampf liest keine davon.
+const ITEMS_JSON: &str = "../data/items.json";
+const REWARD_JSON: &str = "../data/player/reward.json";
+const INSTANCES_JSON: &str = "../data/instances.json";
 
 /// Welcher Boss der Standard ist, wenn keiner gewaehlt wird.
 ///
@@ -162,6 +169,9 @@ fn main() {
     println!("cargo:rerun-if-changed={BOSSES_DIR}");
     println!("cargo:rerun-if-changed={PLAYER_JSON}");
     println!("cargo:rerun-if-changed={LEVELS_JSON}");
+    println!("cargo:rerun-if-changed={ITEMS_JSON}");
+    println!("cargo:rerun-if-changed={REWARD_JSON}");
+    println!("cargo:rerun-if-changed={INSTANCES_JSON}");
     // Auf das Verzeichnis, aus demselben Grund wie bei den Bossen: Eine neue
     // Aufzeichnung soll den Bau ausloesen, nicht stillschweigend fehlen.
     println!("cargo:rerun-if-changed={RECORDINGS_DIR}");
@@ -263,6 +273,363 @@ fn main() {
 
     let dest = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR fehlt")).join("data_generated.rs");
     fs::write(&dest, out).unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", dest.display()));
+
+    // Issue #922: die Daten der Schleife UEBER dem Kampf, in eine eigene
+    // Datei. `data_generated.rs` beschreibt den Kampf; was ein Sieg einbringt,
+    // gehoert nicht hinein.
+    let laufbahn = emit_laufbahn(
+        &read_json(ITEMS_JSON),
+        &read_json(REWARD_JSON),
+        &read_json(LEVELS_JSON),
+        &read_json(INSTANCES_JSON),
+        &bosses,
+    );
+    let dest =
+        PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR fehlt")).join("laufbahn_generated.rs");
+    fs::write(&dest, laufbahn)
+        .unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", dest.display()));
+}
+
+// ------------------------------------------------- Fortschritt (Issue #922)
+
+/// Wie viele Affix-Plaetze eine Qualitaet hat — **eine Kopie von
+/// `QUALITY_AFFIX_SLOTS` in `sim/src/gear.rs`**, aus demselben Grund wie
+/// [`BUFF_KIND_CAPACITY`]: `build.rs` kann nichts aus `src/` einbinden.
+///
+/// Laeuft sie auseinander, faengt es `parity_laufbahn_regeln.rs`: Die
+/// getragenen Werte dort rechnet das Spiel mit SEINER Tabelle.
+const QUALITY_AFFIX_SLOTS: [usize; 4] = [1, 2, 3, 3];
+
+/// Welche Affix-Arten einen Wert tragen, in der Reihenfolge der Felder von
+/// `WornValues` (`gear.rs`) — und wie `feldFuerAffixArt` in `src/gear/worn.ts`
+/// sie abbildet.
+///
+/// `active` fehlt mit Absicht: Das ist ein Topf ohne Wert, und ein Affix
+/// darauf verfiele still (GAME-DESIGN 13.1b, Issue #421b). Das Spiel lehnt ihn
+/// beim Laden ab; dieser Bau auch.
+const AFFIX_FELDER: [(&str, &str); 5] = [
+    ("catalysis", "FELD_CATALYSIS"),
+    ("purity", "FELD_PURITY"),
+    ("yield", "FELD_YIELD"),
+    ("essence", "FELD_ESSENCE"),
+    ("gearEffects", "FELD_GEAR_EFFECTS"),
+];
+
+/// Erzeugt `laufbahn_generated.rs`: Katalog, Fallrate, Ertrag, Erfahrung,
+/// Instanzen und die Stufe jedes Bosses.
+///
+/// # Was hier geprueft wird und warum hier
+///
+/// Dieselben Pruefungen wie beim Laden im Spiel (`src/gear/catalog.ts`,
+/// `src/core/data.ts`) — eine Datei, die das Spiel ablehnt, soll auch keinen
+/// Simulator ergeben, der mit ihr rechnet. Dazu EINE eigene:
+///
+/// **Ein Satz-Teil darf nur bei einem Pruefboss fallen.** Die
+/// Fortschritts-Simulation fuehrt die Satz-Tabelle nicht; ein Satz-Teil, das
+/// ein Spielboss fallen laesst, bekaeme dort keinen Satz-Bonus — still. Der
+/// Bau bricht deshalb, bis jemand `data/sets.json` in die Schleife holt.
+fn emit_laufbahn(
+    items: &Value,
+    reward: &Value,
+    levels: &Value,
+    instances: &Value,
+    bosses: &[(String, Value)],
+) -> String {
+    let mut out = String::with_capacity(8 * 1024);
+    out.push_str(
+        "// ERZEUGT VON build.rs — NICHT VON HAND AENDERN.\n\
+         // Quelle: data/items.json, data/player/reward.json, data/player/levels.json,\n\
+         // data/instances.json und data/bosses/*.json (Feld \"level\").\n\n",
+    );
+
+    // ---- Bosse: Kennung -> Instanz, und welche Instanzen Pruefprofile sind.
+    let mut boss_instanz: Vec<(String, String)> = Vec::new();
+    for (name, boss) in bosses {
+        boss_instanz.push((
+            text(boss, "id", name).to_owned(),
+            text(boss, "instance", name).to_owned(),
+        ));
+    }
+    let ist_pruefboss = |id: &str| {
+        boss_instanz
+            .iter()
+            .any(|(b, i)| b == id && PROBE_INSTANCES.contains(&i.as_str()))
+    };
+
+    // ---- Katalog
+    let whose = "items.json";
+    let drop = uint(items, "dropChancePerMille", whose);
+    assert!(
+        drop <= 1000,
+        "{whose}: dropChancePerMille ist {drop} — erlaubt sind 0 bis 1000"
+    );
+    let eintraege = items
+        .get("items")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"items\" fehlt"));
+    let mut gesehen: Vec<&str> = Vec::new();
+    let _ = writeln!(
+        out,
+        "/// Wie oft ein Sieg ueberhaupt etwas fallen laesst, in Promille."
+    );
+    let _ = writeln!(out, "pub const DROP_CHANCE_PER_MILLE: u32 = {drop};\n");
+    let _ = writeln!(
+        out,
+        "/// Alle Gegenstaende in der Reihenfolge der Datei — die Reihenfolge, aus\n\
+         /// der `rollLoot` waehlt. **Keine Hash-Abbildung** (GAME-DESIGN 18.3)."
+    );
+    let _ = writeln!(
+        out,
+        "pub static KATALOG: [Vorlage; {}] = [",
+        eintraege.len()
+    );
+    for (index, item) in eintraege.iter().enumerate() {
+        let wer = format!("{whose}/items[{index}]");
+        let id = text(item, "id", &wer);
+        assert!(!id.is_empty(), "{wer}: ein Gegenstand ohne Kennung");
+        assert!(
+            !gesehen.contains(&id),
+            "{wer}: die Kennung \"{id}\" kommt zweimal vor"
+        );
+        gesehen.push(id);
+        let stufe = uint(item, "itemLevel", &wer);
+        assert!(
+            (1..=100).contains(&stufe),
+            "{wer}: \"{id}\" hat Stufe {stufe} — erlaubt sind 1 bis 100"
+        );
+        let guete = uint(item, "quality", &wer) as usize;
+        assert!(
+            guete < QUALITY_AFFIX_SLOTS.len(),
+            "{wer}: \"{id}\" hat Qualitaet {guete}"
+        );
+        let platz = uint(item, "slot", &wer);
+        assert!(platz < 10, "{wer}: \"{id}\" liegt auf Platz {platz}");
+        let arten: Vec<&str> = item
+            .get("affixKinds")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        assert!(
+            arten.len() <= QUALITY_AFFIX_SLOTS[guete],
+            "{wer}: \"{id}\" nennt {} Werte-Arten, hat bei Qualitaet {guete} aber {} \
+             Affix-Plaetze",
+            arten.len(),
+            QUALITY_AFFIX_SLOTS[guete]
+        );
+        let felder: Vec<&str> = arten
+            .iter()
+            .map(|art| {
+                AFFIX_FELDER
+                    .iter()
+                    .find(|(name, _)| name == art)
+                    .map(|(_, feld)| *feld)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{wer}: \"{id}\" traegt die Werte-Art \"{art}\", die keinen Wert \
+                             fuellt. Wertbar sind {:?}.",
+                            AFFIX_FELDER.map(|(n, _)| n)
+                        )
+                    })
+            })
+            .collect();
+        let gebunden = item
+            .get("boundToBoss")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let satz = match item.get("setId") {
+            None => -1_i64,
+            Some(Value::Number(n)) if n.is_i64() => n.as_i64().expect("is_i64 geprueft"),
+            Some(other) => panic!("{wer}: setId muss eine ganze Zahl sein, ist {other}"),
+        };
+        assert!(
+            (-1..6).contains(&satz),
+            "{wer}: \"{id}\" gehoert zu Satz {satz} — erlaubt sind 0 bis 5 oder -1"
+        );
+        assert!(
+            satz == -1 || ist_pruefboss(gebunden),
+            "{wer}: \"{id}\" ist ein Satz-Teil (Satz {satz}) und kann bei einem Spielboss \
+             fallen (gebunden an \"{gebunden}\"). Die Fortschritts-Simulation \
+             (sim/src/laufbahn/regeln.rs) kennt die Satz-Tabelle nicht und rechnete den \
+             Bonus still als null. Erst data/sets.json dort einlesen, dann diese Pruefung \
+             loesen."
+        );
+        let _ = writeln!(
+            out,
+            "    Vorlage {{ id: {id:?}, slot: {platz}, item_level: {stufe}, quality: {guete}, \
+             affixe: &[{}], gebunden_an: {gebunden:?}, satz: {satz} }},",
+            felder.join(", ")
+        );
+    }
+    let _ = writeln!(out, "];\n");
+
+    // ---- Ertrag eines Sieges (reward.json)
+    let whose = "player/reward.json";
+    let abfall: Vec<u64> = reward
+        .get("falloffPerMille")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"falloffPerMille\" fehlt"))
+        .iter()
+        .map(|v| {
+            v.as_u64()
+                .unwrap_or_else(|| panic!("{whose}: Abstandsfaktor ist keine ganze Zahl"))
+        })
+        .collect();
+    assert!(!abfall.is_empty(), "{whose}: falloffPerMille ist leer");
+    assert!(
+        abfall.iter().all(|f| *f <= 1000),
+        "{whose}: ein Abstandsfaktor liegt ueber 1000 Promille"
+    );
+    let gleitkomma = |feld: &str| {
+        reward
+            .get(feld)
+            .and_then(Value::as_f64)
+            .unwrap_or_else(|| panic!("{whose}: Feld \"{feld}\" fehlt oder ist keine Zahl"))
+    };
+    let _ = writeln!(
+        out,
+        "/// Der abnehmende Ertrag in Promille, Index = Stufenabstand."
+    );
+    let _ = write!(
+        out,
+        "pub static FALLOFF_PER_MILLE: [u32; {}] = [",
+        abfall.len()
+    );
+    for f in &abfall {
+        let _ = write!(out, "{f}, ");
+    }
+    let _ = writeln!(out, "];\n");
+    let _ = writeln!(out, "/// Punkte je Sekunde hoch Exponent.");
+    let _ = writeln!(
+        out,
+        "pub const POINTS_PER_SECOND: f64 = {:?};",
+        gleitkomma("pointsPerSecond")
+    );
+    let _ = writeln!(out, "/// Der Exponent der Punktekurve (12.6: quadratisch).");
+    let _ = writeln!(
+        out,
+        "pub const POINTS_EXPONENT: f64 = {:?};",
+        gleitkomma("pointsExponent")
+    );
+    let _ = writeln!(
+        out,
+        "/// Ring-Prozentpunkte in Sekunden-Einheiten (runaway-Bosse, #256)."
+    );
+    let _ = writeln!(
+        out,
+        "pub const HELD_POINTS_PER_PERCENT: f64 = {:?};",
+        gleitkomma("heldPointsPerPercent")
+    );
+    let _ = writeln!(
+        out,
+        "/// Rest-Ertrag fuers blosse Wiederholen, in Promille (#377)."
+    );
+    let _ = writeln!(
+        out,
+        "pub const REPEAT_PER_MILLE: f64 = {:?};\n",
+        gleitkomma("repeatPerMille")
+    );
+
+    // ---- Erfahrung (levels.json) — die Kurve, die `emit_levels` auslaesst.
+    let whose = "player/levels.json";
+    let je_stufe = uint(levels, "xpPerBossLevel", whose);
+    assert!(je_stufe > 0, "{whose}: xpPerBossLevel muss positiv sein");
+    let max_level = uint(levels, "maxLevel", whose);
+    let bedarf: Vec<u64> = levels
+        .get("xpToNextLevel")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"xpToNextLevel\" fehlt"))
+        .iter()
+        .map(|v| {
+            v.as_u64()
+                .unwrap_or_else(|| panic!("{whose}: Erfahrungsbedarf ist keine ganze Zahl"))
+        })
+        .collect();
+    assert!(
+        bedarf.len() as u64 + 1 == max_level,
+        "{whose}: {} Eintraege in xpToNextLevel fuer {max_level} Stufen — es braucht einen \
+         je Aufstieg, also maxLevel - 1",
+        bedarf.len()
+    );
+    let _ = writeln!(out, "/// Erfahrung je Boss-Stufe fuer einen Sieg.");
+    let _ = writeln!(out, "pub const XP_PER_BOSS_LEVEL: u64 = {je_stufe};");
+    let _ = writeln!(
+        out,
+        "/// Erfahrung bis zur naechsten Stufe. Index 0 ist der Weg von Stufe 1 auf 2."
+    );
+    let _ = write!(
+        out,
+        "pub static XP_TO_NEXT_LEVEL: [u64; {}] = [",
+        bedarf.len()
+    );
+    for b in &bedarf {
+        let _ = write!(out, "{b}, ");
+    }
+    let _ = writeln!(out, "];\n");
+
+    // ---- Instanzen, nach `order` sortiert wie `INSTANCES` im Spiel.
+    let whose = "instances.json";
+    let liste = instances
+        .get("instances")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"instances\" fehlt"));
+    let mut instanzen: Vec<(String, u64, u64, Option<String>)> = Vec::new();
+    for (index, eintrag) in liste.iter().enumerate() {
+        let wer = format!("{whose}/instances[{index}]");
+        let id = text(eintrag, "id", &wer).to_owned();
+        assert!(
+            !instanzen.iter().any(|(i, ..)| *i == id),
+            "{wer}: die Kennung \"{id}\" kommt zweimal vor"
+        );
+        let nummer = uint(eintrag, "number", &wer);
+        assert!(nummer >= 1, "{wer}: \"{id}\" hat number {nummer}");
+        let ordnung = opt_uint(eintrag, "order", &wer, 0);
+        let verlangt = eintrag
+            .get("requires")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        instanzen.push((id, nummer, ordnung, verlangt));
+    }
+    for (id, _, _, verlangt) in &instanzen {
+        if let Some(v) = verlangt {
+            assert!(v != id, "{whose}: \"{id}\" verlangt sich selbst");
+            assert!(
+                instanzen.iter().any(|(i, ..)| i == v),
+                "{whose}: \"{id}\" verlangt \"{v}\", die es nicht gibt"
+            );
+        }
+    }
+    // Stabil sortiert, wie `[...alle].sort((a, b) => a.order - b.order)`.
+    instanzen.sort_by_key(|(_, _, ordnung, _)| *ordnung);
+    let _ = writeln!(
+        out,
+        "/// Alle Instanzen, nach `order` sortiert — dieselbe Folge wie `INSTANCES`."
+    );
+    let _ = writeln!(
+        out,
+        "pub static INSTANZEN: [Instanz; {}] = [",
+        instanzen.len()
+    );
+    for (id, nummer, ordnung, verlangt) in &instanzen {
+        let _ = writeln!(
+            out,
+            "    Instanz {{ id: {id:?}, number: {nummer}, order: {ordnung}, requires: {verlangt:?} }},"
+        );
+    }
+    let _ = writeln!(out, "];\n");
+
+    // ---- Die Stufe jedes Bosses, in der Reihenfolge von `BOSSES`.
+    let _ = writeln!(
+        out,
+        "/// Die Stufe jedes Bosses, Index wie `crate::data::BOSSES`. Fehlt das Feld,\n\
+         /// gilt 1 — wie beim Laden im Spiel (`src/core/data.ts`)."
+    );
+    let _ = writeln!(out, "pub static BOSS_STUFEN: [u32; {}] = [", bosses.len());
+    for (name, boss) in bosses {
+        let stufe = opt_uint(boss, "level", name, 1).max(1);
+        let _ = writeln!(out, "    {stufe},");
+    }
+    let _ = writeln!(out, "];");
+    out
 }
 
 // ------------------------------------------------------------------ Einlesen
@@ -1844,11 +2211,16 @@ fn emit_player(out: &mut String, player: &Value) {
 
 /// Das Wachstum der Grundwerte je Stufe (GAME-DESIGN 8.1; Issue #248).
 ///
-/// **NUR die Wachstumstabelle, NICHT die Erfahrungskurve.** Der Simulator misst
-/// Kaempfe, nicht Fortschritt: Was auf Stufe 50 passiert, haengt an den
-/// Grundwerten; wie lange jemand fuer Stufe 50 braucht, an der Kurve — und das
-/// eine folgt nicht aus dem anderen. Eine gespiegelte Kurve waere eine zweite
-/// Stelle, die auseinanderlaufen kann, ohne dass irgendetwas davon abhinge.
+/// **NUR die Wachstumstabelle, NICHT die Erfahrungskurve.** Der KAMPF misst
+/// nicht Fortschritt: Was auf Stufe 50 passiert, haengt an den Grundwerten;
+/// wie lange jemand fuer Stufe 50 braucht, an der Kurve — und das eine folgt
+/// nicht aus dem anderen.
+///
+/// Seit #922 gibt es eine Stelle, die von der Kurve abhaengt: die
+/// Fortschritts-Simulation. Sie bekommt sie aus [`emit_laufbahn`] in eine
+/// eigene Datei, nicht hierher — und `parity_laufbahn_regeln.rs` haelt sie
+/// gegen `grantXp` im Spiel, damit die zweite Stelle nicht still
+/// auseinanderlaeuft.
 ///
 /// Die Tabelle steht in Promille und ganzzahlig, weil `1,05^n` eine
 /// Fliesskomma-Potenz ist: `Math.pow` in JavaScript und `f64::powf` hier sind

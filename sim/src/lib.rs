@@ -104,6 +104,8 @@ pub mod drosselung;
 pub mod kalibrierung;
 /// Arbeitsbudget einer Kampagne, hardwareunabhaengig (#914).
 pub mod kampagne;
+// Issue #922: die Fortschritts-Simulation — die Schleife UEBER dem Kampf.
+pub mod laufbahn;
 pub mod log;
 pub mod machbarkeit;
 // Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
