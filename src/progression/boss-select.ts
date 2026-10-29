@@ -116,10 +116,14 @@ export function freigeschalteteInstanzen(
     // ein leerer Eintrag alles Folgende, und zwar lautlos.
     return drin.length > 0 && drin.every((bossId) => gefallen.has(bossId));
   };
-  // NOCH OHNE VENTIL (Zwischenstand des roten Prüffalls): `verdient` wird
-  // angenommen und nicht gelesen.
-  void verdient;
-  return INSTANCES.filter((i) => i.requires === null || abgeschlossen(i.requires)).map((i) => i.id);
+  // **Das Ventil**: dieselbe Instanz, ohne den Abschluss davor. `null` heißt
+  // „hat keins“ — nicht „Schwelle 0“, die jede Instanz sofort öffnete.
+  const ueberSchwelle = (schwelle: number | null): boolean =>
+    schwelle !== null && verdient >= schwelle;
+
+  return INSTANCES.filter(
+    (i) => i.requires === null || abgeschlossen(i.requires) || ueberSchwelle(i.pointsThreshold),
+  ).map((i) => i.id);
 }
 
 /**
@@ -151,12 +155,20 @@ export function offeneStufen(
   alle: ReadonlyMap<string, ParseResult<BossDef>> = BOSSES,
   stufen: ReadonlyMap<string, readonly ParseResult<BossDef>[]> = BOSS_STAGES,
 ): readonly number[] {
-  // NOCH OHNE REGEL (Zwischenstand des roten Prüffalls): nur Normal.
-  void instanz;
-  void besiegt;
-  void alle;
-  void stufen;
-  return [DIFFICULTY_NORMAL];
+  const bosse = [...alle.values()]
+    .map((eintrag) => eintrag.value)
+    .filter((boss) => boss.instance === instanz)
+    .map((boss) => boss.id);
+  const offen: number[] = [DIFFICULTY_NORMAL];
+  if (bosse.length === 0) return offen;
+  const gefallen = new Set(besiegt);
+  for (let stufe = DIFFICULTY_NORMAL + 1; stufe < DIFFICULTY_COUNT; stufe++) {
+    const darunterGelegt = bosse.every((id) => gefallen.has(markKey(id, stufe - 1)));
+    const spielbar = bosse.every((id) => stufen.get(id)?.[stufe] !== undefined);
+    if (!darunterGelegt || !spielbar) break;
+    offen.push(stufe);
+  }
+  return offen;
 }
 
 /**
