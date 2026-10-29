@@ -958,12 +958,15 @@ fn run_with_control(
 /// Was ein durchgehender Lauf in seinem Fenster gerechnet hat (#912, Weg b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Strommessung {
-    /// Kämpfe, die bis zum Fensterende fertig wurden — abgelesen am Zählwerk.
+    /// Kämpfe, die bis zum Fensterende fertig wurden — abgelesen am Zählwerk
+    /// gleich nach dem Halt. Darunter höchstens einer je Helfer, der beim Halt
+    /// schon lief.
     pub kaempfe: u64,
-    /// Vom Losschicken der Helfer bis zur Ablesung.
+    /// Vom Losschicken der Helfer bis zum Halt.
     pub fenster: Duration,
     /// Kämpfe, die nach der Ablesung noch fertig wurden, bevor die Helfer
-    /// anhielten. Höchstens einer je Helfer.
+    /// anhielten. Höchstens einer je Helfer, auch wenn der Aufrufer zwischen
+    /// Halt und Ablesung verdrängt wird.
     pub nachlauf: u64,
 }
 
@@ -983,9 +986,9 @@ pub struct Strommessung {
 /// `config.threads` Helfer aus dem Vorrat ziehen Happen aus einem offenen
 /// Zähler und rechnen Kampf um Kampf, jeder auf seinem Platz in einem
 /// eigenen Zählwerk. Der Aufrufer rechnet **nicht** mit: Er schläft bis zum
-/// Fensterende, liest dort die Kampfzahl am Zählwerk ab und hält den Lauf
-/// an. Was danach noch fertig wird, steht als `nachlauf` daneben und gehört
-/// nicht zum Fenster. Ein schlafender Aufrufer belegt keinen Kern; lauffähig
+/// Fensterende, hält den Lauf an und liest erst dann die Kampfzahl am
+/// Zählwerk ab. Was danach noch fertig wird, steht als `nachlauf` daneben und
+/// gehört nicht zum Fenster. Ein schlafender Aufrufer belegt keinen Kern; lauffähig
 /// sind genau `threads` Stränge.
 ///
 /// Gerechnet werden dieselben Kämpfe wie in [`run`] (Startwerte ab
@@ -1028,12 +1031,17 @@ pub fn strom(config: &BalanceConfig, apl: &Apl, dauer: Duration) -> Strommessung
     vorrat::verteilen(auftraege);
     let beginn = Instant::now();
     thread::sleep(dauer);
-    let kaempfe = werk.momentaufnahme().kaempfe;
+    // **Erst anhalten, dann ablesen.** Nach dem Halt beginnt kein Helfer mehr
+    // einen Kampf; wird der Aufrufer dazwischen verdrängt, laufen nur noch die
+    // Kämpfe zu Ende, die schon liefen — höchstens einer je Helfer, und die
+    // stehen dann im Fenster statt im Nachlauf. Umgekehrt rechneten die Helfer
+    // weiter, solange der Aufrufer zwischen Ablesung und Halt festliegt.
+    halt.store(true, Ordering::Relaxed);
     let fenster = beginn.elapsed();
     if let Some(verzug) = verzug() {
         thread::sleep(verzug);
     }
-    halt.store(true, Ordering::Relaxed);
+    let kaempfe = werk.momentaufnahme().kaempfe;
     for ende in sammlung.abwarten() {
         ende.expect("ein Strang ist abgestuerzt");
     }
