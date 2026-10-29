@@ -24,8 +24,17 @@
  *
  * Spieltexte englisch (Design-Gesetz 5).
  */
-import { INSTANCES, instanceById, type BossDef, type ParseResult } from '../core/data.js';
-import { bossIdOfMarkKey } from '../analysis/progress-mark.js';
+import {
+  BOSSES,
+  BOSS_STAGES,
+  INSTANCES,
+  instanceById,
+  type BossDef,
+  type ParseResult,
+} from '../core/data.js';
+import { bossIdOfMarkKey, markKey } from '../analysis/progress-mark.js';
+import { difficultyName } from '../core/difficulty.js';
+import { DIFFICULTY_COUNT, DIFFICULTY_NAMES, DIFFICULTY_NORMAL } from '../loot/rates.js';
 
 /**
  * Welche Instanzen ein Spieler wählen darf.
@@ -59,19 +68,29 @@ function instanzTitel(id: string): string {
 /**
  * Welche Instanzen der Spieler betreten darf (GAME-DESIGN 12.7).
  *
- * **Nur der Hauptpfad.** 12.7 nennt vier Kriterien nebeneinander; hier zählt
- * „Instanz abgeschlossen": Eine Instanz ist offen, wenn die in `requires`
- * genannte vollständig bezwungen ist. Punkte-Schwelle, Schwierigkeitsstufe
- * und Meisterschafts-Schlüssel fehlen bewusst — die Schwelle hat niemand
- * entschieden, und Schwierigkeitsstufen gibt es im Spiel noch nicht.
+ * **Zwei der vier Kriterien öffnen eine Instanz**, nebeneinander:
+ *
+ * | Kriterium | hier |
+ * | --- | --- |
+ * | Instanz abgeschlossen | die in `requires` genannte ist vollständig bezwungen |
+ * | Punkte-Schwelle | `verdient >= pointsThreshold` — das Ventil gegen Feststecken |
+ * | Schwierigkeitsstufe | öffnet keine Instanz, sondern ihre Stufen: {@link offeneStufen} |
+ * | Meisterschafts-Schlüssel | nur Geheim-Instanzen, nach V1 (Entscheidung 29.10.) |
  *
  * **Vollständig heißt: jeder Boss.** Eine Instanz, von der drei von vier
  * liegen, ist nicht abgeschlossen — sonst hinge die Freischaltung daran,
  * welchen Boss jemand zuerst wählt.
+ *
+ * **`verdient` sind die VERDIENTEN Punkte, nicht das Guthaben** (Entscheidung
+ * des Auftraggebers vom 29.10.: „Instanzen öffnen über die Punkte-Schwelle
+ * ohne Ausgeben“). Wer Punkte in eine Aufwertung steckt, schließt sich damit
+ * keine Instanz wieder zu. Ohne Angabe 0 — dann zählt allein der Hauptpfad,
+ * wie bis #1177.
  */
 export function freigeschalteteInstanzen(
   besiegt: readonly string[],
   alle: ReadonlyMap<string, ParseResult<BossDef>>,
+  verdient = 0,
 ): readonly string[] {
   // **Die Kennung aus dem Schlüssel lösen** (Fehlerbehebung 2026-08-11).
   //
@@ -97,8 +116,86 @@ export function freigeschalteteInstanzen(
     // ein leerer Eintrag alles Folgende, und zwar lautlos.
     return drin.length > 0 && drin.every((bossId) => gefallen.has(bossId));
   };
-
+  // NOCH OHNE VENTIL (Zwischenstand des roten Prüffalls): `verdient` wird
+  // angenommen und nicht gelesen.
+  void verdient;
   return INSTANCES.filter((i) => i.requires === null || abgeschlossen(i.requires)).map((i) => i.id);
+}
+
+/**
+ * Welche Schwierigkeitsstufen einer Instanz offen sind (12.7, Issue #1177).
+ *
+ * > **Schwierigkeitsstufe** — Heroische Instanz öffnet nach Normal, mythische
+ * > nach Heroisch. (Masterplan, Freischaltung)
+ *
+ * **Je Instanz, nicht je Boss**, wörtlich nach dem Satz: Heroisch öffnet, wenn
+ * JEDER Boss der Instanz auf Normal liegt; Mythisch, wenn jeder auf Heroisch
+ * liegt. Je Boss wäre die schwächere Regel — ein Spieler könnte den ersten
+ * Boss mythisch wiederholen, ohne die Instanz je beendet zu haben, und
+ * „Mythisch nach Heroisch“ hiesse dann „nach einem heroischen Sieg“.
+ *
+ * **Der Schlüssel trägt die Stufe** (`markKey(id, stufe)` in
+ * `defeatedBosses`). Anders als in {@link freigeschalteteInstanzen} wird sie
+ * hier nicht abgelöst — genau sie ist die Frage.
+ *
+ * **Eine Instanz mit Bossen ohne Stufen bleibt bei Normal.** Das sind
+ * Prüf-Instanzen; eine heroische Fassung, die es für einen ihrer Bosse nicht
+ * gibt, ließe sich anbieten und nicht spielen.
+ *
+ * Offen ist immer mindestens Normal. Ob die Instanz selbst betreten werden
+ * darf, entscheidet {@link freigeschalteteInstanzen}, nicht diese Funktion.
+ */
+export function offeneStufen(
+  instanz: string,
+  besiegt: readonly string[],
+  alle: ReadonlyMap<string, ParseResult<BossDef>> = BOSSES,
+  stufen: ReadonlyMap<string, readonly ParseResult<BossDef>[]> = BOSS_STAGES,
+): readonly number[] {
+  // NOCH OHNE REGEL (Zwischenstand des roten Prüffalls): nur Normal.
+  void instanz;
+  void besiegt;
+  void alle;
+  void stufen;
+  return [DIFFICULTY_NORMAL];
+}
+
+/**
+ * Alles, was gerade offen ist, als Kennungen: jede Instanz und jede Stufe über
+ * Normal (`instance-1@heroic`), in der Reihenfolge der Auswahl.
+ *
+ * Der Vergleichsgegenstand für {@link neueFreischaltungen}: Der Klang
+ * „Freischaltung“ (`menu-unlock`) gehört zu dem Sieg, der etwas öffnet — nicht
+ * zu jedem Öffnen der Auswahl, in der es danach steht.
+ */
+export function freischaltungen(
+  besiegt: readonly string[],
+  alle: ReadonlyMap<string, ParseResult<BossDef>> = BOSSES,
+  verdient = 0,
+): readonly string[] {
+  const out: string[] = [];
+  for (const instanz of freigeschalteteInstanzen(besiegt, alle, verdient)) {
+    out.push(instanz);
+    for (const stufe of offeneStufen(instanz, besiegt, alle)) {
+      if (stufe !== DIFFICULTY_NORMAL) out.push(`${instanz}@${DIFFICULTY_NAMES[stufe] ?? stufe}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * Was zwischen zwei Ständen NEU offen ist (Issue #1177).
+ *
+ * **Eine Differenz, kein Zustand**: Wer den Klang an „ist offen“ hängte, hörte
+ * ihn bei jedem Sieg danach wieder. Gerechnet wird über die Kennungen aus
+ * {@link freischaltungen}, also über beide Wege zu einer Instanz — Abschluss
+ * und Punkte-Schwelle — und über jede neue Stufe.
+ */
+export function neueFreischaltungen(
+  vorher: readonly string[],
+  nachher: readonly string[],
+): readonly string[] {
+  const alt = new Set(vorher);
+  return nachher.filter((kennung) => !alt.has(kennung));
 }
 
 /**
@@ -121,8 +218,9 @@ export function freigeschalteteInstanzen(
 export function waehlbareBosse(
   alle: ReadonlyMap<string, ParseResult<BossDef>>,
   besiegt: readonly string[] = [],
+  verdient = 0,
 ): readonly BossDef[] {
-  const offen = freigeschalteteInstanzen(besiegt, alle);
+  const offen = freigeschalteteInstanzen(besiegt, alle, verdient);
   const out: BossDef[] = [];
   for (const eintrag of alle.values()) {
     if (offen.includes(eintrag.value.instance)) out.push(eintrag.value);
@@ -196,12 +294,20 @@ export function faehigkeitenVon(boss: BossDef): readonly string[] {
  *   ist nicht anwählbar. Ohne diese Markierung drückt ein Spieler auf den
  *   Namen, den er schon spielt, und der Kampf startet neu, ohne dass sich
  *   sichtbar etwas ändert.
- * @param onSelect Meldet die Wahl nach oben. Dieser Bereich startet nichts.
+ * @param onSelect Meldet die Wahl nach oben — Boss UND Stufe. Dieser Bereich
+ *   startet nichts.
+ * @param stufen Welche Stufen der Spieler je Boss wählen darf (Issue #1177).
+ *   Ohne Angabe nur Normal: Ein Aufrufer, der den Spielstand nicht kennt,
+ *   bietet nichts an, was er nicht prüfen kann.
+ * @param aktuelleStufe Die Stufe des laufenden Bosses. Gesperrt ist nur das
+ *   PAAR aus Boss und Stufe — wer Heroisch spielt, kann auf Normal zurück.
  */
 export function buildBossSelect(
   bosse: readonly BossDef[],
   aktuell: string,
-  onSelect: (bossId: string) => void,
+  onSelect: (bossId: string, difficulty: number) => void,
+  stufen: (bossId: string) => readonly number[] = () => [DIFFICULTY_NORMAL],
+  aktuelleStufe: number = DIFFICULTY_NORMAL,
 ): HTMLElement {
   const wurzel = element('div', 'boss-select');
 
@@ -219,14 +325,43 @@ export function buildBossSelect(
       knopf.className = 'boss-select-entry';
       knopf.dataset.bossId = boss.id;
       knopf.textContent = boss.name;
-      if (boss.id === aktuell) {
+      if (boss.id === aktuell && aktuelleStufe === DIFFICULTY_NORMAL) {
         knopf.disabled = true;
         knopf.dataset.current = 'yes';
       }
       knopf.addEventListener('click', () => {
-        onSelect(boss.id);
+        onSelect(boss.id, DIFFICULTY_NORMAL);
       });
       gruppe.appendChild(knopf);
+
+      // **Die Stufen über Normal, nur die offenen** (12.7, Issue #1177).
+      //
+      // Der Name bleibt der Knopf für Normal — so liest sich die Liste wie
+      // vorher, und ein Spieler ohne geöffnete Stufe sieht keine Änderung.
+      // Darunter je offener Stufe ein eigener Knopf: Ein Knopf ist über die
+      // Tabulatortaste erreichbar und mit Eingabe auszulösen, wie jeder andere
+      // in diesem Bereich — ein Umschalter daneben wäre eine zweite Bedienart.
+      const oben = stufen(boss.id).filter((s) => s !== DIFFICULTY_NORMAL);
+      if (oben.length > 0) {
+        const zeile = element('div', 'boss-select-stages');
+        for (const stufe of oben) {
+          const stufenKnopf = document.createElement('button');
+          stufenKnopf.type = 'button';
+          stufenKnopf.className = 'boss-select-stage';
+          stufenKnopf.dataset.bossId = boss.id;
+          stufenKnopf.dataset.difficulty = String(stufe);
+          stufenKnopf.textContent = difficultyName(stufe);
+          if (boss.id === aktuell && stufe === aktuelleStufe) {
+            stufenKnopf.disabled = true;
+            stufenKnopf.dataset.current = 'yes';
+          }
+          stufenKnopf.addEventListener('click', () => {
+            onSelect(boss.id, stufe);
+          });
+          zeile.appendChild(stufenKnopf);
+        }
+        gruppe.appendChild(zeile);
+      }
 
       // **Die Fähigkeiten unter dem Boss** (AC2 von #811, GAME-DESIGN 17.3:
       // „Muss auch für Boss-Fähigkeiten funktionieren"). Sie stehen NEBEN dem
