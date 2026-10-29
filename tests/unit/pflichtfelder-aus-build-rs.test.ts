@@ -16,6 +16,10 @@
  *    Vorgabe.
  * 2. `.get("feld")`, gefolgt von `.and_then(…)`-Gliedern und
  *    `.unwrap_or_else(|| panic!…)` oder `.expect(…)`.
+ * 3. Ein örtlicher Helfer `let name = |feld: &str| { … .get(feld) … panic! … };`
+ *    und jeder seiner Aufrufe `name("feld")` — so liest `emit_laufbahn` die
+ *    Zahlen von `reward.json` (`gleitkomma`, #922). Die erste Fassung dieses
+ *    Prüffalls kannte nur 1 und 2 und sah diese vier Felder nicht.
  *
  * Bedingte Regeln (`overMs` verlangt `tickIntervalMs`) sind keine
  * Pflichtfelder in diesem Sinn: `build.rs` prüft sie mit `assert!`, und die
@@ -85,6 +89,25 @@ function lesestellen(quelle: string): { schluessel: string; zeile: number }[] {
     const feld = m[3] ?? `$${m[4] as string}`;
     stellen.push({ schluessel: `${funktion}:${feld}`, zeile: zeileBei(m.index) });
   }
+  // 3. Örtliche Helfer: Kopf `let name = |feld: &str| {`, Rumpf bis zum ersten
+  // `};` — darin `.get(feld)` und ein `panic!`. Dann jeder Aufruf `name("…")`
+  // in derselben Funktion.
+  for (const kopf of text.matchAll(/let (\w+) = \|(\w+): &str\|\s*\{/g)) {
+    const [, name, param] = kopf as unknown as [string, string, string];
+    const ende = text.indexOf('};', kopf.index);
+    const rumpf = text.slice(kopf.index, ende);
+    if (!rumpf.includes(`.get(${param})`) || !rumpf.includes('panic!')) continue;
+    const funktion = funktionBei(kopf.index);
+    const naechste = funktionen.find((f) => f.ab > kopf.index)?.ab ?? text.length;
+    for (const aufruf of text
+      .slice(ende, naechste)
+      .matchAll(new RegExp(`\\b${name}\\("([^"]+)"\\)`, 'g'))) {
+      stellen.push({
+        schluessel: `${funktion}:${aufruf[1] as string}`,
+        zeile: zeileBei(ende + aufruf.index),
+      });
+    }
+  }
   for (const m of text.matchAll(
     /\.get\("([^"]+)"\)(?:\s*\.\s*and_then\([^()]*\))*\s*\.\s*(?:unwrap_or_else\(\s*\|\|\s*\{?\s*panic!|expect\()/g,
   )) {
@@ -115,6 +138,7 @@ describe('Pflichtfelder: build.rs gegen src/core/pflichtfelder.ts (#1055)', () =
       'emit_buff:factor', // .get().and_then().unwrap_or_else(|| panic!)
       'emit_energy:onTrigger', // .get().unwrap_or_else(|| { panic! … })
       'emit_fixation:$feld', // Feldname als Variable
+      'emit_laufbahn:pointsPerSecond', // örtlicher Helfer `gleitkomma("…")`
     ]) {
       expect(inBuild.has(bekannt), bekannt).toBe(true);
     }

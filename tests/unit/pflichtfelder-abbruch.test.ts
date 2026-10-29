@@ -15,15 +15,20 @@
  *
  * Der echte Lader `src/core/data.ts` wird je Fall neu geladen, mit EINER
  * veränderten Datendatei (`vi.doMock`). So läuft genau der Weg, auf dem
- * `CALCINATION`, `FIRST_CRUCIBLE`, `PLAYER` und `LEVELS` beim Spielstart
- * entstehen — nicht eine Nachbildung davon.
+ * `CALCINATION`, `FIRST_CRUCIBLE`, `PLAYER`, `LEVELS`, `REWARD`, `INSTANCES`
+ * und der Gegenstands-Katalog beim Spielstart entstehen — nicht eine
+ * Nachbildung davon. Dieselbe Regel galt für die drei letzten schon vorher
+ * („keine Inhaltsdatei, sondern eine Voraussetzung", `src/gear/catalog.ts`).
  */
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseSchool } from '../../src/core/data.js';
 import {
+  BELOHNUNG_PFLICHT,
   BOSS_PFLICHT,
   DATEI_PFLICHT,
+  GEGENSTAND_PFLICHT,
+  INSTANZ_PFLICHT,
   SCHUL_PFLICHT,
   SPIELER_PFLICHT,
   STUFEN_PFLICHT,
@@ -58,6 +63,8 @@ async function ladeMit(datei: string, inhalt: unknown): Promise<Error | null> {
   vi.doMock(`../../${datei}`, () => ({ default: inhalt }));
   try {
     await import('../../src/core/data.js');
+    // `data/items.json` liest der Gegenstands-Katalog, nicht `data.ts`.
+    await import('../../src/gear/catalog.js');
     return null;
   } catch (fehler) {
     return fehler as Error;
@@ -111,11 +118,21 @@ describe('Abbruch mit Feldnamen, wenn eine der Spiel-Dateien ein Pflichtfeld ver
     ...faelle('data/bosses/first-crucible.json', BOSS_PFLICHT),
     ...faelle('data/player/base.json', SPIELER_PFLICHT),
     ...faelle('data/player/levels.json', STUFEN_PFLICHT),
+    ...faelle('data/player/reward.json', BELOHNUNG_PFLICHT),
+    ...faelle('data/items.json', GEGENSTAND_PFLICHT),
+    ...faelle('data/instances.json', INSTANZ_PFLICHT),
   ];
 
   it('jede Tafel hat in ihrer Datei Träger', () => {
     const geprueft = new Set(alle.map(([, , eintrag]) => eintrag));
-    for (const tafel of [SCHUL_PFLICHT, SPIELER_PFLICHT, STUFEN_PFLICHT]) {
+    for (const tafel of [
+      SCHUL_PFLICHT,
+      SPIELER_PFLICHT,
+      STUFEN_PFLICHT,
+      BELOHNUNG_PFLICHT,
+      GEGENSTAND_PFLICHT,
+      INSTANZ_PFLICHT,
+    ]) {
       expect(tafel.filter((e) => !geprueft.has(e)).map((e) => e.pfad)).toEqual([]);
     }
     // Der Startboss trägt nicht jede Boss-Mechanik; die übrigen Felder prüft
