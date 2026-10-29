@@ -56,6 +56,13 @@ import sys
 WURZEL = pathlib.Path(__file__).resolve().parent.parent
 MINDEST_FREI_MB = 1500
 
+# Wo der Checkout liegt, wenn `--baum` fehlt — dort, wo `rota-fenster` Rollen
+# kennt (siehe oben). `ROTA_WORKTREES` ersetzt die Wurzel nur für Prüffälle: Sie
+# liefen sonst gegen das, was gerade auf der Platte liegt. Am 29.10. lag der
+# Checkout des echten Durchgangs dort, und drei Fälle wurden lokal rot, in der
+# CI (ohne /work) nicht.
+WORKTREES = pathlib.Path(os.environ.get("ROTA_WORKTREES") or "/work/rota-worktrees")
+
 
 def fenster_inhaber():
     """(Exit-Code, Inhaber, Abgabe liegt vor?, Rohtext) aus `rota-fenster status`.
@@ -140,7 +147,7 @@ def main():
                        f"/work/tmp/rota-1055-{art}{datetime.datetime.now():%Y%m%d-%H%M}").resolve()
     if aus.exists():
         return abbruch(f"{aus} existiert bereits — ein alter Nachweis darin sähe aus wie dieser Lauf")
-    baum = pathlib.Path(args.baum or f"/work/rota-worktrees/{args.rolle}-1055-"
+    baum = pathlib.Path(args.baum or WORKTREES / f"{args.rolle}-1055-"
                         f"{'probe' if args.probe else 'volllauf'}").resolve()
     if baum.exists():
         return abbruch(f"Checkout {baum} existiert bereits — erst `git worktree remove {baum}`")
