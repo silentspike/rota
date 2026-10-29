@@ -93,7 +93,11 @@ export class OverdriveTile {
     const hell = zustand !== OVERDRIVE_SPENT;
 
     ctx.fillStyle =
-      zustand === OVERDRIVE_ACTIVE ? FILL_ACTIVE : zustand === OVERDRIVE_READY ? FILL_READY : FILL_SPENT;
+      zustand === OVERDRIVE_ACTIVE
+        ? FILL_ACTIVE
+        : zustand === OVERDRIVE_READY
+          ? FILL_READY
+          : FILL_SPENT;
     ctx.fillRect(x, y, size, size);
 
     // Der Rand: voll, solange er bereit ist; im Fenster läuft er leer.

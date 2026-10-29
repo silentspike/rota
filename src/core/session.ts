@@ -1032,8 +1032,7 @@ export class Session implements Simulation {
    * der Anzeige und der dumpfe Ton.
    */
   private applyOverdrive(timeMs: number): void {
-    const gezuendet =
-      this.phaseValue === PHASE_FIGHTING && this.combat.igniteOverdrive(timeMs);
+    const gezuendet = this.phaseValue === PHASE_FIGHTING && this.combat.igniteOverdrive(timeMs);
     if (gezuendet) {
       this.overdriveAcceptedAt = timeMs;
       this.emit(EV_OVERDRIVE, NO_KEY, timeMs);

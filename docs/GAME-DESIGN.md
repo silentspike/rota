@@ -865,11 +865,11 @@ Rust-Simulator geteilt.
 
 ### 7.4 Die drei schulunabhängigen Sonderzauber
 
-| Zauber           | Leisten-Platz                | GCD          | Verfügbarkeit                      |
-| ---------------- | ---------------------------- | ------------ | ---------------------------------- |
-| **Unterbrechen** | belegt einen Platz           | **kein GCD** | eigene Abklingzeit                 |
+| Zauber           | Leisten-Platz                      | GCD          | Verfügbarkeit                      |
+| ---------------- | ---------------------------------- | ------------ | ---------------------------------- |
+| **Unterbrechen** | belegt einen Platz                 | **kein GCD** | eigene Abklingzeit                 |
 | **Overdrive**    | **kein Platz**, eigene Taste **G** | **kein GCD** | **einmal pro Kampf**, frei zündbar |
-| **Spellsteal**   | schulunabhängig              | —            | Fenster-abhängig                   |
+| **Spellsteal**   | schulunabhängig                    | —            | Fenster-abhängig                   |
 
 **Overdrive** (ersetzt „Bloodlust"): kurzer, starker Tempo-Schub. **Jede Zusammenstellung hat ihn**
 → das Zünden im richtigen Moment ist eine Fähigkeit, die jeder lernen muss, und er ist der
@@ -879,16 +879,16 @@ verlässliche Angelpunkt fürs Zusammenlegen der großen Fähigkeiten.
 > Auftraggebers vom 2026-10-29), angesprochen über die Stelle (`KeyG`), nicht über den Buchstaben.
 > Umschalt ändert nichts, Strg/Alt/Meta schon (8.1). Was gebaut ist:
 >
-> | Regel | Festlegung |
-> | --- | --- |
-> | Wirkung | **CATALYSIS** steigt, solange er wirkt — „kurzzeitig über Overdrive" (6.2). Damit wirkt er, wo Tempo wirkt: Abklingzeiten, Wirkzeiten, Kanalisierungen, DoT-Abstände, **nicht auf die globale Wartezeit** (6.2, 6.7) |
-> | Zahlen | **+30 % CATALYSIS für 20 s**, **vorläufig** und ungemessen; Herleitung in `data/player/base.json` (Masterplan „~20 s", Budget der Quellen „der größte Einzelbeitrag") |
-> | Fenster | halboffen, `[Zündung, Zündung + 20 s)` — im Takt des Zündens wirkt er, im Takt des Endes nicht mehr |
-> | Zweiter Druck | tut nichts — verlängert nicht, setzt nicht neu; er gilt als Fehleingabe (8.2) |
-> | Laufender Zauber | das Zünden **bricht ihn ab**, wie jede Wirkung (7.1, „Egal welcher Spell") |
-> | Vorbereitung | zündet **nicht**: Der Simulator kennt keine Vorbereitung, und Selbst-Verstärkungen vor dem Kampf (10) gibt es für keinen Zauber |
-> | Anzeige | eigene Kachel rechts neben der Leiste, mittlere Reihe: `READY` / Restsekunden mit leerlaufendem Rand / `SPENT`; darunter im Fenster der Zuschlag |
-> | Klang | `special-overdrive` auf `overdrive.ignite` |
+> | Regel            | Festlegung                                                                                                                                                                                                           |
+> | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | Wirkung          | **CATALYSIS** steigt, solange er wirkt — „kurzzeitig über Overdrive" (6.2). Damit wirkt er, wo Tempo wirkt: Abklingzeiten, Wirkzeiten, Kanalisierungen, DoT-Abstände, **nicht auf die globale Wartezeit** (6.2, 6.7) |
+> | Zahlen           | **+30 % CATALYSIS für 20 s**, **vorläufig** und ungemessen; Herleitung in `data/player/base.json` (Masterplan „~20 s", Budget der Quellen „der größte Einzelbeitrag")                                                |
+> | Fenster          | halboffen, `[Zündung, Zündung + 20 s)` — im Takt des Zündens wirkt er, im Takt des Endes nicht mehr                                                                                                                  |
+> | Zweiter Druck    | tut nichts — verlängert nicht, setzt nicht neu; er gilt als Fehleingabe (8.2)                                                                                                                                        |
+> | Laufender Zauber | das Zünden **bricht ihn ab**, wie jede Wirkung (7.1, „Egal welcher Spell")                                                                                                                                           |
+> | Vorbereitung     | zündet **nicht**: Der Simulator kennt keine Vorbereitung, und Selbst-Verstärkungen vor dem Kampf (10) gibt es für keinen Zauber                                                                                      |
+> | Anzeige          | eigene Kachel rechts neben der Leiste, mittlere Reihe: `READY` / Restsekunden mit leerlaufendem Rand / `SPENT`; darunter im Fenster der Zuschlag                                                                     |
+> | Klang            | `special-overdrive` auf `overdrive.ignite`                                                                                                                                                                           |
 >
 > **Eine Folge, die man kennen muss:** Ein Tempo-Vorteil auf Abklingzeiten zählt nur, wo er eine
 > Grenze der Wartezeit überspringt. CRUST (6 s) kommt unter Overdrive auf 4,62 s und ist trotzdem erst
@@ -963,7 +963,7 @@ Y  X  C  V      =  26 Belegungen
 | **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt**                                                                                                                                                       |
 | **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                                                                                                                                                                          |
 | **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                                                                                                                                                                            |
-| **Overdrive**                          | **Eigene Taste G**, rechts neben F, angesprochen über die Stelle (`KeyG`) — **keine** der 26 Belegungen, kein Platz der Leiste (Entscheidung vom 2026-10-29; 7.4)                                                                                                                                                                                                                                                                    |
+| **Overdrive**                          | **Eigene Taste G**, rechts neben F, angesprochen über die Stelle (`KeyG`) — **keine** der 26 Belegungen, kein Platz der Leiste (Entscheidung vom 2026-10-29; 7.4)                                                                                                                                                                                                                                                                     |
 | **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                                                                                                                                                                      |
 | **Keine Doppelbelegung**               | **Ein Zauber liegt auf höchstens einem Platz** (entschieden am 2026-08-05, Issue #287). Ein Platz ist knapp — 12 bis 16 bei 60 Zaubern —, und ihn zu verdoppeln verschenkt ihn. Die Auswahl bietet einen bereits gelegten Zauber nicht erneut an; ein Spielstand mit Doppelbelegung wird beim Laden bereinigt. **Folge für die Vorschau:** Die Zählung „wie viele Zauber zahlen je Mechanik ein" (Kapitel 16) stimmt damit von selbst |
 | **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                                                                                                                                                                       |
@@ -998,13 +998,13 @@ siehe 19.1.)
 
 ### 9.1 Anordnung
 
-| Bereich                  | Ort                          |
-| ------------------------ | ---------------------------- |
-| Zauberleiste             | **unten links**              |
-| Reaktionsgefäß-Ring      | Bildmitte                    |
-| Instrumente und Anzeigen | **rechts**                   |
-| Schul-Mechanik-Anzeigen  | direkt über der Zauberleiste |
-| Überdruck-Timer          | oben links                   |
+| Bereich                  | Ort                                                          |
+| ------------------------ | ------------------------------------------------------------ |
+| Zauberleiste             | **unten links**                                              |
+| Reaktionsgefäß-Ring      | Bildmitte                                                    |
+| Instrumente und Anzeigen | **rechts**                                                   |
+| Schul-Mechanik-Anzeigen  | direkt über der Zauberleiste                                 |
+| Überdruck-Timer          | oben links                                                   |
 | Overdrive-Anzeige        | rechts neben der Leiste, mittlere Reihe — wo G neben F liegt |
 
 **Die Leiste bildet die Tastatur nach:** obere Reihe `Q W E R`, mittlere `A S D F`, untere `Y X C V`.
