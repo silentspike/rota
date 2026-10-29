@@ -78,6 +78,11 @@ describe('Zauber-Datensätze', () => {
       spells: [
         {
           id: 'a',
+          name: 'a',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
           cooldownMs: 1000,
           dot: { tickDamage: 1, tickIntervalMs: 1000, durationMs: 2000, refreshMode: 'extend' },
         },
@@ -97,8 +102,24 @@ describe('Zauber-Datensätze', () => {
       school: 'X',
       resource: { id: 'r', name: 'R', cap: 1, decayPerStepMs: 1000, decayAmount: 1 },
       spells: [
-        { id: 'a', cooldownMs: 0 },
-        { id: 'a', cooldownMs: 0 },
+        {
+          id: 'a',
+          name: 'a',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
+          cooldownMs: 0,
+        },
+        {
+          id: 'a',
+          name: 'a',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
+          cooldownMs: 0,
+        },
       ],
     });
     expect(result.value.spells.length).toBe(1);
@@ -113,6 +134,11 @@ describe('Zauber-Datensätze', () => {
       spells: [
         {
           id: 'a',
+          name: 'a',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
           cooldownMs: 0,
           dot: { tickDamage: 1, tickIntervalMs: 2000, durationMs: 5000, refreshMode: 'reset' },
         },
@@ -126,9 +152,24 @@ describe('Zauber-Datensätze', () => {
       schema: 1,
       school: 'X',
       resource: { id: 'r', name: 'R', cap: 1, decayPerStepMs: 1000, decayAmount: 1 },
-      spells: [{ id: 'a', cooldownMs: 1500.5 }],
+      spells: [
+        {
+          id: 'a',
+          name: 'a',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
+          cooldownMs: 1500.5,
+        },
+      ],
     });
-    expect(result.problems.some((p) => p.includes('ganzzahlig'))).toBe(true);
+    // Seit #1055 im Wortlaut von `uint()` in `sim/build.rs`, und der Zauber
+    // wird verworfen — der Rust-Bau lehnt dieselbe Zahl ab.
+    expect(
+      result.problems.some((p) => p.includes('"cooldownMs" muss eine ganze Zahl >= 0 sein')),
+    ).toBe(true);
+    expect(result.value.spells).toEqual([]);
   });
 
   // ------------------------------------------------------ Issue #1104
@@ -142,7 +183,18 @@ describe('Zauber-Datensätze', () => {
       schema: 1,
       school: 'X',
       resource: { id: 'r', name: 'R', cap: 1, decayPerStepMs: 1000, decayAmount: 1 },
-      spells: [{ id: 'a', cooldownMs: 0, ...spell }],
+      spells: [
+        {
+          id: 'a',
+          name: 'a',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
+          cooldownMs: 0,
+          ...spell,
+        },
+      ],
     });
 
   it('meldet ein channelTickMs neben dem Raster', () => {

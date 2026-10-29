@@ -21,11 +21,30 @@ function pruefSchule(reductionMs: number): ReturnType<typeof parseSchool> {
     spells: [
       // Zwei Zauber mit langer Abklingzeit, an denen sich eine Verkürzung
       // ablesen lässt, und einer, der verkürzt.
-      { id: 'lang-a', name: 'A', cooldownMs: 10_000, baseDamage: 10 },
-      { id: 'lang-b', name: 'B', cooldownMs: 20_000, baseDamage: 10 },
+      {
+        id: 'lang-a',
+        unlockLevel: 1,
+        castTimeMs: 0,
+        triggersGcd: true,
+        name: 'A',
+        cooldownMs: 10_000,
+        baseDamage: 10,
+      },
+      {
+        id: 'lang-b',
+        unlockLevel: 1,
+        castTimeMs: 0,
+        triggersGcd: true,
+        name: 'B',
+        cooldownMs: 20_000,
+        baseDamage: 10,
+      },
       {
         id: 'kurz',
         name: 'Kurz',
+        unlockLevel: 1,
+        castTimeMs: 0,
+        triggersGcd: true,
         cooldownMs: 1500,
         baseDamage: 10,
         cooldownReductionMs: reductionMs,
@@ -52,7 +71,18 @@ describe('Die Verkürzung kommt aus den Daten (E3-3)', () => {
       schema: 1,
       school: 'CALCINATION',
       resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
-      spells: [{ id: 'x', cooldownMs: 1000, cooldownReductionMs: -5 }],
+      spells: [
+        {
+          id: 'x',
+          name: 'x',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
+          cooldownMs: 1000,
+          cooldownReductionMs: -5,
+        },
+      ],
     });
     expect(negativ.problems.join(' ')).toContain('Verkürzung ist negativ');
 
@@ -60,7 +90,18 @@ describe('Die Verkürzung kommt aus den Daten (E3-3)', () => {
       schema: 1,
       school: 'CALCINATION',
       resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
-      spells: [{ id: 'x', cooldownMs: 1000, cooldownReductionMs: 12.5 }],
+      spells: [
+        {
+          id: 'x',
+          name: 'x',
+          unlockLevel: 1,
+          baseDamage: 0,
+          castTimeMs: 0,
+          triggersGcd: true,
+          cooldownMs: 1000,
+          cooldownReductionMs: 12.5,
+        },
+      ],
     });
     expect(krumm.problems.join(' ')).toContain('nicht ganzzahlig');
   });

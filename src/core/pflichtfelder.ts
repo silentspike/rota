@@ -159,6 +159,7 @@ export const ZAUBER_PFLICHT: readonly Pflichtfeld[] = [
 
 /** Ein Boss, aus jeder Datei unter `data/bosses/` (`emit_boss` und darunter). */
 export const BOSS_PFLICHT: readonly Pflichtfeld[] = [
+  { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
   { pfad: 'id', art: 'text', rust: ['emit_boss:id'] },
   { pfad: 'name', art: 'text', rust: ['emit_boss:name'] },
   { pfad: 'instance', art: 'text', rust: ['emit_boss:instance', 'pruefe_instanz:instance'] },

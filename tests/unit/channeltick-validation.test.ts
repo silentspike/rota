@@ -43,7 +43,15 @@ describe('invalid channel tick cannot reach the combat loop (#1055)', () => {
   });
 
   it('allows a nonchannel spell to omit both channel fields', () => {
-    const spell = { id: 'instant', baseDamage: 10, castTimeMs: 0, cooldownMs: 0 };
+    const spell = {
+      id: 'instant',
+      name: 'instant',
+      unlockLevel: 1,
+      triggersGcd: true,
+      baseDamage: 10,
+      castTimeMs: 0,
+      cooldownMs: 0,
+    };
     const parsed = parseSchool({ ...rawSchool, spells: [spell] });
     expect(parsed.problems).toEqual([]);
     expect(parsed.value.spells.map((entry) => entry.id)).toEqual(['instant']);

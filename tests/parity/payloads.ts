@@ -5151,12 +5151,37 @@ export function cooldownResetPayload(): Record<string, unknown> {
     school: 'CALCINATION',
     resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
     spells: [
-      { id: 'lang', name: 'Lang', cooldownMs: 30_000, baseDamage: 50 },
-      { id: 'kurz', name: 'Kurz', cooldownMs: 1500, baseDamage: 10 },
+      {
+        id: 'lang',
+        name: 'Lang',
+        unlockLevel: 1,
+        cooldownMs: 30_000,
+        baseDamage: 50,
+        castTimeMs: 0,
+        triggersGcd: true,
+      },
+      {
+        id: 'kurz',
+        name: 'Kurz',
+        unlockLevel: 1,
+        cooldownMs: 1500,
+        baseDamage: 10,
+        castTimeMs: 0,
+        triggersGcd: true,
+      },
       // Kurze Abklingzeit, damit die Folge ihn ZWEIMAL benutzen kann — einmal
       // in die Selbstwahl, einmal in den Treffer. Die echte Zahl steht noch
       // nicht fest (Issue #102, „eigene Abklingzeit: offen").
-      { id: 'reset', name: 'Reset', cooldownMs: 3000, baseDamage: 0, cooldownResetCharges: 1 },
+      {
+        id: 'reset',
+        name: 'Reset',
+        unlockLevel: 1,
+        cooldownMs: 3000,
+        baseDamage: 0,
+        castTimeMs: 0,
+        triggersGcd: true,
+        cooldownResetCharges: 1,
+      },
     ],
   });
   if (school.problems.length > 0) throw new Error(school.problems.join(' '));
