@@ -461,6 +461,16 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
             })
             .collect(),
     };
+    bewerte(config, apl)
+}
+
+/// Misst eine fertige Liste mit derselben Wertung wie die Suche (#891 N1).
+///
+/// [`measure`] setzt die Liste aus Kandidatenzeilen zusammen und ruft diese
+/// Funktion. Wer eine Handschrift neben eine gefundene Liste stellt, braucht
+/// dieselbe Zahl — sonst vergleicht er zwei Größen.
+#[must_use]
+pub fn bewerte(config: &BalanceConfig, apl: Apl) -> Measured {
     let result = crate::balance::run(config, &apl);
     // **Verhinderter Schaden zaehlt mit** (Issue #472).
     //
