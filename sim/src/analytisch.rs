@@ -263,15 +263,24 @@ impl Abhaengigkeitsmaske {
     /// Die Maske für diese Rotation gegen den Boss der Konfiguration.
     #[must_use]
     pub fn ableiten(config: &BalanceConfig, apl: &Apl) -> Self {
-        // ROTER STAND (#920): die Prüfung von main. Alle würfelnden Knoten der
-        // Beschreibung, keine Bossseite, keine Rotation — nur `stop_on_kill`.
-        let _ = apl;
-        let knoten: Vec<&EffectNode> = EFFECT_NODES.iter().collect();
-        let leser = if config.stop_on_kill {
-            vec![(Fundstelle::AbbruchBeimSieg, StateMask::BOSS_HP)]
-        } else {
-            Vec::new()
-        };
+        let mut knoten: Vec<&'static EffectNode> = Vec::new();
+        let mut leser = leser_des_laufs(config, apl);
+        let zauber = knoten_je_zauber();
+        let mut genannt = [false; crate::data::SPELL_COUNT];
+        for regel in &apl.rules {
+            // Ein Zauber, der zweimal in der Liste steht, bringt seine Knoten
+            // einmal — die Maske fragt, WAS gelesen wird, nicht wie oft.
+            if !std::mem::replace(&mut genannt[regel.spell], true) {
+                knoten.extend(zauber[regel.spell].iter().copied());
+            }
+        }
+        match knoten_des_bosses(config.boss) {
+            Some(des_bosses) => knoten.extend(des_bosses.iter().copied()),
+            None => leser.push((
+                Fundstelle::BossOhneBeschreibung(config.boss.id),
+                StateMask::UNKNOWN,
+            )),
+        }
         Self::aus_teilen(&knoten, &leser, &config.worn)
     }
 
@@ -344,7 +353,31 @@ fn befund_fuer(
         };
     }
 
-    // ROTER STAND (#920): keine Fortpflanzung über lesende Knoten.
+    // Stufe 2 — die Fortpflanzung, bis nichts mehr dazukommt.
+    let mut gemeldet = vec![false; knoten.len()];
+    loop {
+        let vorher = veraendert;
+        for (i, n) in knoten.iter().enumerate() {
+            // Ein Auslöser, den ein Krit auslösen kann, liest den Ausgang
+            // unmittelbar — auch ohne einen gemeinsamen Zustand.
+            let liest =
+                n.reads.intersects(veraendert) || kann_durch_krit_ausgeloest_werden(n.trigger);
+            if !liest {
+                continue;
+            }
+            if n.control_flow_effect.verzweigt() {
+                if !gemeldet[i] {
+                    gemeldet[i] = true;
+                    verzweigt_an.push(Fundstelle::Knoten(n.origin));
+                }
+            } else {
+                veraendert = veraendert.union(ohne_stromzustand(n.writes));
+            }
+        }
+        if veraendert == vorher {
+            break;
+        }
+    }
 
     // Stufe 3 — die Leser außerhalb der Beschreibung.
     for (stelle, liest) in leser {
@@ -523,9 +556,7 @@ pub fn kann_ausintegrieren(
     gefragt: Ergebnisgroesse,
     maske: &Abhaengigkeitsmaske,
 ) -> bool {
-    // ROTER STAND (#920): einstellig — die gefragte Größe zählt nicht.
-    let _ = gefragt;
-    !beruehrt_den_kontrollfluss(quelle, maske)
+    !beruehrt_den_kontrollfluss(quelle, maske) && gefragt.ist_linear()
 }
 
 // ------------------------------------------------- die Aufteilung (AC4)
@@ -591,18 +622,20 @@ impl StochastischeAufteilung {
             gefragt,
             gueltigkeitsnachweis: Vec::with_capacity(Stream::ALL.len()),
         };
-        // ROTER STAND (#920): ein globales Ja oder Nein für alle Quellen.
-        let ja = maske
-            .befunde()
-            .iter()
-            .all(|b| kann_ausintegrieren(b.quelle, gefragt, maske));
         for befund in maske.befunde() {
-            let begruendung = if ja {
-                aufteilung.ausintegriert = RandomSourceMask::ALLE;
-                Begruendung::Ausintegriert(befund.veraendert)
-            } else {
-                aufteilung.gezogen = RandomSourceMask::ALLE;
+            let eine = RandomSourceMask::einer(befund.quelle);
+            let begruendung = if !befund.zieht {
+                aufteilung.ruhend = aufteilung.ruhend.union(eine);
+                Begruendung::Ruht
+            } else if befund.beruehrt_den_kontrollfluss() {
+                aufteilung.gezogen = aufteilung.gezogen.union(eine);
                 Begruendung::Kontrollfluss(befund.verzweigt_an.clone())
+            } else if !kann_ausintegrieren(befund.quelle, gefragt, maske) {
+                aufteilung.gezogen = aufteilung.gezogen.union(eine);
+                Begruendung::NichtLinear(gefragt)
+            } else {
+                aufteilung.ausintegriert = aufteilung.ausintegriert.union(eine);
+                Begruendung::Ausintegriert(befund.veraendert)
             };
             aufteilung
                 .gueltigkeitsnachweis

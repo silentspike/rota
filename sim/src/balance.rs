@@ -1798,8 +1798,12 @@ fn waehle(
     if crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn) {
         return (Durchgangswahl::EinDurchgang, None);
     }
-    // ROTER STAND (#920): kein dritter Weg.
-    let _ = (apl, gefragt);
+    if crate::analytisch::ausintegration_erlaubt() {
+        let aufteilung = crate::analytisch::StochastischeAufteilung::fuer(config, apl, gefragt);
+        if aufteilung.analytisch() {
+            return (Durchgangswahl::Analytisch, Some(aufteilung));
+        }
+    }
     (Durchgangswahl::Gestaffelt, None)
 }
 
