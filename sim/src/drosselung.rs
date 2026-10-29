@@ -393,6 +393,10 @@ impl ControlFileWatcher {
 
     #[must_use]
     /// Observe accepted/rejected reads independently of compute progress.
+    ///
+    /// A change reaches `RuntimeControl` before it is counted here, so a live
+    /// reader can see the new policy while `applied_updates` still lags by one.
+    /// The counts are final once [`Self::stop`] has joined the watcher thread.
     pub fn status(&self) -> WatchStatus {
         self.state
             .0
