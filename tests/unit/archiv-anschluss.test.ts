@@ -13,12 +13,12 @@
  * Das stimmte: Es gab keinen einzigen `ArchiveEntry` und keinen Ort im
  * Spielstand für `unlockedEntryIds`.
  *
- * # Was hier NICHT entsteht
+ * # Katalog und Prüfdaten
  *
- * Die ~150 echten Texte. Sie sind ausdrücklich E10 (Issue-Text und
- * GAME-DESIGN 2620). Die Einträge in `data/archive/test-entries.json` sind
- * **Prüfdaten** in der Bauart von `test-set` und `test-channel`: erkennbar
- * Prüfung, über das Präfix `test-` von der ausgelieferten Liste getrennt.
+ * Bis #1177 entstanden hier keine echten Texte; die Fälle liefen über die
+ * Prüfeinträge in `data/archive/test-entries.json`. Seitdem liest das Spiel
+ * den Katalog `data/archive/archive.json`, und diese Fälle mit ihm — die
+ * Prüfeinträge stehen nur noch im Entwicklungs-Bau (`TEST_ARCHIVE_ENTRIES`).
  *
  * # Ein flüchtiger roter Lauf, und was die Nachmessung ergab
  *
@@ -52,7 +52,8 @@ import { bossById, CALCINATION, type BossDef } from '../../src/core/data.js';
 import { OUTCOME_VICTORY, OUTCOME_WIPE } from '../../src/core/phases.js';
 import { Session } from '../../src/core/session.js';
 import { PressQueue } from '../../src/input/queue.js';
-import { ALL_ARCHIVE_ENTRIES, PLAYABLE_ARCHIVE_ENTRIES } from '../../src/analysis/archive-data.js';
+import { RunPersistence } from '../../src/analysis/run-persistence.js';
+import { PLAYABLE_ARCHIVE_ENTRIES, TEST_ARCHIVE_ENTRIES } from '../../src/analysis/archive-data.js';
 import {
   ARCHIVE_VOICES,
   buildArchive,
@@ -84,23 +85,26 @@ beforeEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('AC0 — ZUSICHERUNG: es gibt Einträge, und sie sind Prüfdaten', () => {
-  it('vier Einträge, alle mit dem Präfix `test-`', () => {
-    expect(ALL_ARCHIVE_ENTRIES.length).toBeGreaterThanOrEqual(4);
-    expect(ALL_ARCHIVE_ENTRIES.every((e) => e.id.startsWith('test-'))).toBe(true);
+describe('AC0 — ZUSICHERUNG: es gibt Einträge, und Prüfdaten stehen getrennt', () => {
+  it('die Prüfeinträge: mindestens vier, alle mit dem Präfix `test-`', () => {
+    expect(TEST_ARCHIVE_ENTRIES.length).toBeGreaterThanOrEqual(4);
+    expect(TEST_ARCHIVE_ENTRIES.every((e) => e.id.startsWith('test-'))).toBe(true);
   });
 
-  it('und die ausgelieferte Liste ist deshalb LEER', () => {
-    // Kein Fehler, sondern der Stand: Der Katalog-Inhalt gehört zu E10. Diese
-    // Zeile fällt, sobald er kommt — und dann ist sie der Anlass, den
-    // Vermerk in `archive-data.ts` zu prüfen.
-    expect(PLAYABLE_ARCHIVE_ENTRIES).toHaveLength(0);
+  it('die ausgelieferte Liste ist der Katalog — gefüllt und ohne Prüfeintrag', () => {
+    // **Bis #1177 stand hier „und die ausgelieferte Liste ist deshalb LEER"**,
+    // mit dem Vermerk, die Zeile falle, sobald der Katalog kommt, und sei dann
+    // der Anlass, `archive-data.ts` zu prüfen. Er ist gekommen; Aufzeichnung
+    // und Ansicht lesen seitdem `PLAYABLE_ARCHIVE_ENTRIES`. Was der Katalog
+    // gegen den Plan trägt, misst `archiv-katalog.test.ts`.
+    expect(PLAYABLE_ARCHIVE_ENTRIES.length).toBeGreaterThan(0);
+    expect(PLAYABLE_ARCHIVE_ENTRIES.filter((e) => e.id.startsWith('test-'))).toEqual([]);
   });
 
   it('alle vier Stimmen aus 17.4 sind vertreten', () => {
     // Sonst prüfte die Ansicht nur eine Sorte, und die Gliederung nach Stimme
     // wäre unbelegt.
-    const stimmen = new Set(ALL_ARCHIVE_ENTRIES.map((e) => e.voice));
+    const stimmen = new Set(PLAYABLE_ARCHIVE_ENTRIES.map((e) => e.voice));
     for (const stimme of ARCHIVE_VOICES) {
       expect(stimmen, `die Stimme ${stimme} fehlt`).toContain(stimme);
     }
@@ -116,24 +120,24 @@ describe('AC1 — ein Eintrag erscheint EINMAL, danach nie wieder', () => {
   };
 
   it('beim ersten Sieg steht er da', () => {
-    const eintrag = nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, leer, kontext);
+    const eintrag = nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, leer, kontext);
     expect(eintrag, 'kein Eintrag beim ersten Sieg').not.toBeNull();
     expect(eintrag?.bossId).toBe('boss-1-1');
   });
 
   it('beim ZWEITEN nicht mehr', () => {
-    const erster = nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, leer, kontext);
+    const erster = nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, leer, kontext);
     const danach = unlock(leer, erster?.id ?? '');
-    expect(nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, danach, kontext)).toBeNull();
+    expect(nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, danach, kontext)).toBeNull();
   });
 
   it('aber im Archiv ist er weiterhin auffindbar', () => {
     // Der zweite Halbsatz aus 17.4: „danach nie wieder automatisch, aber
     // jederzeit im Archiv nachlesbar." Ohne diesen Fall bewiese der obige
     // nur, dass der Eintrag verschwindet.
-    const erster = nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, leer, kontext);
+    const erster = nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, leer, kontext);
     const danach = unlock(leer, erster?.id ?? '');
-    const abschnitte = buildArchive(ALL_ARCHIVE_ENTRIES, danach);
+    const abschnitte = buildArchive(PLAYABLE_ARCHIVE_ENTRIES, danach);
     // `buildArchive` zeigt NUR Freigeschaltetes — ein gesperrter Eintrag
     // erscheint nicht einmal als graue Zeile, weil das eine Ankündigung wäre.
     const gefunden = abschnitte.flatMap((x) => x.entries).some((e) => e.id === erster?.id);
@@ -144,8 +148,8 @@ describe('AC1 — ein Eintrag erscheint EINMAL, danach nie wieder', () => {
     // Die Zuordnung: `nextAutomaticEntry` vergleicht `bossId`. Ohne diesen
     // Fall wäre nicht belegt, dass sie greift — ein Eintrag für jeden Boss
     // sähe genauso aus.
-    const eins = nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, leer, kontext);
-    const zwei = nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, leer, {
+    const eins = nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, leer, kontext);
+    const zwei = nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, leer, {
       ...kontext,
       bossId: 'boss-1-2',
     });
@@ -164,21 +168,28 @@ describe('AC2 — die Ansicht ist im Spiel erreichbar', () => {
     expect(text, 'der Abschnitt Archive fehlt im Player Home').toContain('ARCHIVE');
   });
 
-  it('bei frischem Stand steht dort der leere Hinweis — nicht ein Eintrag', () => {
+  it('bei frischem Stand steht dort nur, was der Spieler kennt — kein Boss-Eintrag', () => {
     // **Und das ist richtig so**: Das Archiv zeigt nur Freigeschaltetes. Ein
     // gesperrter Eintrag als graue Zeile wäre eine Ankündigung von Inhalten,
     // die der Spieler noch nicht erreicht hat.
+    //
+    // Bis #1177 stand hier „der leere Hinweis". Seitdem kommen die Einträge
+    // der Start-Zauber still ins Archiv (`archiv-funde.test.ts`) — leer ist
+    // ein frisches Archiv also nicht mehr. Die Aussage bleibt dieselbe und
+    // wird schärfer: kein Eintrag zu einem Boss, den niemand besiegt hat.
     const app = baueApp();
     expect(app).toBeDefined();
-    const text = document.body.textContent ?? '';
-    expect(text).toContain('Nothing recorded yet');
-    expect(text).not.toContain('Test Entry');
+    const archiv = document.querySelector('.archive')?.textContent ?? '';
+    const zumSieg = PLAYABLE_ARCHIVE_ENTRIES.filter((e) => e.trigger === 'afterFirstKill');
+    expect(zumSieg.length).toBeGreaterThan(0);
+    for (const eintrag of zumSieg) expect(archiv, eintrag.id).not.toContain(eintrag.body);
+    expect(archiv).not.toContain('Test Entry');
   });
 
   it('nach einer Freischaltung steht der Eintrag im Dokument', () => {
     // Der eigentliche Nachweis: Die Ansicht liest den Spielstand und zeigt,
     // was darin steht. Ohne den Anschluss in `app.ts` bliebe es beim Hinweis.
-    const erster = ALL_ARCHIVE_ENTRIES[0];
+    const erster = PLAYABLE_ARCHIVE_ENTRIES.find((e) => e.trigger === 'afterFirstKill');
     expect(erster).toBeDefined();
     const app = baueApp();
     app.persistence.persistUnlockedEntries([erster?.id ?? '']);
@@ -187,15 +198,33 @@ describe('AC2 — die Ansicht ist im Spiel erreichbar', () => {
     document.body.innerHTML = '';
     const zweite = baueApp();
     expect(zweite).toBeDefined();
-    const text = document.body.textContent ?? '';
-    expect(text, 'der freigeschaltete Eintrag steht nicht im Dokument').toContain('Test Entry');
+    const text = document.querySelector('.archive')?.textContent ?? '';
+    expect(text, 'der freigeschaltete Eintrag steht nicht im Dokument').toContain(
+      erster?.title ?? '<kein Eintrag>',
+    );
   });
 });
 
 describe('AC3 — der Spielstand führt die Kennungen und wandert', () => {
   it('ein frischer Stand beginnt mit einer leeren Liste', () => {
+    // **Der Spielstand selbst**, ohne App darum: leer. Bis #1177 stand hier
+    // die App, und beides war dasselbe.
+    const stand = new RunPersistence('0.0.0', () => 0);
+    expect(stand.state.unlockedEntryIds).toEqual([]);
+  });
+
+  it('und die App legt darin nur ab, was der Spieler schon kennt', () => {
+    // Seit #1177 kommen die Einträge der Start-Zauber und ihrer Schule still
+    // ins Archiv, sobald die App steht (`archiv-funde.test.ts`). Die Aussage
+    // von vorher bleibt erhalten und wird schärfer: Kein Eintrag zu einem Sieg,
+    // einer Instanz oder einem Fund, den es nicht gab.
     const app = baueApp();
-    expect(app.persistence.state.unlockedEntryIds).toEqual([]);
+    const frei = new Set(app.persistence.state.unlockedEntryIds);
+    const nichtErreicht = PLAYABLE_ARCHIVE_ENTRIES.filter(
+      (e) => e.trigger !== 'spellLearned' && e.trigger !== 'schoolLearned' && frei.has(e.id),
+    );
+    expect(nichtErreicht.map((e) => e.id)).toEqual([]);
+    expect(frei.size, 'ZUSICHERUNG: die Start-Zauber stehen drin').toBeGreaterThan(0);
   });
 
   it('und ein Stand OHNE das Feld lädt trotzdem', () => {
@@ -264,7 +293,7 @@ describe('AC4 — der SIEG schaltet frei, nicht die Ansicht', () => {
     const summary = { ...kurzfassung(), victory: true };
     const ergebnis = recordRun(LEER, summary, OUTCOME_VICTORY, KONTEXT);
     expect(ergebnis.unlockedEntryIds, 'der Sieg hat nichts freigeschaltet').toHaveLength(1);
-    expect(ergebnis.unlockedEntryIds[0]).toBe('test-after-kill');
+    expect(ergebnis.unlockedEntryIds[0]).toBe('boss-1-1-first-kill');
   });
 
   it('eine NIEDERLAGE schaltet nichts frei', () => {
@@ -295,7 +324,7 @@ describe('AC4 — der SIEG schaltet frei, nicht die Ansicht', () => {
       ...KONTEXT,
       bossId: 'boss-1-2',
     });
-    expect(ergebnis.unlockedEntryIds).toEqual(['test-device-log']);
+    expect(ergebnis.unlockedEntryIds).toEqual(['boss-1-2-first-kill']);
   });
 });
 
@@ -313,7 +342,8 @@ describe('AC5 — die zwei Stellen, die der Browser gefunden hat', () => {
    * gesetzt, `unlockedEntryIds` **leer**. Und nachdem die Ablage stand: im
    * Stand gesetzt, Archiv trotzdem leer — bis zum Neuladen.
    */
-  const EINTRAG = 'test-prologue-kill';
+  const EINTRAG = 'first-crucible-first-kill';
+  const TITEL = 'A Crack in the Crucible';
 
   it('persist legt die freigeschalteten Kennungen wirklich ab', () => {
     const app = baueApp();
@@ -339,14 +369,14 @@ describe('AC5 — die zwei Stellen, die der Browser gefunden hat', () => {
 
   it('und das Player Home zeigt ihn ohne Neuladen', () => {
     const app = baueApp();
-    // Vorher steht dort der leere Hinweis.
-    expect(document.body.textContent ?? '').toContain('Nothing recorded yet');
+    // Vorher steht er dort nicht.
+    expect(document.querySelector('.archive')?.textContent ?? '').not.toContain(TITEL);
 
-    app.persistence.persistUnlockedEntries([EINTRAG]);
+    app.persistence.persistUnlockedEntries([...app.persistence.state.unlockedEntryIds, EINTRAG]);
     app.openHome();
 
-    const text = document.body.textContent ?? '';
-    expect(text, 'das Archiv wurde beim Öffnen nicht aufgefrischt').toContain('Prologue Victory');
+    const text = document.querySelector('.archive')?.textContent ?? '';
+    expect(text, 'das Archiv wurde beim Öffnen nicht aufgefrischt').toContain(TITEL);
   });
 });
 
@@ -403,7 +433,7 @@ describe('AC1 von #85 — der Eintrag ERSCHEINT beim ersten Sieg, beim zweiten n
 
     const fenster = document.querySelector('.archive-popup');
     expect(fenster, 'kein Fenster nach dem ersten Sieg').not.toBeNull();
-    expect(fenster?.textContent).toContain('Prologue Victory');
+    expect(fenster?.textContent).toContain('A Crack in the Crucible');
     // Die Knöpfe aus der Entscheidung (GAME-DESIGN 20.5 Punkt 6).
     expect(fenster?.querySelector('.intro-continue')).not.toBeNull();
     expect(fenster?.querySelector('.intro-skip')).not.toBeNull();
