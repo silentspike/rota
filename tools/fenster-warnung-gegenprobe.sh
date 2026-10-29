@@ -121,17 +121,20 @@ if [ -z "$MEINE_ROLLE" ]; then
   exit 2
 fi
 
-setze_stand() {
-  python3 - "$PROBESTAND" "$1" "$2" <<'PYTHON'
+setze_stand() {   # inhaber  abgabe  [ort — leer: Schalter von vor dem Ort]
+  python3 - "$PROBESTAND" "$1" "$2" "${3:-}" <<'PYTHON'
 import json, sys
-pfad, inhaber, abgabe = sys.argv[1], sys.argv[2], sys.argv[3]
-json.dump({
+pfad, inhaber, abgabe, ort = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+stand = {
     "inhaber": inhaber or None,
     "zweck": "Gegenprobe zu #1049 — kein echter Lauf",
     "seit": "22.08. 00:00:00",
     "abgabe": abgabe or None,
     "kennung": "session-gegenprobe",
-}, open(pfad, "w"), indent=2, ensure_ascii=False)
+}
+if ort:
+    stand["ort"] = ort
+json.dump(stand, open(pfad, "w"), indent=2, ensure_ascii=False)
 PYTHON
 }
 
@@ -160,7 +163,7 @@ if [ "$MEINE_ROLLE" = "Worker-1" ]; then FREMD=Worker-2; else FREMD=Worker-1; fi
 # ohne `rota-fenster`. Jedes Mal war die ZAHL der grünen Richtungen
 # unauffällig. Es fehlte keine Richtung — es fehlte eine EIGENSCHAFT, die
 # keine Richtung variiert hat.
-EIGENSCHAFTEN="inhaber abgabe eigene-rolle umgebung stand-vorhanden stand-lesbar zweck-laenge"
+EIGENSCHAFTEN="inhaber abgabe eigene-rolle umgebung stand-vorhanden stand-lesbar zweck-laenge ort"
 VARIIERT=""
 
 fehler=0
@@ -251,6 +254,17 @@ pruefe "kurzer PATH, aber Werkzeug da" warnt "$F" umgebung
 pruefe "Standdatei fehlt ganz" unlesbar "$G" stand-vorhanden
 pruefe "Standdatei da, aber kaputtes JSON" unlesbar "$H" stand-lesbar
 pruefe "sehr langer Zweck wird gekuerzt" warnt "$I" zweck-laenge
+# Der Ort (rota-fenster --ort, rota#1049): npm-Läufe sind lokale Last und
+# erreichen eine Messung auf node3 nicht; dort stört nur der Bau-Dienst.
+setze_stand "$FREMD" "" node3
+J="$(ROTA_FENSTER_STAND="$PROBESTAND" bash "$WARNUNG" 2>&1)"
+setze_stand "$FREMD" "" laptop
+K="$(ROTA_FENSTER_STAND="$PROBESTAND" bash "$WARNUNG" 2>&1)"
+setze_stand "$FREMD" "" mars
+L="$(ROTA_FENSTER_STAND="$PROBESTAND" bash "$WARNUNG" 2>&1)"
+pruefe "fremdes Fenster auf node3" still "$J" ort
+pruefe "fremdes Fenster, Ort laptop" warnt "$K" ort
+pruefe "fremdes Fenster, Ort unbekannt" unlesbar "$L" ort
 
 if [ "$G_EXIT" -ne 0 ]; then
   echo "  FEHLER: der Fall 'Datei fehlt' endete mit Exit $G_EXIT — die" >&2
@@ -334,7 +348,7 @@ if [ -n "$FEHLEND" ]; then
   echo "  Die geprueften Richtungen sind alle wie erwartet ausgegangen. Aber"
   echo "  ueber die genannte(n) Eigenschaft(en) sagt dieser Lauf NICHTS."
 else
-  echo "BESTANDEN: warnt in drei Faellen, schweigt in vier, meldet in zwei"
+  echo "BESTANDEN: warnt in vier Faellen, schweigt in fuenf, meldet in drei"
   echo "  'nicht lesbar'. Die vier stillen sind die wichtigeren — ein Melder,"
   echo "  der immer anschlaegt, bestuende die drei ersten ebenfalls."
 fi
