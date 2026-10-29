@@ -217,6 +217,8 @@ import {
   effluxPayload,
   kritPayload,
 } from './payloads.js';
+import eingecheckteLaufbahnRegeln from './recordings/laufbahn-regeln.json';
+import { laufbahnRegelnPayload } from './laufbahn-regeln.js';
 
 const HINWEIS =
   'Die Datei ist nicht mehr aktuell. Neu schreiben mit:\n' +
@@ -226,6 +228,13 @@ const HINWEIS =
 describe('Gemeinsame Vergleichsdateien', () => {
   it('die Produktionsbosse behalten ihre gemessenen Phasenbindungen', () => {
     expect(productionPhases, HINWEIS).toEqual(productionPhasesPayload());
+  });
+
+  it('die Regeln über dem Kampf entsprechen dem heutigen Spielstand (#922)', () => {
+    // Beute, Aufwertung, Punkte, Erfahrung, Freischaltung und getragene Werte —
+    // die Fortschritts-Simulation rechnet sie nach. Veraltet diese Datei, prüft
+    // `parity_laufbahn_regeln.rs` gegen Regeln, die das Spiel nicht mehr hat.
+    expect(eingecheckteLaufbahnRegeln, HINWEIS).toEqual(laufbahnRegelnPayload());
   });
 
   it('die aufgezeichnete Runde entspricht dem heutigen Spielstand', () => {
@@ -978,6 +987,7 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'deckel-gefallen',
   'phasen-bindung',
   'production-phase-bindings',
+  'laufbahn-regeln',
   'gear',
   'sets',
   'player-damage',
