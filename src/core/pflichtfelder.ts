@@ -160,9 +160,13 @@ export const ZAUBER_PFLICHT: readonly Pflichtfeld[] = [
 /** Ein Boss, aus jeder Datei unter `data/bosses/` (`emit_boss` und darunter). */
 export const BOSS_PFLICHT: readonly Pflichtfeld[] = [
   { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
-  { pfad: 'id', art: 'text', rust: ['emit_boss:id'] },
+  { pfad: 'id', art: 'text', rust: ['emit_boss:id', 'emit_laufbahn:id'] },
   { pfad: 'name', art: 'text', rust: ['emit_boss:name'] },
-  { pfad: 'instance', art: 'text', rust: ['emit_boss:instance', 'pruefe_instanz:instance'] },
+  {
+    pfad: 'instance',
+    art: 'text',
+    rust: ['emit_boss:instance', 'pruefe_instanz:instance', 'emit_laufbahn:instance'],
+  },
   { pfad: 'hp', art: 'ganzzahl', rust: ['emit_boss:hp'] },
   { pfad: 'overpressureMs', art: 'ganzzahl', rust: ['emit_boss:overpressureMs'] },
   { pfad: 'timeline[].atMs', art: 'ganzzahl', rust: ['emit_timeline:atMs'] },
@@ -241,8 +245,40 @@ export const SPIELER_PFLICHT: readonly Pflichtfeld[] = [
 /** `data/player/levels.json` (`emit_levels`). */
 export const STUFEN_PFLICHT: readonly Pflichtfeld[] = [
   { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
-  { pfad: 'maxLevel', art: 'ganzzahl', rust: ['emit_levels:maxLevel'] },
+  { pfad: 'maxLevel', art: 'ganzzahl', rust: ['emit_levels:maxLevel', 'emit_laufbahn:maxLevel'] },
   { pfad: 'factorPerMille', art: 'liste', rust: ['emit_levels:factorPerMille'] },
+  { pfad: 'xpPerBossLevel', art: 'ganzzahl', rust: ['emit_laufbahn:xpPerBossLevel'] },
+  { pfad: 'xpToNextLevel', art: 'liste', rust: ['emit_laufbahn:xpToNextLevel'] },
+];
+
+/** `data/player/reward.json` (`emit_laufbahn`, die Zahlen über dem Kampf, #922). */
+export const BELOHNUNG_PFLICHT: readonly Pflichtfeld[] = [
+  { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
+  { pfad: 'falloffPerMille', art: 'liste', rust: ['emit_laufbahn:falloffPerMille'] },
+  // Gelesen über den Helfer `gleitkomma` in `emit_laufbahn`.
+  { pfad: 'pointsPerSecond', art: 'zahl', rust: ['emit_laufbahn:pointsPerSecond'] },
+  { pfad: 'pointsExponent', art: 'zahl', rust: ['emit_laufbahn:pointsExponent'] },
+  { pfad: 'heldPointsPerPercent', art: 'zahl', rust: ['emit_laufbahn:heldPointsPerPercent'] },
+  { pfad: 'repeatPerMille', art: 'zahl', rust: ['emit_laufbahn:repeatPerMille'] },
+];
+
+/** `data/items.json` (`emit_laufbahn`). */
+export const GEGENSTAND_PFLICHT: readonly Pflichtfeld[] = [
+  { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
+  { pfad: 'dropChancePerMille', art: 'ganzzahl', rust: ['emit_laufbahn:dropChancePerMille'] },
+  { pfad: 'items', art: 'liste', rust: ['emit_laufbahn:items'] },
+  { pfad: 'items[].id', art: 'text', rust: ['emit_laufbahn:id'] },
+  { pfad: 'items[].itemLevel', art: 'ganzzahl', rust: ['emit_laufbahn:itemLevel'] },
+  { pfad: 'items[].quality', art: 'ganzzahl', rust: ['emit_laufbahn:quality'] },
+  { pfad: 'items[].slot', art: 'ganzzahl', rust: ['emit_laufbahn:slot'] },
+];
+
+/** `data/instances.json` (`emit_laufbahn`). */
+export const INSTANZ_PFLICHT: readonly Pflichtfeld[] = [
+  { pfad: 'schema', art: 'ganzzahl', rust: ['read_json_at:schema'] },
+  { pfad: 'instances', art: 'liste', rust: ['emit_laufbahn:instances'] },
+  { pfad: 'instances[].id', art: 'text', rust: ['emit_laufbahn:id'] },
+  { pfad: 'instances[].number', art: 'ganzzahl', rust: ['emit_laufbahn:number'] },
 ];
 
 /** Alle Tafeln, für den Abgleich gegen `build.rs`. */
@@ -252,6 +288,9 @@ export const ALLE_PFLICHTFELDER: readonly (readonly Pflichtfeld[])[] = [
   SCHUL_PFLICHT,
   SPIELER_PFLICHT,
   STUFEN_PFLICHT,
+  BELOHNUNG_PFLICHT,
+  GEGENSTAND_PFLICHT,
+  INSTANZ_PFLICHT,
 ];
 
 function istObjekt(wert: unknown): wert is Record<string, unknown> {
