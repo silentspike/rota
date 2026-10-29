@@ -56,9 +56,39 @@
  * startete denselben Kampf neu, ohne dass sich sichtbar etwas ändert, und das
  * sähe aus wie ein toter Knopf.
  */
-.boss-select-entry[data-current='yes'] {
+.boss-select-entry[data-current='yes'],
+.boss-select-stage[data-current='yes'] {
   color: #6d675b;
   background: #151210;
   border-color: #2a2520;
   cursor: default;
+}
+
+/*
+ * Die Stufen über Normal (Issue #1177). Dieselben Farben wie die Einträge —
+ * sie sind Einträge, nur kleiner und eingerückt unter dem Boss, zu dem sie
+ * gehören. Ein eigener Farbklang machte aus einer Wahl zwei.
+ */
+.boss-select-stages {
+  display: flex;
+  gap: 4px;
+  padding-left: 12px;
+}
+
+.boss-select-stage {
+  font: inherit;
+  font-size: 12px;
+  color: #cfc8ba;
+  background: #17171d;
+  border: 1px solid #3a3a42;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.boss-select-stage:hover:not(:disabled) {
+  border-color: #d8a24a;
+}
+
+.boss-select-stage:focus {
+  outline: 1px solid #d08a3c;
 }
