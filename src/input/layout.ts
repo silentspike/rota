@@ -11,7 +11,7 @@
  * Safari), bleibt die US-Beschriftung stehen — sie ist die Grundlage der
  * Kennungen und damit die einzig sinnvolle Annahme.
  */
-import { SLOT_CODES, SPACE_POSITION } from './keys.js';
+import { OVERDRIVE_CODE, SLOT_CODES, SPACE_POSITION } from './keys.js';
 
 /** Beschriftung ohne Layout-Auskunft. Entspricht der US-Tastatur. */
 export const FALLBACK_LABELS: readonly string[] = [
@@ -29,6 +29,9 @@ export const FALLBACK_LABELS: readonly string[] = [
   'V',
   'SPACE',
 ];
+
+/** Beschriftung der Overdrive-Taste ohne Layout-Auskunft (#1177). */
+export const FALLBACK_OVERDRIVE_LABEL = 'G';
 
 /** Woher die Beschriftung stammt — für die Entwicklungs-Werkzeuge. */
 export type LabelSource = 'fallback' | 'keyboard-map';
@@ -51,11 +54,20 @@ function keyboardApi(): KeyboardLike | undefined {
 
 export class KeyLabels {
   private readonly labels: string[] = [...FALLBACK_LABELS];
+  private overdriveText = FALLBACK_OVERDRIVE_LABEL;
   private origin: LabelSource = 'fallback';
 
   /** Beschriftung einer Stelle (0 bis 12). */
   label(position: number): string {
     return this.labels[position] ?? '?';
+  }
+
+  /**
+   * Beschriftung der Overdrive-Taste (#1177) — was auf der Taste rechts neben
+   * F steht. Auf einer Dvorak-Tastatur ist das `I`, nicht `G`.
+   */
+  get overdriveLabel(): string {
+    return this.overdriveText;
   }
 
   get source(): LabelSource {
@@ -84,6 +96,10 @@ export class KeyLabels {
         if (raw !== undefined && raw.length > 0) {
           this.labels[position] = raw.toUpperCase();
         }
+      }
+      const overdrive = map.get(OVERDRIVE_CODE);
+      if (overdrive !== undefined && overdrive.length > 0) {
+        this.overdriveText = overdrive.toUpperCase();
       }
       this.origin = 'keyboard-map';
     } catch {

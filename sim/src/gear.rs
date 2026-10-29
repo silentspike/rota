@@ -12,7 +12,7 @@
 //! | ------------------------- | ----------------------------------- | ---------------------------- |
 //! | ESSENCE                   | alle Quellen des Grundwerts         | additiv, dann **ein** Faktor |
 //! | Sonderwerte               | CATALYSIS, PURITY, YIELD            | **je eigener** Faktor        |
-//! | Aktive Verstaerkungen     | Overdrive, Synergien, Stapel        | additiv untereinander        |
+//! | Aktive Verstaerkungen     | Synergien, Stapel                   | additiv untereinander        |
 //! | Ausruestungs-Sondereffekte| legendaere Effekte UND Satz-Boni    | additiv untereinander        |
 //!
 //! Die letzte Zeile ist die wichtigste, und sie ist aus Schaden gelernt: In

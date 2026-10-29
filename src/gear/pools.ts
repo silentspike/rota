@@ -8,7 +8,7 @@
  * | --------------------------- | ---------------------------------------- | ------------------------------ |
  * | ESSENCE                     | alle Quellen des Grundwerts              | additiv, dann **ein** Faktor   |
  * | Sonderwerte                 | CATALYSIS, PURITY, YIELD                 | **je eigener** Faktor          |
- * | Aktive Verstärkungen        | Overdrive, Synergien, Zersetzungs-Stapel | additiv untereinander          |
+ * | Aktive Verstärkungen        | Synergien, Zersetzungs-Stapel            | additiv untereinander          |
  * | Ausrüstungs-Sondereffekte   | legendäre Effekte **und** Satz-Boni      | additiv untereinander          |
  *
  * # Warum vier Töpfe, aber sechs Faktoren
@@ -68,7 +68,12 @@ export const POOL_CATALYSIS = 1;
 export const POOL_PURITY = 2;
 /** YIELD — dritte Kammer. */
 export const POOL_YIELD = 3;
-/** Aktive Verstärkungen: Overdrive, Synergien, Zersetzungs-Stapel. */
+/**
+ * Aktive Verstärkungen: Synergien, Zersetzungs-Stapel.
+ *
+ * Overdrive gehört nicht hierher (#1177): Er hebt CATALYSIS, und CATALYSIS
+ * wirkt auf Zeiten, nicht auf den Schaden (GAME-DESIGN 6.7, 13.1b).
+ */
 export const POOL_ACTIVE = 4;
 /** Legendäre Effekte **und** Satz-Boni — gemeinsam. */
 export const POOL_GEAR_EFFECTS = 5;

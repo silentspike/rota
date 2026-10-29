@@ -438,3 +438,18 @@ fn apl_overdrive_ist_kein_zauber_und_bleibt_beim_zurueckschreiben() {
     let zurueck = parse(AplName("hin"), &apl.to_string()).expect("Ausgabe ist gültig");
     assert_eq!(zurueck, apl);
 }
+
+#[test]
+fn das_budget_der_quellen_folgt_der_mechanik() {
+    // `sources.rs` führte für Overdrive eine eigene 300, bevor es ihn gab
+    // (#178). Jetzt liest es die Stärke der gebauten Mechanik — eine zweite
+    // Zahl liefe beim ersten Balance-Schritt still auseinander.
+    use rota_sim::gear::MAX_ITEM_LEVEL;
+    use rota_sim::sources::{max_of, SOURCE_SPELLS, STAT_CATALYSIS, STAT_PURITY, STAT_YIELD};
+    assert_eq!(
+        max_of(SOURCE_SPELLS, STAT_CATALYSIS, MAX_ITEM_LEVEL),
+        Overdrive::catalysis_bonus()
+    );
+    assert_eq!(max_of(SOURCE_SPELLS, STAT_PURITY, MAX_ITEM_LEVEL), 0);
+    assert_eq!(max_of(SOURCE_SPELLS, STAT_YIELD, MAX_ITEM_LEVEL), 0);
+}
