@@ -5,6 +5,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -B \"${CLAUDE_PROJECT_DIR}/tools/fenster-hook.py\"",
+            "timeout": 3
+          }
+        ]
+      },
+      {
         "matcher": "TaskUpdate",
         "hooks": [
           {
