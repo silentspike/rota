@@ -68,10 +68,13 @@
 //! vielleicht zu Unrecht verfehlt.
 
 use crate::apl::Apl;
-use crate::balance::{self, BalanceConfig};
-use crate::data::{Boss, MAX_LEVEL, SPELLS, SPELL_COUNT};
+use crate::balance::{self, BalanceConfig, BalanceResult};
+use crate::data::{Boss, TimelineEntry, MAX_LEVEL, SPELLS, SPELL_COUNT};
 use crate::objective::{CampaignCoverage, Coverage, PortfolioConstraints};
-use crate::rotation_search::{exhaustive_messungen, greedy, Candidate, SearchResult};
+use crate::rotation_search::{
+    candidates_for, exhaustive_besuchen, exhaustive_messungen, greedy, measure, Candidate,
+    SearchResult,
+};
 
 /// Die Grundmenge: jeder Zauber, den ein Spieler bekommen kann.
 ///
@@ -85,6 +88,14 @@ pub fn spielbare_zauber() -> Vec<usize> {
     (0..SPELL_COUNT)
         .filter(|&i| u32::from(SPELLS[i].unlock_level) <= MAX_LEVEL)
         .collect()
+}
+
+/// Ob jede Messung dieses Laufs exakt ist.
+///
+/// Dieselbe Ableitung, an der [`crate::balance::run`] seine Reduktion auf
+/// einen Durchgang festmacht — kein zweiter Test daneben.
+fn deterministisch(config: &BalanceConfig) -> bool {
+    crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn)
 }
 
 // ------------------------------------------------------------- Die Befunde
@@ -497,8 +508,12 @@ impl Befundtabelle {
     /// Lauf. Die beiden anderen Fächer misst er nicht.
     #[must_use]
     pub fn kampagnenabdeckung(&self) -> CampaignCoverage {
+        let bezeugt = self.zaehlung().von(Befundart::MindestensBezeugt);
         CampaignCoverage {
-            every_spell_has_viable_niche: Coverage::Unmeasured,
+            every_spell_has_viable_niche: Coverage::Measured {
+                covered: u32::try_from(bezeugt).unwrap_or(u32::MAX),
+                required: u32::try_from(self.grundmenge.len()).unwrap_or(u32::MAX),
+            },
             every_key_talent_is_represented: Coverage::Unmeasured,
             every_intended_gear_archetype_is_represented: Coverage::Unmeasured,
         }
@@ -511,26 +526,121 @@ impl Befundtabelle {
     /// Merker, den der Lauf selbst setzt.
     #[must_use]
     pub fn laufabschluss(&self) -> Laufabschluss {
-        Laufabschluss::Abgeschlossen
+        let mut zaehler = [0usize; SPELL_COUNT];
+        let mut ueberzaehlig = Vec::new();
+        for zeile in &self.zeilen {
+            zaehler[zeile.spell] += 1;
+            if zaehler[zeile.spell] > 1 || !self.grundmenge.contains(&zeile.spell) {
+                ueberzaehlig.push(zeile.spell);
+            }
+        }
+        let ohne_befund: Vec<usize> = self
+            .grundmenge
+            .iter()
+            .copied()
+            .filter(|&s| zaehler[s] == 0)
+            .collect();
+        let unvollstaendig: Vec<usize> = self
+            .zeilen
+            .iter()
+            .filter(|z| z.befund.projektion().is_some_and(|p| !p.vollstaendig()))
+            .map(|z| z.spell)
+            .collect();
+        if ohne_befund.is_empty() && ueberzaehlig.is_empty() && unvollstaendig.is_empty() {
+            Laufabschluss::Abgeschlossen
+        } else {
+            Laufabschluss::NichtAbgeschlossen {
+                ohne_befund,
+                ueberzaehlig,
+                unvollstaendig,
+            }
+        }
     }
 
     /// Der Stand des Balance-Vertrags — **aus dem Fach**, nicht daneben
     /// gerechnet.
     #[must_use]
     pub fn vertrag(&self) -> Vertragsstand {
-        Vertragsstand::Ungemessen
+        match self.kampagnenabdeckung().every_spell_has_viable_niche {
+            Coverage::Measured { covered, required } if covered >= required => {
+                Vertragsstand::Erfuellt { verlangt: required }
+            }
+            Coverage::Measured { covered, required } => Vertragsstand::Verletzt {
+                verlangt: required,
+                bescheinigt: covered,
+            },
+            Coverage::Unmeasured => Vertragsstand::Ungemessen,
+        }
     }
 
     /// Die Zusammenfassung: vier Zahlen, dann Lauf und Vertrag in getrennten
     /// Zeilen.
     #[must_use]
     pub fn zusammenfassung(&self) -> Vec<String> {
-        let tote = self.zeilen.iter().filter(|z| z.casts == 0).count();
-        vec![format!("{tote} Zauber werden nie gewirkt.")]
+        let z = self.zaehlung();
+        let mut out = Vec::new();
+        for art in Befundart::ALLE {
+            out.push(format!(
+                "{:<20} {:>3} / {:<3}  {}",
+                art.name(),
+                z.von(art),
+                z.grundmenge,
+                art.bedeutung()
+            ));
+        }
+        let (projektionen, listen) = self.projektionen();
+        out.push(String::new());
+        out.push(match self.laufabschluss() {
+            Laufabschluss::Abgeschlossen => format!(
+                "LAUF:             abgeschlossen — {} von {} Zaubern mit genau einem Befund, \
+                 {projektionen} Projektionen vollstaendig ({listen} Listen)",
+                self.zeilen.len(),
+                z.grundmenge
+            ),
+            Laufabschluss::NichtAbgeschlossen {
+                ohne_befund,
+                ueberzaehlig,
+                unvollstaendig,
+            } => format!(
+                "LAUF:             NICHT abgeschlossen — {} ohne Befund, {} ueberzaehlig, \
+                 {} Projektionen unvollstaendig",
+                ohne_befund.len(),
+                ueberzaehlig.len(),
+                unvollstaendig.len()
+            ),
+        });
+        out.push(match self.vertrag() {
+            Vertragsstand::Erfuellt { verlangt } => format!(
+                "BALANCE-VERTRAG:  erfuellt — {verlangt} verlangt, {verlangt} mindestens bezeugt \
+                 (Geltungsbereich {})",
+                self.boss
+            ),
+            Vertragsstand::Verletzt {
+                verlangt,
+                bescheinigt,
+            } => format!(
+                "BALANCE-VERTRAG:  NICHT ERFUELLT — {verlangt} verlangt, {bescheinigt} mindestens \
+                 bezeugt (Geltungsbereich {})",
+                self.boss
+            ),
+            Vertragsstand::Ungemessen => "BALANCE-VERTRAG:  nicht gemessen".to_owned(),
+        });
+        out
     }
 }
 
-/// Die Befunde eines Laufs — ROTE FASSUNG: nicht gewirkt heisst dominiert.
+/// Die Befunde eines Laufs: Elite suchen, dann je Zauber ohne Zeugen die
+/// Projektion rechnen.
+///
+/// `pool` ist der Suchraum der gierigen Suche, `grundmenge` die Zauber, die
+/// einen Befund brauchen. `budget` begrenzt jede Projektion in Listen; was
+/// darüber liegt, wird nicht gerechnet und bleibt „nicht gefunden".
+///
+/// # Panics
+///
+/// Wenn eine Projektion weniger Listen misst als [`exhaustive_messungen`]
+/// vorhersagt, oder eine Liste beim zweiten Messen anders rechnet als beim
+/// ersten — dann trägt kein Beweis daraus.
 #[must_use]
 pub fn befunde(
     config: &BalanceConfig,
@@ -541,30 +651,15 @@ pub fn befunde(
 ) -> Befundtabelle {
     let elite = greedy(config, pool, max_len);
     let elite_lauf = balance::run(config, &elite.best.apl);
+    let exakt = deterministisch(config);
+
     let zeilen = grundmenge
         .iter()
         .map(|&spell| {
-            let befund = if elite_lauf.casts[spell] > 0 {
-                Befund::MindestensBezeugt(Zeuge {
-                    quelle: Zeugenquelle::Elite,
-                    liste: elite.best.apl.clone(),
-                    wert: elite.best.mean,
-                    ohne_zauber: elite.best.mean,
-                })
-            } else {
-                Befund::BewiesenDominiert(Schranke {
-                    projektion: Projektion {
-                        boss: config.boss.id,
-                        zeilen: Vec::new(),
-                        max_len,
-                        listen: 0,
-                    },
-                    bester: elite.best.mean,
-                    beste_liste: elite.best.apl.clone(),
-                    mit_zauber: 0.0,
-                    liste_mit_zauber: Apl::default(),
-                })
-            };
+            let befund = elite_zeuge(config, &elite, &elite_lauf, spell).map_or_else(
+                || aus_der_projektion(config, &elite.chosen, spell, max_len, budget, exakt),
+                Befund::MindestensBezeugt,
+            );
             Befundzeile {
                 spell,
                 id: SPELLS[spell].id,
@@ -573,6 +668,7 @@ pub fn befunde(
             }
         })
         .collect();
+
     Befundtabelle {
         boss: config.boss.id,
         max_len,
@@ -580,6 +676,158 @@ pub fn befunde(
         grundmenge: grundmenge.to_vec(),
         elite,
         zeilen,
+    }
+}
+
+/// Die Elite als Zeuge: Sie wirkt den Zauber, und ohne seine Zeilen bringt
+/// sie messbar weniger.
+fn elite_zeuge(
+    config: &BalanceConfig,
+    elite: &SearchResult,
+    lauf: &BalanceResult,
+    spell: usize,
+) -> Option<Zeuge> {
+    if lauf.casts[spell] == 0 {
+        return None;
+    }
+    let ohne: Vec<Candidate> = elite
+        .chosen
+        .iter()
+        .filter(|k| k.spell != spell)
+        .cloned()
+        .collect();
+    let ohne_gemessen = measure(config, "elite ohne den zauber", &ohne);
+    elite
+        .best
+        .clearly_better_than(&ohne_gemessen)
+        .then(|| Zeuge {
+            quelle: Zeugenquelle::Elite,
+            liste: elite.best.apl.clone(),
+            wert: elite.best.mean,
+            ohne_zauber: ohne_gemessen.mean,
+        })
+}
+
+/// Die Kandidaten einer Liste aus ihren Positionen im Vorrat.
+fn auswahl(vorrat: &[Candidate], liste: &[usize]) -> Vec<Candidate> {
+    liste.iter().map(|&i| vorrat[i].clone()).collect()
+}
+
+/// Der Befund aus der erschöpfenden Projektion.
+fn aus_der_projektion(
+    config: &BalanceConfig,
+    elite_zeilen: &[Candidate],
+    spell: usize,
+    max_len: usize,
+    budget: u64,
+    exakt: bool,
+) -> Befund {
+    let mut zeilen = elite_zeilen.to_vec();
+    for kandidat in candidates_for(spell) {
+        if !zeilen.contains(&kandidat) {
+            zeilen.push(kandidat);
+        }
+    }
+
+    // **Erst die Voraussetzungen, dann die Arbeit.** Ein Budget, das erst
+    // nach dem Lauf geprüft wird, hat die Zeit schon ausgegeben.
+    if !exakt {
+        return Befund::NichtGefunden(Suchgrund::Wuerfel);
+    }
+    let geplant = exhaustive_messungen(zeilen.len(), max_len);
+    if geplant > budget {
+        return Befund::NichtGefunden(Suchgrund::UeberBudget {
+            listen: geplant,
+            budget,
+        });
+    }
+
+    let mut bester: Option<(f64, Vec<usize>)> = None;
+    let mut mit_zeile: Vec<(f64, Vec<usize>)> = Vec::new();
+    let gemessen = exhaustive_besuchen(config, &zeilen, max_len, &mut |liste, m| {
+        if bester.as_ref().is_none_or(|(wert, _)| m.mean > *wert) {
+            bester = Some((m.mean, liste.to_vec()));
+        }
+        if liste.iter().any(|&i| zeilen[i].spell == spell) {
+            mit_zeile.push((m.mean, liste.to_vec()));
+        }
+    });
+    let gemessen = u64::try_from(gemessen).unwrap_or(u64::MAX);
+    assert_eq!(
+        gemessen, geplant,
+        "die Projektion fuer {} hat {gemessen} Listen gemessen, vorhergesagt waren {geplant} — \
+         dann hat sie nicht jede gesehen, und kein Beweis daraus traegt",
+        SPELLS[spell].id
+    );
+
+    let projektion = Projektion {
+        boss: config.boss.id,
+        zeilen: zeilen.clone(),
+        max_len,
+        listen: gemessen,
+    };
+    let Some((bester_wert, beste)) = bester else {
+        return Befund::Ungeklaert(Klaerungsgrund::NieGewirkt { projektion });
+    };
+
+    // Absteigend nach Wert, bei Gleichstand in der Reihenfolge der Aufzählung
+    // (`sort_by` ist stabil) — zwei Läufe kommen so auf dieselbe Liste.
+    mit_zeile.sort_by(|a, b| b.0.total_cmp(&a.0));
+
+    // **Eine Zeile des Zaubers heißt noch nicht, dass er gewirkt wird.** Steht
+    // sie unter einer, die immer greift, kommt er nie dran — und seine
+    // Schranke wäre der Wert einer Liste, die ihn gar nicht enthält. Deshalb
+    // wird von oben gesucht, bis eine Liste ihn WIRKLICH wirkt.
+    let mut hoechster: Option<f64> = None;
+    for (wert, liste) in &mit_zeile {
+        if hoechster.is_some_and(|h| *wert < h) {
+            break;
+        }
+        let kandidaten = auswahl(&zeilen, liste);
+        let nochmal = measure(config, "projektion", &kandidaten);
+        assert_eq!(
+            nochmal.mean.to_bits(),
+            wert.to_bits(),
+            "dieselbe Liste rechnet beim zweiten Messen {} statt {wert} — dann ist die \
+             Messung nicht exakt, und die Projektion beweist nichts",
+            nochmal.mean
+        );
+        if balance::run(config, &nochmal.apl).casts[spell] == 0 {
+            continue;
+        }
+        if hoechster.is_none() {
+            hoechster = Some(*wert);
+            if *wert < bester_wert {
+                let beste_liste = measure(config, "projektion", &auswahl(&zeilen, &beste)).apl;
+                return Befund::BewiesenDominiert(Schranke {
+                    projektion,
+                    bester: bester_wert,
+                    beste_liste,
+                    mit_zauber: *wert,
+                    liste_mit_zauber: nochmal.apl,
+                });
+            }
+        }
+        // Gleichauf mit der besten Liste: Zeuge, wenn er darin etwas bewirkt.
+        let ohne: Vec<Candidate> = kandidaten
+            .iter()
+            .filter(|k| k.spell != spell)
+            .cloned()
+            .collect();
+        let ohne_gemessen = measure(config, "projektion ohne den zauber", &ohne);
+        if nochmal.clearly_better_than(&ohne_gemessen) {
+            return Befund::MindestensBezeugt(Zeuge {
+                quelle: Zeugenquelle::Projektion(projektion),
+                liste: nochmal.apl,
+                wert: *wert,
+                ohne_zauber: ohne_gemessen.mean,
+            });
+        }
+    }
+
+    match hoechster {
+        None => Befund::Ungeklaert(Klaerungsgrund::NieGewirkt { projektion }),
+        Some(wert) => Befund::Ungeklaert(Klaerungsgrund::OhneMessbareWirkung { projektion, wert }),
     }
 }
 
@@ -611,15 +859,45 @@ pub struct Schulprobe {
     pub sieg_ohne: Option<Apl>,
 }
 
-/// Je Schule: Gewinnt eine Zusammenstellung ohne sie? ROTE FASSUNG: misst nichts.
+/// Die gefundene Liste, wenn sie jeden Durchgang gewinnt.
+///
+/// **Ein Zeuge, kein Beweis.** Gesucht wird mit derselben Wertung wie überall
+/// (Schaden): Bei einem Boss mit umgekehrtem Ziel sucht sie damit das
+/// Falsche, und ein Sieg bleibt unentdeckt. Dann fehlt ein Zeuge — ein Fach
+/// wird dadurch nie zu Unrecht erfüllt.
+fn siegliste(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Option<Apl> {
+    if pool.is_empty() {
+        return None;
+    }
+    let gefunden = greedy(config, pool, max_len);
+    let lauf = balance::run(config, &gefunden.best.apl);
+    let siege = balance::siege(&lauf.samples, config.boss);
+    (!lauf.samples.is_empty() && siege == lauf.samples.len()).then_some(gefunden.best.apl)
+}
+
+/// Je Schule: Gewinnt eine Zusammenstellung ohne sie? (AC6, „Kein Boss
+/// verlangt eine bestimmte Schule".)
 #[must_use]
 pub fn schulproben(
-    _config: &BalanceConfig,
-    _pool: &[Candidate],
-    _grundmenge: &[usize],
-    _max_len: usize,
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    grundmenge: &[usize],
+    max_len: usize,
 ) -> Vec<Schulprobe> {
-    Vec::new()
+    schulen(grundmenge)
+        .into_iter()
+        .map(|schule| {
+            let ohne: Vec<Candidate> = pool
+                .iter()
+                .filter(|k| SPELLS[k.spell].school != Some(schule))
+                .cloned()
+                .collect();
+            Schulprobe {
+                schule,
+                sieg_ohne: siegliste(config, &ohne, max_len),
+            }
+        })
+        .collect()
 }
 
 /// Das Fach `no_school_is_globally_mandatory`: so viele Schulen von so vielen
@@ -752,6 +1030,32 @@ pub fn mechaniken(boss: &Boss) -> Result<Vec<Mechanik>, Vec<&'static str>> {
     Ok(out)
 }
 
+/// Der Boss mit nur dieser einen Mechanik.
+///
+/// **Für den Bericht, nie im Schritt:** Die Kopie braucht `'static`, weil
+/// [`BalanceConfig::boss`] eine statische Referenz trägt — sie wird deshalb
+/// einmal je Mechanik und Lauf angelegt und nicht freigegeben.
+fn nur_diese(boss: &'static Boss, mechanik: Mechanik) -> &'static Boss {
+    let timeline: Vec<TimelineEntry> = match mechanik {
+        Mechanik::Zeitleiste(kennung) => boss
+            .timeline
+            .iter()
+            .filter(|e| e.mechanic == kennung)
+            .copied()
+            .collect(),
+        Mechanik::Energie => Vec::new(),
+    };
+    let energy = match mechanik {
+        Mechanik::Zeitleiste(_) => None,
+        Mechanik::Energie => boss.energy,
+    };
+    Box::leak(Box::new(Boss {
+        timeline: Box::leak(timeline.into_boxed_slice()),
+        energy,
+        ..*boss
+    }))
+}
+
 /// Welche Wege eine Mechanik lösen.
 #[derive(Debug, Clone)]
 pub struct Mechanikprobe {
@@ -781,11 +1085,42 @@ impl Mechanikprobe {
 /// Wenn eine der Schulen aus 11.3 in den Daten fehlt — dann misst die Probe
 /// eine Zusammenstellung, die es nicht gibt.
 pub fn mechanikproben(
-    _config: &BalanceConfig,
-    _pool: &[Candidate],
-    _max_len: usize,
+    config: &BalanceConfig,
+    pool: &[Candidate],
+    max_len: usize,
 ) -> Result<Vec<Mechanikprobe>, Vec<&'static str>> {
-    Ok(Vec::new())
+    for schule in [FIXATION, COAGULATION] {
+        assert!(
+            SPELLS.iter().any(|s| s.school == Some(schule)),
+            "die Schule {schule} fehlt in den Daten — GAME-DESIGN 11.3 nennt sie als Antwort"
+        );
+    }
+    let liste = mechaniken(config.boss)?;
+    Ok(liste
+        .into_iter()
+        .map(|mechanik| {
+            let allein = BalanceConfig {
+                boss: nur_diese(config.boss, mechanik),
+                ..*config
+            };
+            let wege = Antwort::ALLE
+                .into_iter()
+                .map(|weg| {
+                    let vorrat: Vec<Candidate> = pool
+                        .iter()
+                        .filter(|k| {
+                            SPELLS[k.spell]
+                                .school
+                                .is_none_or(|schule| !weg.ohne().contains(&schule))
+                        })
+                        .cloned()
+                        .collect();
+                    (weg, siegliste(&allein, &vorrat, max_len))
+                })
+                .collect();
+            Mechanikprobe { mechanik, wege }
+        })
+        .collect())
 }
 
 /// Das Fach `every_mechanic_has_multiple_solution_families`: so viele
@@ -795,7 +1130,7 @@ pub fn mehrere_wege(proben: &Result<Vec<Mechanikprobe>, Vec<&'static str>>) -> C
     match proben {
         Err(_) => Coverage::Unmeasured,
         Ok(liste) => Coverage::Measured {
-            covered: u32::try_from(liste.iter().filter(|p| p.loesende() >= 1).count())
+            covered: u32::try_from(liste.iter().filter(|p| p.loesende() >= 2).count())
                 .unwrap_or(u32::MAX),
             required: u32::try_from(liste.len()).unwrap_or(u32::MAX),
         },
@@ -809,12 +1144,12 @@ pub fn mehrere_wege(proben: &Result<Vec<Mechanikprobe>, Vec<&'static str>>) -> C
 /// Boss hat eine.
 #[must_use]
 pub fn portfolio(
-    _schulen: &[Schulprobe],
-    _mechaniken: &Result<Vec<Mechanikprobe>, Vec<&'static str>>,
+    schulen: &[Schulprobe],
+    mechaniken: &Result<Vec<Mechanikprobe>, Vec<&'static str>>,
 ) -> PortfolioConstraints {
     PortfolioConstraints {
-        every_mechanic_has_multiple_solution_families: Coverage::Unmeasured,
-        no_school_is_globally_mandatory: Coverage::Unmeasured,
+        every_mechanic_has_multiple_solution_families: mehrere_wege(mechaniken),
+        no_school_is_globally_mandatory: keine_schule_pflicht(schulen),
         robustness_across_encounters: Coverage::Unmeasured,
     }
 }
