@@ -178,11 +178,6 @@ function einLauf(combat: Combat): void {
   combat.beginFight(0);
   for (let t = 0; t <= 20_000; t += TICK_MS) {
     combat.stepPassive(t);
-    // **Overdrive zünden** (#1177): Was der Lauf nicht berührt, findet der
-    // Wächter nicht — ohne diese Zeile stünde `overdrive.ignitedAt` nach dem
-    // Lauf auf dem Wert eines frischen Kampfes, ob `reset()` ihn zurücksetzt
-    // oder nicht.
-    if (t === 5000) combat.igniteOverdrive(t);
     for (const i of plaetze) {
       if (combat.isReady(i, t)) {
         combat.cast(i, t);
@@ -204,6 +199,16 @@ function einLauf(combat: Combat): void {
       combat.stepPassive(t);
       if (combat.isReady(canker, t)) {
         combat.cast(canker, t);
+        // **Overdrive zünden** (#1177): Was der Lauf nicht berührt, findet
+        // der Wächter nicht — ohne diese Zeile stünde `overdrive.ignitedAt`
+        // nach dem Lauf auf dem Wert eines frischen Kampfes, ob `reset()` ihn
+        // zurücksetzt oder nicht.
+        //
+        // **Als Letztes, nach dem letzten Wurf.** Mein erster Entwurf zündete
+        // bei 5000 ms; mit 350 statt 300 Promille in den Daten verschob das
+        // Tempo die Würfe, und „es müssen Stapel LIEGEN" fiel. Ein Wächter, den
+        // eine Balance-Zahl umwirft, prüft die Zahl statt des Zurücksetzens.
+        combat.igniteOverdrive(t);
         break;
       }
     }
@@ -227,7 +232,7 @@ describe('Der gespielte Kampf trägt überhaupt Zustand', () => {
     expect(combat.timelineIndex, 'die Zeitleiste muss vorgerückt sein').toBeGreaterThan(0);
     expect(combat.decayStacks, 'es müssen Stapel LIEGEN, nicht verfallen sein').toBeGreaterThan(0);
     expect(combat.playerHp, 'der Spieler muss Schaden genommen haben').toBeLessThan(5000);
-    expect(combat.overdriveIgnitedAtMs, 'Overdrive muss gezündet sein').toBe(5000);
+    expect(combat.overdriveIgnitedAtMs, 'Overdrive muss gezündet sein').toBeGreaterThan(20_000);
   });
 });
 
