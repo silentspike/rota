@@ -34,6 +34,20 @@ fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
     condition()
 }
 
+/// Wait until the watcher has counted exactly `count` file changes and the
+/// last one is in force. `RuntimeControl` shows a policy before the watcher
+/// thread counts it, so its effect alone does not prove the count.
+fn accepted(
+    watcher: &ControlFileWatcher,
+    control: &RuntimeControl,
+    count: u64,
+    expected: ControlSettings,
+) -> bool {
+    wait_until(|| {
+        watcher.status().applied_updates == count && control.snapshot().settings == expected
+    })
+}
+
 #[derive(Debug)]
 struct TempFile {
     directory: PathBuf,
@@ -308,19 +322,24 @@ fn actual_balance_run_survives_live_limits_pause_and_malformed_file_bit_for_bit(
     file.write(settings(4, 10, true));
     let control = Arc::new(RuntimeControl::new(4, settings(4, 100, false)).unwrap());
     let mut watcher = ControlFileWatcher::start(&file.path, Arc::clone(&control), POLL).unwrap();
+    // The initial file is applied inside `start`, before any worker exists, and
+    // is not a file change. No job can finish before the first written change.
+    let initial_uncounted = watcher.status().applied_updates == 0;
     let worker_control = Arc::clone(&control);
     let worker = thread::spawn(move || run_controlled(&config, &apl, &worker_control));
 
     let initially_parked = wait_until(|| control.snapshot().throttle_events >= 4);
+    let parked_before_any_job = control.snapshot().started_jobs == 0;
     fs::write(&file.path, "{\"cpu_threads\":2,").unwrap();
     let invalid_seen = wait_until(|| watcher.status().rejected_updates > 0);
     let kept_policy = control.snapshot().settings == settings(4, 10, true);
     let error_visible = watcher.status().last_error.is_some();
     file.write(settings(2, 1, false));
+    let resumed = accepted(&watcher, &control, 1, settings(2, 1, false));
     let running = wait_until(|| control.snapshot().completed_jobs >= 4);
     file.write(settings(2, 1, true));
-    let paused =
-        wait_until(|| control.snapshot().settings.paused && control.snapshot().active_workers == 0);
+    let paused = accepted(&watcher, &control, 2, settings(2, 1, true))
+        && wait_until(|| control.snapshot().active_workers == 0);
     let completed_while_paused = control.snapshot().completed_jobs;
     thread::sleep(Duration::from_millis(10));
     let stayed_paused = control.snapshot().completed_jobs == completed_while_paused;
@@ -328,23 +347,32 @@ fn actual_balance_run_survives_live_limits_pause_and_malformed_file_bit_for_bit(
         completed_while_paused > 0 && completed_while_paused < u64::from(config.iterations);
 
     file.write(settings(1, 100, false));
-    let final_update = wait_until(|| control.snapshot().settings == settings(1, 100, false));
-    let watcher_evidence = watcher.status();
+    let final_update = accepted(&watcher, &control, 3, settings(1, 100, false));
     watcher.stop().unwrap();
+    // Counts are final only after `stop` has joined the watcher thread.
+    let watcher_evidence = watcher.status();
     // Always release parked workers before any assertions or joining, including
     // on a failed observer condition. A regression fails instead of hanging CI.
     control.update(settings(1, 100, false)).unwrap();
     let actual = worker.join().unwrap();
     let evidence = control.snapshot();
 
-    assert!(initially_parked && invalid_seen && kept_policy && error_visible);
-    assert!(running && paused && stayed_paused && had_remaining_work && final_update);
-    assert!(watcher_evidence.applied_updates >= 3);
+    assert!(initial_uncounted && initially_parked && parked_before_any_job);
+    assert!(invalid_seen && kept_policy && error_visible);
+    assert!(resumed && running && paused && stayed_paused && had_remaining_work && final_update);
+    assert_eq!(
+        watcher_evidence.applied_updates, 3,
+        "exactly the three valid file changes after the initial read"
+    );
     assert!(watcher_evidence.last_error.is_none());
     assert_eq!(evidence.completed_jobs, u64::from(config.iterations));
     assert_eq!(evidence.started_jobs, evidence.completed_jobs);
     assert_eq!(evidence.active_workers, 0);
-    assert!(evidence.throttle_events > 0 && evidence.updates >= 4);
+    assert!(evidence.throttle_events > 0);
+    assert_eq!(
+        evidence.updates, 4,
+        "initial file plus three file changes; the closing release repeats the last policy"
+    );
     assert_eq!(actual.samples, reference.samples);
     assert_eq!(actual.casts, reference.casts);
     assert_eq!(actual.to_json(), reference.to_json());
