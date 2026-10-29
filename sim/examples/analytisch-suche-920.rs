@@ -30,16 +30,27 @@
 //! auf **demselben** Maßstab erzielen ([`run_erwartet`] mit [`MASSSTAB`]
 //! Durchgängen — analytisch, wo der Weg trägt, sonst die Stichprobe).
 //!
+//! # Ausgabe zum Weiterverarbeiten
+//!
+//! Je Boss und Durchlauf eine Zeile `ZEILE <durchlauf> <boss> …` mit Listen,
+//! Kämpfen, Wegen, Wanduhr, dem Wert der gefundenen Liste in voller Genauigkeit
+//! und der Liste selbst (`rotation=`, Zeilen durch ` | ` getrennt), dazu je
+//! eine Zeile `MASSSTAB …`. Mit `--bewerte <datei>` liest das Programm die
+//! `ZEILE`-Einträge einer anderen Messung — etwa desselben Laufs auf
+//! `origin/main` — und misst deren Listen auf dem Maßstab dieses Stands nach.
+//!
 //! ```text
 //! cargo remote -c -- build --release --example analytisch-suche-920
 //! target/release/examples/analytisch-suche-920
+//! target/release/examples/analytisch-suche-920 --bewerte main.txt
 //! ```
 
 use std::time::Instant;
 
 use rota_sim::analytisch::{ohne_ausintegration, verweigerungen};
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run_erwartet, BalanceConfig, Durchgangswahl};
-use rota_sim::data::Boss;
+use rota_sim::data::{boss_by_id, Boss};
 use rota_sim::factors::NEUTRAL;
 use rota_sim::fortschritt::{Weg, Zaehlwerk};
 use rota_sim::rotation_search::{all_candidates, greedy, Candidate, SearchResult};
@@ -116,19 +127,101 @@ fn suche(config: &BalanceConfig, pool: &[Candidate]) -> Lauf {
     }
 }
 
-/// Was eine gefundene Liste auf dem gemeinsamen Maßstab erzielt.
-fn auf_dem_massstab(config: &BalanceConfig, lauf: &Lauf) -> (f64, f64, Durchgangswahl) {
+/// Was eine Liste auf dem gemeinsamen Maßstab erzielt.
+fn auf_dem_massstab(config: &BalanceConfig, apl: &Apl) -> (f64, f64, &'static str) {
     let e = run_erwartet(
         &BalanceConfig {
             iterations: MASSSTAB,
             ..*config
         },
-        &lauf.ergebnis.best.apl,
+        apl,
     );
-    (e.schaden, e.stderr, e.weg)
+    let weg = match e.weg {
+        Durchgangswahl::Analytisch => "analytisch",
+        Durchgangswahl::EinDurchgang => "ein-kampf",
+        Durchgangswahl::Gestaffelt => "stichprobe",
+    };
+    (e.schaden, e.stderr, weg)
+}
+
+/// Die Liste als eine Zeile: ihre Regeln, durch ` | ` getrennt.
+fn als_zeile(apl: &Apl) -> String {
+    apl.rules
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn berichte(durchlauf: &str, boss: &Boss, lauf: &Lauf, config: &BalanceConfig) {
+    let best = &lauf.ergebnis.best;
+    println!(
+        "ZEILE {durchlauf} {} listen={} kaempfe={} analytisch={} andere={} verweigert={} \
+         sekunden={:.3} wert={:?} fehler={:?} rotation={}",
+        boss.id,
+        lauf.ergebnis.measured,
+        lauf.kaempfe,
+        lauf.analytisch,
+        lauf.andere_wege,
+        lauf.verweigert,
+        lauf.sekunden,
+        best.mean,
+        best.stderr,
+        als_zeile(&best.apl)
+    );
+    let (wert, fehler, weg) = auf_dem_massstab(config, &best.apl);
+    println!(
+        "MASSSTAB {durchlauf} {} wert={wert:.2} fehler={fehler:.2} weg={weg}",
+        boss.id
+    );
+}
+
+/// `--bewerte <datei>`: die Listen einer anderen Messung auf diesem Maßstab.
+///
+/// Die Liste wird aus ihrer Textform zurückgelesen und gegen sie gehalten:
+/// Stimmt die Textform des Gelesenen nicht mit der Zeile überein, bricht der
+/// Lauf ab, statt eine andere Liste zu bewerten.
+fn bewerte(datei: &str) {
+    let text =
+        std::fs::read_to_string(datei).unwrap_or_else(|f| panic!("{datei} nicht lesbar: {f}"));
+    let mut gezaehlt = 0;
+    for zeile in text.lines().filter(|z| z.starts_with("ZEILE ")) {
+        let mut teile = zeile.splitn(4, ' ');
+        let (_, durchlauf, boss_id) = (teile.next(), teile.next(), teile.next());
+        let durchlauf = durchlauf.expect("Durchlauf");
+        let boss_id = boss_id.expect("Boss");
+        let rotation = zeile
+            .split_once(" rotation=")
+            .map(|(_, r)| r)
+            .expect("rotation=");
+        let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
+        let apl = parse(AplName("bewertet"), &rotation.replace(" | ", "\n"))
+            .unwrap_or_else(|f| panic!("{boss_id}: Liste nicht lesbar: {f}"));
+        assert_eq!(
+            als_zeile(&apl),
+            rotation,
+            "{boss_id}: die zurückgelesene Liste ist eine andere"
+        );
+        let (wert, fehler, weg) = auf_dem_massstab(&config(boss), &apl);
+        println!(
+            "MASSSTAB {durchlauf}-auf-diesem-stand {boss_id} wert={wert:.2} fehler={fehler:.2} weg={weg}"
+        );
+        gezaehlt += 1;
+    }
+    assert!(gezaehlt > 0, "{datei} enthält keine ZEILE");
+    println!("bewertet: {gezaehlt} Listen aus {datei}");
 }
 
 fn main() {
+    let argumente: Vec<String> = std::env::args().collect();
+    if let Some(stelle) = argumente.iter().position(|a| a == "--bewerte") {
+        let datei = argumente
+            .get(stelle + 1)
+            .expect("nach --bewerte fehlt die Datei");
+        bewerte(datei);
+        return;
+    }
+
     let bosse = ScoringSet::all_scored();
     let pool = all_candidates();
     println!("== Rotationssuche mit und ohne analytischen Krit (#920) ==");
@@ -141,30 +234,20 @@ fn main() {
     println!(
         "Ausruestung: mixed_build(PURITY, (Instanz - 1) * 6 + 1), Massstab {MASSSTAB} Durchgaenge"
     );
-    println!();
-    println!(
-        "{:<15} {:>7} {:>6}   {:>6} {:>9} {:>4} {:>4} {:>8}   {:>6} {:>9} {:>8}   {:>9} {:>9}",
-        "Boss",
-        "PURITY",
-        "Stufe",
-        "Listen",
-        "Kaempfe",
-        "anl.",
-        "verw",
-        "Sek.",
-        "Listen",
-        "Kaempfe",
-        "Sek.",
-        "Wert mit",
-        "Wert ohne"
-    );
 
     let wanduhr = Instant::now();
     let (mut summe_mit, mut summe_ohne) = ((0u64, 0u64, 0f64), (0u64, 0u64, 0f64));
     let mut verweigert = 0;
     let mut bosse_analytisch = 0;
+    let mut gleiche_listen = 0;
     for boss in bosse.bosses() {
         let cfg = config(boss);
+        println!(
+            "BOSS {} purity={} stufe={}",
+            boss.id,
+            cfg.worn.purity,
+            (instanz(boss) - 1) * 6 + 1
+        );
         let mit = suche(&cfg, &pool);
         let ohne = ohne_ausintegration(|| suche(&cfg, &pool));
         assert_eq!(
@@ -172,8 +255,15 @@ fn main() {
             "{}: abgeschaltet hat die Suche trotzdem analytisch gerechnet",
             boss.id
         );
-        let (wert_mit, fehler_mit, weg_mit) = auf_dem_massstab(&cfg, &mit);
-        let (wert_ohne, fehler_ohne, _) = auf_dem_massstab(&cfg, &ohne);
+        berichte("mit", boss, &mit, &cfg);
+        berichte("ohne", boss, &ohne, &cfg);
+        let gleich = als_zeile(&mit.ergebnis.best.apl) == als_zeile(&ohne.ergebnis.best.apl);
+        println!(
+            "LISTE {} {}",
+            boss.id,
+            if gleich { "gleich" } else { "VERSCHIEDEN" }
+        );
+        gleiche_listen += usize::from(gleich);
         if mit.analytisch > 0 {
             bosse_analytisch += 1;
         }
@@ -184,31 +274,6 @@ fn main() {
         summe_ohne.0 += ohne.ergebnis.measured as u64;
         summe_ohne.1 += ohne.kaempfe;
         summe_ohne.2 += ohne.sekunden;
-        let massstab = match weg_mit {
-            Durchgangswahl::Analytisch => "analytisch",
-            Durchgangswahl::EinDurchgang => "ein Kampf",
-            Durchgangswahl::Gestaffelt => "Stichprobe",
-        };
-        println!(
-            "{:<15} {:>7} {:>6}   {:>6} {:>9} {:>4} {:>4} {:>8.2}   {:>6} {:>9} {:>8.2}   \
-             {:>9.1} {:>9.1}  (+/- {:.1} / {:.1}, {massstab}; andere Wege mit: {})",
-            boss.id,
-            cfg.worn.purity,
-            (instanz(boss) - 1) * 6 + 1,
-            mit.ergebnis.measured,
-            mit.kaempfe,
-            mit.analytisch,
-            mit.verweigert,
-            mit.sekunden,
-            ohne.ergebnis.measured,
-            ohne.kaempfe,
-            ohne.sekunden,
-            wert_mit,
-            wert_ohne,
-            fehler_mit,
-            fehler_ohne,
-            mit.andere_wege
-        );
     }
     println!();
     println!(
@@ -226,6 +291,10 @@ fn main() {
     );
     println!(
         "Bosse mit analytischem Weg   {bosse_analytisch} von {}",
+        bosse.len()
+    );
+    println!(
+        "Gleiche Liste mit und ohne   {gleiche_listen} von {}",
         bosse.len()
     );
     println!("Verweigerte Randabgleiche    {verweigert}");
