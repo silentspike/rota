@@ -171,8 +171,7 @@ pub fn kombinationen(menge: &ScoringSet, stufen: &[Stufe]) -> Vec<Kombination> {
 /// Der Prüfplan des Nachtlaufs: jeder wertungsfähige Boss auf jeder Stufe.
 #[must_use]
 pub fn pruefplan() -> Vec<Kombination> {
-    // STAND VOR #891 N1: Der Bericht rechnet nur den voreingestellten Boss.
-    kombinationen(&ScoringSet::require(&[crate::data::BOSS]), &Stufe::ALLE)
+    kombinationen(&ScoringSet::all_scored(), &Stufe::ALLE)
 }
 
 // ---------------------------------------------------------------- Rahmen
@@ -352,6 +351,40 @@ impl Pruefung {
     pub fn kaempfe(&self) -> u64 {
         self.posten.iter().map(|p| p.kaempfe).sum()
     }
+
+    /// Die erschöpfenden Projektionen des Teils [`Teil::Befunde`] als Stapel.
+    ///
+    /// **Für die Auslöser in #891 Abschnitt 4**: Eine Projektion ist ein
+    /// homogener Stapel — dieselbe Liste von Zeilen, jede Reihenfolge jeder
+    /// Teilmenge, derselbe Boss. Ob ein Stapel groß genug für einen anderen
+    /// Rechenweg ist, sagt seine Größe, nicht die Summe.
+    #[must_use]
+    pub fn stapel(&self) -> Stapel {
+        let groessen: Vec<u64> = self
+            .tabelle
+            .zeilen
+            .iter()
+            .filter_map(|z| z.befund.projektion())
+            .map(|p| p.listen)
+            .collect();
+        Stapel {
+            projektionen: groessen.len(),
+            listen: groessen.iter().sum(),
+            groesste: groessen.iter().copied().max().unwrap_or(0),
+        }
+    }
+}
+
+/// Wie viele erschöpfende Projektionen eine Kombination gerechnet hat, und wie
+/// groß sie waren.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stapel {
+    /// Wie viele Projektionen.
+    pub projektionen: usize,
+    /// Listen über alle zusammen.
+    pub listen: u64,
+    /// Listen der größten.
+    pub groesste: u64,
 }
 
 /// Die Lösung, die der Prüflauf einer Kombination zugrunde legt.
@@ -374,9 +407,7 @@ pub fn loesung_suchen(config: &BalanceConfig, rahmen: &Rahmen) -> SearchResult {
 /// Schadensspalte zu einem anderen Kampf.
 #[must_use]
 pub fn pruefe(kombination: Kombination, rahmen: &Rahmen) -> Pruefung {
-    // STAND VOR #891 N1: Gerechnet wird immer gegen den voreingestellten Boss.
-    let _ = kombination.gegner();
-    let gegner = crate::data::BOSS;
+    let gegner = kombination.gegner();
     let config = messkonfiguration(gegner);
     assert!(
         crate::durchgaenge::ein_durchgang_genuegt(EFFECT_NODES, &config.worn),
@@ -424,13 +455,7 @@ pub fn pruefe(kombination: Kombination, rahmen: &Rahmen) -> Pruefung {
         mechanikproben(&config, &rahmen.pool, rahmen.max_len)
     });
     let ((machbarkeit, erfolgsliste), machbarkeitsposten) = messen(Teil::Machbarkeit, || {
-        // STAND VOR #891 N1: Machbarkeit mit der festen Liste `step1-good`.
-        let fest = crate::apl::parse(
-            crate::apl::AplName("step1-good"),
-            include_str!("../apl/step1-good.apl"),
-        )
-        .expect("eingebaute Liste");
-        let machbarkeit = feasibility_gegen(gegner, &fest, None);
+        let machbarkeit = feasibility_gegen(gegner, &tabelle.elite.best.apl, None);
         let liste = erfolge_pruefen(&erfolge(gegner), &machbarkeit);
         (machbarkeit, liste)
     });
