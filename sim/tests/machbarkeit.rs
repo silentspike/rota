@@ -267,6 +267,47 @@ fn stabile_rate_mit_breiter_abschnittsstreuung_wird_angenommen() {
 }
 
 #[test]
+fn stabile_rate_mit_taktdrift_wird_angenommen() {
+    // Die Kalibrierung meldet die Taktdrift und entscheidet nicht über sie
+    // (`kalibrierung.rs`, `kalibriere`): Der Takt schwankt im Leerlauf um über
+    // hundert Prozent, und was er an der Rate bewegt, steht schon in der
+    // Streuung. Entscheidung des Orchestrators vom 29.10.: Die Vorabprüfung
+    // folgt ihr. Bis dahin verwarf sie ab `TAKT_DRIFT_MAX`.
+    //
+    // Der zweite Fall ist der Messbeleg, an dem es auffiel: node3, 29.10.,
+    // `e21-0b-machbarkeit --mandatory 1000000 --target-time 1ms`, Lauf 1 von
+    // 6 — „ungültige oder doppelte Rate“ bei einer stabilen Messung.
+    let node3 = RateModel {
+        rate_per_s: 169_979.531_806,
+        spread: 0.026_107,
+        samples: 43,
+        duration_ms: 5122,
+        reason: Abbruchgrund::Stabil,
+        measured_at: 42,
+        psi_cpu: Some(0.0),
+        takt_drift: Some(0.222_755),
+    };
+    for (fall, gemessen) in [
+        (
+            "Drift 0.15",
+            RateModel {
+                takt_drift: Some(0.15),
+                ..rate(100.0)
+            },
+        ),
+        ("node3 Lauf 1", node3),
+    ] {
+        let mut profile = profile("fixture", gemessen.rate_per_s);
+        profile.raten[0].1 = gemessen;
+        let ergebnis = preflight(&contract(10_000), &[work()], &[host(&profile)]);
+        assert!(
+            ergebnis.is_ok(),
+            "{fall}: eine stabile Rate wurde wegen der Taktdrift verworfen: {ergebnis:?}"
+        );
+    }
+}
+
+#[test]
 fn anderer_host_artefakt_kernel_oder_taktregime_ist_inkompatibel() {
     let profile = profile("fixture", 100.0);
     for field in 0..4 {
