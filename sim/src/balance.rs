@@ -852,8 +852,8 @@ fn run_with_control(
         let teilnehmer = threads.min(happen_anzahl(iterations));
 
         // Die Arbeitsstränge erben das Zählwerk des Leitstrangs (#933), jeder
-        // auf dem Platz seines Bereichs — sonst sähe ein mehrsträngiger Lauf
-        // nur die Kämpfe des Leitstrangs, und das sind keine.
+        // Teilnehmer auf seinem eigenen Platz — sonst sähe ein mehrsträngiger
+        // Lauf nur die Kämpfe des Leitstrangs, und das sind keine.
         let leitstrang = crate::fortschritt::strang();
         // Ebenso den Schalter der Kampfzähler (#934): Sie sind strang-lokal,
         // und ohne ihn zählte ein mehrsträngiger Lauf nichts. Ihre Zähler
@@ -1512,7 +1512,7 @@ mod vorrat {
         }
 
         /// Wartet, bis jeder Helfer abgelegt hat, und gibt die Ergebnisse in
-        /// der Reihenfolge der Bereiche.
+        /// der Reihenfolge ihrer Plätze.
         pub(super) fn abwarten(&self) -> Vec<std::thread::Result<T>> {
             let mut p = self.plaetze.lock().unwrap_or_else(PoisonError::into_inner);
             while p.1 > 0 {
@@ -1993,6 +1993,15 @@ pub fn run_gestaffelt(
 #[cfg(test)]
 mod tests {
     use super::{factor_value, run_intern, with_factor, BalanceConfig, FACTOR_NAMES};
+    use crate::apl::{parse, AplName};
+    use crate::factors::{DamageFactors, NEUTRAL};
+
+    /// Die gute Rotation, wie sie im Repository liegt.
+    const GOOD: &str = include_str!("../apl/step1-good.apl");
+
+    fn gute_liste() -> crate::apl::Apl {
+        parse(AplName("step1-good"), GOOD).expect("die eingebaute Liste ist gültig")
+    }
 
     /// **Ein langsamer Strang hält den Lauf nicht auf** (#912).
     ///
@@ -2077,15 +2086,6 @@ mod tests {
                 );
             }
         }
-    }
-    use crate::apl::{parse, AplName};
-    use crate::factors::{DamageFactors, NEUTRAL};
-
-    /// Die gute Rotation, wie sie im Repository liegt.
-    const GOOD: &str = include_str!("../apl/step1-good.apl");
-
-    fn gute_liste() -> crate::apl::Apl {
-        parse(AplName("step1-good"), GOOD).expect("die eingebaute Liste ist gültig")
     }
 
     /// **AC3: bitgleich, nicht „ungefähr gleich"** (Issue #908).
