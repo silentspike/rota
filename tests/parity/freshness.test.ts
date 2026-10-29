@@ -111,6 +111,9 @@ import eingecheckterVier2 from './recordings/instance4-boss-2.json';
 import eingecheckterVier3 from './recordings/instance4-boss-3.json';
 import eingecheckterVier4 from './recordings/instance4-boss-4.json';
 import eingecheckterFuenf1 from './recordings/instance5-boss-1.json';
+import eingecheckteStufen from './recordings/difficulty-stages.json';
+import eingecheckterHeroisch from './recordings/difficulty-boss-1-1-heroic.json';
+import eingecheckterMythisch from './recordings/difficulty-boss-1-1-mythic.json';
 import eingecheckterFuenf2 from './recordings/instance5-boss-2.json';
 import eingecheckterFuenf3 from './recordings/instance5-boss-3.json';
 import eingecheckterFuenf4 from './recordings/instance5-boss-4.json';
@@ -204,6 +207,8 @@ import {
   instance3Payload,
   instance4Payload,
   instance5Payload,
+  difficultyStagesPayload,
+  difficultyFightPayload,
   cinderPayload,
   rotPayload,
   dotLifetimePayload,
@@ -337,6 +342,19 @@ describe('Gemeinsame Vergleichsdateien', () => {
         instance4Payload(`boss-4-${i + 1}`, `instance4-boss-${i + 1}`),
       );
     }
+  });
+
+  it('die Stufen-Tabelle und die Stufen-Kämpfe entsprechen dem heutigen Spielstand', () => {
+    // Mitgeliefert mit den Dateien (Issue #1177), aus demselben Grund wie der
+    // Fall darunter: Ohne ihn prüfte der Simulator gegen eine Ableitung, die
+    // das Spiel längst anders rechnet.
+    expect(eingecheckteStufen, HINWEIS).toEqual(difficultyStagesPayload());
+    expect(eingecheckterHeroisch, HINWEIS).toEqual(
+      difficultyFightPayload('boss-1-1', 1, 'difficulty-boss-1-1-heroic'),
+    );
+    expect(eingecheckterMythisch, HINWEIS).toEqual(
+      difficultyFightPayload('boss-1-1', 2, 'difficulty-boss-1-1-mythic'),
+    );
   });
 
   it('die vier Bosse der fünften Instanz entsprechen dem heutigen Spielstand', () => {
@@ -1027,6 +1045,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance5-boss-2',
   'instance5-boss-3',
   'instance5-boss-4',
+  // Die Schwierigkeitsstufen (#1177).
+  'difficulty-stages',
+  'difficulty-boss-1-1-heroic',
+  'difficulty-boss-1-1-mythic',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',

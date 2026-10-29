@@ -119,6 +119,10 @@ const RECORDINGS_DIR: &str = "../tests/parity/recordings";
 /// Die Grundwerte des Spielers, relativ zum Paketverzeichnis `sim/`.
 const PLAYER_JSON: &str = "../data/player/base.json";
 const LEVELS_JSON: &str = "../data/player/levels.json";
+/// Die drei Schwierigkeitsstufen (GAME-DESIGN 11.7, Issue #1177): Lebens-,
+/// Zeitlimit- und Punkte-Faktor je Stufe. Dieselbe Datei liest das Spiel
+/// (`src/core/difficulty.ts`).
+const DIFFICULTY_JSON: &str = "../data/difficulty.json";
 
 /// Welcher Boss der Standard ist, wenn keiner gewaehlt wird.
 ///
@@ -162,6 +166,7 @@ fn main() {
     println!("cargo:rerun-if-changed={BOSSES_DIR}");
     println!("cargo:rerun-if-changed={PLAYER_JSON}");
     println!("cargo:rerun-if-changed={LEVELS_JSON}");
+    println!("cargo:rerun-if-changed={DIFFICULTY_JSON}");
     // Auf das Verzeichnis, aus demselben Grund wie bei den Bossen: Eine neue
     // Aufzeichnung soll den Bau ausloesen, nicht stillschweigend fehlen.
     println!("cargo:rerun-if-changed={RECORDINGS_DIR}");
@@ -179,6 +184,11 @@ fn main() {
     let test_channel_heal = read_json(TEST_CHANNEL_HEAL_JSON);
     let test_channel_shield = read_json(TEST_CHANNEL_SHIELD_JSON);
     let bosses = read_bosses();
+    // **Die Stufen sofort nach den Bossen** (Issue #1177): Sie sind abgeleitete
+    // Bosse und gehen durch dieselben Pruefungen — wer hier abbricht, nennt
+    // die Stufe, nicht erst einen Paritaetsbruch im Kampf.
+    let stufen = lies_stufen(&read_json(DIFFICULTY_JSON));
+    let gestufte = leite_stufen_ab(&bosses, &stufen);
 
     let mut out = String::with_capacity(8 * 1024);
     out.push_str(
@@ -242,12 +252,13 @@ fn main() {
     let schulen_menge = schulen(&spells, &weitere);
     emit_instance_classes(&mut out);
     emit_bosses(&mut out, &bosses, &schulen_menge);
+    emit_boss_stages(&mut out, &gestufte, &stufen, &schulen_menge);
     emit_player(&mut out, &read_json(PLAYER_JSON));
     emit_levels(&mut out, &read_json(LEVELS_JSON));
     // Issue #911: die Wirkungsbeschreibung, aus denselben Dateien wie alles
     // darueber. Sie steht zuletzt, weil sie nichts erzeugt, worauf die anderen
     // sich stuetzen — sie beschreibt nur, was die anderen bereits tragen.
-    emit_effects(&mut out, &spells, &weitere, &bosses);
+    emit_effects(&mut out, &spells, &weitere, &bosses, &gestufte);
     // **Nach den Zaubern**, weil die Belegung einer Aufzeichnung Zauber-NAMEN
     // nennt und hier zu Indizes aufgeloest wird (#970).
     //
@@ -1155,6 +1166,252 @@ fn emit_bosses(out: &mut String, bosses: &[(String, Value)], schulen: &[String])
     let _ = writeln!(out, "pub static BOSS: &Boss = &BOSSES[{default}];\n");
 }
 
+// ------------------------------------------- Schwierigkeitsstufen (#1177)
+
+/// Die Kennungen der Stufen, in der Reihenfolge ihrer Nummer — dieselbe wie
+/// `DIFFICULTY_NAMES` in `src/loot/rates.ts`. `data/difficulty.json` muss sie
+/// genau so fuehren; sonst bricht [`lies_stufen`] ab.
+const STUFEN_NAMEN: [&str; 3] = ["normal", "heroic", "mythic"];
+
+/// Was eine Stufe einem Boss hinzufuegen darf — **eine Kopie von
+/// `ADDABLE_BLOCKS` in `src/core/difficulty.ts`**, aus demselben Grund wie
+/// `BUFF_KIND_CAPACITY` oben: `build.rs` kann nichts aus dem Spiel lesen.
+///
+/// Laufen beide auseinander, faellt es auf: Laesst das Spiel einen Baustein
+/// zu, den dieser Bau ablehnt, bricht der Bau; im umgekehrten Fall meldet
+/// `parseBoss` den Datensatz als Problem, und `difficulty-stages.test.ts`
+/// wird rot. Die Zeitleiste steht nicht darin — sie wird ergaenzt, nicht
+/// gesetzt.
+const STUFEN_BAUSTEINE: &[&str] = &[
+    "energy",
+    "doom",
+    "stacks",
+    "race",
+    "affliction",
+    "escalation",
+];
+
+/// Eine Stufe aus `data/difficulty.json` — nur, was der Kampf braucht.
+///
+/// Der Punkte-Faktor steht nicht darin: Der Simulator rechnet keine Punkte
+/// (`data/player/reward.json`, Abschnitt zur Punktekurve).
+struct Stufe {
+    hp_permille: u64,
+    overpressure_permille: u64,
+}
+
+/// Liest die drei Stufen und prueft ihre Reihenfolge.
+fn lies_stufen(json: &Value) -> Vec<Stufe> {
+    let whose = "difficulty.json";
+    let liste = json
+        .get("stages")
+        .and_then(Value::as_array)
+        .unwrap_or_else(|| panic!("{whose}: Feld \"stages\" fehlt"));
+    assert!(
+        liste.len() == STUFEN_NAMEN.len(),
+        "{whose}: {} Stufen, erwartet {} ({STUFEN_NAMEN:?})",
+        liste.len(),
+        STUFEN_NAMEN.len()
+    );
+    liste
+        .iter()
+        .enumerate()
+        .map(|(index, eintrag)| {
+            let wer = format!("{whose}/stages[{index}]");
+            let id = text(eintrag, "id", &wer);
+            assert!(
+                id == STUFEN_NAMEN[index],
+                "{wer}: heisst \"{id}\", erwartet \"{}\" — die Reihenfolge ist die Stufennummer",
+                STUFEN_NAMEN[index]
+            );
+            let zahl = |feld: &str| {
+                let wert = uint(eintrag, feld, &wer);
+                assert!(
+                    wert > 0,
+                    "{wer}: {feld} ist 0 — jeder Boss haette null davon"
+                );
+                wert
+            };
+            Stufe {
+                hp_permille: zahl("hpPermille"),
+                overpressure_permille: zahl("overpressurePermille"),
+            }
+        })
+        .collect()
+}
+
+/// Die heroische und die mythische Fassung jedes Bosses, der Stufen traegt.
+///
+/// Die abgeleiteten Datensaetze gehen durch dieselben Pruefungen wie eine
+/// Datei (`pruefe_zeitleiste` hier, die uebrigen in `emit_boss`): Ein
+/// heroischer Eintrag ausserhalb des Schleifen-Rahmens bricht den Bau mit dem
+/// Namen der Stufe.
+fn leite_stufen_ab(bosses: &[(String, Value)], stufen: &[Stufe]) -> Vec<(String, Vec<Value>)> {
+    bosses
+        .iter()
+        .filter(|(_, boss)| boss.get("difficulties").is_some())
+        .map(|(name, boss)| {
+            let varianten: Vec<Value> = (1..STUFEN_NAMEN.len())
+                .map(|stufe| {
+                    let wer = format!("{name} ({})", STUFEN_NAMEN[stufe]);
+                    let abgeleitet = leite_stufe_ab(boss, stufe, stufen, &wer);
+                    pruefe_zeitleiste(&wer, &abgeleitet);
+                    abgeleitet
+                })
+                .collect();
+            (name.clone(), varianten)
+        })
+        .collect()
+}
+
+/// Den Datensatz einer Stufe ableiten — **dieselbe Regel wie `deriveStage`
+/// in `src/core/difficulty.ts`**.
+///
+/// ```text
+///   Lebenspunkte   hp * hpPermille / 1000                      (abgerundet)
+///   Zeitlimit      overpressureMs * overpressurePermille / 10000 * 10
+///   Mechaniken     Normal + heroic.add (+ mythic.add), kumulativ
+/// ```
+///
+/// Die Faktoren kommen aus `data/difficulty.json`, ausser der Boss
+/// ueberschreibt sie fuer diese Stufe (das umgekehrte Ziel braucht es). Die
+/// Zeitleiste wird **stabil** nach `atMs` sortiert — `sort_by_key` ist stabil
+/// wie `Array.prototype.sort`, und bei gleichem Zeitpunkt steht der aeltere
+/// Eintrag vorn. Dass beide Seiten fuer jeden Boss dasselbe ergeben, haelt
+/// `tests/parity_difficulty_stages.rs` gegen die Aufzeichnung des Spiels.
+///
+/// Wo das Spiel ein Problem meldet, bricht dieser Bau ab — die Meldungen
+/// sind dieselben Saetze.
+fn leite_stufe_ab(boss: &Value, stufe: usize, stufen: &[Stufe], whose: &str) -> Value {
+    let quelle = boss
+        .as_object()
+        .unwrap_or_else(|| panic!("{whose}: kein Objekt"));
+    let bloecke = quelle
+        .get("difficulties")
+        .and_then(Value::as_object)
+        .unwrap_or_else(|| panic!("{whose}: \"difficulties\" ist kein Objekt"));
+
+    let mut ergebnis = serde_json::Map::new();
+    for (schluessel, wert) in quelle {
+        if schluessel != "difficulties" {
+            ergebnis.insert(schluessel.clone(), wert.clone());
+        }
+    }
+    ergebnis.insert("difficulty".to_owned(), Value::from(stufe as u64));
+
+    let mut zeitleiste: Vec<Value> = quelle
+        .get("timeline")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for &id in &STUFEN_NAMEN[1..=stufe] {
+        let zutaten = bloecke
+            .get(id)
+            .and_then(|b| b.get("add"))
+            .and_then(Value::as_object)
+            .unwrap_or_else(|| {
+                panic!("{whose}: Die Stufe \"{id}\" hat kein \"add\" — sie braechte keine Mechanik dazu.")
+            });
+        for (schluessel, wert) in zutaten {
+            if schluessel.starts_with('_') {
+                continue;
+            }
+            if schluessel == "timeline" {
+                let liste = wert.as_array().unwrap_or_else(|| {
+                    panic!("{whose}: Stufe \"{id}\": \"timeline\" ist keine Liste.")
+                });
+                zeitleiste.extend(liste.iter().cloned());
+                continue;
+            }
+            assert!(
+                STUFEN_BAUSTEINE.contains(&schluessel.as_str()),
+                "{whose}: Stufe \"{id}\": \"{schluessel}\" kann keine Stufe hinzufuegen \
+                 (erlaubt: timeline, {})",
+                STUFEN_BAUSTEINE.join(", ")
+            );
+            let vorhanden = ergebnis.get(schluessel).is_some_and(|w| !w.is_null());
+            assert!(
+                !vorhanden,
+                "{whose}: Stufe \"{id}\": \"{schluessel}\" traegt der Boss schon — eine Stufe \
+                 fuegt hinzu, sie ersetzt nicht."
+            );
+            ergebnis.insert(schluessel.clone(), wert.clone());
+        }
+    }
+    zeitleiste.sort_by_key(|eintrag| eintrag.get("atMs").and_then(Value::as_u64).unwrap_or(0));
+    ergebnis.insert("timeline".to_owned(), Value::Array(zeitleiste));
+
+    let ziel = &stufen[stufe];
+    let eigen = bloecke.get(STUFEN_NAMEN[stufe]);
+    let faktor = |feld: &str, vorgabe: u64| -> u64 {
+        match eigen.and_then(|b| b.get(feld)) {
+            None => vorgabe,
+            Some(wert) => wert
+                .as_u64()
+                .filter(|w| *w > 0)
+                .unwrap_or_else(|| panic!("{whose}: {feld} ist keine positive ganze Zahl.")),
+        }
+    };
+    let hp = uint(boss, "hp", whose) * faktor("hpPermille", ziel.hp_permille) / 1000;
+    let zeit = uint(boss, "overpressureMs", whose)
+        * faktor("overpressurePermille", ziel.overpressure_permille)
+        / (1000 * RASTER_MS)
+        * RASTER_MS;
+    ergebnis.insert("hp".to_owned(), Value::from(hp));
+    ergebnis.insert("overpressureMs".to_owned(), Value::from(zeit));
+    Value::Object(ergebnis)
+}
+
+/// Schreibt die abgeleiteten Stufen und die Stufennamen ins Generat.
+fn emit_boss_stages(
+    out: &mut String,
+    gestufte: &[(String, Vec<Value>)],
+    stufen: &[Stufe],
+    schulen: &[String],
+) {
+    let _ = writeln!(
+        out,
+        "/// Die Kennungen der Schwierigkeitsstufen, nach Nummer (`data/difficulty.json`)."
+    );
+    let _ = write!(
+        out,
+        "pub static DIFFICULTY_NAMES: [&str; {}] = [",
+        stufen.len()
+    );
+    for name in STUFEN_NAMEN {
+        let _ = write!(out, "{name:?}, ");
+    }
+    let _ = writeln!(out, "];\n");
+
+    let _ = writeln!(out, "/// Wie viele Bosse Stufen tragen.");
+    let _ = writeln!(
+        out,
+        "pub const STAGED_BOSS_COUNT: usize = {};\n",
+        gestufte.len()
+    );
+    let _ = writeln!(
+        out,
+        "/// Heroisch und Mythisch jedes Bosses mit `difficulties` (Issue #1177),\n\
+         /// zur Bauzeit abgeleitet (`leite_stufe_ab` in `build.rs`). Je Eintrag\n\
+         /// `[heroic, mythic]`, in der Reihenfolge von [`BOSSES`]."
+    );
+    let _ = writeln!(
+        out,
+        "pub static BOSS_STAGES: [[Boss; {}]; STAGED_BOSS_COUNT] = [",
+        STUFEN_NAMEN.len() - 1
+    );
+    for (name, varianten) in gestufte {
+        let _ = writeln!(out, "  [");
+        for (index, variante) in varianten.iter().enumerate() {
+            let wer = format!("{name} ({})", STUFEN_NAMEN[index + 1]);
+            pruefe_instanz(variante, &wer);
+            emit_boss(out, variante, &wer, schulen);
+        }
+        let _ = writeln!(out, "  ],");
+    }
+    let _ = writeln!(out, "];\n");
+}
+
 fn emit_boss(out: &mut String, boss: &Value, whose: &str, schulen: &[String]) {
     let _ = writeln!(out, "    Boss {{");
     let _ = writeln!(out, "        id: {:?},", text(boss, "id", whose));
@@ -1163,6 +1420,12 @@ fn emit_boss(out: &mut String, boss: &Value, whose: &str, schulen: &[String]) {
         out,
         "        instance: {:?},",
         text(boss, "instance", whose)
+    );
+    // Gesetzt nur von `leite_stufe_ab`; eine Bossdatei traegt das Feld nie.
+    let _ = writeln!(
+        out,
+        "        difficulty: {},",
+        opt_uint(boss, "difficulty", whose, 0)
     );
     let _ = writeln!(out, "        hp: {},", uint(boss, "hp", whose));
     let _ = writeln!(
@@ -2346,6 +2609,11 @@ const BEKANNTE_BOSS_SCHLUESSEL: &[&str] = &[
     "hp",
     "overpressureMs",
     "_comment",
+    // Die Stufe eines abgeleiteten Datensatzes (#1177) — Kopfdaten wie `id`.
+    "difficulty",
+    // Die Stufen-Zutaten (#1177). Ihre Wirkung beschreiben die Knoten der
+    // abgeleiteten Stufen (`boss-…@heroic/…`), nicht dieser Eintrag.
+    "difficulties",
     // Die elf Zusatz-Systeme
     "timeline",
     "phases",
@@ -2459,6 +2727,7 @@ fn emit_effects(
     spells: &Value,
     weitere: &[(&str, &Value)],
     bosses: &[(String, Value)],
+    gestufte: &[(String, Vec<Value>)],
 ) {
     // **Vor allem anderen**: Ohne vollstaendige Zuordnung prueft der Rest zu
     // wenig, und das faellt sonst nicht auf.
@@ -2478,6 +2747,25 @@ fn emit_effects(
         knoten_fuer_boss(&mut knoten, datei, boss);
         let herkuenfte: Vec<String> = knoten[vorher..].iter().map(|k| k.origin.clone()).collect();
         pruefe_boss_wirkung_vollstaendig(boss, datei, &herkuenfte);
+    }
+    // **Die Stufen sind eigene Kaempfe und brauchen eigene Knoten** (#1177).
+    // Ein heroischer `boss-1-1` traegt eine Schwaechung, die der normale nicht
+    // hat — fehlte ihr Knoten, beschriebe die Liste einen Kampf, den es so
+    // nicht gibt. Die Herkunft heisst `boss-1-1@heroic/…`: Das `@` haelt sie
+    // von `boss-1-1/…` getrennt, an dem die Pruefungen ueber `BOSSES` haengen.
+    for (datei, varianten) in gestufte {
+        for (index, variante) in varianten.iter().enumerate() {
+            let mut benannt = variante.clone();
+            let id = text(variante, "id", datei).to_owned();
+            if let Some(feld) = benannt.get_mut("id") {
+                *feld = Value::from(format!("{id}@{}", STUFEN_NAMEN[index + 1]));
+            }
+            let vorher = knoten.len();
+            knoten_fuer_boss(&mut knoten, datei, &benannt);
+            let herkuenfte: Vec<String> =
+                knoten[vorher..].iter().map(|k| k.origin.clone()).collect();
+            pruefe_boss_wirkung_vollstaendig(&benannt, datei, &herkuenfte);
+        }
     }
 
     let _ = writeln!(
@@ -3205,7 +3493,20 @@ fn pruefe_zuordnung_vollstaendig() {
 ///
 /// Alles andere muss in der Wirkungsbeschreibung vorkommen — geprueft von
 /// [`pruefe_boss_wirkung_vollstaendig`].
-const BOSS_KOPFDATEN: &[&str] = &["schema", "id", "name", "instance", "hp", "_comment"];
+const BOSS_KOPFDATEN: &[&str] = &[
+    "schema",
+    "id",
+    "name",
+    "instance",
+    "hp",
+    "_comment",
+    // Die Stufe eines abgeleiteten Datensatzes (#1177): benennt ihn, wirkt nicht.
+    "difficulty",
+    // Die Zutaten der Stufen wirken erst in den abgeleiteten Datensaetzen und
+    // werden DORT geprueft (`emit_effects`, Schleife ueber `gestufte`). Am
+    // Normal-Boss beschreiben sie keine Wirkung dieses Kampfes.
+    "difficulties",
+];
 
 /// Bricht den Bau, wenn ein wirkungstragendes Boss-Feld keinen Knoten hat.
 ///
@@ -3337,6 +3638,7 @@ fn emit_recordings(out: &mut String, spell_ids: &[String]) {
                 let _ = writeln!(out, "        boss_id: None,");
             }
         }
+        let _ = writeln!(out, "        difficulty: {},", a.difficulty);
         let _ = writeln!(out, "    }},");
     }
     let _ = writeln!(out, "];\n");
@@ -3425,6 +3727,13 @@ fn lies_aufzeichnung(
         .get("bossId")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
+    // Die Stufe, gegen die aufgezeichnet wurde (#1177). Fehlt sie, ist es
+    // Normal — jede Datei von vor den Stufen.
+    let difficulty = json
+        .get("difficulty")
+        .and_then(Value::as_u64)
+        .and_then(|d| u32::try_from(d).ok())
+        .unwrap_or(0);
 
     Some(Aufzeichnung {
         name,
@@ -3434,6 +3743,7 @@ fn lies_aufzeichnung(
         presses,
         final_checksum,
         boss_id,
+        difficulty,
     })
 }
 
@@ -3450,6 +3760,7 @@ struct Aufzeichnung {
     presses: Vec<(u32, u8)>,
     final_checksum: u32,
     boss_id: Option<String>,
+    difficulty: u32,
 }
 
 /// Schreibt die Boss-Kennung einer Aufzeichnung ins Generat.

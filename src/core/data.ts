@@ -28,6 +28,8 @@ import rawReward from '../../data/player/reward.json';
 import rawTalents from '../../data/player/talents.json';
 import { TICK_MS } from './loop.js';
 import { BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
+import { clampDifficulty, deriveStage } from './difficulty.js';
+import { DIFFICULTY_COUNT, DIFFICULTY_NORMAL } from '../loot/rates.js';
 
 /** Die Schul-Mechanik als Vorrat: Hitze, Kontroll-Punkte, Zersetzungs-Stapel. */
 export interface ResourceDef {
@@ -1148,6 +1150,20 @@ export interface BossDef {
   readonly id: string;
   readonly name: string;
   readonly instance: string;
+  /**
+   * Die Schwierigkeitsstufe dieses Datensatzes (GAME-DESIGN 11.7, #1177):
+   * 0 normal, 1 heroic, 2 mythic — dieselbe Nummer wie in `src/loot/rates.ts`.
+   *
+   * **Eine Eigenschaft des Datensatzes, nicht des Kampfes.** Die heroische
+   * Fassung eines Bosses ist ein eigener, abgeleiteter Datensatz
+   * (`src/core/difficulty.ts`) mit mehr Leben, kürzerem Zeitlimit und mehr
+   * Mechanik; dieses Feld sagt nur, welche er ist. Der Kampf liest es nicht —
+   * Anzeige, Spielstand und Beute lesen es.
+   *
+   * Optional, weil von Hand gebaute Datensätze (Trainingspuppe, Prüffälle)
+   * keine Stufe haben; fehlt es, ist es Normal (`difficultyOf`).
+   */
+  readonly difficulty?: number;
   readonly hp: number;
   readonly overpressureMs: number;
   readonly resistances: Readonly<Record<string, number>>;
@@ -2421,6 +2437,8 @@ export function parseBoss(raw: unknown): ParseResult<BossDef> {
       id: typeof source['id'] === 'string' ? source['id'] : 'unknown',
       name: typeof source['name'] === 'string' ? source['name'] : 'Unknown',
       instance: typeof source['instance'] === 'string' ? source['instance'] : 'unknown',
+      // Gesetzt von `deriveStage`; eine Bossdatei trägt das Feld nie selbst.
+      difficulty: clampDifficulty(number(source['difficulty'], DIFFICULTY_NORMAL)),
       hp,
       overpressureMs,
       resistances,
@@ -2604,7 +2622,7 @@ export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
  * Verzeichnis sortiert. **Beide Seiten müssen dieselbe Menge sehen**, sonst
  * kennt einer einen Boss, den der andere nicht rechnen kann.
  */
-export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
+const BOSS_FILES: readonly Record<string, unknown>[] = (() => {
   const dateien = import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
     eager: true,
     import: 'default',
@@ -2612,14 +2630,66 @@ export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
   // Sortiert, damit die Reihenfolge nicht vom Dateisystem abhängt — dieselbe
   // Entscheidung wie `dateien.sort()` in `sim/build.rs` (GAME-DESIGN 18.4:
   // feste Reihenfolge, keine Hash-Container).
-  const pfade = Object.keys(dateien).sort();
+  return Object.keys(dateien)
+    .sort()
+    .map((pfad) => dateien[pfad])
+    .filter((roh): roh is Record<string, unknown> => roh !== undefined);
+})();
+
+export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
   const out = new Map<string, ParseResult<BossDef>>();
-  for (const pfad of pfade) {
-    const gelesen = parseBoss(dateien[pfad]);
+  for (const roh of BOSS_FILES) {
+    const gelesen = parseBoss(roh);
     out.set(gelesen.value.id, gelesen);
   }
   return out;
 })();
+
+/**
+ * Die heroische und die mythische Fassung jedes Bosses, der Stufen trägt
+ * (GAME-DESIGN 11.7, Issue #1177).
+ *
+ * Je Kennung drei Einträge, nach Stufennummer: `[normal, heroic, mythic]`.
+ * Ein Boss ohne `difficulties` steht nicht darin — das sind die Prüf-Bosse
+ * und die Trainingspuppe; für sie gibt es nur Normal.
+ *
+ * **Die Probleme einer Stufe sind die der Ableitung UND die des Lesens.** Ein
+ * heroischer Eintrag, der aus dem Schleifen-Rahmen fällt, meldet sich hier wie
+ * ein Fehler in einer Datei — `tests/unit/difficulty-stages.test.ts` liest
+ * genau diese Liste.
+ *
+ * Der Simulator baut dieselbe Tabelle in `sim/build.rs` (`BOSS_STAGES`).
+ */
+export const BOSS_STAGES: ReadonlyMap<string, readonly ParseResult<BossDef>[]> = (() => {
+  const out = new Map<string, ParseResult<BossDef>[]>();
+  for (const roh of BOSS_FILES) {
+    if (roh['difficulties'] === undefined) continue;
+    const stufen: ParseResult<BossDef>[] = [];
+    for (let stufe = 0; stufe < DIFFICULTY_COUNT; stufe++) {
+      const abgeleitet = deriveStage(roh, stufe);
+      const gelesen = parseBoss(abgeleitet.raw);
+      stufen.push({
+        value: gelesen.value,
+        problems: [...abgeleitet.problems, ...gelesen.problems],
+      });
+    }
+    const id = stufen[0]?.value.id;
+    if (id !== undefined) out.set(id, stufen);
+  }
+  return out;
+})();
+
+/**
+ * Ein Boss auf einer Stufe, oder `undefined`.
+ *
+ * Normal ist der Datensatz aus {@link BOSSES}, auch für Bosse ohne Stufen.
+ * Darüber nur, was {@link BOSS_STAGES} führt — ein Prüf-Boss auf Heroisch ist
+ * `undefined` und nicht stillschweigend seine Normal-Fassung.
+ */
+export function bossAtDifficulty(id: string, difficulty: number): BossDef | undefined {
+  if (difficulty === DIFFICULTY_NORMAL) return bossById(id);
+  return BOSS_STAGES.get(id)?.[difficulty]?.value;
+}
 
 /**
  * Die Grundwerte des Spielers, aus `data/player/base.json`.
@@ -2681,12 +2751,23 @@ export interface InstanceDef {
   /**
    * Welche Instanz **abgeschlossen** sein muss, oder `null`.
    *
-   * 12.7 nennt vier Kriterien nebeneinander; hier steht nur das erste, der
-   * Hauptpfad. Punkte-Schwelle, Schwierigkeitsstufe und
-   * Meisterschafts-Schlüssel fehlen bewusst: Die Schwelle hat niemand
-   * entschieden, und Schwierigkeitsstufen gibt es im Spiel noch nicht.
+   * Der Hauptpfad aus 12.7. Daneben öffnet {@link pointsThreshold} dieselbe
+   * Instanz ohne den Abschluss; die Schwierigkeitsstufen öffnen nicht die
+   * Instanz, sondern ihre heroische und mythische Fassung
+   * (`src/progression/boss-select.ts`).
    */
   readonly requires: string | null;
+  /**
+   * Die Punkte-Schwelle (12.7: „Ventil gegen Feststecken“, Issue #1177), oder
+   * `null` für eine Instanz, die ohnehin offen ist.
+   *
+   * Gemessen an den **verdienten** Punkten, nicht am Guthaben — Entscheidung
+   * des Auftraggebers vom 29.10.: „Instanzen öffnen über die Punkte-Schwelle
+   * ohne Ausgeben“. Wer Punkte in eine Aufwertung steckt, verliert dadurch
+   * keine geöffnete Instanz. **Die Zahlen sind vorläufig**; die Herleitung
+   * steht in `data/instances.json`.
+   */
+  readonly pointsThreshold: number | null;
 }
 
 /**
@@ -2719,12 +2800,32 @@ export const INSTANCES: readonly InstanceDef[] = (() => {
           `ab 1 (src/loot/rates.ts).`,
       );
     }
+    const requires = typeof eintrag['requires'] === 'string' ? eintrag['requires'] : null;
+    const schwelle = eintrag['pointsThreshold'];
+    if (schwelle !== undefined && schwelle !== null) {
+      if (typeof schwelle !== 'number' || !Number.isInteger(schwelle) || schwelle <= 0) {
+        throw new Error(
+          `data/instances.json: "${id}" hat pointsThreshold ${String(schwelle)} — erwartet ` +
+            `eine positive ganze Zahl oder null.`,
+        );
+      }
+      // **Eine Schwelle ohne `requires` öffnet nichts**: Die Instanz ist dann
+      // ohnehin offen. Stünde sie trotzdem da, sähe sie aus wie ein Ventil und
+      // wäre keins.
+      if (requires === null) {
+        throw new Error(
+          `data/instances.json: "${id}" trägt pointsThreshold, verlangt aber nichts — ` +
+            `die Schwelle wäre wirkungslos.`,
+        );
+      }
+    }
     alle.push({
       id,
       name: typeof eintrag['name'] === 'string' ? eintrag['name'] : id,
       number: nummer,
       order: Math.trunc(number(eintrag['order'], 0)),
-      requires: typeof eintrag['requires'] === 'string' ? eintrag['requires'] : null,
+      requires,
+      pointsThreshold: typeof schwelle === 'number' ? schwelle : null,
     });
   }
 

@@ -901,6 +901,18 @@ pub struct Boss {
     pub name: &'static str,
     /// Instanz, zu der er gehoert.
     pub instance: &'static str,
+    /// Die Schwierigkeitsstufe dieses Datensatzes (GAME-DESIGN 11.7, #1177):
+    /// [`DIFFICULTY_NORMAL`], [`DIFFICULTY_HEROIC`] oder [`DIFFICULTY_MYTHIC`].
+    ///
+    /// **Eine Eigenschaft des Datensatzes, nicht des Kampfes** — dieselbe
+    /// Bauart wie `BossDef.difficulty` im Spiel. Die heroische Fassung eines
+    /// Bosses ist ein eigener, zur Bauzeit abgeleiteter Datensatz in
+    /// [`BOSS_STAGES`] (mehr Leben, kuerzeres Zeitlimit, mehr Mechanik). Der
+    /// Kampf liest dieses Feld nicht; er rechnet den Datensatz, den
+    /// `FightConfig::boss` ihm gibt. Damit traegt die Konfiguration die Stufe
+    /// in ihrem Boss — eine zweite Angabe daneben waere eine zweite Wahrheit
+    /// ueber dieselbe Sache.
+    pub difficulty: u32,
     /// Lebenspunkte.
     pub hp: u32,
     /// Zeitlimit: Ist es abgelaufen, hat der Spieler verloren.
@@ -1094,6 +1106,48 @@ include!(concat!(env!("OUT_DIR"), "/data_generated.rs"));
 #[must_use]
 pub fn boss_by_id(id: &str) -> Option<&'static Boss> {
     BOSSES.iter().find(|boss| boss.id == id)
+}
+
+/// Normal — die Stufe, die die Bossdatei selbst beschreibt (GAME-DESIGN 11.7).
+///
+/// Dieselben Nummern wie `DIFFICULTY_*` in `src/loot/rates.ts`; nach ihnen
+/// rechnen Beute-Stufe und Fallraten.
+pub const DIFFICULTY_NORMAL: u32 = 0;
+/// Heroisch.
+pub const DIFFICULTY_HEROIC: u32 = 1;
+/// Mythisch.
+pub const DIFFICULTY_MYTHIC: u32 = 2;
+/// Wie viele Stufen es gibt.
+pub const DIFFICULTY_COUNT: u32 = 3;
+
+/// Ein Boss auf einer Schwierigkeitsstufe (Issue #1177).
+///
+/// Normal ist der Datensatz aus [`BOSSES`], auch fuer Bosse ohne Stufen.
+/// Darueber nur, was [`BOSS_STAGES`] fuehrt: Ein Pruef-Boss auf Heroisch ist
+/// `None` und **nicht** still seine Normal-Fassung — wer dann misst, misst die
+/// falsche Sache und haelt sie fuer die richtige.
+///
+/// Das Gegenstueck zu `bossAtDifficulty` im Spiel (`src/core/data.ts`). Dass
+/// beide Seiten fuer jeden Boss und jede Stufe denselben Datensatz ableiten,
+/// haelt `tests/parity_difficulty_stages.rs` fest.
+#[must_use]
+pub fn boss_at(id: &str, difficulty: u32) -> Option<&'static Boss> {
+    if difficulty == DIFFICULTY_NORMAL {
+        return boss_by_id(id);
+    }
+    let index = usize::try_from(difficulty).ok()?.checked_sub(1)?;
+    BOSS_STAGES
+        .iter()
+        .find(|stufen| stufen[0].id == id)
+        .and_then(|stufen| stufen.get(index))
+}
+
+/// Der Anzeigename einer Stufe, wie `data/difficulty.json` ihn fuehrt.
+#[must_use]
+pub fn difficulty_name(difficulty: u32) -> Option<&'static str> {
+    DIFFICULTY_NAMES
+        .get(usize::try_from(difficulty).ok()?)
+        .copied()
 }
 
 /// Sucht einen Zauber ueber seinen Bezeichner.

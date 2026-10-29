@@ -12,12 +12,21 @@ import {
   BOSSES,
   CALCINATION,
   FIRST_CRUCIBLE,
+  bossAtDifficulty,
   bossById,
   instanceById,
   type BossDef,
   type SpellDef,
 } from './data.js';
-import { buildBossSelect, mechanikenVon, waehlbareBosse } from '../progression/boss-select.js';
+import {
+  buildBossSelect,
+  freischaltungen,
+  mechanikenVon,
+  neueFreischaltungen,
+  offeneStufen,
+  waehlbareBosse,
+} from '../progression/boss-select.js';
+import { bossTitle, difficultyOf } from './difficulty.js';
 import { EV_BOSS_HIT, NO_KEY } from './events.js';
 import {
   applyBindings,
@@ -206,6 +215,16 @@ export class App {
   lastRecord: RecordResult | null = null;
 
   /**
+   * Was der letzte Kampf NEU geöffnet hat — Instanzen und Stufen, als
+   * Kennungen aus `freischaltungen` (Issue #1177). Leer heißt: nichts Neues.
+   *
+   * Öffentlich, weil der Klang „Freischaltung“ an genau dieser Differenz hängt
+   * und ein Prüffall sie fassen muss: einmal je Freischaltung, nicht bei jedem
+   * Sieg danach.
+   */
+  lastUnlocks: readonly string[] = [];
+
+  /**
    * Die Kurzfassung desselben Kampfes (Issue #387).
    *
    * **Neben `lastRecord` und nicht daraus**: Die Erklärung der Punktzahl
@@ -287,10 +306,23 @@ export class App {
     // greift nicht ein -- ein Spiel ohne Spielstand rechnet identisch
     // (GAME-DESIGN 18.5), es merkt sich nur nichts.
     this.session.onFinish = (summary, outcome): void => {
+      // Was VOR diesem Lauf offen war — der Vergleich für den Klang der
+      // Freischaltung (Issue #1177), unten nach dem Lauf.
+      const offenVorher = freischaltungen(
+        this.persistence.state.defeatedBosses,
+        BOSSES,
+        this.pointsEarned(),
+      );
       this.lastRecord = recordRun(this.persistence.state, summary, outcome, {
         bossId: this.combat.boss.id,
         // Derselbe nullbasierte Schlüssel wie in Beute und gespeicherten Läufen.
-        difficulty: DIFFICULTY_NORMAL,
+        //
+        // **Aus dem Datensatz, gegen den gekämpft wurde** (Issue #1177). Hier
+        // stand bis dahin `DIFFICULTY_NORMAL` fest — Beute-Stufe, Fallraten,
+        // Bestwert und Marke kannten nur Normal. Die Stufe steht am Boss
+        // selbst, weil `selectBoss` den abgeleiteten Datensatz übergibt; ein
+        // eigenes Feld in `App` wäre eine zweite Wahrheit über dasselbe.
+        difficulty: difficultyOf(this.combat.boss),
         // Die Stufe des BOSSES, aus seinem Datensatz — nicht die des
         // Spielers und nicht die Schwierigkeit (Issue #248).
         bossLevel: this.combat.boss.level,
@@ -352,10 +384,19 @@ export class App {
         this.lastRecord,
         summary,
         this.combat.boss.id,
-        DIFFICULTY_NORMAL,
+        difficultyOf(this.combat.boss),
       );
       this.lastSummary = summary;
       this.showUnlockedEntry(this.lastRecord);
+      // **Aus dem Ergebnis des Laufs, nicht aus dem abgelegten Stand**: Ein
+      // misslungenes Ablegen (oben bewusst nicht geprüft) nähme dem Spieler
+      // sonst den Klang zu einem Sieg, der etwas geöffnet hat.
+      this.announceUnlocks(
+        neueFreischaltungen(
+          offenVorher,
+          freischaltungen(this.lastRecord.defeatedBosses, BOSSES, this.pointsEarned()),
+        ),
+      );
     };
 
     this.applyBindings();
@@ -736,10 +777,61 @@ export class App {
     // wenn die davor vollständig bezwungen ist. Ohne dieses zweite Argument
     // stünde `instance-3` sofort in der Auswahl — die Freischaltung wäre
     // gebaut, geprüft und nicht angeschlossen.
-    const bosse = waehlbareBosse(BOSSES, this.persistence.state.defeatedBosses);
-    return buildBossSelect(bosse, this.combat.boss.id, (bossId) => {
-      this.selectBoss(bossId);
-    });
+    const bosse = waehlbareBosse(
+      BOSSES,
+      this.persistence.state.defeatedBosses,
+      this.pointsEarned(),
+    );
+    return buildBossSelect(
+      bosse,
+      this.combat.boss.id,
+      (bossId, stufe) => {
+        this.selectBoss(bossId, stufe);
+      },
+      (bossId) => this.openStagesOf(bossId),
+      difficultyOf(this.combat.boss),
+    );
+  }
+
+  /**
+   * Die VERDIENTEN Punkte, gegen die die Punkte-Schwelle misst (12.7).
+   *
+   * OFFEN (#1177): Das Punktekonto entsteht in #117 (w5-aufwertung) und liegt
+   * noch nicht auf main. Bis zu dessen Merge steht hier 0 — dann öffnet die
+   * Schwelle im Spiel nichts, die Regel selbst ist geprüft
+   * (`difficulty-unlock.test.ts`). Nach dem Merge (Entscheidung des
+   * Orchestrators vom 29.10.): `return this.persistence.pointsEarned;`
+   */
+  private pointsEarned(): number {
+    return 0;
+  }
+
+  /**
+   * Eine neue Instanz oder Stufe ankündigen (Issue #1177, Klang `menu-unlock`).
+   *
+   * **Einmal je Freischaltung**: `neu` ist die Differenz vor und nach EINEM
+   * Lauf. Wer die Auswahl öffnet, ruft diese Methode nicht; wer einen Boss
+   * zum zweiten Mal legt, bekommt eine leere Liste.
+   *
+   * OFFEN (#1177): Abgespielt wird über `AudioFeedback.playCue('menu-unlock')`,
+   * das #117 (w5-aufwertung) baut und das noch nicht auf main liegt. Nach dem
+   * Merge steht hier eine Zeile mehr: `if (neu.length > 0) this.audio.playCue('menu-unlock');`
+   */
+  private announceUnlocks(neu: readonly string[]): void {
+    this.lastUnlocks = neu;
+  }
+
+  /**
+   * Welche Stufen dieses Bosses gerade wählbar sind (12.7, Issue #1177).
+   *
+   * Öffentlich, weil {@link selectBoss} dieselbe Frage stellt und das
+   * Prüfblatt sie im Browser stellen können muss — eine Freischaltung, die
+   * nur die Liste kennt, ließe sich über `selectBoss` umgehen.
+   */
+  openStagesOf(bossId: string): readonly number[] {
+    const boss = bossById(bossId);
+    if (boss === undefined) return [];
+    return offeneStufen(boss.instance, this.persistence.state.defeatedBosses);
   }
 
   /**
@@ -766,9 +858,20 @@ export class App {
    * entsteht aus `BOSSES`, ein Treffer daneben ist also kein Spielerfehler,
    * sondern ein Programmfehler — und ein abgestürzter Bildschirm wäre die
    * schlechtere Antwort darauf als ein Knopf, der nichts tut.
+   *
+   * # Die Stufe (Issue #1177)
+   *
+   * Über Normal nur, was {@link openStagesOf} freigibt — dieselbe Regel wie die
+   * Liste, an derselben Stelle gefragt. Eine gesperrte Stufe wird übergangen
+   * wie eine unbekannte Kennung. Der Kampf bekommt den ABGELEITETEN Datensatz
+   * (`bossAtDifficulty`): mehr Leben, kürzeres Zeitlimit, die Zutaten der
+   * Stufe. `Combat` erfährt nichts von einer Stufe; für ihn ist es ein Boss.
    */
-  selectBoss(bossId: string): void {
-    const gewaehlt = bossById(bossId);
+  selectBoss(bossId: string, difficulty: number = DIFFICULTY_NORMAL): void {
+    if (difficulty !== DIFFICULTY_NORMAL && !this.openStagesOf(bossId).includes(difficulty)) {
+      return;
+    }
+    const gewaehlt = bossAtDifficulty(bossId, difficulty);
     if (gewaehlt === undefined) return;
     this.combat.switchBoss(gewaehlt);
     // **Der Vorbereitungs-Bildschirm muss mit** (im Browser gefunden, nicht in
@@ -776,7 +879,8 @@ export class App {
     // abgewählt hatte, während das HUD über dem Ring schon den neuen führte.
     // Die Widerstandszeilen entstehen dabei über `resistanceLines` — dieselbe
     // Stelle wie beim Aufbau, damit „hält ab" nicht zweimal entschieden wird.
-    this.overlay.setBoss(gewaehlt.name, resistanceLines(gewaehlt.resistances));
+    // Die Überschrift trägt die Stufe (`bossTitle`), dieselbe wie im HUD.
+    this.overlay.setBoss(bossTitle(gewaehlt), resistanceLines(gewaehlt.resistances));
     this.backToMenu();
     this.refreshHome();
     this.home.hide();
@@ -1260,7 +1364,7 @@ export class App {
     const { entry } = usableBest(
       this.persistence.state.bestRuns,
       this.combat.boss.id,
-      DIFFICULTY_NORMAL,
+      difficultyOf(this.combat.boss),
       summary.heldPercent === null ? 'reserve' : 'held',
     );
     return compareRuns(summary, comparableFromBest(entry));
@@ -1289,7 +1393,7 @@ export class App {
     const { entry } = usableBest(
       this.persistence.state.bestRuns,
       this.combat.boss.id,
-      DIFFICULTY_NORMAL,
+      difficultyOf(this.combat.boss),
       summary.heldPercent === null ? 'reserve' : 'held',
     );
     return curveFromBest(entry);
@@ -1331,6 +1435,21 @@ export class App {
     }
     if (event.code === 'Enter' || event.code === 'NumpadEnter') {
       event.preventDefault();
+      // **Ein fokussierter Knopf der Boss-Wahl geht vor** (Issue #1177, im
+      // Browser gefunden): Die Knöpfe sind mit Tab erreichbar, aber Eingabe
+      // startete den Countdown des LAUFENDEN Bosses — `preventDefault` darüber
+      // nimmt dem Knopf sein Standardverhalten, und die Leertaste ist eine
+      // Zauber-Taste. Nur dieser Bereich: Er ist der einzige, dessen Wahl den
+      // nächsten Kampf bestimmt, und außerhalb bleibt Eingabe „Ready“.
+      const fokus = document.activeElement;
+      if (
+        fokus instanceof HTMLButtonElement &&
+        !fokus.disabled &&
+        fokus.closest('.boss-select') !== null
+      ) {
+        fokus.click();
+        return;
+      }
       if (this.session.phase === PHASE_PREPARE) this.ready();
       else if (this.session.phase === PHASE_ENDED) this.restart();
     }

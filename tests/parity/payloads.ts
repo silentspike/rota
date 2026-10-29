@@ -38,8 +38,10 @@ import { PressQueue } from '../../src/input/queue.js';
 import { RandomStreams, STREAM_COUNT, STREAM_NAMES } from '../../src/core/rng.js';
 import { Combat, NOT_ACTIVE, alsSpellIndex, isCastAccepted } from '../../src/core/combat.js';
 import {
+  bossAtDifficulty,
   bossById,
   BOSSES,
+  BOSS_STAGES,
   CALCINATION,
   FIRST_CRUCIBLE,
   parseSchool,
@@ -9022,21 +9024,39 @@ interface Instanz5Lauf {
    * Hälfte.
    */
   readonly phasenGesehen: readonly number[];
+  /**
+   * Der höchste Stand des Zählers im Lauf, und wie oft die Schwächung geklärt
+   * wurde (Issue #1177).
+   *
+   * Aus demselben Grund wie die Phasen: Die Schleife, die den Kampf fährt,
+   * zählt mit. Eine zweite Abspielung, um es nachträglich zu messen, wäre eine
+   * zweite Quelle.
+   */
+  readonly doomPeak: number;
+  readonly afflictionsCleared: number;
 }
 
-function recordInstance5(bossId: string, ticks: number): Instanz5Lauf {
-  const boss = bossById(bossId);
+function recordInstance5(
+  bossId: string,
+  ticks: number,
+  // Die Stufe eines Bosses (Issue #1177): dieselbe Rotation gegen seine
+  // heroische oder mythische Fassung. Ohne Angabe Normal, wie bisher.
+  gegner: BossDef | undefined = bossById(bossId),
+): Instanz5Lauf {
+  const boss = gegner;
   if (boss === undefined) throw new Error(`Der Boss ${bossId} fehlt.`);
   const combat = new Combat({ school: CALCINATION.value, boss });
   const presses: RecordedPress[] = [];
   const press = pressRecorder(combat, INSTANCE5_BINDINGS, presses);
   const idx = (id: string): ReturnType<typeof combat.indexOf> => combat.indexOf(id);
   const phasen = new Set<number>();
+  let doomPeak = 0;
 
   for (let tick = 0; tick < ticks; tick++) {
     const timeMs = tick * TICK_MS;
     combat.stepPassive(timeMs);
     phasen.add(combat.bossPhase);
+    doomPeak = Math.max(doomPeak, combat.doom);
     if (combat.damageDealt >= combat.boss.hp) break;
     if (combat.playerDead) break;
 
@@ -9101,6 +9121,8 @@ function recordInstance5(bossId: string, ticks: number): Instanz5Lauf {
   return {
     recording: { name: bossId, seed: 0, ticks, presses, bindings: INSTANCE5_BINDINGS },
     phasenGesehen: [...phasen].sort((a, b) => a - b),
+    doomPeak,
+    afflictionsCleared: combat.afflictionsCleared,
   };
 }
 
@@ -9138,6 +9160,135 @@ export function instance5Payload(bossId: string, name: string): Record<string, u
       // die Bosse aufzählt statt sie zu zählen: `[0, 2]` und `[0, 1, 2]` haben
       // dasselbe Maximum und bedeuten Verschiedenes.
       phasesSeen: lauf.phasenGesehen,
+    },
+    checksums: result.checksums,
+  };
+}
+
+/**
+ * Die Stufen-Tabelle: jeder Boss auf jeder Stufe, Feld für Feld (Issue #1177).
+ *
+ * # Warum eine Tabelle neben den Kampf-Aufzeichnungen
+ *
+ * Spiel (`deriveStage`) und Simulator (`leite_stufe_ab` in `sim/build.rs`)
+ * leiten die Stufen getrennt ab — mit derselben Regel, aber in zwei Sprachen.
+ * Eine Kampf-Aufzeichnung prüft das nur für den Boss, gegen den sie läuft,
+ * und nur für die Mechanik, die in ihrem Lauf vorkommt. Diese Datei hält die
+ * Ableitung für ALLE 21 Bosse auf beiden Stufen fest; `parity_difficulty_stages.rs`
+ * vergleicht jedes Feld mit `boss_at`.
+ */
+export const DIFFICULTY_STAGES_NAME = 'difficulty-stages';
+
+export function difficultyStagesPayload(): Record<string, unknown> {
+  const stufen: Record<string, unknown>[] = [];
+  for (const [id, liste] of BOSS_STAGES) {
+    liste.forEach((eintrag, stufe) => {
+      if (stufe === 0) return;
+      const b = eintrag.value;
+      stufen.push({
+        id,
+        difficulty: stufe,
+        problems: eintrag.problems,
+        hp: b.hp,
+        overpressureMs: b.overpressureMs,
+        timelineLoopMs: b.timelineLoopMs,
+        timeline: b.timeline.map((e) => ({
+          atMs: e.atMs,
+          mechanic: e.mechanic,
+          name: e.name,
+          damage: e.damage,
+          castTimeMs: e.castTimeMs,
+          interruptsPlayer: e.interruptsPlayer,
+          // `null` heißt „an keine Phase gebunden“ — im Simulator `u32::MAX`.
+          // Eine 0 hier fiele mit „ab Phase 0“ zusammen, und der Vergleich
+          // sähe eine verlorene Bindung nicht.
+          phase: e.phase ?? null,
+        })),
+        energy: b.energy,
+        doom: b.doom,
+        stacks: b.stacks,
+        race: b.race,
+        affliction: b.affliction,
+        escalation: b.escalation,
+        bossHeal: b.bossHeal,
+        runaway: b.runaway,
+      });
+    });
+  }
+  return { schema: SCHEMA, name: DIFFICULTY_STAGES_NAME, stages: stufen };
+}
+
+/** Ein Boss auf Heroisch und Mythisch im Kampf (Issue #1177). */
+export const DIFFICULTY_FIGHT_NAMES = [
+  'difficulty-boss-1-1-heroic',
+  'difficulty-boss-1-1-mythic',
+] as const;
+
+/**
+ * Derselbe Boss auf seiner heroischen und mythischen Fassung, im Kampf.
+ *
+ * # Warum boss-1-1
+ *
+ * Seine Stufen-Zutaten treffen genau die Stelle, an der zwei Bausteine um
+ * EINE Taste ringen: Heroisch legt eine Schwächung auf, die QUENCH löst —
+ * derselbe Zauber, der die Kindling Roars unterbricht. Mythisch bringt den
+ * Zähler dazu, den nur PURGE senkt. Die Aufzeichnung fährt beides: Die
+ * Rotation aus Instanz 5 unterbricht zuerst, reinigt dann und senkt den
+ * Zähler ab der halben Schwelle.
+ *
+ * # Die Dauer ist das Zeitlimit der STUFE
+ *
+ * `ticks` = Zeitlimit / Takt — 54 s heroisch, 48 s mythisch. So rechnen
+ * `Fight::replay` und `rota-sim verify` mit derselben Ereignisgrenze: Der eine
+ * bekommt sie über `duration_ms` aus der Datei, der andere aus dem Boss.
+ *
+ * # Die Zusicherung steht im Datensatz
+ *
+ * `afflictionsCleared` und `doomPeak` belegen, dass der Lauf die Zutat der
+ * Stufe BERÜHRT hat. Ohne sie wäre eine Aufzeichnung, in der die Schwächung
+ * nie kommt, von einer korrekten nicht zu unterscheiden. Gezählt hat sie die
+ * Schleife, die den Kampf fährt (`recordInstance5`) — die Rust-Seite misst
+ * dieselben Größen an ihren eigenen Spuren nach.
+ */
+export function difficultyFightPayload(
+  bossId: string,
+  difficulty: number,
+  name: string,
+): Record<string, unknown> {
+  const boss = bossAtDifficulty(bossId, difficulty);
+  if (boss === undefined) throw new Error(`${bossId} hat keine Stufe ${String(difficulty)}.`);
+  const ticks = boss.overpressureMs / TICK_MS;
+  const lauf = recordInstance5(bossId, ticks, boss);
+  const recording = { ...lauf.recording, name };
+  const result = replayRecording(recording, { checksumPerTick: true, boss });
+
+  return {
+    schema: SCHEMA,
+    name,
+    seed: recording.seed,
+    ticks: recording.ticks,
+    tickMs: TICK_MS,
+    bossId,
+    difficulty,
+    bindings: INSTANCE5_BINDINGS.map((b) => ({ slot: b.slot, spellId: b.spellId })),
+    presses: recording.presses.map((p) => ({ tick: p.tick, slot: p.slot })),
+    expected: {
+      hp: boss.hp,
+      overpressureMs: boss.overpressureMs,
+      damage: result.damage,
+      damageTaken: result.damageTaken,
+      absorbed: result.absorbed,
+      healed: result.healed,
+      converted: result.converted,
+      diedAtMs: result.diedAtMs,
+      killedAtMs: result.killedAtMs,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      casts: result.casts,
+      afflictionsCleared: lauf.afflictionsCleared,
+      doomPeak: lauf.doomPeak,
+      finalChecksum: result.finalChecksum,
+      sequenceChecksum: result.sequenceChecksum,
     },
     checksums: result.checksums,
   };

@@ -374,8 +374,11 @@ describe('Die Instanz-Nummer erreicht den Beute-Wurf', () => {
     // Der Aufruf ist im Prüflauf nicht erreichbar (DOM). Ohne diesen Wächter
     // könnte jemand das zweite Argument entfernen, und alle Fälle blieben
     // grün — genau der Zustand, den dieser PR behebt.
+    // Seit #1177 folgt ein drittes Argument (die verdienten Punkte für die
+    // Schwelle), und der Aufruf steht umbrochen — das Muster lässt beides zu,
+    // verlangt aber weiterhin den Spielstand als zweites.
     expect(appQuelle()).toMatch(
-      /waehlbareBosse\(BOSSES, this\.persistence\.state\.defeatedBosses\)/,
+      /waehlbareBosse\(\s*BOSSES,\s*this\.persistence\.state\.defeatedBosses\s*[,)]/,
     );
   });
 

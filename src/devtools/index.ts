@@ -51,6 +51,7 @@ import {
   type RotationName,
 } from './reference-run.js';
 import { erwarteterStand, bessereStuecke } from './expected-gear.js';
+import { difficultyOf } from '../core/difficulty.js';
 import type { OwnedItemLike } from '../gear/catalog.js';
 
 /** Bilder, die vor der ersten Speicher-Messung verstreichen (Aufwärmen). */
@@ -183,6 +184,8 @@ export interface CombatSnapshot {
   readonly state: string;
   readonly damage: number;
   readonly bossName: string;
+  /** Die Stufe des Bosses, 0 normal bis 2 mythisch (Issue #1177). */
+  readonly bossDifficulty: number;
   readonly bossHp: number;
   readonly bossHpRemaining: number;
   readonly overpressureMs: number;
@@ -946,6 +949,7 @@ export function installDevTools(app: App): void {
         state: FIGHT_STATE_NAMES[combat.fightState] ?? '?',
         damage: combat.damageDealt,
         bossName: combat.boss.name,
+        bossDifficulty: difficultyOf(combat.boss),
         bossHp: combat.boss.hp,
         bossHpRemaining: combat.bossHpRemaining,
         overpressureMs: combat.boss.overpressureMs,

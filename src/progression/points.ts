@@ -42,6 +42,7 @@
  * auseinander.
  */
 import { REWARD } from '../core/data.js';
+import { pointsPermilleOf } from '../core/difficulty.js';
 import { applyRewardFalloff, rewardFalloffPerMille } from './reward-falloff.js';
 
 /** Was ein Lauf beisteuert — der Ausschnitt der Zusammenfassung, der zählt. */
@@ -53,10 +54,18 @@ export interface PointsSource {
   readonly heldPercent: number | null;
 }
 
-/** Die beiden Stufen, aus denen der Abstand entsteht. */
+/** Die beiden Stufen, aus denen der Abstand entsteht — und die Schwierigkeit. */
 export interface PointsContext {
   readonly bossLevel: number;
   readonly playerLevel: number;
+  /**
+   * Die Schwierigkeitsstufe des Kampfes, 0 bis 2 (Issue #1177).
+   *
+   * Masterplan A.4: „Normal / Heroisch / Mythisch … **mehr Punkte**“. Fehlt
+   * sie, ist es Normal — ein Aufrufer, der keine Stufe kennt, rechnet wie bis
+   * #1177.
+   */
+  readonly difficulty?: number;
 }
 
 /** Die Rechnung in ihren Teilen — damit ein Prüffall sie einzeln fassen kann. */
@@ -77,6 +86,8 @@ export interface PointsBreakdown {
   readonly repeatOnly: boolean;
   /** Der Abstandsfaktor in Promille, 1000 heißt voller Ertrag. */
   readonly falloffPerMille: number;
+  /** Der Faktor der Schwierigkeitsstufe in Promille, 1000 auf Normal (#1177). */
+  readonly difficultyPerMille: number;
   /** Was ausgezahlt wird. */
   readonly awarded: number;
 }
@@ -153,6 +164,19 @@ export function pointsBreakdown(
   const repeatOnly = source.victory && differenz === 0;
   const roh = repeatOnly ? Math.trunc((base * REWARD.repeatPerMille) / 1000) : differenz;
 
+  // **Die Schwierigkeit zuletzt, nach dem Abstand** (Issue #1177). Beide sind
+  // Faktoren auf derselben Zahl, also wäre die Reihenfolge für reelle Zahlen
+  // gleichgültig — für ganze nicht: Erst abzurunden und dann zu vervielfachen
+  // vervielfachte den Rundungsfehler mit. So rundet jeder Faktor einmal, in
+  // derselben Folge wie `data/difficulty.json` sie beschreibt.
+  //
+  // **Auf die Differenz, nicht auf die Kurve davor.** Der Bestwert, gegen den
+  // `previousBest` rechnet, gehört zur selben Stufe (`usableBest` sucht je Boss
+  // UND Stufe) — die Differenz ist also schon eine heroische, und der Faktor
+  // macht aus ihr heroische Punkte.
+  const difficultyPerMille = pointsPermilleOf(context.difficulty ?? 0);
+  const gemindert = applyRewardFalloff(roh, context.bossLevel, context.playerLevel);
+
   return {
     units,
     base,
@@ -162,7 +186,8 @@ export function pointsBreakdown(
     // Beträgen wegen der Ganzzahl-Division daneben, und der Prüffall zu den
     // beiden Währungen verglich dann Rundungsrauschen statt der Kurve.
     falloffPerMille: rewardFalloffPerMille(context.bossLevel, context.playerLevel),
-    awarded: applyRewardFalloff(roh, context.bossLevel, context.playerLevel),
+    difficultyPerMille,
+    awarded: Math.trunc((gemindert * difficultyPerMille) / 1000),
   };
 }
 

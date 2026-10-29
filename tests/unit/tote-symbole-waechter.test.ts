@@ -211,11 +211,12 @@ const AUSNAHMEN: Readonly<Record<string, string>> = {
 
   // ---- Absicht: Glied einer vollständigen Reihe -----------------------------
   //
-  // Sie stehen neben `SPACE_POSITION`, `DIFFICULTY_COUNT` und `BLOCK_WIDTH`.
+  // Sie stehen neben `SPACE_POSITION` und `BLOCK_WIDTH`.
   // Eine Reihe, bei der ein Glied fehlt, lädt zum Nachrechnen ein — und das
   // Nachrechnen ist die Fehlerquelle, nicht die ungenutzte Zeile.
   'src/input/keys.ts#ROW_COUNT': 'Glied der Tasten-Anordnung, neben SPACE_POSITION',
-  'src/loot/rates.ts#DIFFICULTY_NAMES': 'Glied der Schwierigkeits-Reihe, neben DIFFICULTY_COUNT',
+  // `src/loot/rates.ts#DIFFICULTY_NAMES` stand hier bis #1177 — seitdem liest
+  // ihn `src/core/difficulty.ts` als Reihenfolge der Stufen.
   'src/render/spellbar.ts#BLOCK_HEIGHT': 'Glied der Geometrie-Reihe, neben BLOCK_WIDTH',
 };
 

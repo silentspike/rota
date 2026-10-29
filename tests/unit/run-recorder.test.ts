@@ -349,16 +349,17 @@ describe('Bestwert am echten Lauf (Issue #377)', () => {
     // immer null — jeder Sieg zahlte dann nur den Rest-Ertrag, auch der erste.
     const lauf = warden();
     const erster = recordRun(LEER, lauf.summary, lauf.outcome, KONTEXT);
-    expect(erster.pointsGained).toBe(
-      pointsForRun(lauf.summary, { bossLevel: KONTEXT.bossLevel, playerLevel: LEER.level }, null),
-    );
+    // Mit der Stufe des Laufs (#1177): `KONTEXT.difficulty` ist 1, seit
+    // Fassung 4 des Spielstands also Heroisch — und Heroisch zahlt mehr.
+    const kontext = {
+      bossLevel: KONTEXT.bossLevel,
+      playerLevel: LEER.level,
+      difficulty: KONTEXT.difficulty,
+    };
+    expect(erster.pointsGained).toBe(pointsForRun(lauf.summary, kontext, null));
     // Und die Gegenprobe: gegen den schon geschriebenen Wert waere es weniger.
     expect(erster.pointsGained).toBeGreaterThan(
-      pointsForRun(
-        lauf.summary,
-        { bossLevel: KONTEXT.bossLevel, playerLevel: LEER.level },
-        erster.bestRuns[0]?.value ?? null,
-      ),
+      pointsForRun(lauf.summary, kontext, erster.bestRuns[0]?.value ?? null),
     );
   });
 
