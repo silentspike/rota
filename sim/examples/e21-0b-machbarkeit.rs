@@ -47,6 +47,12 @@ fn duration_ms(text: &str) -> Result<u64, String> {
     ))
 }
 
+/// Ein gemeldeter Wert der Kalibrierung; `unbekannt`, wenn er nicht erhoben
+/// werden konnte — das ist etwas anderes als null.
+fn gemeldet(wert: Option<f64>) -> String {
+    wert.map_or_else(|| "unbekannt".to_owned(), |w| format!("{w:.6}"))
+}
+
 fn artifact_hash() -> Result<String, String> {
     let path = std::env::current_exe().map_err(|error| error.to_string())?;
     let output = std::process::Command::new("sha256sum")
@@ -135,8 +141,14 @@ fn execute() -> Result<(), String> {
         f64::from(BATCH)
     });
     println!(
-        "Messbeleg: rate={:.6} Kaempfe/s spread={:.6} samples={} duration_ms={} reason={:?}",
-        rate.rate_per_s, rate.spread, rate.samples, rate.duration_ms, rate.reason
+        "Messbeleg: rate={:.6} Kaempfe/s spread={:.6} samples={} duration_ms={} reason={:?} takt_drift={} psi_cpu={}",
+        rate.rate_per_s,
+        rate.spread,
+        rate.samples,
+        rate.duration_ms,
+        rate.reason,
+        gemeldet(rate.takt_drift),
+        gemeldet(rate.psi_cpu)
     );
     if !rate.reason.brauchbar() {
         return Err(format!(
