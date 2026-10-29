@@ -107,6 +107,8 @@ pub mod log;
 pub mod machbarkeit;
 // Issue #939: der Zielvertrag — harte Bedingungen vor Rangfolge.
 pub mod objective;
+// #1177 Abschnitt 2: Overdrive, der Tempo-Schub auf eigener Taste.
+pub mod overdrive;
 pub mod replay;
 pub mod report;
 pub mod rng;

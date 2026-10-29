@@ -128,6 +128,7 @@ fn main() {
                 condition: k.condition.clone(),
             })
             .collect(),
+        overdrive: None,
     };
     println!("Rotation aus greedy, {} Zeilen", apl.rules.len());
     println!();

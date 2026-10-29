@@ -460,6 +460,7 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
                 ..k.rule()
             })
             .collect(),
+        overdrive: None,
     };
     let result = crate::balance::run(config, &apl);
     // **Verhinderter Schaden zaehlt mit** (Issue #472).
@@ -894,6 +895,7 @@ pub fn greedy_zuege(
         let leer = Apl {
             name: "bezugspunkt".to_owned(),
             rules: Vec::new(),
+            overdrive: None,
         };
         config.damage_taken_baseline = crate::balance::run(&config, &leer).damage_taken.mean;
     }

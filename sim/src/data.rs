@@ -1008,6 +1008,12 @@ pub struct PlayerBase {
     /// der Spieler von jedem Treffer geheilt. Dieser hier ist eine gesetzte
     /// Zahl, die auch anders stehen koennte.
     pub ward_cap_permille: u32,
+    /// Wie lange Overdrive wirkt, in ms (#1177, Abschnitt 2). **Vorläufig**,
+    /// die Herleitung steht in `data/player/base.json`.
+    pub overdrive_duration_ms: u32,
+    /// Wie viel CATALYSIS Overdrive solange dazugibt, in Promille.
+    /// **Vorläufig**, wie die Dauer.
+    pub overdrive_catalysis_permille: u32,
 }
 
 /// Ein Grundwert auf einer Stufe (GAME-DESIGN 8.1; Issue #248).

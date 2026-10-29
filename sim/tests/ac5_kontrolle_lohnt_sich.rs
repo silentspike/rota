@@ -112,6 +112,7 @@ fn ac5_der_schlag_faellt_ueberhaupt() {
     let leer = Apl {
         name: "ac5-ohne-eingriff".to_owned(),
         rules: Vec::new(),
+        overdrive: None,
     };
     let toedlich = nachlauf(TOEDLICH, &leer);
     let zwilling = nachlauf(UEBERLEBBAR, &leer);

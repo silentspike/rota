@@ -11,7 +11,7 @@
 
 use std::fmt;
 
-use super::{spell_index, Apl, Compare, Condition, Number, Rule, Term, Value};
+use super::{spell_index, Apl, Compare, Condition, Number, Rule, Term, Value, OVERDRIVE_ACTION};
 
 /// Was an einer Prioritätenliste nicht stimmt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,11 +106,35 @@ impl fmt::Display for AplName<'_> {
 /// oft Folgefehler, und eine lange Liste davon verdeckt die eigentliche Ursache.
 pub fn parse(name: AplName<'_>, text: &str) -> Result<Apl, AplError> {
     let mut rules = Vec::new();
+    let mut overdrive: Option<Condition> = None;
 
     for (index, raw) in text.lines().enumerate() {
         let line = index + 1;
         let content = strip_comment(raw);
         if content.trim().is_empty() {
+            continue;
+        }
+        // **Overdrive ist keine Regel** (#1177, Abschnitt 2): Er hat keinen
+        // Platz in der Rangfolge, siehe [`Apl::overdrive`]. Die Zeile sieht
+        // aus wie eine, und sie wird mit derselben Bedingungs-Grammatik
+        // gelesen — nur landet sie in ihrem eigenen Feld.
+        if content.split_whitespace().next() == Some(OVERDRIVE_ACTION) {
+            // **Zweimal ist ein Fehler, nicht „die letzte gewinnt".** Zwei
+            // Zeilen mit verschiedenen Bedingungen hießen zwei Absichten, und
+            // still eine davon zu nehmen wäre genau das „still etwas anderes
+            // tun", das dieser Parser ausschließt.
+            if overdrive.is_some() {
+                return Err(AplError {
+                    line,
+                    column: 1,
+                    message: format!(
+                        "\"{OVERDRIVE_ACTION}\" steht zweimal in der Liste. Er geht einmal je \
+                         Kampf; eine Bedingung genügt."
+                    ),
+                    source_line: raw.to_owned(),
+                });
+            }
+            overdrive = Some(parse_overdrive(line, raw, content)?);
             continue;
         }
         rules.push(parse_rule(line, raw, content)?);
@@ -128,7 +152,40 @@ pub fn parse(name: AplName<'_>, text: &str) -> Result<Apl, AplError> {
     Ok(Apl {
         rules,
         name: name.as_str().to_owned(),
+        overdrive,
     })
+}
+
+/// Liest eine `overdrive`-Zeile: das Wort allein oder mit `if <bedingung>`.
+fn parse_overdrive(line: usize, raw: &str, content: &str) -> Result<Condition, AplError> {
+    let tokens = tokenize(content);
+    let fail = |column: usize, message: String| AplError {
+        line,
+        column,
+        message,
+        source_line: raw.to_owned(),
+    };
+    if tokens.len() == 1 {
+        return Ok(Condition::default());
+    }
+    let keyword = &tokens[1];
+    if keyword.text != "if" {
+        return Err(fail(
+            keyword.column,
+            format!(
+                "Nach \"{OVERDRIVE_ACTION}\" wird \"if\" erwartet oder das Zeilenende, nicht \"{}\".",
+                keyword.text
+            ),
+        ));
+    }
+    let rest = &tokens[2..];
+    if rest.is_empty() {
+        return Err(fail(
+            keyword.column + 2,
+            "Nach \"if\" fehlt die Bedingung.".to_owned(),
+        ));
+    }
+    parse_condition(rest, &fail)
 }
 
 /// Schneidet einen Kommentar ab. `#` gilt überall, auch am Zeilenende.

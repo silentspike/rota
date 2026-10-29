@@ -79,6 +79,7 @@ use crate::factors::{compute_damage, DamageFactors, NEUTRAL};
 use crate::gear::WornValues;
 use crate::haste::hasted_ms;
 use crate::log::{CombatLog, LogKind, NO_SPELL};
+use crate::overdrive::{Overdrive, OVERDRIVE_PRESS};
 use crate::replay::{Recording, ReplayResult};
 use crate::rng::{Stream, Streams};
 use crate::rules_event::{RuleEvent, RuleEvents, RuleReceiver};
@@ -137,6 +138,19 @@ pub trait Decide {
     /// für Rotationen ohne zeitabhängige Bedingungen richtig.
     fn next_wakeup_ohne_gcd(&self, _fight: &Fight) -> Option<Millis> {
         None
+    }
+
+    /// Ob jetzt Overdrive gezündet werden soll (#1177, Abschnitt 2).
+    ///
+    /// Gefragt wird nur, solange er bereit ist, und **vor** der Zauberwahl:
+    /// Overdrive löst keine globale Wartezeit aus, und ein Zauber im selben
+    /// Moment bekommt das Tempo schon — wie im Spiel, wenn G vor dem Zauber
+    /// gedrückt wird.
+    ///
+    /// Die Voreinstellung `false` gilt für die Prüfrotationen als Funktionen:
+    /// Sie kennen Overdrive nicht, und ein Kampf ohne ihn rechnet wie vorher.
+    fn ignite_overdrive(&self, _fight: &Fight) -> bool {
+        false
     }
 }
 
@@ -1011,6 +1025,9 @@ pub struct Fight {
     factors: DamageFactors,
     /// Die getragenen Sonderwerte (GAME-DESIGN 6.7).
     worn: WornValues,
+    /// Overdrive, einmal pro Kampf (#1177, Abschnitt 2). Er gibt CATALYSIS
+    /// dazu, solange er wirkt — siehe [`Fight::hasted`].
+    overdrive: Overdrive,
     split_spender: bool,
     auto_reset: bool,
     partial_control: bool,
@@ -1335,6 +1352,7 @@ impl Fight {
             },
             resistance_by_spell: resistance_by_spell(config.factors.resistance, config.boss),
             worn: config.worn,
+            overdrive: Overdrive::new(),
             split_spender: config.split_spender,
             auto_reset: config.auto_reset,
             partial_control: config.partial_control,
@@ -1606,6 +1624,13 @@ impl Fight {
             // prüft nichts (die Aufrufer prüfen vorher); eine Rotation, die
             // einen Zauber im GCD zurückgäbe, wirkte ihn sonst.
             let gcd_bereit = self.gcd_ready_at <= now;
+            // **Overdrive vor der Zauberwahl** (#1177, Abschnitt 2). Er löst
+            // keine Wartezeit aus, also steht er der Wahl nicht im Weg; und ein
+            // Zauber beim selben Zeitstempel bekommt das Tempo schon. Kein Wurf
+            // im Sinn des Nullzeit-Budgets: Er geht nur einmal je Kampf.
+            if self.overdrive.is_ready() && decider.ignite_overdrive(self) {
+                self.ignite_overdrive();
+            }
             while let Some(index) = decider.decide(self) {
                 if !self.is_ready(index) {
                     break;
@@ -1801,6 +1826,20 @@ impl Fight {
                     break;
                 }
                 press_index += 1;
+                // **Overdrive ist kein Platz der Leiste** (#1177, Abschnitt 2).
+                // Er hat eine eigene Kennung hinter den 26 Plätzen und wird
+                // vor der Belegung abgefangen — kein Zauber kann auf ihm
+                // liegen, und kein Platz ändert seine Bedeutung.
+                //
+                // Gezählt wie in `Session.apply`: Ein Zünden ist kein Zauber
+                // und zählt nicht als angenommene Wirkung; ein zweiter Druck
+                // ist eine Fehleingabe.
+                if press.slot == OVERDRIVE_PRESS {
+                    if !self.ignite_overdrive() {
+                        rejected += 1;
+                    }
+                    continue;
+                }
                 match recording.spell_for_slot(press.slot) {
                     // Unbelegter Platz: Fehleingabe, nichts wird gemerkt.
                     None => rejected += 1,
@@ -3810,8 +3849,54 @@ impl Fight {
         }
     }
 
+    /// Eine Zeit unter dem Einfluss von Tempo — **die einzige Stelle**, an der
+    /// CATALYSIS auf eine Zeit trifft.
+    ///
+    /// Seit #1177 ist CATALYSIS zweiteilig: getragen und, solange er wirkt,
+    /// Overdrive. Beides geht durch diese eine Rechnung — GAME-DESIGN 6.2 nennt
+    /// Overdrive als kurzzeitige Quelle desselben Werts, nicht als eigene Regel.
+    /// Die globale Wartezeit kommt hier nicht vorbei (`gcd_length`), also
+    /// berührt Overdrive sie nicht.
     fn hasted(&self, base_ms: Millis) -> Millis {
-        hasted_ms(base_ms, self.worn.catalysis)
+        hasted_ms(base_ms, self.catalysis_now())
+    }
+
+    /// CATALYSIS in diesem Moment, in Promille: getragen plus Overdrive.
+    ///
+    /// Gelesen bei `self.time` — derselben Uhr, die `tick_buffs` liest, und auf
+    /// der Spielseite `nowMsForBuffs`. Zwei verschiedene Uhren an dieser Stelle
+    /// ergäben an der Grenze des Fensters zwei verschiedene Takte.
+    fn catalysis_now(&self) -> u32 {
+        self.worn
+            .catalysis
+            .saturating_add(self.overdrive.catalysis_permille(self.time))
+    }
+
+    /// Overdrive in diesem Kampf (#1177, Abschnitt 2).
+    #[must_use]
+    pub fn overdrive(&self) -> &Overdrive {
+        &self.overdrive
+    }
+
+    /// Overdrive zünden — der Druck auf G (#1177, Abschnitt 2).
+    ///
+    /// `false`, wenn er in diesem Kampf schon gezündet wurde; dann ändert sich
+    /// nichts. Er löst keine globale Wartezeit aus und wird von keiner
+    /// gesperrt — „frei zündbar" (Masterplan A.4).
+    ///
+    /// **Er bricht eine laufende Wirkzeit ab**, wie jede Wirkung des Spielers:
+    /// „Jede, ohne Ausnahme — auch das Unterbrechen. […] Egal welcher Spell"
+    /// (GAME-DESIGN 7.1, entschieden am 2026-08-05). Ein Druck, der nichts
+    /// zündet, wirkt nicht und bricht deshalb auch nichts ab — dieselbe
+    /// Reihenfolge wie in `cast`.
+    pub fn ignite_overdrive(&mut self) -> bool {
+        if !self.overdrive.ignite(self.time) {
+            return false;
+        }
+        if self.cancel_player_cast() {
+            self.casts_cancelled += 1;
+        }
+        true
     }
 
     /// Der Tick-Abstand eines Effekts ueber Zeit, unter dem Einfluss von Tempo.
@@ -5694,6 +5779,14 @@ impl Fight {
                 "resetChargesLeft",
                 i32::from(self.reset_mode.charges_left()),
             );
+        }
+        // **Overdrive** (#1177, Abschnitt 2) — angehängt, und NUR nach dem
+        // Zünden. Begründung und Folge wie in `src/core/checksum.ts`: Kein
+        // bestehender Lauf zündet, also bleibt jede bestehende Prüfsumme
+        // stehen. Der Zeitpunkt genügt — Dauer und Stärke folgen aus den
+        // Daten, und `verbraucht` aus der Uhr.
+        if let Some(at) = self.overdrive.ignited_at() {
+            h = mix_named_int(h, "overdriveIgnitedAt", at as i32);
         }
         h
     }
