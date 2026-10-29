@@ -31,6 +31,31 @@ export const SLOT_COUNT = KEYS_PER_LAYER * LAYER_COUNT;
 export const NO_SLOT = -1;
 
 /**
+ * Die Taste für Overdrive (#1177, Abschnitt 2; Entscheidung des Auftraggebers
+ * vom 2026-10-29: „Overdrive auf G", rechts neben F).
+ *
+ * **Die Stelle, nicht der Buchstabe** — dieselbe Regel wie für die Leiste. Auf
+ * einer AZERTY-Tastatur steht dort ebenfalls `G`, auf einer Dvorak-Tastatur
+ * `I`, auf Colemak `D`: gedrückt wird immer die Taste rechts neben F, unter
+ * demselben Zeigefinger.
+ *
+ * **Sie gehört nicht zu den dreizehn Stellen der Leiste.** Overdrive belegt
+ * keinen Platz (Masterplan A.4); `positionForCode('KeyG')` bleibt `NO_SLOT`,
+ * und `SLOT_COUNT` bleibt 26.
+ */
+export const OVERDRIVE_CODE = 'KeyG';
+
+/**
+ * Die Kennung eines Overdrive-Drucks im Puffer und in den Aufzeichnungen.
+ *
+ * Ein Druck nennt sonst einen Platz 0 bis 25. Overdrive bekommt die erste
+ * Nummer dahinter — so bleibt ein Druck ein Druck (Takt und Kennung, dieselbe
+ * Form überall), und kein Platz der Leiste ändert seine Bedeutung. Dieselbe
+ * Zahl steht in `sim/src/overdrive.rs`.
+ */
+export const OVERDRIVE_PRESS = SLOT_COUNT;
+
+/**
  * Die dreizehn Stellen in der Reihenfolge, in der sie auf der Leiste liegen:
  * obere Reihe, mittlere Reihe, untere Reihe, Leertaste.
  */

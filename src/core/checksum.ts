@@ -347,5 +347,15 @@ export function combatChecksum(combat: Combat, timeMs: number): number {
     h = mixNamedInt(h, 'resetArmedFor', combat.resetArmedFor);
     h = mixNamedInt(h, 'resetChargesLeft', combat.resetChargesLeft);
   }
+  // **Overdrive** (#1177, Abschnitt 2) — angehängt, und NUR nach dem Zünden.
+  //
+  // Dieselbe Bauart wie beim Auswahlmodus darüber: Kein bestehender Lauf
+  // zündet, also bleibt jede eingecheckte Prüfsumme stehen, und es ändern sich
+  // genau die Aufzeichnungen, in denen gezündet wird. Der Zeitpunkt genügt —
+  // Dauer und Stärke folgen aus den Daten, „verbraucht" aus der Uhr. Ohne
+  // diese Zeile ergäben ein Kampf mit und einer ohne Zündung dieselbe Summe,
+  // bis der erste Zauber im Fenster gewirkt wird.
+  const gezuendet = combat.overdriveIgnitedAtMs;
+  if (gezuendet >= 0) h = mixNamedInt(h, 'overdriveIgnitedAt', gezuendet);
   return h >>> 0;
 }

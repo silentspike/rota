@@ -105,7 +105,7 @@ export const NOTHING_WORN: WornValues = {
  * `POOL_NAMES` (`pools.ts`) führt die **Töpfe** aus GAME-DESIGN 13.1b, und
  * `WornValues` führt die **Werte**, die der Kampf liest. Das ist fast, aber
  * nicht ganz dasselbe: `active` ist ein Topf ohne Wert, weil aktive
- * Verstärkungen im Kampf entstehen (Overdrive, Synergien, Zersetzungs-Stapel)
+ * Verstärkungen im Kampf entstehen (Synergien, Zersetzungs-Stapel)
  * und nicht auf einem Gegenstand stehen.
  *
  * Bis #421b hat `wornFrom` die Art **direkt** als Schlüssel benutzt. Ein

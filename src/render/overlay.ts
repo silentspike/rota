@@ -21,6 +21,8 @@ import {
   PHASE_PREPARE,
 } from '../core/phases.js';
 import type { RunSummary } from '../core/summary.js';
+import { PLAYER } from '../core/data.js';
+import { FALLBACK_OVERDRIVE_LABEL } from '../input/layout.js';
 import type { LevelUpDisplay } from '../analysis/level-up-display.js';
 import type { LossReport } from '../analysis/loss-sources.js';
 import { buildEfficiencyView, buildLossView } from '../analysis/analysis-view.js';
@@ -209,6 +211,26 @@ const OUTCOME_HEADLINES: Readonly<Record<number, string>> = {
   [OUTCOME_DEATH]: 'VESSEL LOST',
 };
 
+/**
+ * Der Hinweis auf Overdrive in der Vorbereitung (#1177, Abschnitt 2).
+ *
+ * **Mit der Beschriftung der Taste**, nicht mit einem festen „G": Auf einer
+ * Dvorak-Tastatur steht an der Stelle rechts neben F ein `I` (GAME-DESIGN 8.1,
+ * „die Beschriftung wird zur Laufzeit ermittelt"). Die Zahlen kommen aus
+ * `data/player/base.json` — ein Text mit abgeschriebenen Zahlen läge nach der
+ * ersten Balance-Runde daneben.
+ *
+ * Er sagt, was Overdrive tut, nicht wann man ihn zündet (GAME-DESIGN 21.2).
+ */
+export function overdriveHint(keyLabel: string): string {
+  const prozent = PLAYER.overdriveCatalysisPermille / 10;
+  const sekunden = PLAYER.overdriveDurationMs / 1000;
+  return (
+    `${keyLabel} — Overdrive: once per fight, +${String(prozent)}% CATALYSIS ` +
+    `for ${String(sekunden)} s. It has its own key and no slot.`
+  );
+}
+
 function element(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
@@ -279,6 +301,8 @@ export class Overlay {
   private readonly title: HTMLElement;
   /** Die Widerstandskarte. Leer und verborgen, wenn der Boss keine hat. */
   private readonly resistCard: HTMLElement;
+  /** Der Hinweis auf Overdrive und seine Taste (#1177). */
+  private readonly overdriveNote: HTMLElement;
   private readonly pause: HTMLElement;
   private readonly result: HTMLElement;
   private readonly resultHeadline: HTMLElement;
@@ -347,6 +371,15 @@ export class Overlay {
    *
    * `tests/unit/overlay-boss-switch.test.ts` misst beides.
    */
+  /**
+   * Die Beschriftung der Overdrive-Taste nachziehen, sobald der Browser das
+   * Layout kennt (#1177). Bis dahin steht die US-Beschriftung da — dieselbe
+   * Annahme wie auf der Leiste.
+   */
+  setOverdriveKey(keyLabel: string): void {
+    this.overdriveNote.textContent = overdriveHint(keyLabel);
+  }
+
   setBoss(bossName: string, resistances: readonly string[] = []): void {
     this.title.textContent = bossName.toUpperCase();
 
@@ -382,6 +415,12 @@ export class Overlay {
         'Cooldowns run during preparation. The clock does not.',
       ),
     );
+    this.overdriveNote = element(
+      'p',
+      'rota-note rota-note-dim rota-overdrive-note',
+      overdriveHint(FALLBACK_OVERDRIVE_LABEL),
+    );
+    this.prepare.appendChild(this.overdriveNote);
     // **Die Widerstände, VOR dem Kampf** (GAME-DESIGN 11.4, Issue #328):
     //
     // > Vorher sichtbar in der Boss-Übersicht — die Zusammenstellung ist

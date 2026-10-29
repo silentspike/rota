@@ -118,6 +118,7 @@ import { Buffs, BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
 import { TICK_MS } from './loop.js';
 import { registerStackMechanic, type StackMechanic } from '../combat/schools/stacks.js';
 import { registerSublimation, type SublimationMechanic } from '../combat/schools/sublimation.js';
+import { Overdrive } from '../combat/overdrive.js';
 
 /** Ausgang eines Wirk-Versuchs. */
 export const CAST_OK = 0;
@@ -658,6 +659,12 @@ export class Combat {
   private readonly convertBuffs = new Buffs();
   /** Hebt die Obergrenze des Vorrats befristet an (SLAG, Issue #490). */
   private readonly capBuffs = new Buffs();
+  /**
+   * Overdrive, einmal pro Kampf (#1177, Abschnitt 2). Er gibt CATALYSIS
+   * dazu, solange er wirkt — siehe `hasted`. Die Regel steht in
+   * `src/combat/overdrive.ts`; hier liegen nur die Aufrufstellen.
+   */
+  readonly overdrive = new Overdrive();
   /**
    * Die verteilten Talente dieses Kampfes (Issue #417).
    *
@@ -3744,7 +3751,42 @@ export class Combat {
    * `hastedMs`, dort hängt AC7 daran.
    */
   private hasted(baseMs: number): number {
-    return hastedMs(baseMs, this.worn.catalysis);
+    // **Seit #1177 zweiteilig: getragen plus Overdrive.** Beides geht durch
+    // diese eine Rechnung — GAME-DESIGN 6.2 nennt Overdrive als kurzzeitige
+    // Quelle desselben Werts, nicht als eigene Regel. Gelesen bei
+    // `nowMsForBuffs`, derselben Uhr wie die Verstärkungs-Faktoren; im
+    // Simulator `self.time`. Die globale Wartezeit kommt hier nicht vorbei.
+    return hastedMs(
+      baseMs,
+      this.worn.catalysis + this.overdrive.catalysisPermille(this.nowMsForBuffs),
+    );
+  }
+
+  /**
+   * Overdrive zünden — der Druck auf G (#1177, Abschnitt 2).
+   *
+   * `false`, wenn er in diesem Kampf schon gezündet wurde, der Kampf vorbei
+   * ist oder der Spieler gefallen ist; dann ändert sich nichts. Er löst keine
+   * globale Wartezeit aus und wird von keiner gesperrt — „frei zündbar"
+   * (Masterplan A.4).
+   *
+   * **Er bricht eine laufende Wirkzeit ab**, wie jede Wirkung des Spielers:
+   * „Jede, ohne Ausnahme — auch das Unterbrechen. […] Egal welcher Spell"
+   * (GAME-DESIGN 7.1, entschieden am 2026-08-05). Ein Druck, der nichts
+   * zündet, wirkt nicht und bricht deshalb auch nichts ab — dieselbe
+   * Reihenfolge wie in `cast`. Gegenstück: `Fight::ignite_overdrive`.
+   */
+  igniteOverdrive(timeMs: number): boolean {
+    this.nowMsForBuffs = timeMs;
+    if (this.stateValue !== FIGHT_RUNNING || this.diedAtMsValue >= 0) return false;
+    if (!this.overdrive.ignite(timeMs)) return false;
+    if (this.cancelPlayerCast()) this.castsCancelledValue++;
+    return true;
+  }
+
+  /** Wann Overdrive gezündet wurde, oder -1 — für Prüfsumme und Aufzeichnung. */
+  get overdriveIgnitedAtMs(): number {
+    return this.overdrive.ignitedAtMs;
   }
 
   /**
@@ -5897,6 +5939,8 @@ export class Combat {
     this.cdReduceBuffs.reset();
     this.convertBuffs.reset();
     this.capBuffs.reset();
+    // Ein neuer Versuch ist ein neuer Kampf und gibt Overdrive zurück (#1177).
+    this.overdrive.reset();
     this.setDamageFactor('buffs', NEUTRAL_FACTORS.buffs);
     this.nextDecayAtMs = this.school.resource.decayPerStepMs;
     this.damageDealtValue = 0;

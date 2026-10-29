@@ -25,7 +25,7 @@
       "id": "catalysis",
       "subject": "stat",
       "title": "CATALYSIS",
-      "effect": "Shortens cast times and the global cooldown."
+      "effect": "Shortens cooldowns, cast times and the gaps between damage-over-time ticks. It does not shorten the global cooldown."
     },
     {
       "id": "purity",
@@ -65,6 +65,13 @@
       "subject": "spell",
       "title": "Smoulder",
       "effect": "Deals damage over time."
+    },
+    {
+      "id": "overdrive",
+      "subject": "mechanic",
+      "title": "OVERDRIVE",
+      "effect": "Raises CATALYSIS for a short time. Once per fight, on its own key; it takes no slot on the spell bar and belongs to no school.",
+      "values": "A test record. The numbers are provisional."
     },
     {
       "id": "Kindling Roar",

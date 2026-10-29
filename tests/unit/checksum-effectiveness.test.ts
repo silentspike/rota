@@ -105,7 +105,7 @@ const MESSZEIT_MS = 8000;
  * einem festen Wert steht, war die Prüfsumme dort für ihn nicht messbar. Der
  * Wächter hat das gemeldet, statt es zu übergehen.
  */
-function gelaufen(): Combat {
+function gelaufen(zuendenBei = -1): Combat {
   const boss = bossById('test-crucible-trial');
   if (boss === undefined) throw new Error('data/bosses/test-crucible-trial.json fehlt');
   // **Mit den beiden Schlüsseltalenten, die Zustand anlegen** (#419). Ihre
@@ -126,6 +126,7 @@ function gelaufen(): Combat {
   combat.beginFight(0);
   for (let t = 0; t <= MESSZEIT_MS; t += TICK_MS) {
     combat.stepPassive(t);
+    if (t === zuendenBei) combat.igniteOverdrive(t);
     if (!combat.gcd.isReady(t)) continue;
     // **Ab 5000 ms ALEMBIC**, damit der Auswahlmodus zur Messzeit scharf
     // steht (#419): Seine zwei Felder gehen nur dann ein. Gewählt wird nicht
@@ -157,6 +158,19 @@ function gelaufen(): Combat {
     if (combat.isReady(kindle, t)) combat.cast(kindle, t);
   }
   return combat;
+}
+
+/**
+ * Overdrive geht nur nach dem Zünden ein (#1177) — wie der Auswahlmodus nur
+ * scharf.
+ *
+ * **Bei 6000 ms, VOR der Wirkzeit**, und der Zeitpunkt ist gerechnet: Ein
+ * Zünden während der Wirkzeit bräche sie ab (GAME-DESIGN 7.1), und
+ * `playerCasting` stünde zur Messzeit auf seinem Ruhewert. Davor gezündet
+ * kürzt das Tempo die Wirkzeit auf 1540 ms — sie läuft bei 8000 ms noch.
+ */
+function gelaufenMitOverdrive(): Combat {
+  return gelaufen(6000);
 }
 
 /** Der um eins verschobene Wert — je nachdem, was das Feld überhaupt ist. */
@@ -231,7 +245,7 @@ export function ungespuerteFelder(
 
 describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
   const felder = abgegriffeneFelder(checksumQuelle());
-  const combat = gelaufen();
+  const combat = gelaufenMitOverdrive();
 
   it('liest ueberhaupt Felder aus dem Quelltext', () => {
     // Ohne diese Zusicherung liefe alles Weitere über eine leere Liste — und
@@ -268,7 +282,9 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     //
     // 52 seit der Abnahme von #1146: `resetArmed` und die zwei Felder des
     // Auswahlmodus.
-    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(52);
+    //
+    // 53 seit #1177: `overdriveIgnitedAtMs`, der Zeitpunkt der Zündung.
+    expect(felder.length, felder.join(', ')).toBeGreaterThanOrEqual(53);
   });
 
   it('hat einen Zustand, an dem sich ueberhaupt etwas messen laesst', () => {
@@ -292,6 +308,8 @@ describe('Jedes Feld der Prüfsumme wird auch gespürt', () => {
     expect(combat.playerCastEndsAtMs).toBeGreaterThan(MESSZEIT_MS);
     // Und der Auswahlmodus (#419): Nur scharf gehen seine Felder ein.
     expect(combat.resetArmed, 'der Auswahlmodus steht nicht scharf').toBe(true);
+    // Und Overdrive (#1177): nur gezündet geht sein Feld ein.
+    expect(combat.overdriveIgnitedAtMs, 'Overdrive ist nicht gezündet').toBe(6000);
   });
 
   // **Jedes Feld einzeln.** „Die Prüfsumme ändert sich" wäre schon erfüllt,

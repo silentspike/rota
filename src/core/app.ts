@@ -1347,7 +1347,11 @@ export class App {
     this.loop.start();
     // Beides läuft nebenher: Das Spiel ist sofort spielbar, die Beschriftung
     // rückt nach, sobald der Browser Auskunft gibt, und der Klang, sobald geladen.
-    void this.labels.refresh();
+    // Der Hinweis auf Overdrive nennt die Taste, wie sie auf dieser Tastatur
+    // heißt (#1177) — also erst nach der Auskunft des Browsers.
+    void this.labels.refresh().then(() => {
+      this.overlay.setOverdriveKey(this.labels.overdriveLabel);
+    });
     void this.audio.init();
   }
 

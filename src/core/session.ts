@@ -54,6 +54,7 @@ import {
   EV_GCD_END,
   EV_INPUT_REJECTED,
   EV_MENU_ENTER,
+  EV_OVERDRIVE,
   EV_PLAYER_DEATH,
   EV_RESULT_BEST_TIME,
   EV_RESULT_DEFEAT,
@@ -77,7 +78,7 @@ import { CombatLog } from './log.js';
 import { RingBufferF64 } from './ring.js';
 import type { Simulation } from './loop.js';
 import { TICK_MS } from './loop.js';
-import { SLOT_COUNT } from '../input/keys.js';
+import { OVERDRIVE_PRESS, SLOT_COUNT } from '../input/keys.js';
 import type { PressQueue } from '../input/queue.js';
 
 /**
@@ -217,6 +218,14 @@ export class Session implements Simulation {
 
   /** Belegung → Zauber. `NO_SPELL`, solange der Platz leer ist. */
   private readonly bindings = new Int32Array(SLOT_COUNT).fill(NO_SPELL);
+
+  /**
+   * Kampfzeit des letzten Drucks auf G, angenommen und verworfen getrennt
+   * (#1177) — dieselbe Rückmeldung wie für einen Platz, nur außerhalb der
+   * Leiste. `NEVER`, solange nicht gedrückt.
+   */
+  private overdriveAcceptedAt = NEVER;
+  private overdriveRejectedAt = NEVER;
 
   /** Das Kampfprotokoll (GAME-DESIGN 18.2). */
   readonly log = new CombatLog();
@@ -376,6 +385,16 @@ export class Session implements Simulation {
    */
   private emit(event: number, key: number, timeMs: number): void {
     if (this.feedback !== null) this.feedback.onEvent(event, key, timeMs);
+  }
+
+  /** Kampfzeit des letzten angenommenen Drucks auf G, sonst `NEVER` (#1177). */
+  get overdriveAcceptedAtMs(): number {
+    return this.overdriveAcceptedAt;
+  }
+
+  /** Kampfzeit des letzten verworfenen Drucks auf G, sonst `NEVER`. */
+  get overdriveRejectedAtMs(): number {
+    return this.overdriveRejectedAt;
   }
 
   /** Beste Kampfzeit dieser Sitzung in ms, oder -1. */
@@ -939,6 +958,16 @@ export class Session implements Simulation {
 
   /** @returns true, wenn tatsächlich gewirkt wurde. */
   private apply(slot: number, timeMs: number, stampMs: number, frameIndex: number): boolean {
+    // **Overdrive vor allem anderen** (#1177, Abschnitt 2): Er ist kein Platz
+    // der Leiste, also auch keine Belegung, keine Auswahl für den Rücksetzer
+    // und kein Zauber.
+    if (slot === OVERDRIVE_PRESS) {
+      this.applyOverdrive(timeMs);
+      this.latency.push(stampMs, frameIndex);
+      // Kein Wirken: Der Takt kann trotzdem leer gewesen sein — Overdrive
+      // belegt keine Wartezeit und ersetzt keinen Zauber.
+      return false;
+    }
     this.lastSlot = slot;
     const spellIndex = this.bindings[slot] ?? NO_SPELL;
     const gcdReadyAt = this.combat.gcd.readyAt;
@@ -991,6 +1020,31 @@ export class Session implements Simulation {
   }
 
   /**
+   * Ein Druck auf G (#1177, Abschnitt 2).
+   *
+   * **Nur im Kampf** — in der Vorbereitung ist das Ziel nicht da, und der
+   * Simulator kennt keine Vorbereitung; ein dort gezündeter Overdrive wäre
+   * eine Wirkung, die keine Aufzeichnung abbilden kann.
+   *
+   * Angenommen: der Klang `overdrive.ignite`, kein Zauber, kein Eintrag unter
+   * „casts". Verworfen — schon verbraucht, oder nicht im Kampf: dieselbe
+   * Fehleingabe wie auf einem leeren Platz (GAME-DESIGN 8.2), rotes Blinken an
+   * der Anzeige und der dumpfe Ton.
+   */
+  private applyOverdrive(timeMs: number): void {
+    const gezuendet =
+      this.phaseValue === PHASE_FIGHTING && this.combat.igniteOverdrive(timeMs);
+    if (gezuendet) {
+      this.overdriveAcceptedAt = timeMs;
+      this.emit(EV_OVERDRIVE, NO_KEY, timeMs);
+    } else {
+      this.overdriveRejectedAt = timeMs;
+      this.rejected++;
+      this.emit(EV_INPUT_REJECTED, NO_KEY, timeMs);
+    }
+  }
+
+  /**
    * Ein Druck im Auswahlmodus (Issue E3-3c).
    *
    * **Die Auswahl löst die volle Wartezeit aus.** Das steht nicht wörtlich im
@@ -1019,6 +1073,8 @@ export class Session implements Simulation {
     this.combat.reset();
     this.acceptedAtMs.fill(NEVER);
     this.rejectedAtMs.fill(NEVER);
+    this.overdriveAcceptedAt = NEVER;
+    this.overdriveRejectedAt = NEVER;
     this.latency.clear();
     this.queue.clear();
     this.accepted = 0;

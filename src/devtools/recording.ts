@@ -23,6 +23,7 @@ import { GCD_MS } from '../core/gcd.js';
 import { TICK_MS } from '../core/loop.js';
 import { STEP1_BINDINGS } from '../core/loadout.js';
 import { PressQueue } from '../input/queue.js';
+import { OVERDRIVE_PRESS } from '../input/keys.js';
 import { Session } from '../core/session.js';
 import { PHASE_FIGHTING } from '../core/phases.js';
 import { NOTHING_WORN, type WornValues } from '../gear/worn.js';
@@ -463,6 +464,13 @@ export function replayRecording(recording: Recording, options: ReplayOptions = {
       const press = recording.presses[pressIndex];
       if (press === undefined || press.tick > tick) break;
       pressIndex++;
+      // **Overdrive ist kein Platz der Leiste** (#1177, Abschnitt 2) — vor der
+      // Belegung abgefangen, gezählt wie in `Session.apply`: Zünden ist kein
+      // Zauber, ein zweiter Druck eine Fehleingabe. Gegenstück: `Fight::replay`.
+      if (press.slot === OVERDRIVE_PRESS) {
+        if (!combat.igniteOverdrive(timeMs)) rejected++;
+        continue;
+      }
       // **Die Leiste der Aufzeichnung hat Vorrang vor gar keiner** (#318).
       // `options.bindings` bleibt oben, weil ein Aufrufer sie bewusst
       // überschreiben darf; fehlt sie, kommt die aus der Datei statt der

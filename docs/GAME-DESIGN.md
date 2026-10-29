@@ -420,7 +420,7 @@ Die drei Werte, die die Rotation tatsächlich beeinflussen:
 > damit denselben Skalierungswert wie jede andere. Ticks werden dichter, die **Dauer bleibt** —
 > das erzeugt Breakpoints je DoT, die der Balance-Läufer messen muss.
 
-Er wächst dauerhaft über Talente und Ausrüstung, kurzzeitig über **Overdrive** (siehe 11.4).
+Er wächst dauerhaft über Talente und Ausrüstung, kurzzeitig über **Overdrive** (siehe 7.4).
 
 ### 6.3 Schadensformel
 
@@ -868,12 +868,31 @@ Rust-Simulator geteilt.
 | Zauber           | Leisten-Platz                | GCD          | Verfügbarkeit                      |
 | ---------------- | ---------------------------- | ------------ | ---------------------------------- |
 | **Unterbrechen** | belegt einen Platz           | **kein GCD** | eigene Abklingzeit                 |
-| **Overdrive**    | **kein Platz**, eigene Taste | —            | **einmal pro Kampf**, frei zündbar |
+| **Overdrive**    | **kein Platz**, eigene Taste **G** | **kein GCD** | **einmal pro Kampf**, frei zündbar |
 | **Spellsteal**   | schulunabhängig              | —            | Fenster-abhängig                   |
 
 **Overdrive** (ersetzt „Bloodlust"): kurzer, starker Tempo-Schub. **Jede Zusammenstellung hat ihn**
 → das Zünden im richtigen Moment ist eine Fähigkeit, die jeder lernen muss, und er ist der
 verlässliche Angelpunkt fürs Zusammenlegen der großen Fähigkeiten.
+
+> **Gebaut am 2026-10-29 (#1177, Abschnitt 2).** Taste **G**, rechts neben F (Entscheidung des
+> Auftraggebers vom 2026-10-29), angesprochen über die Stelle (`KeyG`), nicht über den Buchstaben.
+> Umschalt ändert nichts, Strg/Alt/Meta schon (8.1). Was gebaut ist:
+>
+> | Regel | Festlegung |
+> | --- | --- |
+> | Wirkung | **CATALYSIS** steigt, solange er wirkt — „kurzzeitig über Overdrive" (6.2). Damit wirkt er, wo Tempo wirkt: Abklingzeiten, Wirkzeiten, Kanalisierungen, DoT-Abstände, **nicht auf die globale Wartezeit** (6.2, 6.7) |
+> | Zahlen | **+30 % CATALYSIS für 20 s**, **vorläufig** und ungemessen; Herleitung in `data/player/base.json` (Masterplan „~20 s", Budget der Quellen „der größte Einzelbeitrag") |
+> | Fenster | halboffen, `[Zündung, Zündung + 20 s)` — im Takt des Zündens wirkt er, im Takt des Endes nicht mehr |
+> | Zweiter Druck | tut nichts — verlängert nicht, setzt nicht neu; er gilt als Fehleingabe (8.2) |
+> | Laufender Zauber | das Zünden **bricht ihn ab**, wie jede Wirkung (7.1, „Egal welcher Spell") |
+> | Vorbereitung | zündet **nicht**: Der Simulator kennt keine Vorbereitung, und Selbst-Verstärkungen vor dem Kampf (10) gibt es für keinen Zauber |
+> | Anzeige | eigene Kachel rechts neben der Leiste, mittlere Reihe: `READY` / Restsekunden mit leerlaufendem Rand / `SPENT`; darunter im Fenster der Zuschlag |
+> | Klang | `special-overdrive` auf `overdrive.ignite` |
+>
+> **Eine Folge, die man kennen muss:** Ein Tempo-Vorteil auf Abklingzeiten zählt nur, wo er eine
+> Grenze der Wartezeit überspringt. CRUST (6 s) kommt unter Overdrive auf 4,62 s und ist trotzdem erst
+> an der nächsten Grenze wieder zu wirken, bei 6 s. DoT-Abstände hängen an keiner Grenze.
 
 **Spellsteal:** Der Boss verstärkt sich mit einem sichtbaren Effekt. Wer im richtigen Fenster
 stiehlt, **nimmt ihm die Verstärkung UND bekommt sie selbst** — doppelte Belohnung. Belohnt Kenntnis
@@ -884,7 +903,7 @@ gewirkten** Zauber zurück. Zieht eine Planungsebene ein: „Welchen teuren Zaub
 zurück?"
 
 > Abklingzeiten, Fensterbreiten und GCD-Verhalten dieser vier sind **noch nicht festgelegt** —
-> siehe Kapitel 22.
+> siehe Kapitel 22. **Ausnahme seit 2026-10-29: Overdrive** (oben).
 
 ### 7.5 Die zwölf Prototyp-Zauber und ihre Namen
 
@@ -944,6 +963,7 @@ Y  X  C  V      =  26 Belegungen
 | **Physische Position statt Buchstabe** | Tasten werden über ihre **Position** angesprochen (`KeyboardEvent.code`), nicht über den Buchstaben. Ein deutscher Spieler sieht `Y`, ein englischer `Z` — beide drücken dieselbe Taste unter demselben Finger. **Die Beschriftung auf dem Symbol wird zur Laufzeit ermittelt**                                                                                                                                                       |
 | **Umschalt**                           | Frei belegbar wie jede andere Taste, keine vorgegebene Rolle                                                                                                                                                                                                                                                                                                                                                                          |
 | **Leertaste**                          | Normale belegbare Taste, keine Sonderrolle                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Overdrive**                          | **Eigene Taste G**, rechts neben F, angesprochen über die Stelle (`KeyG`) — **keine** der 26 Belegungen, kein Platz der Leiste (Entscheidung vom 2026-10-29; 7.4)                                                                                                                                                                                                                                                                    |
 | **Leiste frei anordenbar**             | Der Spieler bestimmt, welcher Zauber auf welchem Platz liegt. **Muskelgedächtnis entsteht nur, wenn ein Zauber immer an derselben Stelle liegt**                                                                                                                                                                                                                                                                                      |
 | **Keine Doppelbelegung**               | **Ein Zauber liegt auf höchstens einem Platz** (entschieden am 2026-08-05, Issue #287). Ein Platz ist knapp — 12 bis 16 bei 60 Zaubern —, und ihn zu verdoppeln verschenkt ihn. Die Auswahl bietet einen bereits gelegten Zauber nicht erneut an; ein Spielstand mit Doppelbelegung wird beim Laden bereinigt. **Folge für die Vorschau:** Die Zählung „wie viele Zauber zahlen je Mechanik ein" (Kapitel 16) stimmt damit von selbst |
 | **Rechte Hand**                        | Im Kampf unbeteiligt. Die Maus dient nur Menüs, Talentbaum und Zusammenstellung                                                                                                                                                                                                                                                                                                                                                       |
@@ -985,6 +1005,7 @@ siehe 19.1.)
 | Instrumente und Anzeigen | **rechts**                   |
 | Schul-Mechanik-Anzeigen  | direkt über der Zauberleiste |
 | Überdruck-Timer          | oben links                   |
+| Overdrive-Anzeige        | rechts neben der Leiste, mittlere Reihe — wo G neben F liegt |
 
 **Die Leiste bildet die Tastatur nach:** obere Reihe `Q W E R`, mittlere `A S D F`, untere `Y X C V`.
 **Auge und Finger lernen dieselbe Karte.** Wer das Symbol oben links sieht, weiß ohne Nachdenken,
@@ -1492,8 +1513,12 @@ _Entschieden am 2026-07-29 nach Recherche, wie Diablo IV und WoW es tatsächlich
 | ----------------------------- | --------------------------------------------- | ------------------------------------------------ |
 | ESSENCE                       | alle Quellen des Grundwerts                   | additiv, dann **ein** Faktor                     |
 | Sonderwerte                   | CATALYSIS, PURITY, YIELD                      | **je eigener** Faktor                            |
-| Aktive Verstärkungen          | Overdrive, Synergien, Zersetzungs-Stapel      | additiv untereinander                            |
+| Aktive Verstärkungen          | Synergien, Zersetzungs-Stapel                 | additiv untereinander                            |
 | **Ausrüstungs-Sondereffekte** | **legendäre Effekte UND Satz-Boni gemeinsam** | **additiv untereinander**, ein Faktor nach außen |
+
+> **Overdrive stand bis zum 2026-10-29 in der dritten Zeile.** Gebaut ist er als Tempo-Schub
+> (7.4): Er hebt CATALYSIS, und CATALYSIS wirkt auf Zeiten, nicht auf den Schaden (6.7). Einen
+> Faktor im Schadens-Topf hat er nicht; die Zeile widersprach 6.2 und ist berichtigt.
 
 **Warum die Sonderwerte je einen eigenen Faktor bekommen** (WoW-Muster): Weil sie sich
 multiplizieren, will man alle drei mischen statt einen zu stapeln. Das ist der eigentliche

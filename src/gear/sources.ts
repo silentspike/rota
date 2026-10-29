@@ -47,7 +47,7 @@
  */
 
 import { MAX_ITEM_LEVEL, QUALITY_EPIC, budgetOf, distributeBudget } from './budget.js';
-import { LEVELS } from '../core/data.js';
+import { LEVELS, PLAYER } from '../core/data.js';
 
 /**
  * Was ein Gegenstand auf Stufe 1 an ESSENCE trägt, in Promille.
@@ -257,7 +257,7 @@ const MAX_PERMILLE: readonly (readonly number[])[] = [
   // [CATALYSIS, PURITY, YIELD]
   [0, 0, 0], // Affixe — kommen aus dem Budget, siehe `maxFromAffixes`
   [100, 100, 200], // Talente
-  [300, 0, 0], // Zauber (Overdrive) — nur Tempo, und nur kurzzeitig
+  [0, 0, 0], // Zauber (Overdrive) — Tempo aus den Daten, siehe `maxOf`
   [50, 50, 100], // legendäre Effekte
   [80, 80, 160], // Satz-Boni, zwei Stufen zusammen
 ];
@@ -277,6 +277,13 @@ export function isPermanent(source: number): boolean {
 export function maxOf(source: number, stat: number, itemLevel: number = MAX_ITEM_LEVEL): number {
   if (source < 0 || source >= SOURCE_COUNT || stat < 0 || stat >= STAT_COUNT) return 0;
   if (source === SOURCE_AFFIXES) return maxFromAffixes(itemLevel);
+  // **Der Overdrive-Beitrag folgt der gebauten Mechanik** (#1177, Abschnitt
+  // 2). Bis dahin stand hier eine eigene 300 — ein Budget für einen Zauber,
+  // den es nicht gab. Jetzt gibt es ihn, und seine Stärke steht in
+  // `data/player/base.json`; eine zweite Zahl hier liefe beim ersten
+  // Balance-Schritt still auseinander. Gegenstück: `max_of` in
+  // `sim/src/sources.rs`.
+  if (source === SOURCE_SPELLS && stat === STAT_CATALYSIS) return PLAYER.overdriveCatalysisPermille;
   return MAX_PERMILLE[source]?.[stat] ?? 0;
 }
 

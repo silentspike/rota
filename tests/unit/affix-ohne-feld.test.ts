@@ -6,7 +6,7 @@
  * `POOL_NAMES` (`src/gear/pools.ts`) führt die **Töpfe** aus GAME-DESIGN
  * 13.1b, `WornValues` (`src/gear/worn.ts`) die **Werte**, die der Kampf liest.
  * Das ist fast dasselbe, aber nicht ganz: `active` ist ein Topf ohne Wert,
- * weil aktive Verstärkungen im Kampf entstehen — Overdrive, Synergien,
+ * weil aktive Verstärkungen im Kampf entstehen — Synergien,
  * Zersetzungs-Stapel — und nicht auf einem Gegenstand stehen.
  *
  * Bis hierher benutzte `wornFrom` die Art **direkt** als Schlüssel. Gemessen

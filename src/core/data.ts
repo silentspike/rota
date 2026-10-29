@@ -1062,6 +1062,13 @@ export interface PlayerBaseDef {
    * ohne dass die Formel etwas dagegen hätte.
    */
   readonly wardCapPermille: number;
+  /**
+   * Wie lange Overdrive wirkt, in ms (#1177, Abschnitt 2). **Vorläufig** —
+   * die Herleitung steht in `data/player/base.json`.
+   */
+  readonly overdriveDurationMs: number;
+  /** Wie viel CATALYSIS Overdrive solange dazugibt, in Promille. **Vorläufig.** */
+  readonly overdriveCatalysisPermille: number;
 }
 
 /**
@@ -2777,7 +2784,35 @@ export const PLAYER: PlayerBaseDef = (() => {
         `als keine.`,
     );
   }
-  return { vessel, wardReduction, wardCapPermille };
+  // **Overdrive** (#1177, Abschnitt 2). Eine Dauer von null wäre ein Druck,
+  // der zündet und nichts tut; eine neben dem Takt-Raster endete zwischen zwei
+  // Takten, und Spiel und Simulator sähen das Ende in verschiedenen Takten.
+  // Dieselben Grenzen prüft `sim/build.rs`.
+  const overdriveDurationMs = number(roh['overdriveDurationMs'], 0);
+  const overdriveCatalysisPermille = number(roh['overdriveCatalysisPermille'], 0);
+  if (
+    !Number.isInteger(overdriveDurationMs) ||
+    overdriveDurationMs <= 0 ||
+    overdriveDurationMs % TICK_MS !== 0
+  ) {
+    throw new Error(
+      `data/player/base.json: overdriveDurationMs (${overdriveDurationMs}) muss eine ganze Zahl ` +
+        `über null auf dem ${TICK_MS}-ms-Raster sein.`,
+    );
+  }
+  if (!Number.isInteger(overdriveCatalysisPermille) || overdriveCatalysisPermille <= 0) {
+    throw new Error(
+      `data/player/base.json: overdriveCatalysisPermille (${overdriveCatalysisPermille}) muss ` +
+        `eine ganze Zahl über null sein — sonst ist Overdrive ein Tastendruck ohne Wirkung.`,
+    );
+  }
+  return {
+    vessel,
+    wardReduction,
+    wardCapPermille,
+    overdriveDurationMs,
+    overdriveCatalysisPermille,
+  };
 })();
 
 export const LEVELS: LevelGrowthDef = (() => {

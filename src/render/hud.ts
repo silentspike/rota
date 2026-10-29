@@ -42,6 +42,7 @@ import { drawFixedRight, drawIntegerRight, measureDigitAdvance } from './numeral
 import { alsSpellIndex } from '../core/combat.js';
 import { VESSEL_CENTER_X, VESSEL_CENTER_Y, VESSEL_RADIUS, drawVessel } from './vessel.js';
 import { BAR_LEFT, BAR_RIGHT, BLOCK_TOP, SpellBar } from './spellbar.js';
+import { OverdriveTile } from './overdrive-tile.js';
 import { AnnouncementRenderer } from './announcements.js';
 import { DESIGN_WIDTH, Surface } from './surface.js';
 import {
@@ -207,6 +208,8 @@ export class HudRenderer {
    */
   private readonly mechanicSource: LoadoutSource;
   private readonly spellBar: SpellBar;
+  /** Overdrive, rechts neben der Leiste (#1177). */
+  private readonly overdriveTile: OverdriveTile;
   /** Die Boss-Ankündigungen (GAME-DESIGN 11.5, Issue #797). */
   readonly announcements = new AnnouncementRenderer();
   private readonly trainingMetrics = {
@@ -333,6 +336,7 @@ export class HudRenderer {
       },
     };
     this.spellBar = new SpellBar(session, labels);
+    this.overdriveTile = new OverdriveTile(session, labels);
     const ctx = surface.ctx;
     ctx.font = FONT_TEXT;
     this.digitAdvance = measureDigitAdvance(ctx);
@@ -343,6 +347,7 @@ export class HudRenderer {
     ctx.font = FONT_COUNTDOWN;
     this.digitAdvanceCountdown = measureDigitAdvance(ctx);
     this.spellBar.measure(ctx);
+    this.overdriveTile.measure(ctx);
     this.impact.measure(ctx);
     this.announcements.measure(ctx);
   }
@@ -380,6 +385,7 @@ export class HudRenderer {
     this.drawCastBar(ctx, shownMs);
     this.drawResetPrompt(ctx);
     this.spellBar.draw(ctx, shownMs);
+    this.overdriveTile.draw(ctx, shownMs);
     this.announcements.drawList(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
     this.drawCountdown(ctx, shownMs);
