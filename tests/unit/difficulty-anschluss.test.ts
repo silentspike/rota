@@ -16,12 +16,13 @@
  * `onFinish` ist der Weg, den auch der Spieler nimmt, und dort entsteht der
  * Schlüssel, an dem die Freischaltung hängt.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/core/app.js';
 import { bossAtDifficulty } from '../../src/core/data.js';
 import { difficultyOf } from '../../src/core/difficulty.js';
 import { markKey } from '../../src/analysis/progress-mark.js';
 import { DIFFICULTY_HEROIC, DIFFICULTY_NORMAL, itemLevelOf } from '../../src/loot/rates.js';
+import { PHASE_COUNTDOWN, PHASE_PREPARE } from '../../src/core/phases.js';
 
 const INSTANZ_1 = ['boss-1-1', 'boss-1-2', 'boss-1-3', 'boss-1-4'] as const;
 
@@ -115,6 +116,56 @@ describe('AC2 im Spiel — Heroisch erst nach Normal', () => {
     expect(app.combat.boss.affliction, 'die heroische Zutat fehlt im Kampf').not.toBeNull();
     // Die Vorbereitung nennt die Stufe — dieselbe Überschrift wie das HUD.
     expect(document.querySelector('.rota-title')?.textContent).toBe('INSTANCE ONE, FIRST · HEROIC');
+  });
+});
+
+describe('Die Auswahl ist über die Tastatur bedienbar', () => {
+  /**
+   * Im Browser gefunden (#1177): Ein Knopf der Boss-Wahl lässt sich mit Tab
+   * erreichen — aber Eingabe auf ihm startete den Countdown des LAUFENDEN
+   * Bosses, weil die Eingabetaste überall „Ready“ ist und das Standardverhalten
+   * des Knopfes unterdrückt wird. Die Leertaste ist eine Zauber-Taste. Damit
+   * war die Auswahl nur mit der Maus bedienbar.
+   */
+  function eingabe(): void {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+  }
+
+  /** Eine App mit Tastenbehandlung — `start` hängt sie ans Fenster. */
+  const gestartet: App[] = [];
+  function starte(app: App): void {
+    vi.spyOn(app.audio, 'init').mockResolvedValue();
+    app.start();
+    gestartet.push(app);
+  }
+  afterEach(() => {
+    for (const app of gestartet) app.stop();
+    gestartet.length = 0;
+    vi.restoreAllMocks();
+  });
+
+  it('Eingabe auf dem heroischen Knopf wählt die Stufe und startet nichts', () => {
+    const app = baueApp();
+    starte(app);
+    instanzEinsAufNormal(app);
+    app.openHome();
+    const knopf = document.querySelector<HTMLButtonElement>(
+      '.boss-select-stage[data-boss-id="boss-1-1"][data-difficulty="1"]',
+    );
+    if (knopf === null) throw new Error('kein heroischer Knopf');
+    knopf.focus();
+    expect(document.activeElement).toBe(knopf);
+    eingabe();
+    expect(app.combat.boss).toBe(bossAtDifficulty('boss-1-1', DIFFICULTY_HEROIC));
+    expect(app.session.phase, 'die Eingabe hat den Countdown gestartet').toBe(PHASE_PREPARE);
+  });
+
+  it('ohne Fokus in der Auswahl bleibt Eingabe „Ready“', () => {
+    const app = baueApp();
+    starte(app);
+    expect(app.session.phase).toBe(PHASE_PREPARE);
+    eingabe();
+    expect(app.session.phase).toBe(PHASE_COUNTDOWN);
   });
 });
 
