@@ -16,35 +16,15 @@
 #   fühlt es sich außerhalb der Regel an. Für die fremden Zahlen ist das
 #   gleichgültig.
 #
-# ═══════════════════════════════════════════════════════════════════════════
-#  WAS DIESE WARNUNG NICHT ERREICHT
-# ═══════════════════════════════════════════════════════════════════════════
+# npm-pre*-Skripte und Projektläufer rufen diese direkte Warnung auf.
+# Zusätzlich ist tools/fenster-hook.py als PreToolUse/Bash-Hook registriert
+# (#1049). Er erfasst auch die gemeldeten direkten npx-prettier- und
+# jq-recordings-Aufrufe. Dokumentation, gemessene Kosten und Analysegrenzen:
+# docs/FENSTER-HOOK.md.
 #
-# Sie hängt an zwei Stellen: an `pre*`-Skripten in package.json und an den
-# Läufern unter tools/. Beides ist PROJEKTCODE. Ein Hook, der jeden
-# Bash-Aufruf abfängt, wäre vollständig — er bräuchte aber eine Änderung an
-# `.claude/settings.json`, und das ist eine Entscheidung des Auftraggebers,
-# nicht des Teams.
-#
-# Folglich schweigt sie bei:
-#
-#   npx prettier --write <datei>   geht an package.json vorbei
-#   npx <irgendwas>                dito
-#   jq über die Aufzeichnungen
-#   git worktree add/remove, git push
-#   cargo/rustc direkt aufgerufen (nicht über tools/)
-#   alles, was direkt gestartet wird statt über `npm run`
-#
-# DER ERSTE DER VIER VORFÄLLE — `npx prettier --write` auf den Guide — FÄLLT
-# ALSO DURCH. Das steht hier, weil eine Abhilfe, die vollständig aussieht,
-# gefährlicher ist als gar keine: Wer glaubt, gewarnt zu werden, sieht nicht
-# mehr selbst nach.
-#
-# ═══════════════════════════════════════════════════════════════════════════
-#
-# Sie BLOCKIERT NICHT (Fertig-Kriterium 5). Wer in einem fremden Fenster
-# rechnen muss, darf das — er soll es nur nicht versehentlich tun. Exit ist
-# immer 0.
+# In Shells ohne diesen Hook bleibt die direkte Warnung auf ihre Aufrufer
+# beschränkt. Keine der beiden Formen blockiert einen Befehl oder erteilt
+# eine Ausführungsberechtigung.
 
 set -u
 
@@ -110,8 +90,17 @@ except (OSError, ValueError) as fehler:
 
 inhaber = stand.get("inhaber")
 abgabe = stand.get("abgabe")
+ort = stand.get("ort")
 
-# ---- Die drei Fälle, in denen GESCHWIEGEN wird ---------------------------
+# Der Ort des Fensters (rota-fenster --ort, #1049). Ein Schalter von vor dem
+# 28.10. kennt keinen und gilt als Laptop. Ein unbekannter Ort ist kein
+# "frei": ein fehlender Messwert ist kein gruener Messwert (Kriterium 4).
+if ort not in (None, "laptop", "node3"):
+    print(f"  [Fenster] Schalterstand unlesbar (unbekannter Ort {ort!r}) — sieh selbst nach.",
+          file=sys.stderr)
+    sys.exit(0)
+
+# ---- Die vier Fälle, in denen GESCHWIEGEN wird ---------------------------
 #
 # Auflage 1 aus der Zuteilung, und sie ist die wichtigere Hälfte: Eine
 # Warnung, die immer kommt, ist von einer abgeschalteten nicht zu
@@ -123,6 +112,8 @@ if abgabe is not None:
     sys.exit(0)                    # abgegeben, also frei
 if meine_rolle and inhaber == meine_rolle:
     sys.exit(0)                    # es ist mein eigenes Fenster
+if ort == "node3":
+    sys.exit(0)                    # npm-Laeufe sind lokale Last; node3 stoert nur der Bau-Dienst
 
 # ---- Und der eine, in dem gewarnt wird -----------------------------------
 zweck = (stand.get("zweck") or "").strip()
