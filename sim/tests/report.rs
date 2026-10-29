@@ -262,13 +262,13 @@ fn ac1_kein_zauber_aus_schritt_1_ist_tot() {
         if !["kindle", "smoulder", "pyre"].contains(&row.id) {
             continue;
         }
-        assert!(!row.is_dead(), "{} wird nie gewirkt", row.id);
+        assert!(!row.never_cast(), "{} wird nie gewirkt", row.id);
     }
 }
 
 #[test]
 fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
-    // Die Gegenprobe: Ohne sie wuesste niemand, ob `is_dead` ueberhaupt
+    // Die Gegenprobe: Ohne sie wuesste niemand, ob `never_cast` ueberhaupt
     // ansprechen kann.
     let nur_kindle = apl("kindle\n", "nur-kindle");
     let result = Fight::new(FightConfig {
@@ -280,7 +280,7 @@ fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
 
     let tote: Vec<&str> = table
         .iter()
-        .filter(|row| row.is_dead())
+        .filter(|row| row.never_cast())
         .map(|row| row.id)
         .collect();
     // **Abgeleitet** (Issue #201): tot ist in dieser Rotation alles ausser
@@ -293,7 +293,9 @@ fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
     );
     assert!(tote.contains(&"smoulder"));
     assert!(tote.contains(&"pyre"));
-    assert!(!table.iter().any(|row| row.id == "kindle" && row.is_dead()));
+    assert!(!table
+        .iter()
+        .any(|row| row.id == "kindle" && row.never_cast()));
 }
 
 #[test]
