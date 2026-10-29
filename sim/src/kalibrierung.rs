@@ -24,12 +24,15 @@
 //! ```text
 //! Aufwärmen -> messen -> weiter, bis ALLE erfüllt sind:
 //!     Mindestdauer 5 s          ·  Höchstdauer 30 s
-//!     Streuung unter 3 %        ·  Takt stabil, keine neue Drosselung
+//!     Unsicherheit des Mittels unter 3 %  ·  keine neue Drosselung
 //!     Speicherdruck akzeptabel
 //! ```
 //!
+//! „Streuung" aus E15.0 ist seit dem 28.10. die Unsicherheit des MITTELS,
+//! nicht die der einzelnen Abschnitte (Begründung bei [`STREUUNG_MAX`]).
+//!
 //! Die Höchstdauer ist **keine** Messdauer, sondern eine Notbremse: Wird sie
-//! erreicht, ohne dass die Streuung fällt, ist das Ergebnis
+//! erreicht, ohne dass die Unsicherheit fällt, ist das Ergebnis
 //! [`Abbruchgrund::Hoechstdauer`] — und der Aufrufer weiß, dass die Zahl nicht
 //! zusichert, was eine stabile Messung zusichern würde.
 //!
@@ -61,7 +64,22 @@ pub const MINDESTDAUER: Duration = Duration::from_secs(5);
 /// Längste Messdauer. **Eine Notbremse, keine Messdauer.**
 pub const HOECHSTDAUER: Duration = Duration::from_secs(30);
 
-/// Wie stark die Rate zwischen den Abschnitten schwanken darf, als Anteil.
+/// Wie unsicher das MITTEL der Abschnitte höchstens sein darf, als Anteil:
+/// Standardfehler durch Mittelwert (siehe [`relative_unsicherheit`]).
+///
+/// # Nicht die Streuung der Abschnitte — gemessen, warum
+///
+/// Bis zum 28.10. hing hier die Streuung der einzelnen Abschnitte. Auf node3,
+/// dem geteilten Zielrechner, streuen sie beim Vollkampf um 8,8 bis 13,0 %;
+/// fünf von fünf Läufen endeten an der Höchstdauer, obwohl das Mittel aus rund
+/// 500 Abschnitten auf ein halbes Prozent bekannt war. Längere Abschnitte
+/// halfen nicht: Dieselben Rohdaten, zu vier Sekunden zusammengefasst,
+/// streuten noch um 6,2 %. Die Abschnitte messen die Unruhe der Maschine, das
+/// Mittel misst die Rate.
+///
+/// Entscheidung des Orchestrators vom selben Tag: „Streuung unter 3 bis 5 %"
+/// aus E15.0 ist die Unsicherheit des Mittels. Die Schwelle ist dieselbe
+/// geblieben.
 pub const STREUUNG_MAX: f64 = 0.03;
 
 /// Wie viele Abschnitte mindestens vorliegen müssen, bevor die Streuung zählt.
@@ -138,6 +156,9 @@ pub enum Abbruchgrund {
     Drosselung,
     /// Die Arbeitspakete waren zu klein, um die Zeit sinnvoll zu messen.
     PaketZuKlein,
+    /// Ein Lauf mit **fester** Dauer: der kurze Bestätigungslauf oder die
+    /// Kontrollprobe. Er misst, aber er kalibriert nicht.
+    FesteDauer,
 }
 
 impl Abbruchgrund {
@@ -197,6 +218,17 @@ impl RateModel {
             return true;
         }
         (self.rate_per_s - erwartet).abs() / erwartet > NEUERHEBUNG_AB
+    }
+
+    /// Relative Unsicherheit des Mittelwerts — die Größe, gegen die
+    /// [`STREUUNG_MAX`] gehalten wird.
+    ///
+    /// Aus `spread` und `samples` abgeleitet statt gespeichert: Beide stehen
+    /// schon im Profil, und eine dritte Zahl, die aus zweien folgt, könnte
+    /// ihnen widersprechen.
+    #[must_use]
+    pub fn unsicherheit(&self) -> f64 {
+        unsicherheit_aus(self.spread, self.samples)
     }
 }
 
@@ -314,6 +346,31 @@ impl HostPerfVector {
     }
 }
 
+/// Was ein Abschnitt meldet: gefahrene Einheiten und, falls er sie selbst
+/// gemessen hat, die Dauer seines Fensters (#912).
+///
+/// Eine Arbeit, die nur `f64` liefert, wird an der Wanduhr gemessen — von
+/// ihrem Aufruf bis zu ihrer Rückkehr. Ein durchgehender Lauf misst sein
+/// Fenster selbst: Die Einheiten zählt das Zählwerk bis zum Fensterende, und
+/// was danach noch ausläuft, gehört nicht dazu.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Abschnittswert {
+    /// Gefahrene Einheiten.
+    pub einheiten: f64,
+    /// Die Dauer des Fensters, in dem sie gefahren wurden — oder `None`, dann
+    /// gilt die Wanduhr um den Aufruf.
+    pub fenster: Option<Duration>,
+}
+
+impl From<f64> for Abschnittswert {
+    fn from(einheiten: f64) -> Self {
+        Self {
+            einheiten,
+            fenster: None,
+        }
+    }
+}
+
 /// Ein Messabschnitt: gefahrene Einheiten, gebrauchte Zeit und der Takt dabei.
 #[derive(Debug, Clone, Copy)]
 struct Abschnitt {
@@ -358,8 +415,10 @@ pub fn takt_drift(werte: &[f64]) -> Option<f64> {
 ///
 /// **Standardabweichung durch Mittelwert**, nicht Spannweite durch Mittelwert:
 /// Die Spannweite hängt an genau zwei Werten und wächst mit jedem weiteren
-/// Abschnitt, auch wenn die Messung ruhiger wird. Eine Abbruchbedingung auf ihr
-/// würde bei längerer Messung schwerer erfüllbar — das Gegenteil des Gewollten.
+/// Abschnitt, auch wenn die Messung ruhiger wird.
+///
+/// Sie beschreibt die **Abschnitte**, nicht das Mittel; die Abbruchregel hängt
+/// an [`relative_unsicherheit`].
 #[must_use]
 pub fn streuung(raten: &[f64]) -> f64 {
     if raten.len() < 2 {
@@ -375,6 +434,51 @@ pub fn streuung(raten: &[f64]) -> f64 {
     varianz.sqrt() / mittel
 }
 
+/// Relative Unsicherheit des Mittelwerts einer Reihe von Raten:
+/// Standardfehler durch Mittelwert.
+///
+/// Aus [`streuung`] abgeleitet, damit beide Größen auf derselben Rechnung
+/// stehen: Die Streuung teilt durch `n`, der Standardfehler braucht die
+/// Stichproben-Standardabweichung (`n - 1`) geteilt durch `sqrt(n)` — zusammen
+/// `streuung / sqrt(n - 1)`.
+///
+/// **Unendlich bei weniger als zwei Werten**, aus demselben Grund wie bei
+/// `streuung`: Eine einzige Messung hat keine bekannte Unsicherheit, und eine
+/// Null hier beendete den Lauf nach dem ersten Abschnitt.
+#[must_use]
+pub fn relative_unsicherheit(raten: &[f64]) -> f64 {
+    unsicherheit_aus(streuung(raten), raten.len())
+}
+
+/// `streuung / sqrt(n - 1)`, unendlich unter zwei Werten.
+fn unsicherheit_aus(streuung: f64, n: usize) -> f64 {
+    if n < 2 {
+        return f64::INFINITY;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let freiheitsgrade = (n - 1) as f64;
+    streuung / freiheitsgrade.sqrt()
+}
+
+/// Ob ein adaptiver Lauf nach `gelaufen` aufhören darf, und warum.
+///
+/// `None` heißt: weitermessen. Alle `reihen` müssen die Bedingung erfüllen —
+/// beim verschränkten Lauf die Kalibrierung UND die Referenz.
+#[must_use]
+pub fn urteil_nach(gelaufen: Duration, reihen: &[&[f64]]) -> Option<Abbruchgrund> {
+    let stabil = !reihen.is_empty()
+        && reihen
+            .iter()
+            .all(|r| r.len() >= ABSCHNITTE_MIN && relative_unsicherheit(r) < STREUUNG_MAX);
+    if gelaufen >= MINDESTDAUER && stabil {
+        return Some(Abbruchgrund::Stabil);
+    }
+    if gelaufen >= HOECHSTDAUER {
+        return Some(Abbruchgrund::Hoechstdauer);
+    }
+    None
+}
+
 /// Fährt einen adaptiven Kalibrierlauf.
 ///
 /// `arbeit` bekommt keine Argumente und liefert die Zahl der Einheiten, die sie
@@ -387,13 +491,131 @@ pub fn streuung(raten: &[f64]) -> f64 {
 /// entweder zu kurz (bei schneller Arbeit) oder blockiert zu lange (bei
 /// langsamer). Die Arbeit wählt ein Paket, das auf jeder Maschine in etwa
 /// dieselbe Größenordnung braucht, und sagt hinterher, wie viel es war.
-pub fn kalibriere<F>(mut arbeit: F) -> RateModel
+pub fn kalibriere<F, R>(mut arbeit: F) -> RateModel
 where
-    F: FnMut() -> f64,
+    F: FnMut() -> R,
+    R: Into<Abschnittswert>,
 {
     let kerne = erlaubte_kerne().unwrap_or_default();
     let drossel_vorher = taktdrosselung();
+    if let Some(abbruch) = vorpruefung() {
+        return abbruch;
+    }
 
+    // Aufwärmen zählt nicht mit.
+    let warm_bis = Instant::now() + AUFWAERMEN;
+    while Instant::now() < warm_bis {
+        let _ = arbeit();
+    }
+
+    // **Der Bezugstakt wird NACH dem Aufwärmen gelesen, nicht davor.**
+    //
+    // Davor steht der Leerlauftakt. Auf einer Maschine mit `performance`-Regler
+    // und Turbo springt er beim ersten Paket von 800 auf 4400 MHz — das sind
+    // 450 Prozent, und jede Messung bräche sofort mit `TaktDrift` ab.
+    //
+    // **Gemessen am 2026-08-22 auf proxmox**, erster Lauf dieses Programms:
+    // Alle sechs Raten meldeten `TaktDrift`, fünf davon nach genau EINEM
+    // Abschnitt. Die Maschine war ruhig; gedriftet war die Rampe, die das
+    // Aufwärmen gerade beseitigen soll.
+    //
+    // Der Bezug steht seither NICHT mehr in einer Variablen: Verglichen werden
+    // die zwei Hälften der Messreihe, und die entstehen erst im Lauf.
+
+    let start = Instant::now();
+    let mut abschnitte: Vec<Abschnitt> = Vec::new();
+    // **Kein Anfangswert mit Bedeutung.** Jeder Ausgang der Schleife setzt ihn;
+    // ein vorbelegter Wert sähe aus wie ein Vorgabefall und wäre in Wahrheit
+    // unerreichbar — clippy meldet ihn zu Recht als nie gelesen.
+    let grund;
+
+    loop {
+        abschnitte.push(abschnitt_messen(&mut arbeit, &kerne));
+        let gelaufen = start.elapsed();
+
+        // **Störungen erst, wenn genug Abschnitte vorliegen.** Ein Abbruch nach
+        // dem ersten liefert eine Rate mit Streuung `inf` — eine Zahl, die
+        // niemand deuten kann, und der Grund daneben verdeckt, dass gar nicht
+        // gemessen wurde.
+        if abschnitte.len() < ABSCHNITTE_MIN {
+            continue;
+        }
+
+        // **Von den Störungen bricht nur EINE ab: die Drosselung.**
+        //
+        // Sie ist ein diskretes Ereignis — der Zähler springt oder er springt
+        // nicht —, und sie verfälscht die Rate nachweislich. Druck und Takt
+        // sind etwas anderes, und die Messung hat es an zwei Rechnern gezeigt:
+        //
+        // `PSI cpu some avg10` steigt, WEIL gemessen wird. Wer zwölf Stränge
+        // auslastet, lässt zwangsläufig etwas warten; auf proxmox brachen zwei
+        // Raten mit `Druck` ab, nachdem der eigene Lauf den Wert über die
+        // Schwelle geschoben hatte. Ein Abbruch darauf beendet jede
+        // erfolgreiche Messung.
+        //
+        // Der Takt schwankt auf einem modernen Regler im LEERLAUF um über
+        // hundert Prozent (gemessen, siehe `TAKT_DRIFT_MAX`). Eine
+        // Abbruchbedingung darauf misst den Regler, nicht die Güte.
+        //
+        // **Was beides bereits enthält, ist die Streuung der Raten.** Ein Takt,
+        // der schwankt, ohne die Raten zu bewegen, hat die Messung nicht
+        // gestört — und einer, der sie bewegt, treibt die Streuung hoch. Die
+        // zwei Größen werden deshalb GEMELDET und nicht zur Entscheidung
+        // benutzt.
+        //
+        // Die Fremdlast VOR der Messung ist ein anderer Fall; sie steht oben
+        // und bricht ab, bevor überhaupt gerechnet wird.
+        if gedrosselt(drossel_vorher) {
+            grund = Abbruchgrund::Drosselung;
+            break;
+        }
+
+        // Ein Paket, das die Uhr nicht auflöst, macht jede Rate darüber zu
+        // einer Aussage über die Auflösung.
+        if abschnitte.iter().all(|a| a.dauer < ABSCHNITT_MIN) {
+            grund = Abbruchgrund::PaketZuKlein;
+            break;
+        }
+
+        if let Some(g) = urteil_nach(gelaufen, &[&raten_von(&abschnitte)]) {
+            grund = g;
+            break;
+        }
+    }
+
+    let takte: Vec<f64> = abschnitte.iter().filter_map(|a| a.takt_mhz).collect();
+    modell(&abschnitte, grund, start.elapsed(), takt_drift(&takte))
+}
+
+// Ein Schalter für Prüffälle (#912): Die Vorprüfung entfällt. Gesetzt auf
+// dem aufrufenden Strang; außerhalb der Prüffälle gibt es ihn nicht. Fälle,
+// deren Arbeit synthetisch ist — Schlafen und Zählen —, prüfen Logik, die
+// nicht an der Last des Rechners hängt. Mit Vorprüfung kehrten sie auf einem
+// belasteten Bau-Rechner nach `ABKLINGEN_MAX` ohne einen Abschnitt grün
+// zurück: Am 2026-10-29 überlebten so fünf Mutationen, ohne geprüft zu sein.
+#[cfg(test)]
+thread_local! {
+    static OHNE_VORPRUEFUNG: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Ob die Vorprüfung in diesem Prüffall entfällt.
+#[cfg(test)]
+fn vorpruefung_entfaellt() -> bool {
+    OHNE_VORPRUEFUNG.with(std::cell::Cell::get)
+}
+
+/// Außerhalb der Prüffälle entfällt sie nie.
+#[cfg(not(test))]
+const fn vorpruefung_entfaellt() -> bool {
+    false
+}
+
+/// Die Vorprüfung vor jeder Messung. `Some` ist der Abbruch mit
+/// [`Abbruchgrund::Druck`], `None` heißt: messen.
+fn vorpruefung() -> Option<RateModel> {
+    if vorpruefung_entfaellt() {
+        return None;
+    }
     // **Fremdlast VOR der Messung ist ein Abbruchgrund, eigener Druck nicht.**
     //
     // Der Unterschied ist der ganze Punkt: Was hier anliegt, hat mit dieser
@@ -430,183 +652,69 @@ where
     let fremdlast = drucksignale()
         .into_iter()
         .find(|s| s.ueberschritten() && s.quelle != "/proc/pressure/io");
-    if fremdlast.is_some() {
-        return RateModel {
-            rate_per_s: 0.0,
-            spread: f64::INFINITY,
-            samples: 0,
-            duration_ms: 0,
-            reason: Abbruchgrund::Druck,
-            measured_at: jetzt(),
-            psi_cpu: psi_some_avg10("/proc/pressure/cpu"),
-            takt_drift: None,
-        };
-    }
-
-    // Aufwärmen zählt nicht mit.
-    let warm_bis = Instant::now() + AUFWAERMEN;
-    while Instant::now() < warm_bis {
-        let _ = arbeit();
-    }
-
-    // **Der Bezugstakt wird NACH dem Aufwärmen gelesen, nicht davor.**
-    //
-    // Davor steht der Leerlauftakt. Auf einer Maschine mit `performance`-Regler
-    // und Turbo springt er beim ersten Paket von 800 auf 4400 MHz — das sind
-    // 450 Prozent, und jede Messung bräche sofort mit `TaktDrift` ab.
-    //
-    // **Gemessen am 2026-08-22 auf proxmox**, erster Lauf dieses Programms:
-    // Alle sechs Raten meldeten `TaktDrift`, fünf davon nach genau EINEM
-    // Abschnitt. Die Maschine war ruhig; gedriftet war die Rampe, die das
-    // Aufwärmen gerade beseitigen soll.
-    //
-    // Der Bezug steht seither NICHT mehr in einer Variablen: Verglichen werden
-    // die zwei Hälften der Messreihe, und die entstehen erst im Lauf.
-
-    let start = Instant::now();
-    let mut abschnitte: Vec<Abschnitt> = Vec::new();
-    // **Kein Anfangswert mit Bedeutung.** Jeder Ausgang der Schleife setzt ihn;
-    // ein vorbelegter Wert sähe aus wie ein Vorgabefall und wäre in Wahrheit
-    // unerreichbar — clippy meldet ihn zu Recht als nie gelesen.
-    let grund;
-
-    loop {
-        let t0 = Instant::now();
-        let einheiten = arbeit();
-        abschnitte.push(Abschnitt {
-            einheiten,
-            dauer: t0.elapsed(),
-            takt_mhz: takt_mhz(&kerne),
-        });
-
-        let gelaufen = start.elapsed();
-        let raten: Vec<f64> = abschnitte.iter().map(|a| a.rate()).collect();
-
-        // **Störungen erst, wenn genug Abschnitte vorliegen.** Ein Abbruch nach
-        // dem ersten liefert eine Rate mit Streuung `inf` — eine Zahl, die
-        // niemand deuten kann, und der Grund daneben verdeckt, dass gar nicht
-        // gemessen wurde.
-        if abschnitte.len() < ABSCHNITTE_MIN {
-            continue;
-        }
-
-        // **Von den Störungen bricht nur EINE ab: die Drosselung.**
-        //
-        // Sie ist ein diskretes Ereignis — der Zähler springt oder er springt
-        // nicht —, und sie verfälscht die Rate nachweislich. Druck und Takt
-        // sind etwas anderes, und die Messung hat es an zwei Rechnern gezeigt:
-        //
-        // `PSI cpu some avg10` steigt, WEIL gemessen wird. Wer zwölf Stränge
-        // auslastet, lässt zwangsläufig etwas warten; auf proxmox brachen zwei
-        // Raten mit `Druck` ab, nachdem der eigene Lauf den Wert über die
-        // Schwelle geschoben hatte. Ein Abbruch darauf beendet jede
-        // erfolgreiche Messung.
-        //
-        // Der Takt schwankt auf einem modernen Regler im LEERLAUF um über
-        // hundert Prozent (gemessen, siehe `TAKT_DRIFT_MAX`). Eine
-        // Abbruchbedingung darauf misst den Regler, nicht die Güte.
-        //
-        // **Was beides bereits enthält, ist die Streuung der Raten.** Ein Takt,
-        // der schwankt, ohne die Raten zu bewegen, hat die Messung nicht
-        // gestört — und einer, der sie bewegt, treibt die Streuung hoch. Die
-        // zwei Größen werden deshalb GEMELDET und nicht zur Entscheidung
-        // benutzt.
-        //
-        // Die Fremdlast VOR der Messung ist ein anderer Fall; sie steht oben
-        // und bricht ab, bevor überhaupt gerechnet wird.
-        if let (Some(vorher), Some(nachher)) = (drossel_vorher, taktdrosselung()) {
-            if nachher > vorher {
-                grund = Abbruchgrund::Drosselung;
-                break;
-            }
-        }
-
-        // Ein Paket, das die Uhr nicht auflöst, macht jede Rate darüber zu
-        // einer Aussage über die Auflösung.
-        if abschnitte.len() >= ABSCHNITTE_MIN && abschnitte.iter().all(|a| a.dauer < ABSCHNITT_MIN)
-        {
-            grund = Abbruchgrund::PaketZuKlein;
-            break;
-        }
-
-        if gelaufen >= MINDESTDAUER
-            && abschnitte.len() >= ABSCHNITTE_MIN
-            && streuung(&raten) < STREUUNG_MAX
-        {
-            grund = Abbruchgrund::Stabil;
-            break;
-        }
-        if gelaufen >= HOECHSTDAUER {
-            grund = Abbruchgrund::Hoechstdauer;
-            break;
-        }
-    }
-
-    let raten: Vec<f64> = abschnitte.iter().map(|a| a.rate()).collect();
-    #[allow(clippy::cast_precision_loss)]
-    let mittel = if raten.is_empty() {
-        0.0
-    } else {
-        raten.iter().sum::<f64>() / raten.len() as f64
-    };
-    let takte: Vec<f64> = abschnitte.iter().filter_map(|a| a.takt_mhz).collect();
-    RateModel {
-        rate_per_s: mittel,
-        spread: streuung(&raten),
-        samples: raten.len(),
-        duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
-        reason: grund,
-        measured_at: jetzt(),
-        psi_cpu: psi_some_avg10("/proc/pressure/cpu"),
-        takt_drift: takt_drift(&takte),
-    }
-}
-
-/// Fährt einen Lauf mit **fester** Dauer — nur für die Kontrollprobe.
-///
-/// # Warum es diese Funktion gibt, obwohl das Issue feste Dauern verbietet
-///
-/// #912 verlangt eine Kontrollprobe: „Ein absichtlich auf zwei Sekunden
-/// verkürzter Lauf muss eine sichtbar größere Streuung zeigen als der
-/// adaptive." Ohne diesen Vergleich ist **nicht belegt, dass die Adaptivität
-/// etwas bringt** — sie wäre eine Behauptung mit Code daneben.
-///
-/// Die Funktion ist deshalb ausdrücklich als Kontrolle benannt und liefert ein
-/// [`RateModel`] mit [`Abbruchgrund::Hoechstdauer`]: Ihre Zahl darf nirgends
-/// als Kalibrierung durchgehen.
-pub fn kontrolllauf_feste_dauer<F>(mut arbeit: F, dauer: Duration) -> RateModel
-where
-    F: FnMut() -> f64,
-{
-    let start = Instant::now();
-    let mut abschnitte: Vec<Abschnitt> = Vec::new();
-    while start.elapsed() < dauer {
-        let t0 = Instant::now();
-        let einheiten = arbeit();
-        abschnitte.push(Abschnitt {
-            einheiten,
-            dauer: t0.elapsed(),
-            // Der Kontrolllauf braucht den Takt nicht — er prüft nichts, er
-            // vergleicht nur seine Streuung mit der des adaptiven Laufs.
-            takt_mhz: None,
-        });
-    }
-    let raten: Vec<f64> = abschnitte.iter().map(|a| a.rate()).collect();
-    #[allow(clippy::cast_precision_loss)]
-    let mittel = if raten.is_empty() {
-        0.0
-    } else {
-        raten.iter().sum::<f64>() / raten.len() as f64
-    };
-    RateModel {
-        rate_per_s: mittel,
-        spread: streuung(&raten),
-        samples: raten.len(),
-        duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
-        reason: Abbruchgrund::Hoechstdauer,
+    fremdlast.map(|_| RateModel {
+        rate_per_s: 0.0,
+        spread: f64::INFINITY,
+        samples: 0,
+        duration_ms: 0,
+        reason: Abbruchgrund::Druck,
         measured_at: jetzt(),
         psi_cpu: psi_some_avg10("/proc/pressure/cpu"),
         takt_drift: None,
+    })
+}
+
+/// Misst einen Abschnitt: einen Aufruf der Arbeit, mit Dauer und Takt.
+fn abschnitt_messen<F, R>(arbeit: &mut F, kerne: &[usize]) -> Abschnitt
+where
+    F: FnMut() -> R,
+    R: Into<Abschnittswert>,
+{
+    let t0 = Instant::now();
+    let wert = arbeit().into();
+    // Ein Fenster, das der Abschnitt selbst gemessen hat, gilt vor der
+    // Wanduhr: Sie umfasst auch, was nach dem Fensterende ausläuft.
+    let dauer = wert.fenster.unwrap_or_else(|| t0.elapsed());
+    Abschnitt {
+        einheiten: wert.einheiten,
+        dauer,
+        takt_mhz: takt_mhz(kerne),
+    }
+}
+
+/// Ob die CPU seit `vorher` neu gedrosselt hat.
+fn gedrosselt(vorher: Option<u64>) -> bool {
+    matches!((vorher, taktdrosselung()), (Some(v), Some(n)) if n > v)
+}
+
+/// Die Raten der Abschnitte, in ihrer Reihenfolge.
+fn raten_von(abschnitte: &[Abschnitt]) -> Vec<f64> {
+    abschnitte.iter().map(|a| a.rate()).collect()
+}
+
+/// Das [`RateModel`] über eine Reihe von Abschnitten.
+fn modell(
+    abschnitte: &[Abschnitt],
+    grund: Abbruchgrund,
+    dauer: Duration,
+    takt_drift: Option<f64>,
+) -> RateModel {
+    let raten = raten_von(abschnitte);
+    #[allow(clippy::cast_precision_loss)]
+    let mittel = if raten.is_empty() {
+        0.0
+    } else {
+        raten.iter().sum::<f64>() / raten.len() as f64
+    };
+    RateModel {
+        rate_per_s: mittel,
+        spread: streuung(&raten),
+        samples: raten.len(),
+        duration_ms: u64::try_from(dauer.as_millis()).unwrap_or(u64::MAX),
+        reason: grund,
+        measured_at: jetzt(),
+        psi_cpu: psi_some_avg10("/proc/pressure/cpu"),
+        takt_drift,
     }
 }
 
@@ -797,67 +905,276 @@ impl Profil {
     }
 }
 
-/// Die Referenzwerte aus Issue #912, gegen die AC1 prüft.
-///
-/// ```text
-///   Laptop  Ryzen 9 5900HS   210 094 Kämpfe/s   Load 1,96 — gedrückt
-///   gonet   Core i7-3930K    121 689            Load 2,75, kein AVX2/FMA
-///   proxmox Core i5-1235U    221 688            Load 0,73, AVX2+FMA+VNNI
-/// ```
-///
-/// **Sie sind mit `orch-verteilung` erhoben und sie gelten.**
-///
-/// # Warum sie gelten, obwohl dasselbe Programm heute Millionen meldet
-///
-/// Am 2026-08-22 meldet `orch-verteilung` auf gonet **9 861 417** Kämpfe je
-/// Sekunde. Das ist keine schnellere Hardware und keine veraltete Referenz,
-/// sondern eine kaputte Rate: Zähler aus der angeforderten Menge, Nenner aus
-/// der Dauer eines einzigen Laufs.
-///
-/// Die Zeitachse entscheidet, welche der beiden Zahlen falsch ist:
-///
-/// ```text
-///   b2244dc6  2026-08-18  orch-verteilung mit "KAEMPFE JE SEKUNDE"
-///   7af79720  2026-08-19  die Reduktion aus #908
-/// ```
-///
-/// **Das Werkzeug ist einen Tag älter als die Reduktion.** Seine Referenzwerte
-/// stammen aus der Zeit davor und sind echte Durchsatzzahlen über 200 000
-/// gerechnete Kämpfe. Die Zahl von heute ist die kaputte.
-///
-/// Eine Kalibrierung, die sie treffen will, muss deshalb mit echtem Zufall
-/// messen — dann greift die Reduktion nicht, und es wird gegen denselben
-/// Bestand gemessen wie damals. Dass proxmox auf 0,4 Prozent trifft, ist der
-/// Beleg: Zwei verschiedene Welten träfen sich nicht auf drei Stellen.
-#[must_use]
-pub fn referenz_fights_per_s(host: &str) -> Option<f64> {
-    match host {
-        h if h.contains("gonet") => Some(121_689.0),
-        h if h.contains("proxmox") => Some(221_688.0),
-        // **Der Laptop heißt `linux.fritz.box`** — gemessen am 2026-08-22,
-        // nicht geraten. Der erste Anlauf dieser Funktion prüfte auf „laptop",
-        // „tuxedo" und „rota" und fand nichts; AC1 stand daraufhin als „nicht
-        // prüfbar" da, obwohl die Referenz existiert und der Rechner der
-        // wichtigste der drei ist.
-        //
-        // Ein Hostname ist eine Ablesung wie jede andere.
-        h if h.contains("linux.fritz.box") || h.contains("laptop") => Some(210_094.0),
-        _ => None,
-    }
-}
-
-/// Wie weit die gemessene Rate von der Referenz abweicht, als Anteil.
-#[must_use]
-pub fn abweichung_von_referenz(host: &str, gemessen: f64) -> Option<f64> {
-    let r = referenz_fights_per_s(host)?;
-    if r <= 0.0 {
-        return None;
-    }
-    Some((gemessen - r) / r)
-}
-
 /// Was AC1 verlangt: höchstens zehn Prozent Abweichung.
+///
+/// # Wogegen — und warum nicht mehr gegen eine Tabelle
+///
+/// Bis zum 28.10. stand hier eine Funktion mit drei Referenzwerten aus #912,
+/// nach Hostname: 210 094 für den Laptop, 121 689 für gonet, 221 688 für
+/// proxmox. Das waren **Momentanwerte unter drei verschiedenen Lasten** vom
+/// 16.08., und ein 10-Prozent-Kriterium gegen einen Momentanwert ist nur durch
+/// Lastglück erfüllbar (#912, AC1, Umformulierung vom 22.08.). Dazu traf der
+/// Name auf keinem der zwei Zielrechner mehr: Der Laptop heißt seit einem
+/// Neustart `localhost.localdomain`, der Container auf node3 `rota-sim`.
+///
+/// Verglichen wird deshalb mit [`Verschraenkt::ac1`] gegen eine Referenz, die
+/// im selben Lauf auf derselben Maschine gemessen wird — verschränkt mit der
+/// Kalibrierung, Abschnitt um Abschnitt ([`kalibriere_verschraenkt`]).
 pub const AC1_TOLERANZ: f64 = 0.10;
+
+/// Was der Vergleich aus AC1 über eine Kalibrierung sagt.
+///
+/// # Warum vier Zustände und nicht zwei
+///
+/// AC1 fragt, ob die Kalibrierung die **gleichzeitig auf derselben Maschine**
+/// erhobene Referenz trifft — gleiche Konfiguration, gleicher Zeitraum,
+/// gleiche Last. Zeitraum und Last sichert die Verschränkung
+/// ([`kalibriere_verschraenkt`]); ob die zwei Mittel überhaupt genau genug
+/// sind, lässt sich am Lauf selbst nachprüfen. Wo nicht, ist „erfüllt" wie
+/// „nicht erfüllt" eine Behauptung über etwas, das nicht gemessen wurde.
+///
+/// # Warum nicht mehr davor und danach
+///
+/// Bis zum 28.10. lief die Referenz einmal vor und einmal nach der
+/// Kalibrierung. Auf node3 lagen die zwei 10,7 % auseinander (P1, 400 814
+/// gegen 446 023 Kämpfe je Sekunde): Unter dieser Drift kann ein
+/// Vorher/Nachher-Vergleich das 10-Prozent-Kriterium nicht tragen, gleich wie
+/// gut die Kalibrierung ist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ac1Urteil {
+    /// Die Kalibrierung trifft die Referenz innerhalb von [`AC1_TOLERANZ`].
+    Erfuellt,
+    /// Sie verfehlt sie.
+    NichtErfuellt,
+    /// Mindestens eine der zwei Reihen endete nicht [`Abbruchgrund::Stabil`]:
+    /// Ihr Mittel ist nicht genau genug, um gegen das andere gehalten zu
+    /// werden, und eine solche Kalibrierung wird ohnehin nicht abgelegt.
+    KeineKalibrierung,
+    /// Eine der zwei Zahlen ist keine Rate.
+    Ungueltig,
+}
+
+/// Der Vergleich aus AC1 mit den Zahlen, aus denen das Urteil entsteht.
+///
+/// Die Zahlen stehen auch dann da, wenn das Urteil keines ist: Wer einen
+/// unruhigen Lauf verwirft, will trotzdem sehen, wie weit er gelegen hätte.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ac1Vergleich {
+    /// Mittel der Referenzabschnitte.
+    pub referenz: f64,
+    /// `(kalibriert - referenz) / referenz`.
+    pub abweichung: f64,
+    /// Das Urteil.
+    pub urteil: Ac1Urteil,
+}
+
+/// Ein verschränkter Lauf: Kalibrier- und Referenzabschnitte abwechselnd,
+/// gleich lang, auf denselben Kernen (#912, AC1).
+#[derive(Debug, Clone, Copy)]
+pub struct Verschraenkt {
+    /// Die Rate über die Kalibrierabschnitte.
+    pub kalibrierung: RateModel,
+    /// Die Rate über die Referenzabschnitte.
+    pub referenz: RateModel,
+}
+
+impl Verschraenkt {
+    /// Der Vergleich aus AC1: Mittel der Kalibrierabschnitte gegen Mittel der
+    /// Referenzabschnitte.
+    #[must_use]
+    pub fn ac1(&self) -> Ac1Vergleich {
+        let rate = |x: f64| x.is_finite() && x > 0.0;
+        if !rate(self.kalibrierung.rate_per_s) || !rate(self.referenz.rate_per_s) {
+            return Ac1Vergleich {
+                referenz: f64::NAN,
+                abweichung: f64::NAN,
+                urteil: Ac1Urteil::Ungueltig,
+            };
+        }
+        let referenz = self.referenz.rate_per_s;
+        let abweichung = (self.kalibrierung.rate_per_s - referenz) / referenz;
+        let urteil = if !self.kalibrierung.reason.brauchbar() || !self.referenz.reason.brauchbar() {
+            Ac1Urteil::KeineKalibrierung
+        } else if abweichung.abs() <= AC1_TOLERANZ {
+            Ac1Urteil::Erfuellt
+        } else {
+            Ac1Urteil::NichtErfuellt
+        };
+        Ac1Vergleich {
+            referenz,
+            abweichung,
+            urteil,
+        }
+    }
+}
+
+/// Fährt Kalibrierung und Referenz **verschränkt**: ein Abschnitt der einen,
+/// ein Abschnitt der anderen, bis beide Mittel sicher genug sind.
+///
+/// # Was der Aufrufer zusichert
+///
+/// Dass beide Abschnitte **gleich viel Arbeit** sind — dann sind sie auf
+/// derselben Maschine auch gleich lang, und eine Drift trifft beide Reihen
+/// gleich. Die Funktion prüft das nicht; sie kann es nicht, ohne die Arbeit
+/// zu kennen.
+///
+/// # Wie aufgehört wird
+///
+/// Wie bei [`kalibriere`], nur über zwei Reihen: Vorprüfung auf Fremdlast,
+/// Aufwärmen (ebenfalls abwechselnd), dann Paare, bis [`urteil_nach`] für
+/// BEIDE Reihen `Stabil` sagt oder die Höchstdauer erreicht ist. Drosselung und
+/// zu kleine Pakete brechen ab wie dort. Beide Raten tragen denselben
+/// Abbruchgrund und dieselbe Dauer — sie sind ein Lauf.
+pub fn kalibriere_verschraenkt<A, RA, B, RB>(kalibrierung: A, referenz: B) -> Verschraenkt
+where
+    A: FnMut() -> RA,
+    RA: Into<Abschnittswert>,
+    B: FnMut() -> RB,
+    RB: Into<Abschnittswert>,
+{
+    verschraenkt_lauf(kalibrierung, referenz, None)
+}
+
+/// Der verschränkte Lauf: adaptiv (`feste_dauer` `None`) oder fest.
+///
+/// **Ein Lauf für beide**, damit die Kontrollprobe und die Kalibrierung sich
+/// in genau einer Sache unterscheiden — wann aufgehört wird.
+fn verschraenkt_lauf<A, RA, B, RB>(
+    mut kalibrierung: A,
+    mut referenz: B,
+    feste_dauer: Option<Duration>,
+) -> Verschraenkt
+where
+    A: FnMut() -> RA,
+    RA: Into<Abschnittswert>,
+    B: FnMut() -> RB,
+    RB: Into<Abschnittswert>,
+{
+    let kerne = erlaubte_kerne().unwrap_or_default();
+    let drossel_vorher = taktdrosselung();
+    if let Some(abbruch) = vorpruefung() {
+        return Verschraenkt {
+            kalibrierung: abbruch,
+            referenz: abbruch,
+        };
+    }
+
+    // Auch das Aufwärmen wechselt ab, damit beide Arbeiten warm sind.
+    let warm_bis = Instant::now() + AUFWAERMEN;
+    loop {
+        let _ = kalibrierung();
+        let _ = referenz();
+        if Instant::now() >= warm_bis {
+            break;
+        }
+    }
+
+    let start = Instant::now();
+    let mut ka: Vec<Abschnitt> = Vec::new();
+    let mut re: Vec<Abschnitt> = Vec::new();
+    let grund;
+    loop {
+        ka.push(abschnitt_messen(&mut kalibrierung, &kerne));
+        re.push(abschnitt_messen(&mut referenz, &kerne));
+        let gelaufen = start.elapsed();
+        if let Some(dauer) = feste_dauer {
+            if gelaufen >= dauer {
+                grund = Abbruchgrund::FesteDauer;
+                break;
+            }
+            continue;
+        }
+        if ka.len() < ABSCHNITTE_MIN {
+            continue;
+        }
+        if gedrosselt(drossel_vorher) {
+            grund = Abbruchgrund::Drosselung;
+            break;
+        }
+        if ka.iter().chain(re.iter()).all(|a| a.dauer < ABSCHNITT_MIN) {
+            grund = Abbruchgrund::PaketZuKlein;
+            break;
+        }
+        if let Some(g) = urteil_nach(gelaufen, &[&raten_von(&ka), &raten_von(&re)]) {
+            grund = g;
+            break;
+        }
+    }
+
+    // Der Takt über beide Reihen in zeitlicher Folge: Er gehört zur Maschine,
+    // nicht zu einer der zwei Arbeiten.
+    let takte: Vec<f64> = ka
+        .iter()
+        .zip(re.iter())
+        .flat_map(|(a, b)| [a.takt_mhz, b.takt_mhz])
+        .flatten()
+        .collect();
+    let drift = takt_drift(&takte);
+    let dauer = start.elapsed();
+    Verschraenkt {
+        kalibrierung: modell(&ka, grund, dauer, drift),
+        referenz: modell(&re, grund, dauer, drift),
+    }
+}
+
+/// Fährt Kalibrierung und Referenz verschränkt, aber **fest** `dauer` lang —
+/// die verkürzte Messung der Kontrollprobe zu AC2.
+///
+/// Dieselbe Vorprüfung, dasselbe Aufwärmen, dieselbe Abwechslung wie
+/// [`kalibriere_verschraenkt`]; aufgehört wird nach `dauer` (am Ende des
+/// laufenden Paars). Beide Raten tragen [`Abbruchgrund::FesteDauer`] und gelten
+/// nie als Kalibrierung.
+pub fn verschraenkt_feste_dauer<A, RA, B, RB>(
+    kalibrierung: A,
+    referenz: B,
+    dauer: Duration,
+) -> Verschraenkt
+where
+    A: FnMut() -> RA,
+    RA: Into<Abschnittswert>,
+    B: FnMut() -> RB,
+    RB: Into<Abschnittswert>,
+{
+    verschraenkt_lauf(kalibrierung, referenz, Some(dauer))
+}
+
+/// Die Kontrollprobe zu AC2: Welche der zwei Messungen liegt näher an ihrer
+/// verschränkten Referenz?
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Genauigkeitsprobe {
+    /// `|kalibriert / referenz - 1|` der adaptiven Messung.
+    pub fehler_adaptiv: f64,
+    /// Dasselbe für die verkürzte Messung fester Dauer.
+    pub fehler_fest: f64,
+    /// Ob die adaptive Messung **strikt** näher liegt.
+    pub adaptiv_genauer: bool,
+}
+
+/// Hält die adaptive und die verkürzte Messung je gegen ihre eigene
+/// verschränkte Referenz. `None`, wenn eine der vier Zahlen keine Rate ist.
+///
+/// # Warum Genauigkeit und nicht Streuung
+///
+/// Bis zum 28.10. fragte die Probe, ob die verkürzte Messung STÄRKER streut.
+/// Unter Drift tut sie das nicht — sie sieht ruhiger aus, weil sie weniger
+/// sieht: node3 fest 12,21 % gegen adaptiv 12,98 %, Laptop 3,93 % gegen
+/// 14,29 % (beide am 28.10.), gonet ebenso in PR #1111. Was eine längere
+/// Messung bringen soll, ist eine Rate, die die echte Arbeit trifft; das misst
+/// der Abstand zur Referenz.
+#[must_use]
+pub fn genauigkeitsprobe(adaptiv: &Verschraenkt, fest: &Verschraenkt) -> Option<Genauigkeitsprobe> {
+    let fehler = |v: &Verschraenkt| {
+        let (k, r) = (v.kalibrierung.rate_per_s, v.referenz.rate_per_s);
+        (k.is_finite() && k > 0.0 && r.is_finite() && r > 0.0).then(|| (k / r - 1.0).abs())
+    };
+    let fehler_adaptiv = fehler(adaptiv)?;
+    let fehler_fest = fehler(fest)?;
+    Some(Genauigkeitsprobe {
+        fehler_adaptiv,
+        fehler_fest,
+        adaptiv_genauer: fehler_adaptiv < fehler_fest,
+    })
+}
 
 /// Wo Profile liegen.
 ///
@@ -916,7 +1233,7 @@ pub fn profildatei(s: &Profilschluessel) -> String {
 }
 
 /// Was beim Bestätigen eines Profils herauskam.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bestaetigung {
     /// Es gibt kein Profil für diesen Schlüssel — voll erheben.
     Fehlt,
@@ -952,9 +1269,159 @@ pub fn gespeicherte_rate(text: &str, art: Arbeitsart) -> Option<f64> {
         .map(|(_, wert)| wert)
 }
 
+/// Der kurze Bestätigungslauf aus AC4: [`MINDESTDAUER`] lang, ohne adaptive
+/// Verlängerung.
+///
+/// # Warum eine feste Dauer hier richtig ist
+///
+/// Er **kalibriert nicht**, er prüft, ob ein gespeichertes Profil noch gilt —
+/// gegen eine Schwelle von 25 %, nicht von 3. Seine Rate trägt
+/// [`Abbruchgrund::FesteDauer`], gilt also nie als Kalibrierung und wird nie
+/// abgelegt. Gemessen am 28.10. auf node3: Mit Profil lief bis dahin dieselbe
+/// volle Erhebung wie ohne (2:13 gegen 2:39) — genau der Aufwand, den AC4
+/// sparen soll.
+///
+/// Vorprüfung und Aufwärmen sind dieselben wie bei [`kalibriere`]: Unter
+/// Fremdlast vor der Messung gibt es keinen Abschnitt.
+pub fn bestaetigungslauf<F, R>(mut arbeit: F) -> RateModel
+where
+    F: FnMut() -> R,
+    R: Into<Abschnittswert>,
+{
+    let kerne = erlaubte_kerne().unwrap_or_default();
+    if let Some(abbruch) = vorpruefung() {
+        return abbruch;
+    }
+    let warm_bis = Instant::now() + AUFWAERMEN;
+    while Instant::now() < warm_bis {
+        let _ = arbeit();
+    }
+    let start = Instant::now();
+    let mut abschnitte: Vec<Abschnitt> = Vec::new();
+    while start.elapsed() < MINDESTDAUER {
+        abschnitte.push(abschnitt_messen(&mut arbeit, &kerne));
+    }
+    let takte: Vec<f64> = abschnitte.iter().filter_map(|a| a.takt_mhz).collect();
+    modell(
+        &abschnitte,
+        Abbruchgrund::FesteDauer,
+        start.elapsed(),
+        takt_drift(&takte),
+    )
+}
+
+/// Welcher Lauf gefragt ist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lauf {
+    /// Der kurze Bestätigungslauf ([`bestaetigungslauf`]).
+    Kurz,
+    /// Die volle Erhebung ([`kalibriere`]).
+    Voll,
+}
+
+/// Was eine Arbeitsart in diesem Lauf erfahren hat (AC4, AC5).
+#[derive(Debug, Clone, Copy)]
+pub enum Erhebung {
+    /// Kein Profil: volle Erhebung.
+    Fehlt {
+        /// Die volle Erhebung.
+        voll: RateModel,
+    },
+    /// Der Bestätigungslauf lag innerhalb von [`NEUERHEBUNG_AB`]: Das Profil
+    /// gilt, eine volle Erhebung gab es nicht.
+    Bestaetigt {
+        /// Der Bestätigungslauf.
+        kurz: RateModel,
+    },
+    /// Der Bestätigungslauf wich ab, also wurde neu erhoben (AC5).
+    NeuErhoben {
+        /// Der Bestätigungslauf, der abwich.
+        kurz: RateModel,
+        /// Die volle Erhebung danach.
+        voll: RateModel,
+        /// Wie die volle Erhebung zum Profil steht.
+        urteil: Bestaetigung,
+    },
+    /// Der Bestätigungslauf kam nicht zum Messen, etwa wegen Fremdlast vor
+    /// der Messung. Weder bestätigt noch neu erhoben.
+    NichtGemessen {
+        /// Der Bestätigungslauf ohne Abschnitt.
+        kurz: RateModel,
+    },
+}
+
+impl Erhebung {
+    /// Die maßgebliche Messung: die volle, wenn es eine gab, sonst die kurze.
+    #[must_use]
+    pub const fn rate(&self) -> &RateModel {
+        match self {
+            Self::Fehlt { voll } | Self::NeuErhoben { voll, .. } => voll,
+            Self::Bestaetigt { kurz } | Self::NichtGemessen { kurz } => kurz,
+        }
+    }
+
+    /// Was davon ins Profil gehört: eine volle Erhebung, die stabil ist und
+    /// nicht abwich — sonst nichts, und das alte Profil bleibt stehen.
+    ///
+    /// **Eine abgewichene Rate legt NICHT ab.** Sie ist der Befund, nicht die
+    /// neue Wahrheit (gemessen am 2026-08-22 auf gonet: Unter Fremdlast war
+    /// `crit_dp` um 43,5 % gedrückt und dabei `Stabil` — gleichmäßiger Druck
+    /// erzeugt gleichmäßig falsche Raten). Ein Bestätigungslauf legt nie ab:
+    /// Er kalibriert nicht.
+    #[must_use]
+    pub fn abzulegen(&self) -> Option<&RateModel> {
+        match self {
+            Self::Fehlt { voll }
+            | Self::NeuErhoben {
+                voll,
+                urteil: Bestaetigung::Bestaetigt,
+                ..
+            } if voll.reason.brauchbar() => Some(voll),
+            _ => None,
+        }
+    }
+}
+
+/// Erhebt eine Arbeitsart: mit Profil kurz bestätigen, ohne voll erheben
+/// (AC4, AC5).
+///
+/// `messen` bekommt den gefragten [`Lauf`] und liefert seine Rate —
+/// gewöhnlich [`bestaetigungslauf`] für `Kurz` und [`kalibriere`] für `Voll`.
+/// Als Funktion übergeben, damit sich prüfen lässt, welcher Lauf gefragt
+/// wurde: Dass mit passendem Profil KEINE volle Erhebung läuft, ist die
+/// Eigenschaft, um die es in AC4 geht.
+pub fn erheben_mit<M>(gespeichert: Option<f64>, mut messen: M) -> Erhebung
+where
+    M: FnMut(Lauf) -> RateModel,
+{
+    let Some(erwartet) = gespeichert else {
+        return Erhebung::Fehlt {
+            voll: messen(Lauf::Voll),
+        };
+    };
+    let kurz = messen(Lauf::Kurz);
+    // Kein Abschnitt heißt: nicht gemessen. Eine volle Erhebung träfe dieselbe
+    // Vorprüfung, und `bestaetigen` hielte die Rate 0 für eine Abweichung.
+    if kurz.samples == 0 {
+        return Erhebung::NichtGemessen { kurz };
+    }
+    if bestaetigen(Some(erwartet), &kurz) == Bestaetigung::Bestaetigt {
+        return Erhebung::Bestaetigt { kurz };
+    }
+    let voll = messen(Lauf::Voll);
+    let urteil = bestaetigen(Some(erwartet), &voll);
+    Erhebung::NeuErhoben { kurz, voll, urteil }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Lässt die Vorprüfung für den laufenden Prüffall entfallen (siehe
+    /// `OHNE_VORPRUEFUNG`). Jeder Prüffall hat seinen eigenen Strang.
+    fn ohne_vorpruefung() {
+        OHNE_VORPRUEFUNG.with(|s| s.set(true));
+    }
 
     #[test]
     fn streuung_ist_null_bei_gleichen_werten() {
@@ -1260,10 +1727,12 @@ mod tests {
                 "stabil nach nur {gelaufen:?}, MINDESTDAUER ist {MINDESTDAUER:?}"
             );
             assert!(r.samples >= ABSCHNITTE_MIN, "nur {} Abschnitte", r.samples);
+            // Seit dem 28.10. hängt `Stabil` an der Unsicherheit des Mittels
+            // (siehe `STREUUNG_MAX`); dieselbe Größe wird hier gefragt.
             assert!(
-                r.spread < STREUUNG_MAX,
-                "als stabil gemeldet bei Streuung {}",
-                r.spread
+                r.unsicherheit() < STREUUNG_MAX,
+                "als stabil gemeldet bei Unsicherheit {}",
+                r.unsicherheit()
             );
         } else {
             // Der frühe Abbruch ist nur unter einer Störung erlaubt. `Hoechstdauer`
@@ -1416,28 +1885,6 @@ mod tests {
     }
 
     #[test]
-    fn referenz_kennt_die_drei_rechner_und_sonst_niemanden() {
-        assert_eq!(referenz_fights_per_s("gonet"), Some(121_689.0));
-        assert_eq!(referenz_fights_per_s("proxmox"), Some(221_688.0));
-        // **Ein unbekannter Rechner bekommt `None`, keine Null.** Eine Null
-        // ergäbe eine Abweichung von minus hundert Prozent und damit einen
-        // Befund, wo gar keine Referenz existiert.
-        assert_eq!(referenz_fights_per_s("linux.fritz.box"), Some(210_094.0));
-        assert_eq!(referenz_fights_per_s("irgendwas"), None);
-        assert_eq!(abweichung_von_referenz("irgendwas", 1000.0), None);
-    }
-
-    #[test]
-    fn abweichung_ist_gegen_die_referenz_gerechnet() {
-        let a = abweichung_von_referenz("gonet", 121_689.0).expect("gonet ist bekannt");
-        assert!(a.abs() < 1e-9, "Gleichstand ergibt {a} statt 0");
-        let hoch = abweichung_von_referenz("gonet", 121_689.0 * 1.2).expect("bekannt");
-        assert!((hoch - 0.2).abs() < 1e-9, "{hoch}");
-        let runter = abweichung_von_referenz("gonet", 121_689.0 * 0.8).expect("bekannt");
-        assert!((runter + 0.2).abs() < 1e-9, "{runter}");
-    }
-
-    #[test]
     fn profildatei_macht_aus_dem_schluessel_einen_dateinamen() {
         let s = Profilschluessel {
             host: "laptop/eins".to_owned(),
@@ -1466,5 +1913,540 @@ mod tests {
             taktregime: "t".to_owned(),
         };
         assert_ne!(profildatei(&mk("aaa")), profildatei(&mk("bbb")));
+    }
+
+    // ------------------------------------- AC2: Abbruch über den Standardfehler
+
+    /// `k`-mal das Paar 90/110: Mittel 100, Streuung der Abschnitte 10 %.
+    fn breit(k: usize) -> Vec<f64> {
+        (0..k).flat_map(|_| [90.0, 110.0]).collect()
+    }
+
+    #[test]
+    fn relative_unsicherheit_faellt_mit_der_wurzel_der_anzahl() {
+        // Die Streuung der Abschnitte bleibt bei 10 %, gleich wie lang man
+        // misst. Die Unsicherheit des Mittels fällt mit 1/sqrt(n-1) — genau der
+        // Unterschied, um den es in der Abbruchregel geht.
+        for (k, erwartet) in [(2usize, 0.1 / 3f64.sqrt()), (50, 0.1 / 99f64.sqrt())] {
+            let r = breit(k);
+            assert!(
+                (streuung(&r) - 0.1).abs() < 1e-12,
+                "Streuung {} bei n {}",
+                streuung(&r),
+                r.len()
+            );
+            let u = relative_unsicherheit(&r);
+            assert!(
+                (u - erwartet).abs() < 1e-12,
+                "Unsicherheit {u} statt {erwartet} bei n {}",
+                r.len()
+            );
+        }
+    }
+
+    #[test]
+    fn relative_unsicherheit_ist_unendlich_ohne_genug_werte() {
+        assert!(relative_unsicherheit(&[100.0]).is_infinite());
+        assert!(relative_unsicherheit(&[]).is_infinite());
+        assert!(relative_unsicherheit(&[0.0, 0.0, 0.0]).is_infinite());
+    }
+
+    #[test]
+    fn rate_model_leitet_die_unsicherheit_aus_streuung_und_anzahl_ab() {
+        let mut r = rate(100.0);
+        r.spread = 0.10;
+        r.samples = 101;
+        assert!(
+            (r.unsicherheit() - 0.01).abs() < 1e-12,
+            "Unsicherheit {}",
+            r.unsicherheit()
+        );
+        // Ein einziger Abschnitt hat keine Unsicherheit, die man kennt.
+        r.samples = 1;
+        assert!(
+            r.unsicherheit().is_infinite(),
+            "Unsicherheit {}",
+            r.unsicherheit()
+        );
+    }
+
+    #[test]
+    fn urteil_nach_haelt_eine_breite_aber_lange_reihe_fuer_stabil() {
+        // **Der Fall von node3** (2026-10-28): Abschnitte streuen um 10 %, das
+        // Mittel aus 400 davon ist auf ein halbes Prozent bekannt. Die alte
+        // Regel hätte bis zur Höchstdauer gemessen und verworfen.
+        let r = breit(200);
+        assert_eq!(urteil_nach(MINDESTDAUER, &[&r]), Some(Abbruchgrund::Stabil));
+        // Vor der Mindestdauer nicht, so sicher das Mittel auch ist.
+        assert_eq!(
+            urteil_nach(MINDESTDAUER - Duration::from_millis(1), &[&r]),
+            None
+        );
+    }
+
+    #[test]
+    fn urteil_nach_meldet_hoechstdauer_wenn_das_mittel_unsicher_bleibt() {
+        // Vier Abschnitte 50/150: Unsicherheit 0,5/sqrt(3) = 29 %.
+        let r = [50.0, 150.0, 50.0, 150.0];
+        assert_eq!(urteil_nach(Duration::from_secs(10), &[&r]), None);
+        assert_eq!(
+            urteil_nach(HOECHSTDAUER, &[&r]),
+            Some(Abbruchgrund::Hoechstdauer)
+        );
+        // Und zu wenige Abschnitte zählen nicht, auch wenn sie gleich sind.
+        let drei = [100.0, 100.0, 100.0];
+        assert_eq!(urteil_nach(Duration::from_secs(10), &[&drei]), None);
+    }
+
+    #[test]
+    fn urteil_nach_verlangt_jede_reihe() {
+        // Beim verschränkten Lauf müssen Kalibrierung UND Referenz sicher
+        // sein: Ein genaues Mittel gegen ein ungenaues ist kein Vergleich.
+        let sicher = breit(200);
+        let unsicher = [50.0, 150.0, 50.0, 150.0];
+        assert_eq!(
+            urteil_nach(Duration::from_secs(10), &[&sicher, &unsicher]),
+            None
+        );
+        assert_eq!(
+            urteil_nach(Duration::from_secs(10), &[&sicher, &sicher]),
+            Some(Abbruchgrund::Stabil)
+        );
+        assert_eq!(urteil_nach(Duration::from_secs(10), &[]), None);
+    }
+
+    // ---------------------------------------------- AC4: nur kurz bestätigen
+
+    /// Ein Bestätigungslauf mit der Rate `x`.
+    fn kurz(x: f64) -> RateModel {
+        RateModel {
+            reason: Abbruchgrund::FesteDauer,
+            ..rate(x)
+        }
+    }
+
+    /// Fährt `erheben_mit` gegen gefälschte Messungen und schreibt mit, welche
+    /// Läufe gefragt wurden.
+    fn erhebe(
+        gespeichert: Option<f64>,
+        kurz_rate: RateModel,
+        voll_rate: RateModel,
+    ) -> (Erhebung, Vec<Lauf>) {
+        let mut gefragt = Vec::new();
+        let e = erheben_mit(gespeichert, |lauf| {
+            gefragt.push(lauf);
+            match lauf {
+                Lauf::Kurz => kurz_rate,
+                Lauf::Voll => voll_rate,
+            }
+        });
+        (e, gefragt)
+    }
+
+    #[test]
+    fn erheben_ohne_profil_misst_voll_und_nie_kurz() {
+        let (e, gefragt) = erhebe(None, kurz(100.0), rate(100.0));
+        assert_eq!(gefragt, [Lauf::Voll]);
+        assert!(matches!(e, Erhebung::Fehlt { .. }), "{e:?}");
+    }
+
+    #[test]
+    fn erheben_mit_passendem_profil_misst_nur_kurz() {
+        // **Der Kern von AC4**: Ein vollständiger Lauf bei jedem Start ist zu
+        // teuer. Liegt der Bestätigungslauf innerhalb von 25 %, wird NICHT
+        // voll erhoben.
+        for kurz_rate in [100.0, 80.0, 124.0] {
+            let (e, gefragt) = erhebe(Some(100.0), kurz(kurz_rate), rate(100.0));
+            assert_eq!(gefragt, [Lauf::Kurz], "kurz {kurz_rate}");
+            assert!(
+                matches!(e, Erhebung::Bestaetigt { .. }),
+                "kurz {kurz_rate}: {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn erheben_mit_abweichendem_kurzlauf_erhebt_neu() {
+        // AC5: Weicht der Bestätigungslauf um mehr als 25 % ab, folgt die volle
+        // Erhebung — und erst sie entscheidet.
+        let (e, gefragt) = erhebe(Some(100.0), kurz(140.0), rate(140.0));
+        assert_eq!(gefragt, [Lauf::Kurz, Lauf::Voll]);
+        assert!(
+            matches!(
+                e,
+                Erhebung::NeuErhoben {
+                    urteil: Bestaetigung::Abweichung,
+                    ..
+                }
+            ),
+            "{e:?}"
+        );
+        // Bestätigt die volle Erhebung das Profil, war der Kurzlauf ein
+        // Ausreißer.
+        let (e, _) = erhebe(Some(100.0), kurz(60.0), rate(105.0));
+        assert!(
+            matches!(
+                e,
+                Erhebung::NeuErhoben {
+                    urteil: Bestaetigung::Bestaetigt,
+                    ..
+                }
+            ),
+            "{e:?}"
+        );
+    }
+
+    #[test]
+    fn erheben_ohne_kurzmessung_erhebt_nicht_neu() {
+        // Fremdlast vor dem Bestätigungslauf: kein Abschnitt. Eine volle
+        // Erhebung träfe dieselbe Vorprüfung — und „Abweichung" wäre ein
+        // Befund, wo nicht gemessen wurde.
+        let leer = RateModel {
+            rate_per_s: 0.0,
+            spread: f64::INFINITY,
+            samples: 0,
+            reason: Abbruchgrund::Druck,
+            ..kurz(0.0)
+        };
+        let (e, gefragt) = erhebe(Some(100.0), leer, rate(100.0));
+        assert_eq!(gefragt, [Lauf::Kurz]);
+        assert!(matches!(e, Erhebung::NichtGemessen { .. }), "{e:?}");
+    }
+
+    #[test]
+    fn abgelegt_wird_nur_eine_stabile_volle_erhebung_ohne_abweichung() {
+        let mut instabil = rate(100.0);
+        instabil.reason = Abbruchgrund::Hoechstdauer;
+        let faelle = [
+            (Erhebung::Fehlt { voll: rate(100.0) }, true),
+            (Erhebung::Fehlt { voll: instabil }, false),
+            (Erhebung::Bestaetigt { kurz: kurz(100.0) }, false),
+            (
+                Erhebung::NeuErhoben {
+                    kurz: kurz(140.0),
+                    voll: rate(140.0),
+                    urteil: Bestaetigung::Abweichung,
+                },
+                false,
+            ),
+            (
+                Erhebung::NeuErhoben {
+                    kurz: kurz(60.0),
+                    voll: rate(105.0),
+                    urteil: Bestaetigung::Bestaetigt,
+                },
+                true,
+            ),
+            (Erhebung::NichtGemessen { kurz: kurz(0.0) }, false),
+        ];
+        for (e, ablegen) in faelle {
+            assert_eq!(e.abzulegen().is_some(), ablegen, "{e:?}");
+            if let Some(r) = e.abzulegen() {
+                assert!(
+                    std::ptr::eq(r, e.rate()),
+                    "abgelegt wird nicht die volle Erhebung"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bestaetigungslauf_verlaengert_nicht() {
+        ohne_vorpruefung();
+        // Abschnitte zwischen 2 und 40 ms: Das Mittel bleibt lange unsicher,
+        // eine volle Erhebung liefe weiter. Der Bestätigungslauf hört nach
+        // der Mindestdauer auf — das ist der ganze Punkt.
+        let mut lang = false;
+        let start = Instant::now();
+        let r = bestaetigungslauf(|| {
+            lang = !lang;
+            std::thread::sleep(Duration::from_millis(if lang { 40 } else { 2 }));
+            1.0
+        });
+        let gelaufen = start.elapsed();
+        assert_eq!(r.reason, Abbruchgrund::FesteDauer);
+        assert!(
+            !r.reason.brauchbar(),
+            "ein Bestaetigungslauf gilt als Kalibrierung"
+        );
+        assert!(
+            r.duration_ms >= 5000 && r.duration_ms < 5200,
+            "Messdauer {} ms",
+            r.duration_ms
+        );
+        // Mit Aufwärmen und ohne Abklingen: deutlich unter der Höchstdauer.
+        assert!(gelaufen < Duration::from_secs(10), "gelaufen {gelaufen:?}");
+        assert!(r.samples >= ABSCHNITTE_MIN, "nur {} Abschnitte", r.samples);
+    }
+
+    // ------------------------------------- AC2: Kontrollprobe auf Genauigkeit
+
+    #[test]
+    fn genauigkeitsprobe_bevorzugt_die_naehere_messung() {
+        let p = genauigkeitsprobe(&verschraenkt(98.0, 100.0), &verschraenkt(90.0, 100.0))
+            .expect("vier Raten");
+        assert!(
+            (p.fehler_adaptiv - 0.02).abs() < 1e-12,
+            "adaptiv {}",
+            p.fehler_adaptiv
+        );
+        assert!(
+            (p.fehler_fest - 0.10).abs() < 1e-12,
+            "fest {}",
+            p.fehler_fest
+        );
+        assert!(p.adaptiv_genauer);
+        // Die Richtung zählt nicht, nur der Abstand: 102 gegen 100 ist so weit
+        // wie 98.
+        let p = genauigkeitsprobe(&verschraenkt(102.0, 100.0), &verschraenkt(90.0, 100.0))
+            .expect("vier Raten");
+        assert!(
+            (p.fehler_adaptiv - 0.02).abs() < 1e-12,
+            "adaptiv {}",
+            p.fehler_adaptiv
+        );
+        // Gegenprobe: Liegt die verkürzte näher, sagt die Probe das.
+        let p = genauigkeitsprobe(&verschraenkt(90.0, 100.0), &verschraenkt(99.0, 100.0))
+            .expect("vier Raten");
+        assert!(!p.adaptiv_genauer);
+        // Gleich nah ist kein Gewinn der Adaptivität.
+        let p = genauigkeitsprobe(&verschraenkt(95.0, 100.0), &verschraenkt(105.0, 100.0))
+            .expect("vier Raten");
+        assert!(!p.adaptiv_genauer, "Gleichstand als Gewinn gewertet");
+    }
+
+    #[test]
+    fn genauigkeitsprobe_jede_gegen_ihre_eigene_referenz() {
+        // Die verkürzte Messung hat ihre EIGENE Referenz: 180 gegen 200 sind
+        // zehn Prozent, nicht achtzig gegen die 100 der adaptiven.
+        let p = genauigkeitsprobe(&verschraenkt(98.0, 100.0), &verschraenkt(180.0, 200.0))
+            .expect("vier Raten");
+        assert!(
+            (p.fehler_fest - 0.10).abs() < 1e-12,
+            "fest {}",
+            p.fehler_fest
+        );
+    }
+
+    #[test]
+    fn genauigkeitsprobe_ohne_rate_ist_keine() {
+        for (a, b) in [
+            (verschraenkt(0.0, 100.0), verschraenkt(90.0, 100.0)),
+            (verschraenkt(98.0, f64::NAN), verschraenkt(90.0, 100.0)),
+            (verschraenkt(98.0, 100.0), verschraenkt(90.0, 0.0)),
+        ] {
+            assert!(genauigkeitsprobe(&a, &b).is_none(), "{a:?} {b:?}");
+        }
+    }
+
+    #[test]
+    fn verschraenkt_feste_dauer_hoert_nach_der_dauer_auf() {
+        ohne_vorpruefung();
+        let folge = std::cell::RefCell::new(Vec::<char>::new());
+        let v = verschraenkt_feste_dauer(
+            || {
+                folge.borrow_mut().push('A');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            || {
+                folge.borrow_mut().push('B');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            Duration::from_secs(2),
+        );
+        assert_eq!(v.kalibrierung.reason, Abbruchgrund::FesteDauer);
+        assert_eq!(v.referenz.reason, Abbruchgrund::FesteDauer);
+        assert!(!v.kalibrierung.reason.brauchbar());
+        assert!(
+            v.kalibrierung.duration_ms >= 2000 && v.kalibrierung.duration_ms < 2100,
+            "Messdauer {} ms",
+            v.kalibrierung.duration_ms
+        );
+        assert_eq!(v.kalibrierung.samples, v.referenz.samples);
+        let folge = folge.into_inner();
+        assert!(
+            folge.windows(2).all(|w| w[0] != w[1]),
+            "nicht abwechselnd: {}",
+            folge.iter().collect::<String>()
+        );
+    }
+
+    // ------------------------------------ Weg (b): ein Abschnitt misst selbst
+
+    #[test]
+    fn ein_abschnitt_mit_eigenem_fenster_zaehlt_nach_seinem_fenster() {
+        ohne_vorpruefung();
+        // Die Kalibrierung braucht 10 ms Wanduhr, meldet aber ein Fenster von
+        // einer Sekunde mit zehn Einheiten: Ihre Rate ist 10 je Sekunde, nicht
+        // 1000. Die Referenz daneben meldet kein Fenster und wird an der
+        // Wanduhr gemessen — die Gegenprobe, dass die Wanduhr weiter gilt, wo
+        // kein Fenster kommt.
+        let v = verschraenkt_feste_dauer(
+            || {
+                std::thread::sleep(Duration::from_millis(10));
+                Abschnittswert {
+                    einheiten: 10.0,
+                    fenster: Some(Duration::from_secs(1)),
+                }
+            },
+            || {
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            Duration::from_millis(100),
+        );
+        assert!(
+            (v.kalibrierung.rate_per_s - 10.0).abs() < 1e-9,
+            "Rate mit eigenem Fenster {} statt 10",
+            v.kalibrierung.rate_per_s
+        );
+        assert!(
+            v.referenz.rate_per_s > 500.0 && v.referenz.rate_per_s < 1100.0,
+            "Rate an der Wanduhr {} statt knapp 1000",
+            v.referenz.rate_per_s
+        );
+    }
+
+    // --------------------------------------------- AC1: verschränkte Referenz
+
+    fn verschraenkt(kalibriert: f64, referenz: f64) -> Verschraenkt {
+        Verschraenkt {
+            kalibrierung: rate(kalibriert),
+            referenz: rate(referenz),
+        }
+    }
+
+    #[test]
+    fn verschraenkt_ac1_trifft_innerhalb_der_toleranz_und_nicht_darueber() {
+        for (kalibriert, erwartet) in [
+            (100.0, Ac1Urteil::Erfuellt),
+            (105.0, Ac1Urteil::Erfuellt),
+            (90.5, Ac1Urteil::Erfuellt),
+            (109.5, Ac1Urteil::Erfuellt),
+            (89.0, Ac1Urteil::NichtErfuellt),
+            (111.0, Ac1Urteil::NichtErfuellt),
+            (50.0, Ac1Urteil::NichtErfuellt),
+        ] {
+            let v = verschraenkt(kalibriert, 100.0).ac1();
+            assert_eq!(v.urteil, erwartet, "kalibriert {kalibriert}");
+            assert!(
+                (v.referenz - 100.0).abs() < 1e-12,
+                "Referenz {}",
+                v.referenz
+            );
+            assert!(
+                (v.abweichung - (kalibriert - 100.0) / 100.0).abs() < 1e-12,
+                "Abweichung {} bei {kalibriert}",
+                v.abweichung
+            );
+        }
+    }
+
+    #[test]
+    fn verschraenkt_ac1_verlangt_kalibrierung_und_referenz() {
+        // Beide Reihen müssen stabil sein: ein genaues Mittel gegen ein
+        // ungenaues ist kein Vergleich. Die Abweichung steht trotzdem da.
+        for (kal, refz) in [
+            (Abbruchgrund::Hoechstdauer, Abbruchgrund::Stabil),
+            (Abbruchgrund::Stabil, Abbruchgrund::Hoechstdauer),
+            (Abbruchgrund::Drosselung, Abbruchgrund::Drosselung),
+        ] {
+            let mut v = verschraenkt(100.0, 100.0);
+            v.kalibrierung.reason = kal;
+            v.referenz.reason = refz;
+            let a = v.ac1();
+            assert_eq!(a.urteil, Ac1Urteil::KeineKalibrierung, "{kal:?} {refz:?}");
+            assert!(a.abweichung.abs() < 1e-12, "Abweichung {}", a.abweichung);
+        }
+        // Gegenprobe: beide stabil ist erfüllt.
+        assert_eq!(verschraenkt(100.0, 100.0).ac1().urteil, Ac1Urteil::Erfuellt);
+    }
+
+    #[test]
+    fn verschraenkt_ac1_ohne_rate_ist_ungueltig() {
+        for (k, r) in [
+            (0.0, 100.0),
+            (100.0, 0.0),
+            (100.0, f64::NAN),
+            (f64::INFINITY, 100.0),
+            (100.0, -5.0),
+        ] {
+            assert_eq!(
+                verschraenkt(k, r).ac1().urteil,
+                Ac1Urteil::Ungueltig,
+                "kalibriert {k}, Referenz {r}"
+            );
+        }
+    }
+
+    #[test]
+    fn verschraenkt_wechselt_kalibrierung_und_referenz_ab() {
+        ohne_vorpruefung();
+        // ABAB…, vom ersten Aufwärmabschnitt an, und jede Reihe gleich lang.
+        let folge = std::cell::RefCell::new(Vec::<char>::new());
+        let v = kalibriere_verschraenkt(
+            || {
+                folge.borrow_mut().push('A');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+            || {
+                folge.borrow_mut().push('B');
+                std::thread::sleep(Duration::from_millis(10));
+                10.0
+            },
+        );
+        let folge = folge.into_inner();
+        assert!(
+            folge.len() >= 2 * ABSCHNITTE_MIN,
+            "nur {} Aufrufe",
+            folge.len()
+        );
+        assert_eq!(folge[0], 'A', "die Kalibrierung beginnt nicht");
+        assert!(
+            folge.windows(2).all(|w| w[0] != w[1]),
+            "nicht abwechselnd: {}",
+            folge.iter().collect::<String>()
+        );
+        assert_eq!(folge.last(), Some(&'B'), "endet mitten im Paar");
+        assert_eq!(
+            v.kalibrierung.samples, v.referenz.samples,
+            "verschieden viele Abschnitte"
+        );
+        assert!(v.kalibrierung.samples >= ABSCHNITTE_MIN);
+    }
+
+    #[test]
+    fn verschraenkt_hebt_eine_drift_auf() {
+        ohne_vorpruefung();
+        // **Der Grund für die Verschränkung** (P1 auf node3, 28.10.): Die
+        // Referenz davor und danach lag 10,7 % auseinander. Hier wird dieselbe
+        // Arbeit während des Laufs stetig langsamer — wie eine Maschine, deren
+        // Last steigt. Verschränkt sehen beide Reihen dieselbe Drift, und ihre
+        // Mittel treffen sich; nacheinander gemessen lägen sie um die Drift
+        // auseinander.
+        let start = Instant::now();
+        let arbeit = || {
+            let faktor = 1.0 + start.elapsed().as_secs_f64() / 5.0;
+            std::thread::sleep(Duration::from_secs_f64(0.010 * faktor));
+            1.0
+        };
+        let v = kalibriere_verschraenkt(arbeit, arbeit);
+        // Positive Kontrolle: Die Drift ist im Lauf angekommen — die
+        // Abschnitte streuen weit. Ohne sie prüfte der Fall gleiche Arbeit
+        // unter gleichen Bedingungen und könnte nicht scheitern.
+        assert!(
+            v.kalibrierung.spread > 0.10,
+            "keine Drift im Lauf, Streuung {}",
+            v.kalibrierung.spread
+        );
+        let a = v.ac1();
+        assert!(
+            a.abweichung.abs() < 0.03,
+            "verschränkte Mittel liegen auseinander: Abweichung {}",
+            a.abweichung
+        );
     }
 }
