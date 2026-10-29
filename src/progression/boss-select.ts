@@ -212,6 +212,11 @@ export function buildBossSelect(
     const gruppe = element('div', 'boss-select-group');
     gruppe.dataset.instance = instanz;
     gruppe.appendChild(element('h4', 'boss-select-group-title', instanzTitel(instanz)));
+    // **Das Thema unter dem Namen** (Issue #1177, Abschnitt 1). Es steht in
+    // `instances.json` neben dem Namen und wäre ohne diese Zeile ein Feld,
+    // das niemand liest. Fehlt es, steht nichts da statt einer leeren Zeile.
+    const thema = instanceById(instanz)?.theme ?? '';
+    if (thema !== '') gruppe.appendChild(element('p', 'boss-select-group-theme', thema));
 
     for (const boss of drin) {
       const knopf = document.createElement('button');
