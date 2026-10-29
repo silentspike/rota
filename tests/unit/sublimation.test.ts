@@ -17,7 +17,14 @@ function pruefSchule(reductionMs: number): ReturnType<typeof parseSchool> {
   return parseSchool({
     schema: 1,
     school: 'CALCINATION',
-    resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+    resource: {
+      id: 'heat',
+      name: 'Heat',
+      cap: 20,
+      decayPerStepMs: 2000,
+      decayAmount: 1,
+      highlightAt: 0,
+    },
     spells: [
       // Zwei Zauber mit langer Abklingzeit, an denen sich eine Verkürzung
       // ablesen lässt, und einer, der verkürzt.
@@ -70,7 +77,14 @@ describe('Die Verkürzung kommt aus den Daten (E3-3)', () => {
     const negativ = parseSchool({
       schema: 1,
       school: 'CALCINATION',
-      resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+      resource: {
+        id: 'heat',
+        name: 'Heat',
+        cap: 20,
+        decayPerStepMs: 2000,
+        decayAmount: 1,
+        highlightAt: 0,
+      },
       spells: [
         {
           id: 'x',
@@ -89,7 +103,14 @@ describe('Die Verkürzung kommt aus den Daten (E3-3)', () => {
     const krumm = parseSchool({
       schema: 1,
       school: 'CALCINATION',
-      resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+      resource: {
+        id: 'heat',
+        name: 'Heat',
+        cap: 20,
+        decayPerStepMs: 2000,
+        decayAmount: 1,
+        highlightAt: 0,
+      },
       spells: [
         {
           id: 'x',
