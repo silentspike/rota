@@ -104,6 +104,13 @@ pub struct EmbeddedRecording {
     /// Pruefsummen — und der Fehlschlag saehe aus wie eine Abweichung im
     /// Simulator, obwohl nur der Gegner ein anderer war.
     pub boss_id: Option<&'static str>,
+    /// Gegen welche Stufe dieses Bosses (Issue #1177), 0 fuer Normal.
+    ///
+    /// Aus demselben Grund wie `boss_id`: Eine heroische Runde gegen die
+    /// Normal-Fassung abgespielt endet anders — und saehe aus wie eine
+    /// Abweichung im Simulator. Aufgeloest wird sie ueber
+    /// [`crate::data::boss_at`].
+    pub difficulty: u32,
 }
 
 impl EmbeddedRecording {
