@@ -10,7 +10,8 @@
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::data;
 use rota_sim::report::{
-    achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
+    achievement_run, erfolge, erfolge_pruefen, feasibility, feasibility_gegen, is_shippable,
+    meaningless, spell_table, time_tiers,
 };
 use rota_sim::{Fight, FightConfig};
 
@@ -457,4 +458,86 @@ fn eine_zeitmarke_ueber_dem_zeitlimit_ist_erfuellt_aber_bedeutungslos() {
     let ohne_wirkung = meaningless(&checks);
     assert_eq!(ohne_wirkung.len(), 1);
     assert_eq!(ohne_wirkung[0].name, "Zeitmarke Bronze");
+}
+
+#[test]
+fn das_umgekehrte_ziel_siegt_mit_der_frist_und_verliert_mit_dem_ring() {
+    // **#891 N1: Der Prüflauf läuft jetzt auch über die Bosse mit `runaway`.**
+    // Dort ist der Ring auf null die NIEDERLAGE und das Überstehen der Frist
+    // der Sieg (`balance::siege`, `objective::Outcome`). `defeated` sagt nur,
+    // dass der Ring fiel — wer es als Sieg liest, gibt einen verlorenen Kampf
+    // frei und sperrt einen gewonnenen.
+    //
+    // Das Paar stammt aus #939 AC8 und ist dort gemessen: `e939-schutz` macht
+    // keinen Schaden und übersteht die Frist, `e607-flashpoint` macht viel
+    // Schaden und erzeugt den Überdruck.
+    let boss = data::boss_by_id("boss-2-3").expect("Boss mit umgekehrtem Ziel");
+    assert!(
+        boss.runaway.is_some(),
+        "Voraussetzung: boss-2-3 traegt runaway"
+    );
+    let schutz = apl(include_str!("../apl/e939-schutz.apl"), "e939-schutz");
+    let flashpoint = apl(
+        include_str!("../apl/e607-flashpoint.apl"),
+        "e607-flashpoint",
+    );
+
+    let gewonnen = feasibility_gegen(boss, &schutz, None);
+    assert!(
+        gewonnen.gewonnen,
+        "e939-schutz uebersteht die Frist und muss als Sieg gelten: {gewonnen:#?}"
+    );
+    assert!(!gewonnen.defeated, "der Ring faellt dabei nicht");
+    assert_eq!(
+        gewonnen.sieg_ms,
+        Some(boss.overpressure_ms),
+        "der Sieg faellt auf die Frist"
+    );
+    assert_eq!(gewonnen.reserve_ms, 0, "nach der Frist bleibt keine Zeit");
+    assert!(
+        gewonnen.ring_rest > 0 && gewonnen.ring_rest <= boss.hp,
+        "der Ring steht am Ende: {}",
+        gewonnen.ring_rest
+    );
+    assert!(
+        (gewonnen.reserve_share - f64::from(gewonnen.ring_rest) / f64::from(boss.hp)).abs() < 1e-12,
+        "die Reserve ist der Anteil des Rings, der stand"
+    );
+
+    let verloren = feasibility_gegen(boss, &flashpoint, None);
+    assert!(
+        verloren.defeated,
+        "Voraussetzung: e607-flashpoint bringt den Ring auf null: {verloren:#?}"
+    );
+    assert!(
+        !verloren.gewonnen,
+        "der Ring auf null ist bei umgekehrtem Ziel die Niederlage: {verloren:#?}"
+    );
+    assert_eq!(verloren.sieg_ms, None);
+
+    // Und der Prüflauf zieht daraus das Urteil — in beide Richtungen.
+    let frei = erfolge_pruefen(&erfolge(boss), &gewonnen);
+    assert!(is_shippable(&frei), "{frei:#?}");
+    let gesperrt = erfolge_pruefen(&erfolge(boss), &verloren);
+    assert!(!is_shippable(&gesperrt), "{gesperrt:#?}");
+    let sieg = gesperrt
+        .iter()
+        .find(|c| c.name == "Sieg")
+        .expect("Sieg-Eintrag");
+    assert!(
+        sieg.evidence.contains("Niederlage"),
+        "der Beleg nennt die Umkehrung nicht: {}",
+        sieg.evidence
+    );
+
+    // **Zeitmarken unterscheiden dort niemanden**: Jeder Sieg fällt auf die
+    // Frist, und 110 % der Frist liegen über ihr. Ein Befund über die Marken,
+    // der in den Bericht gehört — kein gescheiterter Erfolg.
+    let marken: Vec<&str> = frei
+        .iter()
+        .filter(|c| c.name.starts_with("Zeitmarke"))
+        .map(|c| c.name.as_str())
+        .collect();
+    assert_eq!(marken.len(), 3, "{frei:#?}");
+    assert_eq!(meaningless(&frei).len(), 3, "{frei:#?}");
 }

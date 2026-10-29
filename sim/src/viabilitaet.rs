@@ -716,7 +716,32 @@ pub fn befunde(
     max_len: usize,
     budget: u64,
 ) -> Befundtabelle {
-    let elite = greedy(config, pool, max_len);
+    befunde_zur_elite(
+        config,
+        greedy(config, pool, max_len),
+        grundmenge,
+        max_len,
+        budget,
+    )
+}
+
+/// Dieselben Befunde zu einer schon gesuchten Elite (#891 N1).
+///
+/// Der Prüflauf über alle Bosse misst Suche und Befunde getrennt (N4: Wanduhr
+/// und Kampfzahl je Posten), und er braucht die Elite außerdem für die
+/// Machbarkeit. Ein zweiter Aufruf von [`greedy`] rechnete sie doppelt.
+///
+/// # Panics
+///
+/// Wie [`befunde`].
+#[must_use]
+pub fn befunde_zur_elite(
+    config: &BalanceConfig,
+    elite: SearchResult,
+    grundmenge: &[usize],
+    max_len: usize,
+    budget: u64,
+) -> Befundtabelle {
     let elite_lauf = balance::run(config, &elite.best.apl);
     let exakt = deterministisch(config);
 
@@ -930,9 +955,9 @@ pub struct Schulprobe {
 /// Die gefundene Liste, wenn sie jeden Durchgang gewinnt.
 ///
 /// **Ein Zeuge, kein Beweis.** Gesucht wird mit derselben Wertung wie überall
-/// (Schaden): Bei einem Boss mit umgekehrtem Ziel sucht sie damit das
-/// Falsche, und ein Sieg bleibt unentdeckt. Dann fehlt ein Zeuge — ein Fach
-/// wird dadurch nie zu Unrecht erfüllt.
+/// ([`crate::rotation_search::bewerte`]): Schaden, bei umgekehrtem Ziel seit
+/// #891 N1 der Ring am Fristende. Findet die gierige Suche keinen Sieg, fehlt
+/// ein Zeuge — ein Fach wird dadurch nie zu Unrecht erfüllt.
 fn siegliste(config: &BalanceConfig, pool: &[Candidate], max_len: usize) -> Option<Apl> {
     if pool.is_empty() {
         return None;

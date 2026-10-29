@@ -60,6 +60,8 @@ pub mod akkumulator;
 // Issue #908: der kritische Treffer analytisch — NEBEN dem Kampf, nicht darin.
 pub mod analytisch;
 pub mod apl;
+// #891 N1, N4: der Prüflauf vor Auslieferung über alle wertungsfähigen Bosse.
+pub mod auslieferung;
 // Issue #915: Austauschbarkeit von Treffern — abgeleitet, nicht angenommen.
 pub mod austausch;
 pub mod balance;

@@ -461,6 +461,30 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
             })
             .collect(),
     };
+    bewerte(config, apl)
+}
+
+/// Misst eine fertige Liste mit derselben Wertung wie die Suche (#891 N1).
+///
+/// [`measure`] setzt die Liste aus Kandidatenzeilen zusammen und ruft diese
+/// Funktion. Wer eine Handschrift neben eine gefundene Liste stellt, braucht
+/// dieselbe Zahl — sonst vergleicht er zwei Größen.
+///
+/// # Die Wertung folgt der Siegbedingung des Bosses
+///
+/// **Gewöhnliches Ziel:** der mittlere Schaden, dazu der verhinderte mit
+/// `prevented_weight` — wie vor #891 N1, bitgleich.
+///
+/// **Umgekehrtes Ziel (`runaway`):** der Ring am Fristende — siehe
+/// [`ring_am_fristende`]. Schaden treibt dort den Ring zur Niederlage; eine
+/// Suche nach dem meisten Schaden fand an `boss-2-3` und `boss-5-3` genau die
+/// Liste, die verliert (Ring bei 26000 bzw. 23000 ms auf null, Job 9acc8de4),
+/// obwohl schon die leere Liste beide gewinnt.
+#[must_use]
+pub fn bewerte(config: &BalanceConfig, apl: Apl) -> Measured {
+    if crate::objective::WinCondition::of(config.boss).is_inverted() {
+        return ring_am_fristende(config, apl);
+    }
     let result = crate::balance::run(config, &apl);
     // **Verhinderter Schaden zaehlt mit** (Issue #472).
     //
@@ -483,6 +507,64 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
         apl,
         mean: result.damage.mean + config.prevented_weight * verhindert,
         stderr: result.damage.stderr,
+    }
+}
+
+/// Der Wert einer Liste bei umgekehrtem Ziel: **der Ring am Fristende**.
+///
+/// **Festlegung des Orchestrators vom 2026-10-29** (#891 N1, Entscheidung
+/// (A)): Reserve = Lebenspunkte des Rings minus Fortschritt. Je Durchgang:
+///
+/// ```text
+/// gewonnen                      hp - Fortschritt      (> 0: der Ring steht)
+/// verloren oder gestorben       hoechstens 0          min(hp - Fortschritt, 0)
+/// ```
+///
+/// So liegt jeder Sieg über jeder Niederlage, und unter Siegen gewinnt mehr
+/// Reserve. Gemittelt wird über die Durchgänge, in der Reihenfolge der
+/// Startwerte wie in [`crate::balance::run`].
+///
+/// # Warum ein Tod höchstens 0 zählt
+///
+/// Nach dem Tod läuft der Ring nicht weiter (`fight.rs`, `runaway_tick`). Ein
+/// früher Tod hinterließe damit viel Ring — gewertet als Reserve, gewänne die
+/// Liste, die am schnellsten stirbt. Der Tod kehrt sich nicht mit dem Ziel um
+/// ([`crate::objective::Outcome::of`]).
+///
+/// # Was hier nicht eingeht
+///
+/// `prevented_weight`: Verhinderter Schaden ist bei diesem Ziel keine eigene
+/// Größe — was der Spieler übersteht, entscheidet schon der Ausgang. Wer an
+/// einem `runaway`-Boss mit Gewicht sucht, bekommt dieselbe Liste wie ohne.
+fn ring_am_fristende(config: &BalanceConfig, apl: Apl) -> Measured {
+    let result = crate::balance::run(config, &apl);
+    let werte: Vec<f64> = result
+        .samples
+        .iter()
+        .map(|s| reserve_am_fristende(s, config.boss))
+        .collect();
+    let werte = crate::balance::Statistics::from_sorted(&werte);
+    Measured {
+        apl,
+        mean: werte.mean,
+        stderr: werte.stderr,
+    }
+}
+
+/// Der Wert **eines** Durchgangs bei umgekehrtem Ziel — siehe
+/// [`ring_am_fristende`].
+///
+/// Öffentlich, damit ein Prüffall auch den Tod an einem `runaway`-Boss greifen
+/// kann — mit einem gebauten Durchgang statt mit einer Liste, die ihn erst
+/// herbeiführen müsste. Ohne ihn bliebe die Zeile, die einen frühen Tod auf
+/// höchstens 0 setzt, ungeprüft.
+#[must_use]
+pub fn reserve_am_fristende(sample: &crate::balance::Sample, boss: &crate::data::Boss) -> f64 {
+    let rest = f64::from(boss.hp) - f64::from(sample.damage);
+    if crate::objective::Outcome::of(sample, crate::objective::WinCondition::of(boss)).is_win() {
+        rest
+    } else {
+        rest.min(0.0)
     }
 }
 
