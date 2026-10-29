@@ -1,0 +1,21 @@
+{
+  "_comment": "ARBEITSNAME (Issue #550). Name und Thema gehören dem Auftraggeber; die Umbenennung ist eine Zeile.\n\nPRÜFPROFIL FÜR #550 AC3, kein Spielboss. Er stellt die Anforderung, unter der FIXATION in die beste Rotation kommt: ein Schlag, den keine Verteidigung trägt, zu einem Zeitpunkt, an dem vom Kampf noch genug übrig ist.\n\nZWILLING: test-lethal-strike (#797) ist dieselbe Datei bis auf EINE Zahl — dort fällt der Schlag bei 12000 ms, hier bei 24000 ms. Dort wählt die Suche keinen FIXATION-Zauber, hier BIND und PIN (mit QUENCH). Gemessen mit `sim/examples/zauber-abdeckung.rs --schulen`; der Prüffall `ac3_am_pruefboss_kommt_fixation_in_die_beste_rotation` hält es fest.\n\nWARUM DER ZEITPUNKT DIE ANFORDERUNG IST: Die Suche misst Schaden, und ein toter Spieler hört auf, Schaden zu machen. RIPOSTE wirft die Hälfte des ANGEKOMMENEN Schlags zurück, auch wenn er tötet. Fällt der Schlag früh, bringt Sterben mit RIPOSTE mehr als Überleben mit FIXATION; bei 24000 ms ist das Zurückgeworfene weniger wert als der Rest des Kampfes. Die Reihen über Zeitpunkt und Schaden stehen in docs/ZAUBER-ABDECKUNG.md.\n\nWARUM 18400: derselbe Schaden wie beim Zwilling (2 x 9200, Verteidigungs-Obergrenze aus sim/tests/verteidigungs_obergrenze.rs). Der Schaden ist nicht die Variable dieses Paares.\n\nWer eine der beiden Dateien ändert, muss die andere mitdenken — sonst misst der Vergleich mehr als den Zeitpunkt.",
+  "schema": 1,
+  "id": "test-late-lethal-strike",
+  "name": "Late Lethal Strike Probe",
+  "instance": "testing",
+  "hp": 5200,
+  "overpressureMs": 60000,
+  "phases": [],
+  "energy": null,
+  "timeline": [
+    {
+      "atMs": 12000,
+      "mechanic": "strike",
+      "name": "Sunder",
+      "damage": 18400
+    }
+  ],
+  "resistances": {},
+  "timelineLoopMs": null
+}

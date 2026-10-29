@@ -32,6 +32,7 @@
     "test-gatekeeper",
     "test-lapse-interrupt",
     "test-lapse",
+    "test-late-lethal-strike",
     "test-lethal-strike",
     "test-metronome",
     "test-onslaught",
