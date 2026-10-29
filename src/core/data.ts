@@ -2604,11 +2604,28 @@ export const FIRST_CRUCIBLE: ParseResult<BossDef> = parseBoss(rawBoss);
  * Verzeichnis sortiert. **Beide Seiten müssen dieselbe Menge sehen**, sonst
  * kennt einer einen Boss, den der andere nicht rechnen kann.
  */
-export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
-  const dateien = import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
+export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = bossVerzeichnis(
+  import.meta.glob<Record<string, unknown>>('../../data/bosses/*.json', {
     eager: true,
     import: 'default',
-  });
+  }),
+).bosse;
+
+/** Ein gelesenes Boss-Verzeichnis: die Bosse und was beim Lesen verworfen wurde. */
+export interface BossVerzeichnis {
+  readonly bosse: ReadonlyMap<string, ParseResult<BossDef>>;
+  /** Die Probleme der verworfenen Datensätze, je Boss eine oder mehrere Zeilen. */
+  readonly verworfen: readonly string[];
+}
+
+/**
+ * Das Boss-Verzeichnis aus den gelesenen Dateien (Pfad → Inhalt).
+ *
+ * Eine eigene Funktion statt des Ausdrucks an `BOSSES`, damit ein Prüffall
+ * dasselbe Verzeichnis aus veränderten Dateien bauen kann, ohne die Dateien
+ * im Baum anzufassen.
+ */
+export function bossVerzeichnis(dateien: Readonly<Record<string, unknown>>): BossVerzeichnis {
   // Sortiert, damit die Reihenfolge nicht vom Dateisystem abhängt — dieselbe
   // Entscheidung wie `dateien.sort()` in `sim/build.rs` (GAME-DESIGN 18.4:
   // feste Reihenfolge, keine Hash-Container).
@@ -2618,8 +2635,8 @@ export const BOSSES: ReadonlyMap<string, ParseResult<BossDef>> = (() => {
     const gelesen = parseBoss(dateien[pfad]);
     out.set(gelesen.value.id, gelesen);
   }
-  return out;
-})();
+  return { bosse: out, verworfen: [] };
+}
 
 /**
  * Die Grundwerte des Spielers, aus `data/player/base.json`.
