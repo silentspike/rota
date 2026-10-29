@@ -11,7 +11,9 @@
 //!
 //! Gerechnet wird jede Abwandlung **zweimal**: als Vollkampf im Suchkampf und
 //! inkrementell gegen die Aufzeichnung der Basis — die Zeit der Aufzeichnung
-//! zählt zum inkrementellen Weg. Die Ergebnisse werden je Abwandlung verglichen;
+//! zählt zum inkrementellen Weg. Aufgezeichnet wird mit dem kleinsten
+//! Universum, das der Operator braucht: beim Einfügen Basis und Vorrat, beim
+//! Entfernen und Tauschen nur die Basis. Die Ergebnisse werden je Abwandlung verglichen;
 //! weicht eines ab, bricht das Programm ab, bevor es eine Zahl meldet.
 //!
 //! **Eine Gesamtquote über alle Operatoren gibt es hier mit Absicht nicht**
@@ -103,8 +105,12 @@ fn main() {
                 ),
             ];
             for (name, abwandlungen) in &operatoren {
+                // Das Universum so groß wie nötig: Nur das Einfügen braucht die
+                // Bits des Vorrats; Entfernen und Tauschen setzen sich aus den
+                // Regeln der Basis zusammen.
+                let vorrat: &[Rule] = if *name == "einfuegen" { &offen } else { &[] };
                 for _ in 0..wiederholungen {
-                    messen(boss, laenge, name, config, &basis_apl, &offen, abwandlungen);
+                    messen(boss, laenge, name, config, &basis_apl, vorrat, abwandlungen);
                 }
             }
         }
