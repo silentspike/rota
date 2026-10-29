@@ -153,11 +153,28 @@ pub struct Standbild {
     pub belegt: u32,
 }
 
+/// Wie viele Siege eine Laufbahn einzeln festhaelt — der groesste Sieg, an dem
+/// der Bericht einen Verlauf ausgibt.
+///
+/// **Nicht jeden.** Die Frage nach Spielerstufe 20 braucht Laufbahnen ueber
+/// 16 000 Siege; je Sieg einen Datensatz zu halten waeren bei 10 000
+/// Laufbahnen 3,8 GB. Was ueber die ganze Laufbahn zaehlt, steht in
+/// [`Laufbahn::siege_gesamt`], [`Laufbahn::punkte_gesamt`] und
+/// [`Laufbahn::stufe_nach_kaempfen`].
+pub const VERLAUF_SIEGE: usize = 150;
+
 /// Eine gerechnete Laufbahn.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Laufbahn {
-    /// Je Sieg, in Reihenfolge.
+    /// Die ersten [`VERLAUF_SIEGE`] Siege, in Reihenfolge.
     pub siege: Vec<Sieg>,
+    /// Wie viele Siege es insgesamt waren.
+    pub siege_gesamt: u32,
+    /// Alle ausgezahlten Punkte zusammen.
+    pub punkte_gesamt: i64,
+    /// Je Spielerstufe (Index = Stufe - 1): nach wie vielen Kaempfen sie
+    /// zuerst erreicht war, `None` wenn nie.
+    pub stufe_nach_kaempfen: Vec<Option<u32>>,
     /// Bei welchem Sieg (ab 1) der verfolgte Fund zum ersten Mal fiel.
     pub fund_beim_sieg: Option<u32>,
     /// Je Instanz in [`INSTANZEN`]: nach wie vielen Kaempfen sie offen war.
@@ -301,7 +318,14 @@ pub fn laufbahn(
     let inhalt = inhalt();
     let mut zustand = Zustand::neu();
     let mut raus = Laufbahn {
-        siege: Vec::with_capacity(auftrag.siege as usize),
+        siege: Vec::with_capacity((auftrag.siege as usize).min(VERLAUF_SIEGE)),
+        siege_gesamt: 0,
+        punkte_gesamt: 0,
+        stufe_nach_kaempfen: {
+            let mut stufen = vec![None; crate::data::MAX_LEVEL as usize];
+            stufen[START_LEVEL as usize - 1] = Some(0);
+            stufen
+        },
         fund_beim_sieg: None,
         geoeffnet_nach: vec![None; INSTANZEN.len()],
         abgeschlossen_nach: vec![None; INSTANZEN.len()],
@@ -317,7 +341,7 @@ pub fn laufbahn(
     }
     let mut nach_niederlage = false;
 
-    while (raus.siege.len() as u32) < auftrag.siege && raus.kaempfe < auftrag.max_kaempfe {
+    while raus.siege_gesamt < auftrag.siege && raus.kaempfe < auftrag.max_kaempfe {
         // ---- Bosswahl
         let ziel = inhalt
             .iter()
@@ -404,7 +428,7 @@ pub fn laufbahn(
             &katalog,
             regeln.fallrate_promille,
         );
-        let sieg_nummer = raus.siege.len() as u32 + 1;
+        let sieg_nummer = raus.siege_gesamt + 1;
         if let Some(fund) = fund {
             let vorlage = regeln.katalog[fund.vorlage];
             if raus.fund_beim_sieg.is_none()
@@ -453,12 +477,25 @@ pub fn laufbahn(
                 .max(i64::from(stueck.effektive_stufe()) - grenze);
         }
 
-        raus.siege.push(Sieg {
-            punkte: punkte.awarded,
-            stufensumme: zustand.standbild().stufensumme,
-            spielerstufe: zustand.stufe.level,
-            kampf: raus.kaempfe,
-        });
+        raus.siege_gesamt = sieg_nummer;
+        raus.punkte_gesamt += punkte.awarded;
+        // Ein Sieg kann mehrere Stufen auf einmal bringen; jede bekommt
+        // diesen Kampf als ersten, auf dem sie stand.
+        for stufe in raus
+            .stufe_nach_kaempfen
+            .iter_mut()
+            .take(zustand.stufe.level as usize)
+        {
+            stufe.get_or_insert(raus.kaempfe);
+        }
+        if raus.siege.len() < VERLAUF_SIEGE {
+            raus.siege.push(Sieg {
+                punkte: punkte.awarded,
+                stufensumme: zustand.standbild().stufensumme,
+                spielerstufe: zustand.stufe.level,
+                kampf: raus.kaempfe,
+            });
+        }
     }
     raus.material_ungenutzt = zustand.material;
     Ok(raus)
