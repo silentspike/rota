@@ -58,6 +58,7 @@
 // Issue #967: Durchgaenge ergaenzbar speichern statt fertig.
 pub mod akkumulator;
 // Issue #908: der kritische Treffer analytisch — NEBEN dem Kampf, nicht darin.
+// Issue #920: angeschlossen an Durchgangswahl und Rotationssuche, je Aufbau × Boss.
 pub mod analytisch;
 pub mod apl;
 // Issue #915: Austauschbarkeit von Treffern — abgeleitet, nicht angenommen.
