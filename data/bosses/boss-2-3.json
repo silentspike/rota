@@ -28,5 +28,32 @@
       "damage": 200
     }
   ],
-  "resistances": {}
+  "resistances": {},
+  "difficulties": {
+    "_comment": "ARBEITSWAHL (Issue #1177, Freigabe vom 28.10.: Inhalt nach Plan, Namen als Arbeitsnamen). Masterplan A.4: ‚Normal / Heroisch / Mythisch pro Boss — mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken, mehr Punkte‘. Leben, Zeitlimit und Punkte kommen aus data/difficulty.json; HIER steht nur, welche Mechanik dazukommt — kumulativ, Mythisch trägt die heroische mit. Gewählt wird je Stufe EIN Baustein, den der Boss noch nicht trägt, aus denen, die jede Zusammenstellung beantworten kann (11.3): der Zähler über PURGE, Schwächung und Unterbrechung über QUENCH oder TEMPER, Schläge, Stapel und Energie über Schutz und VESSEL. Nie runaway (tauscht das Ziel), nie bossHeal (11.2: ‚nur für einzelne Bosse‘). Die Zahlen der Bausteine sind VORLÄUFIG, aus denselben Bausteinen anderer Bosse übernommen, nicht gemessen.\n\nSIGNATUR: das umgekehrte Ziel — die Frist überstehen. Deshalb ÜBERSCHREIBT dieser Boss Leben und Zeitlimit (data/difficulty.json, ‚Ein Boss darf … überschreiben‘): mehr Leben und kürzere Frist machten ihn LEICHTER. Die Lebenspunkte bleiben, die Frist wird länger (66 s, 72 s), die Abdrift von 80 je Sekunde läuft also länger. Heroisch der Zähler, Mythisch dazu die Eskalation: ‚Accelerate‘ wird mit jedem Zyklus kürzer, das Fenster zum Unterbrechen enger.",
+    "heroic": {
+      "hpPermille": 1000,
+      "overpressurePermille": 1100,
+      "add": {
+        "doom": {
+          "name": "Runaway Pressure",
+          "perStepMs": 1000,
+          "amount": 2,
+          "threshold": 100,
+          "clearAmount": 40,
+          "clearCharges": 2
+        }
+      }
+    },
+    "mythic": {
+      "hpPermille": 1000,
+      "overpressurePermille": 1200,
+      "add": {
+        "escalation": {
+          "castTimeShrinkMs": 200,
+          "minCastTimeMs": 1000
+        }
+      }
+    }
+  }
 }
