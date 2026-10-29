@@ -148,10 +148,14 @@ fn jede_stufe_ist_auf_beiden_seiten_derselbe_datensatz() {
                 spiel["interruptsPlayer"].as_bool(),
                 "{w}: interruptsPlayer"
             );
+            // `u32::MAX` heisst „an keine Phase gebunden“ (`TimelineEntry::phase`),
+            // im Spiel fehlt das Feld — die Aufzeichnung schreibt dann `null`.
+            let gebunden = (eintrag.phase != u32::MAX).then(|| u64::from(eintrag.phase));
+            assert_eq!(gebunden, spiel["phase"].as_u64(), "{w}: phase");
             assert_eq!(
-                u64::from(eintrag.phase),
-                zahl(spiel, "phase", &w),
-                "{w}: phase"
+                gebunden.is_none(),
+                spiel["phase"].is_null(),
+                "{w}: phase gebunden oder nicht"
             );
         }
 

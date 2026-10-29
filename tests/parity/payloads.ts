@@ -9199,7 +9199,10 @@ export function difficultyStagesPayload(): Record<string, unknown> {
           damage: e.damage,
           castTimeMs: e.castTimeMs,
           interruptsPlayer: e.interruptsPlayer,
-          phase: e.phase ?? 0,
+          // `null` heißt „an keine Phase gebunden“ — im Simulator `u32::MAX`.
+          // Eine 0 hier fiele mit „ab Phase 0“ zusammen, und der Vergleich
+          // sähe eine verlorene Bindung nicht.
+          phase: e.phase ?? null,
         })),
         energy: b.energy,
         doom: b.doom,

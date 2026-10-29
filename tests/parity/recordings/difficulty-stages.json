@@ -17,7 +17,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 8000,
@@ -26,7 +26,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 13000,
@@ -35,7 +35,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -74,7 +74,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 8000,
@@ -83,7 +83,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 13000,
@@ -92,7 +92,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -138,7 +138,7 @@
           "damage": 350,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 25000,
@@ -147,7 +147,7 @@
           "damage": 1100,
           "castTimeMs": 3000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 40000,
@@ -165,7 +165,7 @@
           "damage": 350,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -209,7 +209,7 @@
           "damage": 350,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 25000,
@@ -218,7 +218,7 @@
           "damage": 1100,
           "castTimeMs": 3000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 40000,
@@ -236,7 +236,7 @@
           "damage": 350,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -286,7 +286,7 @@
           "damage": 400,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -295,7 +295,7 @@
           "damage": 1000,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 44000,
@@ -304,7 +304,7 @@
           "damage": 400,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -340,7 +340,7 @@
           "damage": 400,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -349,7 +349,7 @@
           "damage": 1000,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 44000,
@@ -358,7 +358,7 @@
           "damage": 400,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -401,7 +401,7 @@
           "damage": 700,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -445,7 +445,7 @@
           "damage": 700,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -495,7 +495,7 @@
           "damage": 180,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 6000,
@@ -504,7 +504,7 @@
           "damage": 180,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -550,7 +550,7 @@
           "damage": 180,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 6000,
@@ -559,7 +559,7 @@
           "damage": 180,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -612,7 +612,7 @@
           "damage": 200,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 11000,
@@ -621,7 +621,7 @@
           "damage": 2200,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -669,7 +669,7 @@
           "damage": 200,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 11000,
@@ -678,7 +678,7 @@
           "damage": 2200,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -732,7 +732,7 @@
           "damage": 450,
           "castTimeMs": 2000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 9000,
@@ -741,7 +741,7 @@
           "damage": 200,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -778,7 +778,7 @@
           "damage": 450,
           "castTimeMs": 2000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 9000,
@@ -787,7 +787,7 @@
           "damage": 200,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -827,7 +827,7 @@
           "damage": 250,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 13000,
@@ -836,7 +836,7 @@
           "damage": 800,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -883,7 +883,7 @@
           "damage": 250,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 13000,
@@ -892,7 +892,7 @@
           "damage": 800,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -946,7 +946,7 @@
           "damage": 380,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -955,7 +955,7 @@
           "damage": 1200,
           "castTimeMs": 3000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 48000,
@@ -964,7 +964,7 @@
           "damage": 380,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -997,7 +997,7 @@
           "damage": 380,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -1006,7 +1006,7 @@
           "damage": 1200,
           "castTimeMs": 3000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 48000,
@@ -1015,7 +1015,7 @@
           "damage": 380,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1058,7 +1058,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 32000,
@@ -1067,7 +1067,7 @@
           "damage": 1100,
           "castTimeMs": 2800,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 45000,
@@ -1076,7 +1076,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1113,7 +1113,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 32000,
@@ -1122,7 +1122,7 @@
           "damage": 1100,
           "castTimeMs": 2800,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 45000,
@@ -1131,7 +1131,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1175,7 +1175,7 @@
           "damage": 260,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 40000,
@@ -1184,7 +1184,7 @@
           "damage": 260,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1226,7 +1226,7 @@
           "damage": 260,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 28000,
@@ -1235,7 +1235,7 @@
           "damage": 1200,
           "castTimeMs": 3000,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 40000,
@@ -1244,7 +1244,7 @@
           "damage": 260,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1295,7 +1295,7 @@
           "damage": 1400,
           "castTimeMs": 3500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 54000,
@@ -1304,7 +1304,7 @@
           "damage": 340,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1357,7 +1357,7 @@
           "damage": 1400,
           "castTimeMs": 3500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 54000,
@@ -1366,7 +1366,7 @@
           "damage": 340,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1416,7 +1416,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 22000,
@@ -1425,7 +1425,7 @@
           "damage": 1000,
           "castTimeMs": 2600,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 34000,
@@ -1434,7 +1434,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1461,7 +1461,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 22000,
@@ -1470,7 +1470,7 @@
           "damage": 1000,
           "castTimeMs": 2600,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 34000,
@@ -1479,7 +1479,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1511,7 +1511,7 @@
           "damage": 260,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1557,7 +1557,7 @@
           "damage": 260,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1609,7 +1609,7 @@
           "damage": 240,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 42000,
@@ -1618,7 +1618,7 @@
           "damage": 240,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1658,7 +1658,7 @@
           "damage": 240,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -1667,7 +1667,7 @@
           "damage": 1200,
           "castTimeMs": 2800,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 42000,
@@ -1676,7 +1676,7 @@
           "damage": 240,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1716,7 +1716,7 @@
           "damage": 700,
           "castTimeMs": 2600,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 11000,
@@ -1725,7 +1725,7 @@
           "damage": 220,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1761,7 +1761,7 @@
           "damage": 700,
           "castTimeMs": 2600,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 11000,
@@ -1770,7 +1770,7 @@
           "damage": 220,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -1815,7 +1815,7 @@
           "damage": 320,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -1824,7 +1824,7 @@
           "damage": 1100,
           "castTimeMs": 2800,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 42000,
@@ -1833,7 +1833,7 @@
           "damage": 320,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1879,7 +1879,7 @@
           "damage": 320,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -1888,7 +1888,7 @@
           "damage": 1100,
           "castTimeMs": 2800,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 42000,
@@ -1897,7 +1897,7 @@
           "damage": 320,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
@@ -1950,7 +1950,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 48000,
@@ -1959,7 +1959,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -2004,7 +2004,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 24000,
@@ -2013,7 +2013,7 @@
           "damage": 1100,
           "castTimeMs": 2800,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 48000,
@@ -2022,7 +2022,7 @@
           "damage": 280,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -2067,7 +2067,7 @@
           "damage": 600,
           "castTimeMs": 2400,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 10000,
@@ -2076,7 +2076,7 @@
           "damage": 240,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -2116,7 +2116,7 @@
           "damage": 600,
           "castTimeMs": 2400,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 10000,
@@ -2125,7 +2125,7 @@
           "damage": 240,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 12000,
@@ -2134,7 +2134,7 @@
           "damage": 600,
           "castTimeMs": 2400,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -2174,7 +2174,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -2245,7 +2245,7 @@
           "damage": 300,
           "castTimeMs": 0,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 30000,
@@ -2325,7 +2325,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 38000,
@@ -2334,7 +2334,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": null,
@@ -2361,7 +2361,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         },
         {
           "atMs": 38000,
@@ -2370,7 +2370,7 @@
           "damage": 900,
           "castTimeMs": 2500,
           "interruptsPlayer": false,
-          "phase": 0
+          "phase": null
         }
       ],
       "energy": {
