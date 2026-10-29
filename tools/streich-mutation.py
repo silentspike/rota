@@ -29,7 +29,8 @@ EXIT-CODES, damit „nicht gemessen" nie wie ein Befund aussieht:
       oder ein Abbruch mit Ausnahme (Zeitüberschreitung, Rückbau abweichend)
   2   NICHT GESTARTET oder NICHT GELAUFEN: unzulässiger Schritt, unbekanntes
       Feld, verunreinigter Datensatz, unlesbare Zeitregel; oder der Bau-Dienst
-      lehnte ab bzw. die Übertragung brach (75, 70, 74, 130, 2, 12, 23, 255)
+      lehnte ab bzw. die Übertragung brach (75, 70, 74, 130, 2, 12, 23, 255).
+      Exit 75 erst nach 10 Versuchen im Abstand von 120 s, die übrigen sofort
   3   die Nullprobe oder eine Vorprobe lieferte nicht ihren Ausgang
   143 SIGTERM; die Kindgruppen sind beendet, der Datensatz zurückgestellt
 
@@ -780,6 +781,38 @@ DIENST_AUSGAENGE = {
     255: "ssh unter rsync gescheitert — keine Verbindung zum Bau-Dienst",
 }
 
+# **Nur Exit 75 wird wiederholt** (#1055). Ohne Wiederholung beendete EIN
+# Abweis den ganzen Durchgang von drei bis vier Stunden. Am 29.10. hielt ein
+# fremder Auftrag 4 der 13 GiB des Dienstes, und sechs Pakete bauten parallel —
+# bei 60 Feldern mit je zwei Dienst-Schritten ist ein Abweis dann fast sicher.
+#
+# 75 ist die Absage des Dienstes: Budget voll, der Arbeitsbereich hat schon
+# einen aktiven Auftrag, das Werkzeugabbild wird eingerichtet, weniger als 20 %
+# Platz, oder die Quellen änderten sich beim Hochladen. Gelesen in der
+# installierten v2-Fassung (20261004-r30-approved): Auf jedem dieser Wege bleibt
+# kein Auftrag aktiv. `reserve()` lehnt ab, bevor etwas eingetragen ist
+# (common.py); nach der Reservierung nimmt der Client sie selbst zurück,
+# solange nichts gestartet ist (`cancel` in client.py). Ein neuer Versuch kann
+# also keinen zweiten Auftrag neben einen ersten stellen.
+#
+# Die übrigen DIENST_AUSGAENGE bleiben ohne Wiederholung: 70 heißt Verbindung
+# oder Ausführer verloren, der Auftrag kann zurückgehalten sein (`--resume`),
+# und ein neuer Versuch stellte womöglich einen zweiten daneben. Die anderen
+# sind Störungen, deren Ursache erst jemand ansehen muss.
+#
+# 120 s und 10 Versuche sind die Regel aller Pakete für Exit 75; als
+# Konstanten, damit die Prüffälle die Wartezeit verkürzen können.
+WIEDERHOLBAR = 75
+DIENST_WARTEN_S = 120
+DIENST_VERSUCHE = 10
+
+
+def dienst_meldung(ausgabe):
+    """Die Absage in einer Zeile: der Client schreibt `cargo-remote: <Grund>`."""
+    zeilen = [z.strip() for z in ausgabe.splitlines() if z.strip()]
+    absagen = [z for z in zeilen if z.startswith("cargo-remote:")]
+    return (absagen or zeilen or ["(keine Ausgabe)"])[-1][:200]
+
 
 class NichtGelaufen(RuntimeError):
     """Der Bau-Dienst hat den Schritt nicht ausgeführt; es gibt nichts zu verbuchen."""
@@ -935,6 +968,24 @@ def _unterbrechung_pruefen():
         raise SystemExit(143)
     if _ABBRUCH.is_set():
         raise InterruptedError("Ein anderer Prüfzweig wurde abgebrochen")
+
+
+def _warten(sekunden):
+    """Wartet in kurzen Schritten — SIGTERM und ein Abbruch sollen nicht 120 s liegen.
+
+    **Nicht `time.sleep(sekunden)` am Stück.** Seit PEP 475 setzt Python einen
+    vom Signal unterbrochenen Schlaf fort, wenn der Handler nicht wirft, und
+    `_abbruch` wirft absichtlich nicht. Der Durchgang endete dann erst nach der
+    ganzen Wartezeit. systemd etwa schickt nach 90 s SIGKILL hinterher (Vorgabe
+    von `TimeoutStopSec`), und bei SIGKILL wird nichts zurückgestellt.
+    """
+    ende = time.monotonic() + sekunden
+    while True:
+        _unterbrechung_pruefen()
+        rest = ende - time.monotonic()
+        if rest <= 0:
+            return
+        time.sleep(min(rest, 0.2))
 
 
 def lauf(befehl, timeout):
@@ -1154,7 +1205,9 @@ def main():
     ap.add_argument("--nachweis", help="vollständiger JSON-Nachweis; sonst --aus mit Endung .json")
     ap.add_argument("--vergleich", help="historischer Bericht für den namentlichen BAU-Abgleich")
     ap.add_argument("--bau-log", default=BAU_LOG, help="Bauprotokoll dieses isolierten Laufs")
-    ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--timeout", type=int, default=1800,
+                    help="Grenze in Sekunden je Prozess einer Stufe; nach Exit 75 bekommt "
+                         "jeder neue Versuch sie neu, die Wartezeit zählt nicht mit")
     ap.add_argument("--delta", type=float, default=None, metavar="N",
                     help="WERTAENDERUNG statt Streichung: addiert N auf den "
                          "Zahlenwert. Beantwortet 'ist der WERT gedeckt' statt "
@@ -1244,6 +1297,7 @@ def main():
                 "delta": args.delta, "build_only": args.nur_bau,
                 "all_fields": sorted(wo), "requested_fields": felder,
                 "completed": False, "full_pass": False, "baseline": {}, "fields": {},
+                "service_refusals": [],
                 "source_sha256": {str(p.relative_to(WURZEL)): hashlib.sha256(p.read_bytes()).hexdigest()
                                   for p in pfade_aller_schulen().values()}}
     for schluessel, argumente in (
@@ -1262,23 +1316,62 @@ def main():
         temporaer.replace(nachweis_pfad)
 
     def stufe(probe, name, befehl):
+        """Eine Stufe; ein Dienst-Schritt mit Exit 75 wird bis zu DIENST_VERSUCHE-mal gefahren.
+
+        Nullprobe, Vorproben und Felder kommen alle hier durch, also gilt die
+        Wiederholung für alle drei gleich.
+
+        **Die Wartezeit zählt nicht in die Stufengrenze.** `--timeout` geht an
+        jeden Versuch einzeln, gewartet wird außerhalb von `lauf()`. Die Grenze
+        ist für einen hängenden Prozess da (`channelTickMs`: Endlosschleife);
+        wer wartet, hängt nicht, und das Warten ist durch die Konstanten
+        begrenzt — höchstens neunmal 120 s. Eine gemeinsame Grenze müsste um
+        diese 18 min wachsen und griffe bei einem hängenden Prozess entsprechend
+        später.
+        """
         log = protokolle / f"{probe}.{name}.log"
-        begonnen, uhr = time.time(), time.monotonic()
-        try:
-            code, ausgabe = lauf(befehl, args.timeout)
-        except subprocess.TimeoutExpired:
-            log.write_text("TIMEOUT: Prozessgruppe beendet; diese Stufe ist nicht abgeschlossen.\n")
-            raise
-        if name == "build" and bau_log.exists():
-            ausgabe += bau_log.read_text()
-        log.write_text(ausgabe)
-        if name in ("build", "rust") and code in DIENST_AUSGAENGE:
+        dienst = name in ("build", "rust")
+        for versuch in range(1, DIENST_VERSUCHE + 1):
+            if versuch > 1:
+                _warten(DIENST_WARTEN_S)
+            begonnen, uhr = time.time(), time.monotonic()
+            try:
+                code, ausgabe = lauf(befehl, args.timeout)
+            except subprocess.TimeoutExpired:
+                log.write_text("TIMEOUT: Prozessgruppe beendet; diese Stufe ist nicht abgeschlossen.\n")
+                raise
+            if name == "build" and bau_log.exists():
+                ausgabe += bau_log.read_text()
+            log.write_text(ausgabe)
+            if not (dienst and code == WIEDERHOLBAR):
+                break
+            # Jeder Abweis mit Zeit und Meldung: in die Ausgabe (beim Volllauf
+            # `lauf.log`), in den Nachweis und mit der vollen Antwort daneben.
+            meldung = dienst_meldung(ausgabe)
+            uhrzeit = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(begonnen))
+            nachweis["service_refusals"].append({
+                "stage": f"{probe}/{name}", "attempt": versuch, "of": DIENST_VERSUCHE,
+                "started_unix": begonnen, "exit": code, "message": meldung})
+            with (protokolle / f"{probe}.{name}.abgewiesen.log").open("a") as abweise:
+                abweise.write(f"=== Versuch {versuch}/{DIENST_VERSUCHE}, {uhrzeit}, Exit {code} ===\n"
+                              f"{ausgabe}\n")
+            speichern()
+            print(f"      Bau-Dienst wies ab: {probe}/{name}, Versuch {versuch}/{DIENST_VERSUCHE}, "
+                  f"{uhrzeit}, Exit {code} — {meldung}. "
+                  + ("Kein weiterer Versuch." if versuch == DIENST_VERSUCHE else
+                     f"Neuer Versuch in {DIENST_WARTEN_S:g} s."),
+                  flush=True)
+        if dienst and code in DIENST_AUSGAENGE:
             # Kein Urteil über das Feld: Der Lauf hat nicht stattgefunden.
-            raise NichtGelaufen(f"{probe}/{name}: Exit {code} — {DIENST_AUSGAENGE[code]}. "
+            versuche = (f" — nach {versuch} Versuchen im Abstand von {DIENST_WARTEN_S:g} s"
+                        if code == WIEDERHOLBAR else "")
+            raise NichtGelaufen(f"{probe}/{name}: Exit {code} — {DIENST_AUSGAENGE[code]}{versuche}. "
                                 f"Protokoll: {log}")
         eintrag = ({"exit": code, "status": "FAIL" if bau_gebrochen(code, ausgabe) else "PASS"}
                    if name == "build" else suite_nachweis(code, ausgabe, name))
         eintrag.update(log=str(log), started_unix=begonnen, seconds=time.monotonic() - uhr)
+        if versuch > 1:
+            eintrag["attempts"] = versuch
         return code, ausgabe, eintrag
 
     def bauen(probe):
