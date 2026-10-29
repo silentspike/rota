@@ -7,6 +7,9 @@
 //! | `jeder_wertungsfaehige_boss_steht_im_pruefplan` | fehlt ein Boss der Spielinstanzen, fällt der Fall beim Namen |
 //! | `ein_boss_ohne_loesung_laesst_den_prueflauf_scheitern` | ein Prüfboss ohne Lösung sperrt den Lauf; die Kontrolle daneben gibt frei |
 //! | `jede_kombination_traegt_die_erfolge_ihres_gegners` | die Erfolgsachse kommt aus `report::erfolge`, nicht aus einem Literal |
+//! | `an_beiden_runaway_bossen_findet_die_suche_einen_sieg` | bei umgekehrtem Ziel sucht die Suche den Sieg, nicht den Schaden |
+//! | `bei_umgekehrtem_ziel_ist_der_wert_der_ring_am_fristende` | die Wertung: Reserve bei Sieg, höchstens 0 sonst |
+//! | `an_den_uebrigen_bossen_bleibt_der_schaden_die_zielgroesse` | die 19 übrigen Bosse rechnen bitgleich wie vorher |
 //!
 //! # Wogegen gemessen wird
 //!
@@ -14,12 +17,18 @@
 //! Prüffall des Report-Beispiels. Damit läuft derselbe Weg wie im Nachtlauf im
 //! Debug-Bau in Sekunden; die Zahlen des vollen Laufs stehen im PR.
 
+use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::auslieferung::{
-    alle_auslieferbar, nicht_auslieferbar, pruefe, pruefplan, Kombination, Rahmen, Stufe, Teil,
+    alle_auslieferbar, loesung_suchen, messkonfiguration, nicht_auslieferbar, pruefe, pruefplan,
+    Kombination, Rahmen, Stufe, Teil, BUDGET,
 };
+use rota_sim::balance;
 use rota_sim::data::{self, boss_by_id, index_of};
-use rota_sim::report::erfolge;
-use rota_sim::rotation_search::{candidates_for, Candidate};
+use rota_sim::objective::{Outcome, WinCondition};
+use rota_sim::report::{erfolge, erfolge_pruefen, feasibility_gegen, is_shippable};
+use rota_sim::rotation_search::{bewerte, candidates_for, Candidate};
+use rota_sim::scoring::ScoringSet;
+use rota_sim::Boss;
 
 /// Sechs Zauber, Länge bis 3 — siehe Kopf.
 fn klein() -> Rahmen {
@@ -197,5 +206,156 @@ fn jede_kombination_traegt_die_erfolge_ihres_gegners() {
             .map(|q| q.kaempfe),
         Some(1),
         "die Machbarkeit rechnet genau einen Kampf"
+    );
+}
+
+/// Die wertungsfähigen Bosse mit umgekehrtem Ziel, aus den Daten.
+fn umgekehrte() -> Vec<&'static Boss> {
+    ScoringSet::all_scored()
+        .bosses()
+        .iter()
+        .copied()
+        .filter(|b| WinCondition::of(b).is_inverted())
+        .collect()
+}
+
+fn liste(text: &str, name: &str) -> Apl {
+    parse(AplName(name), text).expect("eingebaute Liste")
+}
+
+#[test]
+fn an_beiden_runaway_bossen_findet_die_suche_einen_sieg() {
+    // **#891 N1, Entscheidung (A) des Orchestrators vom 29.10.** Bis hierher
+    // maximierte die Suche an jedem Boss den Schaden. An `boss-2-3` und
+    // `boss-5-3` ist der Ring auf null die Niederlage — die gefundene Liste
+    // verlor dort (Ring bei 26000 bzw. 23000 ms auf null, Job 9acc8de4),
+    // obwohl schon die leere Rotation beide gewinnt.
+    //
+    // Gesucht wird mit dem vollen Vorrat, derselben Suche wie im Nachtlauf.
+    let bosse = umgekehrte();
+    let ids: Vec<&str> = bosse.iter().map(|b| b.id).collect();
+    assert!(
+        ids.contains(&"boss-2-3") && ids.contains(&"boss-5-3"),
+        "Voraussetzung: beide runaway-Bosse sind wertungsfaehig: {ids:?}"
+    );
+
+    let rahmen = Rahmen::voll(BUDGET);
+    let mut gesperrt: Vec<String> = Vec::new();
+    for boss in bosse {
+        let elite = loesung_suchen(&messkonfiguration(boss), &rahmen);
+        let f = feasibility_gegen(boss, &elite.best.apl, None);
+        if !is_shippable(&erfolge_pruefen(&erfolge(boss), &f)) {
+            gesperrt.push(format!(
+                "{}: Ausgang {:?}, Ring {} von {}, Liste [{}]",
+                boss.id,
+                f.ausgang,
+                f.ring_rest,
+                f.hp,
+                elite.best.apl.to_string().trim().replace('\n', " | ")
+            ));
+        }
+    }
+    assert!(
+        gesperrt.is_empty(),
+        "nicht auslieferbar, obwohl ein Sieg existiert (schon die leere Rotation gewinnt \
+         beide): {gesperrt:#?}"
+    );
+}
+
+#[test]
+fn bei_umgekehrtem_ziel_ist_der_wert_der_ring_am_fristende() {
+    // Die Festlegung des Orchestrators vom 29.10.: Bei `runaway` zählt der
+    // Ring am Fristende (Reserve = Lebenspunkte minus Fortschritt), ein
+    // gestorbener oder verlorener Durchgang höchstens 0. So liegt jeder Sieg
+    // über jeder Niederlage, und unter Siegen gewinnt mehr Reserve.
+    let boss = boss_by_id("boss-2-3").expect("Boss");
+    let config = messkonfiguration(boss);
+    let ring = f64::from(boss.hp);
+
+    // Die leere Liste baut der Parser nicht ("keine einzige Regel"); die
+    // Suche beginnt aber genau bei ihr — `greedy_zuege` misst sie als Start.
+    let leer = Apl {
+        name: "leer".to_owned(),
+        rules: Vec::new(),
+    };
+    let mut siege: Vec<(String, f64)> = Vec::new();
+    for (name, apl) in [
+        ("leer", leer),
+        (
+            "e939-schutz",
+            liste(include_str!("../apl/e939-schutz.apl"), "e939-schutz"),
+        ),
+    ] {
+        let lauf = balance::run(&config, &apl);
+        let s = lauf.samples[0];
+        assert_eq!(
+            Outcome::of(&s, WinCondition::of(boss)),
+            Outcome::Won,
+            "Voraussetzung: {name} gewinnt an boss-2-3"
+        );
+        let wert = bewerte(&config, apl).mean;
+        assert_eq!(
+            wert.to_bits(),
+            (ring - f64::from(s.damage)).to_bits(),
+            "{name}: der Wert ist der Ring am Fristende ({} minus {}), nicht {wert}",
+            boss.hp,
+            s.damage
+        );
+        assert!(wert > 0.0);
+        siege.push((name.to_owned(), wert));
+    }
+    assert!(
+        siege[1].1 > siege[0].1,
+        "mehr Reserve gewinnt: e939-schutz haelt den Ring, die leere Liste nicht: {siege:?}"
+    );
+
+    let verliert = liste(
+        include_str!("../apl/e607-flashpoint.apl"),
+        "e607-flashpoint",
+    );
+    let s = balance::run(&config, &verliert).samples[0];
+    assert_eq!(
+        Outcome::of(&s, WinCondition::of(boss)),
+        Outcome::Overpressure,
+        "Voraussetzung: e607-flashpoint verliert an boss-2-3"
+    );
+    let wert = bewerte(&config, verliert).mean;
+    assert!(
+        wert <= 0.0,
+        "eine Niederlage ist hoechstens 0 wert, nicht {wert}"
+    );
+    assert!(siege.iter().all(|(_, sieg)| *sieg > wert));
+}
+
+#[test]
+fn an_den_uebrigen_bossen_bleibt_der_schaden_die_zielgroesse() {
+    // **Die Wertung ändert sich nur bei umgekehrtem Ziel.** An jedem anderen
+    // wertungsfähigen Boss ist der Wert einer Liste bitgleich der mittlere
+    // Schaden — mit `prevented_weight` 0 genau `damage.mean`, wie vor #891 N1.
+    let liste = liste(include_str!("../apl/step1-good.apl"), "step1-good");
+    let mut geprueft = Vec::new();
+    for &boss in ScoringSet::all_scored().bosses() {
+        if WinCondition::of(boss).is_inverted() {
+            continue;
+        }
+        let config = messkonfiguration(boss);
+        let lauf = balance::run(&config, &liste);
+        let gemessen = bewerte(&config, liste.clone());
+        assert_eq!(
+            (gemessen.mean.to_bits(), gemessen.stderr.to_bits()),
+            (lauf.damage.mean.to_bits(), lauf.damage.stderr.to_bits()),
+            "{}: der Wert ist nicht mehr der Schaden ({} gegen {})",
+            boss.id,
+            gemessen.mean,
+            lauf.damage.mean
+        );
+        geprueft.push(boss.id);
+    }
+    // Die Zahl steht in der Meldung, die Erwartung kommt aus den Daten.
+    let erwartet = ScoringSet::all_scored().len() - umgekehrte().len();
+    assert_eq!(geprueft.len(), erwartet, "{geprueft:?}");
+    assert!(
+        !geprueft.is_empty(),
+        "kein Boss mit gewoehnlichem Ziel geprueft — der Fall misst dann nichts"
     );
 }
