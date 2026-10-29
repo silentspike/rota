@@ -3,6 +3,12 @@
 
 No GitHub working status is stored here. Registry status describes whether
 acceptance criteria are documented, never whether implementation has passed.
+
+The zuschnitt fields are a planning decision as well, not a working status:
+they record which section of #891 a former package issue was assigned to when
+the client approved the scope cut on 2026-10-29 (notwendig, erledigt, ruht,
+aufgegangen, verworfen). zuschnitt_grund quotes #891 as of that day and is not
+updated while packages are built; acceptance is tracked in #891, not here.
 """
 import argparse
 import collections
@@ -17,6 +23,9 @@ PLAN = ROOT / 'docs/SIM-ARCHITEKTUR-PLAN.md'
 TASK_ID = re.compile(r'^E\d+\.\d+[a-z]?(?:-(?:core|gpu))?$')
 HEADING_ID = re.compile(r'^(E\d+\.\d+[a-z]?(?:-(?:core|gpu))?)\s+[—–]')
 TABLES = ('phases', 'dependencies', 'epics')
+ZUSCHNITT = ('notwendig', 'erledigt', 'ruht', 'aufgegangen', 'verworfen')
+# A package can only be absorbed by one that is still part of the plan.
+ZUSCHNITT_TARGETS = ('notwendig', 'erledigt', 'ruht')
 
 
 def slug(title):
@@ -64,8 +73,91 @@ def sections(text):
     return result
 
 
+def zuschnitt_decisions(registry):
+    """Map each number of the #891 inventory to (name, record) and collect the errors."""
+    errors, decisions = [], {}
+    inventory = registry.get('zuschnitt_inventar', {})
+    numbers = inventory.get('issues', [])
+    duplicates = [n for n, count in collections.Counter(numbers).items() if count > 1]
+    errors.extend(f'duplicate number in the #891 inventory: #{n}' for n in duplicates)
+    for entry in registry.get('entries', []):
+        name = f'{entry.get("id")} (#{entry.get("issue")})'
+        if entry.get('issue') not in numbers:
+            if any(key.startswith('zuschnitt') for key in entry):
+                errors.append(f'{name}: zuschnitt outside the #891 inventory')
+        elif entry['issue'] in decisions:
+            first = decisions[entry['issue']][1].get('id')
+            errors.append(f'#{entry["issue"]}: two registry entries, {first} and {entry.get("id")}')
+        elif 'zuschnitt' not in entry:
+            errors.append(f'{name}: no zuschnitt although #{entry["issue"]} is in the #891 inventory')
+        else:
+            decisions[entry['issue']] = (name, entry)
+    entered = {entry.get('issue'): entry.get('id') for entry in registry.get('entries', [])}
+    for record in inventory.get('ohne_eintrag', []):
+        issue = record.get('issue')
+        if issue not in numbers:
+            errors.append(f'#{issue}: ohne_eintrag record outside the #891 inventory')
+        elif issue in entered:
+            errors.append(f'#{issue}: ohne_eintrag record although {entered[issue]} is a registry entry')
+        elif not str(record.get('warum_ohne_eintrag', '')).strip():
+            errors.append(f'#{issue}: ohne_eintrag record without warum_ohne_eintrag')
+        else:
+            decisions[issue] = (f'#{issue}', record)
+    for issue in numbers:
+        if issue not in decisions and issue not in entered:
+            errors.append(f'#{issue}: in the #891 inventory without registry entry or ohne_eintrag record')
+    return errors, decisions
+
+
+def validate_zuschnitt(registry):
+    """Exactly one value per number, a reason for each, and absorption only into planned work."""
+    errors, decisions = zuschnitt_decisions(registry)
+    for issue, (name, record) in decisions.items():
+        value = record.get('zuschnitt')
+        if not isinstance(value, str) or value not in ZUSCHNITT:
+            errors.append(f'{name}: invalid zuschnitt {value!r}')
+            continue
+        if not isinstance(record.get('zuschnitt_grund'), str) or not record['zuschnitt_grund'].strip():
+            errors.append(f'{name}: zuschnitt without zuschnitt_grund')
+        hint = record.get('zuschnitt_hinweis')
+        if hint is not None and (not isinstance(hint, str) or not hint.strip()):
+            errors.append(f'{name}: empty zuschnitt_hinweis')
+        if 'zuschnitt_ziel' not in record:
+            if value == 'aufgegangen':
+                errors.append(f'{name}: aufgegangen without zuschnitt_ziel')
+            continue
+        target = record['zuschnitt_ziel']
+        if value not in ('aufgegangen', 'verworfen'):
+            errors.append(f'{name}: zuschnitt_ziel only for aufgegangen or a partly absorbed verworfen')
+        elif type(target) is not int:
+            errors.append(f'{name}: zuschnitt_ziel {target!r} is not an issue number')
+        elif target == issue:
+            errors.append(f'{name}: zuschnitt_ziel #{target} is the package itself')
+        elif target not in decisions:
+            errors.append(f'{name}: zuschnitt_ziel #{target} is not in the #891 inventory')
+        elif decisions[target][1].get('zuschnitt') not in ZUSCHNITT_TARGETS:
+            errors.append(f'{name}: zuschnitt_ziel #{target} is {decisions[target][1].get("zuschnitt")}, '
+                          'not notwendig, erledigt or ruht')
+    return errors
+
+
+def zuschnitt_summary(registry):
+    _, decisions = zuschnitt_decisions(registry)
+    numbers = registry.get('zuschnitt_inventar', {}).get('issues', [])
+    unentered = sorted(set(decisions) - {entry.get('issue') for entry in registry.get('entries', [])})
+    # Invalid values are reported by validate_zuschnitt; a list must not crash the summary.
+    counts = collections.Counter(record.get('zuschnitt') for _, record in decisions.values()
+                                 if isinstance(record.get('zuschnitt'), str))
+    partly = sorted(issue for issue, (_, record) in decisions.items()
+                    if record.get('zuschnitt') == 'verworfen' and 'zuschnitt_ziel' in record)
+    groups = ', '.join(f'{value} {counts[value]}' for value in ZUSCHNITT)
+    return (f'Zuschnitt (#891): {len(numbers)} issues, {len(decisions) - len(unentered)} with registry entry, '
+            f'{len(unentered)} without ({", ".join(f"#{n}" for n in unentered) or "none"}); {groups} '
+            f'(partly absorbed: {", ".join(f"#{n}" for n in partly) or "none"}).')
+
+
 def validate(registry, plan, assignments=None):
-    errors = []
+    errors = validate_zuschnitt(registry)
     entries = registry.get('entries', [])
     ids = [entry.get('id') for entry in entries]
     duplicates = [ident for ident, count in collections.Counter(ids).items() if count > 1]
@@ -258,6 +350,7 @@ def main(argv=None):
     print(f'Plan: {len(raw)} headings, {sum(bool(HEADING_ID.match(h["title"])) for h in raw)} task-id headings.')
     print('Historical baseline (#895): 91 headings / 58 task-id headings / '
           '29 complete plan acceptance sections; current acceptance count uses issue criteria.')
+    print(zuschnitt_summary(registry))
     if assignments is not None:
         print('ASSIGNMENT SCOPE: ' + registry['ownership_scope'])
     for anchor, info in registry['unidentified_sections'].items():
