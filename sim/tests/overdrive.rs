@@ -69,7 +69,10 @@ fn die_zahlen_kommen_aus_den_daten() {
         Some(u64::from(PLAYER.overdrive_catalysis_permille))
     );
     assert_eq!(Overdrive::duration_ms(), PLAYER.overdrive_duration_ms);
-    assert_eq!(Overdrive::catalysis_bonus(), PLAYER.overdrive_catalysis_permille);
+    assert_eq!(
+        Overdrive::catalysis_bonus(),
+        PLAYER.overdrive_catalysis_permille
+    );
     // Sonst wären die Fälle unten an einem wirkungslosen Overdrive grün.
     assert!(Overdrive::catalysis_bonus() > 0 && Overdrive::duration_ms() > 0);
 }
@@ -103,14 +106,26 @@ fn wirkung_genau_in_der_dauer() {
     let dauer = Overdrive::duration_ms();
     let bonus = Overdrive::catalysis_bonus();
 
-    assert_eq!(overdrive.catalysis_permille(zuendung - TICK_MS), 0, "vor dem Zünden");
-    assert_eq!(overdrive.catalysis_permille(zuendung), bonus, "im Takt des Zündens");
+    assert_eq!(
+        overdrive.catalysis_permille(zuendung - TICK_MS),
+        0,
+        "vor dem Zünden"
+    );
+    assert_eq!(
+        overdrive.catalysis_permille(zuendung),
+        bonus,
+        "im Takt des Zündens"
+    );
     assert_eq!(
         overdrive.catalysis_permille(zuendung + dauer - TICK_MS),
         bonus,
         "im letzten Takt"
     );
-    assert_eq!(overdrive.catalysis_permille(zuendung + dauer), 0, "im Takt des Endes");
+    assert_eq!(
+        overdrive.catalysis_permille(zuendung + dauer),
+        0,
+        "im Takt des Endes"
+    );
     assert_eq!(overdrive.remaining_ms(zuendung), dauer);
     assert_eq!(overdrive.remaining_ms(zuendung + dauer - TICK_MS), TICK_MS);
     assert_eq!(overdrive.remaining_ms(zuendung + dauer), 0);
@@ -171,7 +186,10 @@ fn ein_zweiter_druck_im_kampf_ist_eine_fehleingabe_und_verlaengert_nicht() {
         ende + 1,
         &[(0, OVERDRIVE_PRESS), (1500, OVERDRIVE_PRESS), (ende, 0)],
     );
-    assert_eq!(ergebnis.rejected, 1, "der zweite Druck zählt als Fehleingabe");
+    assert_eq!(
+        ergebnis.rejected, 1,
+        "der zweite Druck zählt als Fehleingabe"
+    );
     assert_eq!(ergebnis.accepted, 1, "nur crust ist eine Wirkung");
     assert_eq!(fight.overdrive().ignited_at(), Some(0));
     assert_eq!(
@@ -199,10 +217,17 @@ fn der_druck_ist_kein_platz_der_leiste() {
 fn leiste_und_wartezeit_bleiben_unberuehrt() {
     let (fight, ergebnis) = runde(1, &[(0, OVERDRIVE_PRESS)]);
     assert_eq!(fight.overdrive().ignited_at(), Some(0), "gezündet");
-    assert!(ergebnis.casts.iter().all(|&n| n == 0), "ein Zauber wurde gewirkt");
+    assert!(
+        ergebnis.casts.iter().all(|&n| n == 0),
+        "ein Zauber wurde gewirkt"
+    );
     assert_eq!(ergebnis.accepted, 0);
     assert_eq!(ergebnis.rejected, 0);
-    assert_eq!(fight.gcd_ready_at(), 0, "Overdrive hat die Wartezeit ausgelöst");
+    assert_eq!(
+        fight.gcd_ready_at(),
+        0,
+        "Overdrive hat die Wartezeit ausgelöst"
+    );
 
     // Und er sperrt nichts: crust im selben Takt danach wird gewirkt.
     let (_, ergebnis) = runde(1, &[(0, OVERDRIVE_PRESS), (0, 0)]);
@@ -216,6 +241,71 @@ fn die_wartezeit_bleibt_unter_overdrive_gleich() {
     let (ohne, _) = runde(1, &[(0, 0)]);
     assert!(mit.gcd_ready_at() > 0, "crust löst eine Wartezeit aus");
     assert_eq!(mit.gcd_ready_at(), ohne.gcd_ready_at());
+}
+
+#[test]
+fn das_zuenden_bricht_eine_laufende_wirkzeit_ab() {
+    // GAME-DESIGN 7.1, entschieden am 2026-08-05: „Jede Wirkung des Spielers
+    // bricht einen laufenden Cast oder eine Kanalisierung ab. Jede, ohne
+    // Ausnahme — auch das Unterbrechen. […] Egal welcher Spell."
+    let wirkzeit = zauber("test-cast");
+    assert!(
+        SPELLS[wirkzeit].cast_time_ms > 500,
+        "test-cast hat keine Wirkzeit mehr"
+    );
+    let recording = Recording {
+        name: "overdrive-abbruch".to_owned(),
+        seed: 0,
+        ticks: 400,
+        bindings: vec![Binding {
+            slot: 0,
+            spell: wirkzeit,
+        }],
+        presses: vec![
+            Press { tick: 0, slot: 0 },
+            Press {
+                tick: 50,
+                slot: OVERDRIVE_PRESS,
+            },
+        ],
+    };
+    let mut fight = Fight::new(FightConfig {
+        duration_ms: Some(400 * TICK_MS),
+        ..FightConfig::default()
+    });
+    let ergebnis = fight.replay(&recording, false);
+    assert_eq!(fight.overdrive().ignited_at(), Some(500));
+    assert_eq!(ergebnis.casts_cancelled, 1, "die Wirkzeit lief weiter");
+    assert_eq!(
+        ergebnis.casts[wirkzeit], 0,
+        "der abgebrochene Zauber hat gewirkt"
+    );
+
+    // Ein Druck, der nichts zündet, bricht nichts ab — wie in `cast`.
+    let recording = Recording {
+        presses: vec![
+            Press {
+                tick: 0,
+                slot: OVERDRIVE_PRESS,
+            },
+            Press { tick: 10, slot: 0 },
+            Press {
+                tick: 50,
+                slot: OVERDRIVE_PRESS,
+            },
+        ],
+        ..recording
+    };
+    let mut fight = Fight::new(FightConfig {
+        duration_ms: Some(400 * TICK_MS),
+        ..FightConfig::default()
+    });
+    let ergebnis = fight.replay(&recording, false);
+    assert_eq!(
+        ergebnis.casts_cancelled, 0,
+        "ein abgewiesener Druck brach ab"
+    );
+    assert_eq!(ergebnis.casts[wirkzeit], 1);
 }
 
 #[test]
@@ -279,16 +369,48 @@ fn apl_zuendet_auch_in_einer_laufenden_wartezeit() {
 }
 
 #[test]
+fn apl_zuendet_auch_wenn_nichts_zu_wirken_ist() {
+    // Die Gegenseite zum Fall darüber, und sie fehlte: Die Gegenprobe, die
+    // Overdrive aus `next_wakeup` nahm, blieb grün, weil dort jede Zündung in
+    // eine laufende Wartezeit fiel und der andere Weckruf sie trug. Hier ist
+    // die Wartezeit von crust bei 1500 vorbei, crust selbst bis 6000 gesperrt —
+    // bei 2730 kann nur der allgemeine Weckruf den Kampf anhalten.
+    //
+    // **2730 und nicht 2000:** Mein erster Wert war 2000, und die Gegenprobe
+    // blieb grün. Die Hitze verfällt alle 2000 ms (`decayPerStepMs`), dort
+    // steht also ohnehin ein Ereignis, und der Kampf hielt an, ohne gerufen
+    // worden zu sein. Ein Zeitpunkt neben jedem festen Takt der Daten
+    // misst den Weckruf statt den Verfall.
+    let fight = kampf_mit("crust\noverdrive if time >= 2730\n", 10_000);
+    assert_eq!(fight.overdrive().ignited_at(), Some(2730));
+}
+
+#[test]
 fn apl_zuendung_veraendert_den_kampf() {
     // Die Suche braucht einen Unterschied, den sie finden kann.
-    let ohne = kampf_mit("crust\nkindle\n", 30_000);
-    let mit = kampf_mit("crust\nkindle\noverdrive\n", 30_000);
-    let crust = zauber(CRUST);
+    //
+    // **Gemessen an den DoT-Ticks, nicht an der Zahl der Würfe** — und das ist
+    // ein Befund, kein Geschmack. Mein erster Entwurf zählte `crust` (6000 ms)
+    // und bekam mit und ohne Overdrive je 5 Würfe in 30 s: Die verkürzte
+    // Abklingzeit (4620 ms) endet MITTEN in einer Wartezeit, und die Rotation
+    // wirft ohnehin erst an der nächsten Grenze, also wieder bei 6000. Ein
+    // Tempo-Vorteil auf Abklingzeiten zählt nur, wo er eine Wartezeit-Grenze
+    // überspringt. Die Abstände eines Brands dagegen hängen an keiner Grenze.
+    const LISTE: &str = "smoulder if dot.smoulder.remains < gcd\nkindle\n";
+    let ohne = kampf_mit(LISTE, 30_000);
+    let mit = kampf_mit(&format!("{LISTE}{OVERDRIVE_ACTION}\n"), 30_000);
+    let smoulder = zauber("smoulder");
     assert!(
-        mit.cast_count(crust) > ohne.cast_count(crust),
-        "crust mit Overdrive {} mal, ohne {} mal",
-        mit.cast_count(crust),
-        ohne.cast_count(crust)
+        mit.dot_tick_count(smoulder) > ohne.dot_tick_count(smoulder),
+        "smoulder tickt mit Overdrive {} mal, ohne {} mal",
+        mit.dot_tick_count(smoulder),
+        ohne.dot_tick_count(smoulder)
+    );
+    assert!(
+        mit.damage() > ohne.damage(),
+        "Schaden mit Overdrive {}, ohne {}",
+        mit.damage(),
+        ohne.damage()
     );
 }
 
@@ -304,7 +426,11 @@ fn apl_zweimal_overdrive_ist_ein_fehler() {
 
 #[test]
 fn apl_overdrive_ist_kein_zauber_und_bleibt_beim_zurueckschreiben() {
-    assert_eq!(spell_index(OVERDRIVE_ACTION), None, "ein Zauber heißt overdrive");
+    assert_eq!(
+        spell_index(OVERDRIVE_ACTION),
+        None,
+        "ein Zauber heißt overdrive"
+    );
     let text = "kindle\noverdrive if boss.hp_pct <= 20\n";
     let apl = parse(AplName("hin"), text).expect("gültig");
     assert!(apl.overdrive.is_some());

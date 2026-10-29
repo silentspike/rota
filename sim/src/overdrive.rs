@@ -83,9 +83,11 @@ impl Overdrive {
     /// neu, er verschiebt nicht. Sonst wäre „einmal pro Kampf" eine Frage des
     /// Zeitpunkts, zu dem man zum zweiten Mal drückt.
     pub fn ignite(&mut self, now: Millis) -> bool {
-        // ROTER STAND (#1177): noch ohne Wirkung — die Prueffaelle zuerst.
-        let _ = now;
-        false
+        if self.ignited_at.is_some() {
+            return false;
+        }
+        self.ignited_at = Some(now);
+        true
     }
 
     /// Wann gezündet wurde, oder `None`.
@@ -115,9 +117,10 @@ impl Overdrive {
     /// `Dauer / Takt` Takte also, keiner mehr und keiner weniger.
     #[must_use]
     pub fn is_active(&self, now: Millis) -> bool {
-        // ROTER STAND (#1177): noch ohne Wirkung.
-        let _ = now;
-        false
+        match (self.ignited_at, self.ends_at()) {
+            (Some(at), Some(ends)) => now >= at && now < ends,
+            _ => false,
+        }
     }
 
     /// Restlaufzeit in ms; 0, wenn er nicht wirkt.
