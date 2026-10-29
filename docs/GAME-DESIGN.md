@@ -2176,6 +2176,26 @@ Auftraggeber.
 
 Ein separates Nachschlagewerk im Menü wurde **nicht** gewählt.
 
+**Umsetzung (Issue #1177).** Der Katalog steht in `data/help/help.json`, die Prüfeinträge getrennt
+in `data/help/test-help.json` — sie gehen nur in den Entwicklungs-Bau.
+
+- **Erklärfenster:** ein Eintrag je Wert, Schule, Zauber und Boss-Fähigkeit. Die Kennung ist die
+  Kupplung zum Merkmal `data-help`. Ein Prüffall baut die Ansichten mit dem ganzen ausgelieferten
+  Inhalt und hält jedes gesetzte Merkmal gegen den Katalog — die Liste kommt aus dem Code, nicht von
+  Hand. Die **Werte** eines Zaubers entstehen aus seinen Daten (`src/analysis/help-values.ts`), nicht
+  aus dem Katalog: Eine zweite Quelle wäre nach der nächsten Balance-Messung falsch.
+- **Geführte Einführung:** 19 Einführungen, je eine für jeden Baustein, den ein ausgelieferter Boss
+  trägt, für die Abklingzeit, die drei Schul-Vorräte, die Synergie, den Rücksetzer und den Ring
+  selbst. Sie erscheinen auf dem **Vorbereitungs-Bildschirm** — höchstens eine je Besuch, nie im
+  Kampf (21.2: „Erklärungen während des Kampfes" verworfen; der Simulator kennt kein Anhalten) und
+  **nie beim allerersten Start** (12.2: kein Vorspann). Welche fällig ist, entscheidet
+  `src/analysis/introduction-triggers.ts` aus Spielstand, Boss und Leiste.
+- **„Press Q":** Im allerersten Kampf steht über der Leiste die Zeile mit der Taste des ersten
+  Platzes, bis der erste Druck angenommen ist. Die Beschriftung kommt aus dem Tastatur-Layout.
+- **Die Begriffe der Zeichenfläche** (HEAT, REACTION, OVERPRESSURE IN, DOOM, CLEANSE …) tragen
+  kein Merkmal; jeder steht im Text einer Einführung. Ein Prüffall hält jede `LABEL_*`-Konstante aus
+  `src/render/hud.ts` dagegen.
+
 ### 17.4 Geschichte und Archiv
 
 **Handlungsbogen: Das Große Werk in Stufen.** Jede Instanz ist eine Stufe dieses Werks, und jede
@@ -2196,6 +2216,61 @@ nüchterne Geräte-Protokolle, und gelegentlich etwas, das offensichtlich nicht 
 geschrieben wurde.
 
 **Umfang: ~150 Einträge.** Eigenes Arbeitspaket.
+
+**Instanz-Themen: je Instanz ein Prozess-Schwerpunkt — erst ab Instanz 5.** Entscheidung
+f-instanz-prozess-schwerpunkt (22.08.): Die ersten vier bleiben schwerpunktfrei; der Schnitt bei
+Instanz 5 ist Absicht und kein Versehen. Instanz 5 trägt COAGULATION, ausgedrückt über Mechanik und
+Archiv-Texte statt über Widerstände (f-instanz5-schwerpunkt-schule, 28.10.). Die achte Instanz führt
+alle fünf Prozesse zusammen.
+
+**Stand seit Issue #1177 — alles Arbeitsnamen** (Freigabe 28.10.; Kennzeichen `workingName` in
+`data/instances.json`, der Auftraggeber ändert sie):
+
+| Instanz | Arbeitsname              | Schwerpunkt  | Bosse |
+| ------- | ------------------------ | ------------ | ----- |
+| Prolog  | The Workbench            | —            | 1     |
+| 1       | The Cold Athanor         | —            | 4     |
+| 2       | The Cracked Retort       | —            | 4     |
+| 3       | The Sealed Furnace       | —            | 4     |
+| 4       | The Ash Cellar           | —            | 4     |
+| 5       | The Clotting Vats        | COAGULATION  | 4     |
+| 6       | The Wandering Mercury    | FIXATION     | 4     |
+| 7       | The Black Cistern        | PUTREFACTION | 4     |
+| 8       | The Conjunction          | alle fünf    | 4     |
+| 9       | The Furnace Below        | CALCINATION  | 6     |
+| 10      | The Weightless Galleries | SUBLIMATION  | 6     |
+| 11      | The Iron Orrery          | FIXATION     | 6     |
+| 12      | The Black Garden         | PUTREFACTION | 6     |
+| 13      | The Weeping Stone        | COAGULATION  | 6     |
+| 14      | The Work Itself          | alle fünf    | 6     |
+
+Die Schwerpunkte ab Instanz 6 sind Arbeitsstand wie die Namen. Begründung: CALCINATION ist die
+Startschule und trägt Prolog bis Instanz 4 ohnehin; FIXATION wählt die Rotationssuche nie, solange
+kein Boss Kontrolle erzwingt (#797); PUTREFACTION braucht Partner und führt so zur Vereinigung in
+Instanz 8; SUBLIMATION, „die Schule für Könner", bekommt ihren Schwerpunkt im Endgame. Die acht
+Instanzen ohne Boss stehen als Planungsdaten in `data/instances.json` (Abschnitt, Zahl der Bosse);
+eine leere Instanz erscheint in keiner Auswahl und öffnet keine weitere.
+
+**Der Archiv-Katalog** (`data/archive/archive.json`, Stand #1177: **153 Einträge**):
+
+| Auslöser         | Wann                                                      | Wie                   | Zahl |
+| ---------------- | --------------------------------------------------------- | --------------------- | ---- |
+| `beforeInstance` | erste Wahl eines Bosses der Instanz                       | Fenster, Vorbereitung | 14   |
+| `afterFirstKill` | erster Sieg (Prolog, 20 gebaute, 48 geplante Boss-Plätze) | Fenster, Auswertung   | 69   |
+| `firstOutcome`   | erster Tod, erster Überdruck — die versteckten Funde      | Fenster, Auswertung   | 2    |
+| `schoolLearned`  | erster Zauber einer Schule — die fünf Prozess-Erklärungen | still ins Archiv      | 5    |
+| `spellLearned`   | der Zauber steht erstmals in der Zusammenstellung         | still ins Archiv      | 58   |
+| `setFound`       | erstes Stück eines Gegenstands-Satzes (Satz 1–5)          | still ins Archiv      | 5    |
+
+- **Der Prolog hat keine Einleitung** — 12.2: kein Vorspann.
+- **Still** heißt ohne Fenster: 58 Fenster für 58 Zauber wären genau das, was die Erzählweise
+  vermeiden will. Alle Auslöser schreiben in dieselbe Liste `unlockedEntryIds`; alte Spielstände
+  bleiben gültig und bekommen ihre stillen Einträge beim ersten Laden nachgereicht.
+- **Texte zu noch nicht gebauten Bossen** hängen am Thema ihrer Instanz und erscheinen erst, wenn es
+  den Boss mit dieser Kennung gibt (`boss-<Instanz>-<Platz>`). Das Boss-Paket gleicht den Text an
+  seine Mechanik an.
+- Die Prüfeinträge (`test-entries.json`) gehen nur in den Entwicklungs-Bau;
+  `tools/auslieferung-pruefdaten.py` prüft den Auslieferungs-Bau im CI-Job „build".
 
 ---
 
@@ -2929,8 +3004,8 @@ eigene Planungsrunde mit dem Auftraggeber. **Nicht selbst entscheiden — fragen
 | **Erfahrungskurve**            | ~~Wie viel Erfahrung je Stufe~~ — **entschieden am 2026-08-05**, siehe 12.2                                                                                                            | erledigt                                                     |
 | **Endlos-Leiter-Skalierung**   | Wachstum je Stufe, wo die Werte-Obergrenze liegt                                                                                                                                       | E10                                                          |
 | **Erfolge**                    | Je Boss die konkreten Ziele, 288 Zeitmarken                                                                                                                                            | E10                                                          |
-| **Instanz-Themen und Namen**   | 14 Instanzen mit Thema, Farbwelt, Klangteppich                                                                                                                                         | E10                                                          |
-| **~150 Archiv-Texte**          | Inhalte, Stimmen-Verteilung, Reihenfolge                                                                                                                                               | E10                                                          |
+| **Instanz-Themen und Namen**   | Namen, Themen und Schwerpunkte als **Arbeitsstand** seit #1177 (17.4); offen bleiben Farbwelt und Klangteppich je Instanz                                                              | E10                                                          |
+| **~150 Archiv-Texte**          | **Arbeitsstand seit #1177:** 153 Einträge (17.4). Die 48 Texte zu noch nicht gebauten Bossen gleicht das jeweilige Boss-Paket an seine Mechanik an                                     | E10                                                          |
 | **Sound-Manifest**             | 135 Prompts mit Ziel-Längen (bis 2026-10-28: 126, siehe 17.1)                                                                                                                          | E8                                                           |
 | **Grafik-Stil**                | Konkretes Asset-Set auswählen                                                                                                                                                          | E9                                                           |
 | **Cooldown-Rücksetzer**        | Abklingzeit, ob GCD-frei, auf welche Zauber anwendbar                                                                                                                                  | E3                                                           |
