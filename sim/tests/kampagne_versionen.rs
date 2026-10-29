@@ -17,9 +17,8 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
-    CoverageSpec, CpuReservation, CpuRole, DeadlinePolicy, HostRequirement, Mission,
-    NetworkRequirement, ProfileCatalog, ProfileError, ProjectionSet, QualityTargets,
+    CampaignDefinition, CampaignRunContract, ComputeRequirement, CpuReservation, CpuRole,
+    DeadlinePolicy, HostRequirement, NetworkRequirement, ProfileCatalog, ProfileError,
     ReferenceProfile, ResultGuarantee, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
@@ -32,16 +31,6 @@ fn kampagne() -> CampaignDefinition {
         reference_profile: REFERENCE_PROFILE_STANDARD,
         target_wall_time: ZWEI_STUNDEN,
         canonical_work_budget: WorkUnits(1_000_000),
-        exact_obligations: ProjectionSet { required: 12 },
-        coverage_spec: CoverageSpec { strength: 2 },
-        quality_targets: QualityTargets {
-            minimum_niche_coverage: 0.95,
-            independent_restarts: 8,
-            plateau_work_units: WorkUnits(50_000),
-            maximum_bound_gap: None,
-            confidence_requirement: ConfidenceSpec { level: 0.99 },
-            final_audit: AuditPolicy::ScalarReplayAll,
-        },
     }
 }
 
@@ -135,7 +124,7 @@ fn unbekannte_versionen_und_herkunft_werden_benannt() {
         Err(ProfileError::UnknownVersion { profile_version: 7 })
     );
 
-    let vertrag = CampaignRunContract::from_campaign(&fremd, Mission::FullBalance);
+    let vertrag = CampaignRunContract::from_campaign(&fremd);
     assert_eq!(
         k.origin(&vertrag),
         Err(ProfileError::UnknownOrigin {
@@ -165,7 +154,7 @@ fn die_letzte_version_laesst_sich_nicht_ueberschreiten() {
 #[test]
 fn die_herkunft_eines_vertrags_ist_pruefbar() {
     let k = katalog();
-    let vertrag = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
+    let vertrag = CampaignRunContract::from_campaign(&kampagne());
     assert_eq!(
         k.origin(&vertrag).map(CampaignDefinition::fingerprint),
         Ok(kampagne().fingerprint())
@@ -184,30 +173,6 @@ fn die_herkunft_eines_vertrags_ist_pruefbar() {
     let mut v = vertrag;
     v.deterministic_work_budget = WorkUnits(1_000_001);
     abweichungen.push(("deterministic_work_budget", v));
-    let mut v = vertrag;
-    v.exact_obligations.required = 13;
-    abweichungen.push(("exact_obligations", v));
-    let mut v = vertrag;
-    v.interaction_coverage.strength = 3;
-    abweichungen.push(("interaction_coverage", v));
-    let mut v = vertrag;
-    v.minimum_niche_coverage = 0.96;
-    abweichungen.push(("minimum_niche_coverage", v));
-    let mut v = vertrag;
-    v.independent_restarts = 9;
-    abweichungen.push(("independent_restarts", v));
-    let mut v = vertrag;
-    v.plateau_work_units = WorkUnits(50_001);
-    abweichungen.push(("plateau_work_units", v));
-    let mut v = vertrag;
-    v.maximum_bound_gap = Some(0.0);
-    abweichungen.push(("maximum_bound_gap", v));
-    let mut v = vertrag;
-    v.confidence_requirement.level = 0.999;
-    abweichungen.push(("confidence_requirement", v));
-    let mut v = vertrag;
-    v.final_audit = AuditPolicy::ScalarReplayDecisive;
-    abweichungen.push(("final_audit", v));
 
     for (feld, v) in &abweichungen {
         assert_eq!(
@@ -216,9 +181,11 @@ fn die_herkunft_eines_vertrags_ist_pruefbar() {
             "Das Feld {feld} weicht ab, ohne dass die Herkunftsprüfung es meldet."
         );
     }
+    // Bis zum 2026-10-29 zehn: Die übrigen acht übernommenen Felder sind mit
+    // dem Zuschnitt in #891 entfernt, weil kein Produktionspfad sie las.
     assert_eq!(
         abweichungen.len(),
-        10,
+        2,
         "Es wurden {} Felder geprüft. Jedes Feld, das der Vertrag aus der \
          Kampagne übernimmt, gehört hier dazu.",
         abweichungen.len()
@@ -229,7 +196,7 @@ fn die_herkunft_eines_vertrags_ist_pruefbar() {
 /// und seine geplante Arbeit ist die des Vertrags.
 #[test]
 fn ein_teilergebnis_setzt_eine_verlangte_frist_voraus() {
-    let ohne = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
+    let ohne = CampaignRunContract::from_campaign(&kampagne());
     assert_eq!(
         ohne.anytime_partial(WorkUnits(400_000)),
         None,
