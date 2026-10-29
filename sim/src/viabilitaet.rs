@@ -404,9 +404,9 @@ impl Befund {
                 s.projektion.zeilen.len(),
                 s.projektion.listen
             ),
-            Self::NichtGefunden(Suchgrund::UeberBudget { listen, budget }) => format!(
-                "Such-Befund: Projektion braucht {listen} Listen, Budget {budget}"
-            ),
+            Self::NichtGefunden(Suchgrund::UeberBudget { listen, budget }) => {
+                format!("Such-Befund: Projektion braucht {listen} Listen, Budget {budget}")
+            }
             Self::NichtGefunden(Suchgrund::Wuerfel) => {
                 "Such-Befund: der Kampf wuerfelt, kein Beweis moeglich".to_owned()
             }

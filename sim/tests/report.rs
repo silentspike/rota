@@ -293,7 +293,9 @@ fn ac1_eine_rotation_die_einen_zauber_auslaesst_zeigt_ihn_als_tot() {
     );
     assert!(tote.contains(&"smoulder"));
     assert!(tote.contains(&"pyre"));
-    assert!(!table.iter().any(|row| row.id == "kindle" && row.never_cast()));
+    assert!(!table
+        .iter()
+        .any(|row| row.id == "kindle" && row.never_cast()));
 }
 
 #[test]

@@ -252,7 +252,9 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
     }
     let schwach: Vec<&str> = t.zu_schwach().iter().map(|z| z.id).collect();
     out.push(String::new());
-    out.push("   Zu schwach — NUR bewiesen dominiert, und nur in der eigenen Projektion".to_owned());
+    out.push(
+        "   Zu schwach — NUR bewiesen dominiert, und nur in der eigenen Projektion".to_owned(),
+    );
     out.push(format!(
         "   (Elite-Zeilen + eigene Zeilen, Laenge <= {}, Boss \"{}\"):",
         t.max_len, t.boss
@@ -532,10 +534,7 @@ mod tests {
     /// Debug-Bau in Millisekunden durch ist.
     fn klein() -> Vergleich {
         let ids = ["kindle", "smoulder", "pyre", "crust", "quench", "fester"];
-        let grundmenge: Vec<usize> = ids
-            .iter()
-            .map(|id| index_of(id).expect("Zauber"))
-            .collect();
+        let grundmenge: Vec<usize> = ids.iter().map(|id| index_of(id).expect("Zauber")).collect();
         let pool: Vec<Candidate> = grundmenge.iter().flat_map(|&i| candidates_for(i)).collect();
         vergleich_mit(&befund_config(), &pool, &grundmenge, 3, 1_000_000)
     }
@@ -560,7 +559,10 @@ mod tests {
             .filter(|z| z.befund.art() == Befundart::BewiesenDominiert)
             .map(|z| z.id)
             .collect();
-        assert!(ids.len() >= 2, "der kleine Lauf traegt zwei dominierte Zauber: {ids:?}");
+        assert!(
+            ids.len() >= 2,
+            "der kleine Lauf traegt zwei dominierte Zauber: {ids:?}"
+        );
         for id in &ids {
             let anfang = format!("   {id:<14} ");
             let zeile = text
