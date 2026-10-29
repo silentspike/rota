@@ -3,26 +3,146 @@
 //! ```text
 //! cargo run --release --example report
 //! cargo run --release --example report -- --json
+//! cargo run --release --example report -- --budget 500000
 //! ```
 //!
 //! Beendet sich mit 1, wenn der Erfolgs-Prüflauf keine Lösung findet — dann
 //! gilt der Boss als **nicht auslieferbar** (GAME-DESIGN 12.9). Genau dafür
 //! hängt er im nächtlichen Lauf.
+//!
+//! # Der Zauber-Vergleich trennt vier Befunde (Issue #946)
+//!
+//! Abschnitt 1 nennt je spielbarem Zauber genau einen Befund aus
+//! [`rota_sim::viabilitaet`]: mindestens bezeugt, bewiesen dominiert, nicht
+//! gefunden, ungeklärt. Bis hierher stand dort „TOT", sobald die feste Liste
+//! `step1-good` einen Zauber nicht wirkte — und das hieß dasselbe, ob die
+//! Suche ihn nur nicht gefunden hatte oder ob er bewiesen verliert.
+//!
+//! Gerechnet wird gegen die **gesuchte** Rotation (gierig, Länge bis
+//! [`MAX_LEN`]), nicht gegen die feste: Ein Zeuge aus einer Handschrift sagt,
+//! was sie wirkt, nicht was die beste Liste wirkt. Die Abschnitte 2 und 3
+//! bleiben bei `step1-good`.
+//!
+//! **Das Budget** begrenzt jede Projektion auf [`BUDGET`] Listen. Was darüber
+//! liegt, wird nicht gerechnet und steht als „nicht gefunden" da — mit der
+//! Zahl, die es gebraucht hätte. `--budget N` setzt eine andere Grenze.
 
 use std::process::ExitCode;
+use std::time::Instant;
 
 use rota_sim::apl::{parse, Apl, AplName};
+use rota_sim::balance::BalanceConfig;
+use rota_sim::factors::NEUTRAL;
+use rota_sim::objective::Coverage;
 use rota_sim::report::{
-    achievement_run, feasibility, is_shippable, meaningless, spell_table, time_tiers,
-    AchievementCheck, Feasibility, SpellContribution,
+    achievement_run, feasibility, is_shippable, meaningless, time_tiers, AchievementCheck,
+    Feasibility,
 };
-use rota_sim::{Fight, FightConfig, RunResult};
+use rota_sim::rotation_search::all_candidates;
+use rota_sim::viabilitaet::{
+    befunde, mechanikproben, portfolio, schulproben, spielbare_zauber, Befundart, Befundtabelle,
+    Mechanikprobe, Schulprobe,
+};
+use rota_sim::{Fight, FightConfig, RunResult, BOSS, SPELLS};
 
 /// Die gute Rotation, wie sie im Repository liegt.
 const GOOD: &str = include_str!("../apl/step1-good.apl");
 
+/// Höchstlänge der gesuchten Liste und der Projektionen — dieselbe wie im
+/// Abdeckungs-Wächter aus #550.
+const MAX_LEN: usize = 6;
+
+/// Wie viele Listen eine Projektion höchstens messen darf.
+///
+/// Gemessen am 2026-10-29 auf node3 (CT 105): First-crucible bei Länge 6
+/// braucht 53 Projektionen mit zusammen 1 266 939 Listen, die größte hat
+/// 79 209; der ganze Abschnitt 1 lief in 15,0 s. Die Grenze liegt so, dass
+/// keine Projektion an ihr scheitert, die sich in Sekunden rechnen lässt — sie
+/// fängt erst die Projektionen, die mit der Länge der Elite in die Millionen
+/// wachsen (neun Zeilen bei Länge 8 sind schon 623 529 Listen,
+/// `exhaustive_messungen(9, 8)`).
+const BUDGET: u64 = 1_000_000;
+
+/// Die Einstellungen des Zauber-Vergleichs.
+///
+/// **Ein Durchgang mit festem Startwert**, wie in der erschöpfenden Suche:
+/// Ohne Ausrüstung würfelt der Kampf nicht, also ist jede Messung exakt — und
+/// nur dann trägt ein Beweis. `stop_on_kill` steht auf `false`, sonst wären
+/// zwei verschieden schnelle Listen nicht vergleichbar (`rotation_search::measure`).
+fn befund_config() -> BalanceConfig {
+    BalanceConfig {
+        iterations: 1,
+        base_seed: 0,
+        threads: 1,
+        duration_ms: None,
+        stop_on_kill: false,
+        factors: NEUTRAL,
+        boss: BOSS,
+        ..BalanceConfig::default()
+    }
+}
+
+/// Alles, was Abschnitt 1 braucht.
+struct Vergleich {
+    tabelle: Befundtabelle,
+    /// Der Lauf der Elite, für Schaden und Anteil je Zauber.
+    elite_lauf: RunResult,
+    schulen: Vec<Schulprobe>,
+    mechaniken: Result<Vec<Mechanikprobe>, Vec<&'static str>>,
+    sekunden: f64,
+}
+
+fn vergleich(budget: u64) -> Vergleich {
+    let beginn = Instant::now();
+    let config = befund_config();
+    let pool = all_candidates();
+    let grundmenge = spielbare_zauber();
+    let tabelle = befunde(&config, &pool, &grundmenge, MAX_LEN, budget);
+    let schulen = schulproben(&config, &pool, &grundmenge, MAX_LEN);
+    let mechaniken = mechanikproben(&config, &pool, MAX_LEN);
+
+    // Schaden je Zauber gibt der Balance-Lauf nicht her, nur der einzelne
+    // Kampf. Derselbe Kampf wie im Lauf — und das wird geprüft, nicht
+    // angenommen: Wirft er anders, ist die Schadensspalte die eines anderen
+    // Kampfs.
+    let elite_lauf = Fight::new(FightConfig {
+        stop_on_kill: config.stop_on_kill,
+        log_capacity: 0,
+        ..FightConfig::default()
+    })
+    .run_apl(&tabelle.elite.best.apl);
+    for zeile in &tabelle.zeilen {
+        assert_eq!(
+            elite_lauf.casts[zeile.spell], zeile.casts,
+            "{} wird im Einzelkampf {}-mal gewirkt, im Lauf {}-mal — die Schadensspalte \
+             gehoerte dann zu einem anderen Kampf",
+            zeile.id, elite_lauf.casts[zeile.spell], zeile.casts
+        );
+    }
+
+    Vergleich {
+        tabelle,
+        elite_lauf,
+        schulen,
+        mechaniken,
+        sekunden: beginn.elapsed().as_secs_f64(),
+    }
+}
+
+fn budget_aus_argumenten() -> u64 {
+    let args: Vec<String> = std::env::args().collect();
+    args.iter()
+        .position(|a| a == "--budget")
+        .and_then(|i| args.get(i + 1))
+        .map_or(BUDGET, |wert| {
+            wert.parse()
+                .unwrap_or_else(|_| panic!("--budget erwartet eine Zahl, nicht {wert:?}"))
+        })
+}
+
 fn main() -> ExitCode {
     let json = std::env::args().any(|a| a == "--json");
+    let budget = budget_aus_argumenten();
 
     let apl = match parse(AplName("step1-good"), GOOD) {
         Ok(apl) => apl,
@@ -33,15 +153,15 @@ fn main() -> ExitCode {
     };
 
     let result = Fight::new(FightConfig::default()).run_apl(&apl);
-    let table = spell_table(&result);
     let feas = feasibility(&apl, None);
     let checks = achievement_run(&apl, None);
     let shippable = is_shippable(&checks);
+    let v = vergleich(budget);
 
     if json {
-        print_json(&apl, &result, &table, &feas, &checks, shippable);
+        print_json(&apl, &result, &v, &feas, &checks, shippable);
     } else {
-        print_text(&apl, &table, &feas, &checks, shippable);
+        print_text(&apl, &v, &feas, &checks, shippable);
     }
 
     if shippable {
@@ -51,44 +171,162 @@ fn main() -> ExitCode {
     }
 }
 
+fn coverage_text(c: Coverage) -> String {
+    match c {
+        Coverage::Measured { covered, required } => format!("{covered} von {required}"),
+        Coverage::Unmeasured => "ungemessen".to_owned(),
+    }
+}
+
+fn print_vergleich(v: &Vergleich) {
+    let t = &v.tabelle;
+    println!("1. ZAUBER-VERGLEICH — vier Befunde je Zauber (Issue #946)");
+    println!(
+        "   Boss \"{}\", gesuchte Rotation (gierig, Laenge bis {}), 1 Durchgang, Startwert 0,",
+        t.boss, t.max_len
+    );
+    println!(
+        "   Budget {} Listen je Projektion, gerechnet in {:.1} s",
+        t.budget, v.sekunden
+    );
+    println!("   Elite ({:.1}):", t.elite.best.mean);
+    for rule in &t.elite.best.apl.rules {
+        println!("     {rule}");
+    }
+    println!();
+
+    let gesamt = f64::from(v.elite_lauf.damage);
+    println!(
+        "   {:<14} {:<13} {:>5} {:>8} {:>7}  {:<19} Beleg",
+        "Zauber", "Schule", "Wirkt", "Schaden", "Anteil", "Befund"
+    );
+    let mut zeilen: Vec<_> = t.zeilen.iter().collect();
+    // Nach Befund, darin nach Schaden — der stabile Sort laesst gleiche in der
+    // Reihenfolge der Daten.
+    zeilen.sort_by(|a, b| {
+        a.befund.art().cmp(&b.befund.art()).then_with(|| {
+            v.elite_lauf.damage_by_spell[b.spell].cmp(&v.elite_lauf.damage_by_spell[a.spell])
+        })
+    });
+    for zeile in zeilen {
+        let schaden = v.elite_lauf.damage_by_spell[zeile.spell];
+        println!(
+            "   {:<14} {:<13} {:>5} {:>8} {:>5.1} %  {:<19} {}",
+            zeile.id,
+            SPELLS[zeile.spell].school.unwrap_or("-"),
+            zeile.casts,
+            schaden,
+            if gesamt > 0.0 {
+                f64::from(schaden) / gesamt * 100.0
+            } else {
+                0.0
+            },
+            zeile.befund.art().name(),
+            zeile.befund.beleg()
+        );
+    }
+
+    println!();
+    for zeile in t.zusammenfassung().iter().take(Befundart::ALLE.len()) {
+        println!("   {zeile}");
+    }
+    let schwach: Vec<&str> = t.zu_schwach().iter().map(|z| z.id).collect();
+    println!();
+    println!("   Zu schwach — NUR bewiesen dominiert, und nur in der eigenen Projektion");
+    println!(
+        "   (Zeilen der Elite + eigene Zeilen, Laenge bis {}, Boss \"{}\"):",
+        t.max_len, t.boss
+    );
+    println!(
+        "     {}",
+        if schwach.is_empty() {
+            "keiner".to_owned()
+        } else {
+            schwach.join(", ")
+        }
+    );
+    println!("   \"nicht gefunden\" ist ein Such-Befund und heisst NICHT zu schwach.");
+
+    println!();
+    println!("   Faecher des Zielvertrags (#939), aus diesem Lauf:");
+    let kampagne = t.kampagnenabdeckung();
+    let menge = portfolio(&v.schulen, &v.mechaniken);
+    println!(
+        "     every_spell_has_viable_niche                   {}",
+        coverage_text(kampagne.every_spell_has_viable_niche)
+    );
+    println!(
+        "     no_school_is_globally_mandatory                {}",
+        coverage_text(menge.no_school_is_globally_mandatory)
+    );
+    for probe in &v.schulen {
+        println!(
+            "       ohne {:<13} {}",
+            probe.schule,
+            if probe.sieg_ohne.is_some() {
+                "Sieg gefunden"
+            } else {
+                "kein Sieg gefunden"
+            }
+        );
+    }
+    println!(
+        "     every_mechanic_has_multiple_solution_families  {}",
+        coverage_text(menge.every_mechanic_has_multiple_solution_families)
+    );
+    match &v.mechaniken {
+        Ok(liste) if liste.is_empty() => {
+            println!("       der Boss hat keine Mechanik — nichts zu loesen, nichts verletzt");
+        }
+        Ok(liste) => {
+            for probe in liste {
+                let wege: Vec<&str> = probe
+                    .wege
+                    .iter()
+                    .filter(|(_, sieg)| sieg.is_some())
+                    .map(|(weg, _)| weg.name())
+                    .collect();
+                println!(
+                    "       {:<18} {} Weg(e): {}",
+                    probe.mechanik.name(),
+                    probe.loesende(),
+                    wege.join(", ")
+                );
+            }
+        }
+        Err(bausteine) => println!(
+            "       nicht gezaehlt — der Boss traegt {}, die sich nicht allein messen lassen",
+            bausteine.join(", ")
+        ),
+    }
+    println!(
+        "     robustness_across_encounters                   {} (braucht mehr als einen Boss)",
+        coverage_text(menge.robustness_across_encounters)
+    );
+
+    println!();
+    for zeile in t.zusammenfassung().iter().skip(Befundart::ALLE.len() + 1) {
+        println!("   {zeile}");
+    }
+}
+
 fn print_text(
     apl: &Apl,
-    table: &[SpellContribution],
+    v: &Vergleich,
     feas: &Feasibility,
     checks: &[AchievementCheck],
     shippable: bool,
 ) {
     println!("{}", "=".repeat(74));
     println!("ROTA — Auswertungen (GAME-DESIGN 18.5)");
-    println!("Rotation \"{}\", Boss \"{}\"", apl.name, feas.boss);
+    println!(
+        "Abschnitt 1 gegen die gesuchte Rotation, 2 und 3 gegen \"{}\", Boss \"{}\"",
+        apl.name, feas.boss
+    );
     println!("{}", "=".repeat(74));
 
     println!();
-    println!("1. ZAUBER-VERGLEICH — deckt tote Zauber auf");
-    println!(
-        "   {:<10} {:>7} {:>9} {:>8} {:>12}",
-        "Zauber", "Wirkt", "Schaden", "Anteil", "je Wirkung"
-    );
-    for row in table {
-        println!(
-            "   {:<10} {:>7} {:>9} {:>7.1} % {:>12.1}{}",
-            row.id,
-            row.casts,
-            row.damage,
-            row.share * 100.0,
-            row.damage_per_cast,
-            if row.is_dead() { "   TOT" } else { "" }
-        );
-    }
-    let tote = table.iter().filter(|r| r.is_dead()).count();
-    println!(
-        "   {}",
-        if tote == 0 {
-            "Kein toter Zauber.".to_owned()
-        } else {
-            format!("{tote} Zauber werden nie gewirkt.")
-        }
-    );
+    print_vergleich(v);
 
     println!();
     println!("2. BOSS-MACHBARKEIT");
@@ -156,25 +394,51 @@ fn print_text(
     println!("(GAME-DESIGN 22): Schwierigkeitsstufen (vor E4), boss-eigene Erfolge und");
     println!("die 288 Zeitmarken (vor E10). Geprueft wird ein Boss auf einer Stufe mit");
     println!("den drei Marken, die sich aus der Bestzeit ableiten lassen.");
+    println!("Der Zauber-Vergleich gilt fuer diesen einen Boss: Ein Befund ist eine");
+    println!("Aussage in seinem Geltungsbereich, kein Urteil ueber den Zauber im Spiel.");
 }
 
 fn print_json(
     apl: &Apl,
     result: &RunResult,
-    table: &[SpellContribution],
+    v: &Vergleich,
     feas: &Feasibility,
     checks: &[AchievementCheck],
     shippable: bool,
 ) {
-    let spells: Vec<String> = table
+    let t = &v.tabelle;
+    let zeilen: Vec<String> = t
+        .zeilen
         .iter()
-        .map(|r| {
+        .map(|z| {
             format!(
-                "{{\"id\":{:?},\"casts\":{},\"damage\":{},\"share\":{:?},\"damagePerCast\":{:?},\"dead\":{}}}",
-                r.id, r.casts, r.damage, r.share, r.damage_per_cast, r.is_dead()
+                "{{\"id\":{:?},\"school\":{:?},\"casts\":{},\"damage\":{},\"befund\":{:?},\"beleg\":{:?},\"zuSchwach\":{}}}",
+                z.id,
+                SPELLS[z.spell].school.unwrap_or(""),
+                z.casts,
+                v.elite_lauf.damage_by_spell[z.spell],
+                z.befund.art().name(),
+                z.befund.beleg(),
+                z.befund.ist_zu_schwach()
             )
         })
         .collect();
+    let zaehlung = t.zaehlung();
+    let je_art: Vec<String> = Befundart::ALLE
+        .iter()
+        .map(|&art| format!("{:?}:{}", art.name(), zaehlung.von(art)))
+        .collect();
+    let zusammenfassung = t.zusammenfassung();
+    let lauf = zusammenfassung
+        .get(Befundart::ALLE.len() + 1)
+        .cloned()
+        .unwrap_or_default();
+    let vertrag = zusammenfassung
+        .get(Befundart::ALLE.len() + 2)
+        .cloned()
+        .unwrap_or_default();
+    let menge = portfolio(&v.schulen, &v.mechaniken);
+    let kampagne = t.kampagnenabdeckung();
 
     let achievements: Vec<String> = checks
         .iter()
@@ -188,13 +452,29 @@ fn print_json(
 
     println!(
         "{{\"apl\":{:?},\"boss\":{:?},\"damage\":{},\
-         \"spellTable\":[{}],\
+         \"zauberVergleich\":{{\"boss\":{:?},\"maxLen\":{},\"budget\":{},\"elite\":{:?},\"eliteWert\":{:?},\
+         \"grundmenge\":{},\"befunde\":{{{}}},\"zeilen\":[{}],\"lauf\":{:?},\"vertrag\":{:?},\
+         \"faecher\":{{\"everySpellHasViableNiche\":{:?},\"noSchoolIsGloballyMandatory\":{:?},\
+         \"everyMechanicHasMultipleSolutionFamilies\":{:?},\"robustnessAcrossEncounters\":{:?}}}}},\
          \"feasibility\":{{\"limitMs\":{},\"defeated\":{},\"killTimeMs\":{},\"reserveMs\":{},\"reserveShare\":{:?},\"hpShare\":{:?}}},\
          \"achievements\":[{}],\"shippable\":{}}}",
         apl.name,
         feas.boss,
         result.damage,
-        spells.join(","),
+        t.boss,
+        t.max_len,
+        t.budget,
+        t.elite.best.apl.to_string(),
+        t.elite.best.mean,
+        zaehlung.grundmenge,
+        je_art.join(","),
+        zeilen.join(","),
+        lauf,
+        vertrag,
+        coverage_text(kampagne.every_spell_has_viable_niche),
+        coverage_text(menge.no_school_is_globally_mandatory),
+        coverage_text(menge.every_mechanic_has_multiple_solution_families),
+        coverage_text(menge.robustness_across_encounters),
         feas.limit_ms,
         feas.defeated,
         feas.kill_time_ms.map_or(-1_i64, i64::from),
