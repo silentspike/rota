@@ -69,7 +69,15 @@ export const EV_BOSS_COUNTDOWN_3 = 30;
 export const EV_BOSS_COUNTDOWN_4 = 31;
 export const EV_BOSS_COUNTDOWN_5 = 32;
 
-export const EVENT_COUNT = 33;
+/**
+ * Overdrive gezündet (#1177, Abschnitt 2) — **angehängt**, damit keine
+ * bestehende Nummer wandert. Kein Zauber-Ereignis: Overdrive liegt auf keinem
+ * Platz und hat keinen Index unter den Zaubern. Der Klang dazu ist
+ * `special-overdrive` im Verzeichnis.
+ */
+export const EV_OVERDRIVE = 33;
+
+export const EVENT_COUNT = 34;
 
 /**
  * Warnart → Ereignis. Die Reihenfolge ist die der Arten in
@@ -132,6 +140,7 @@ export const EVENT_NAMES: readonly string[] = [
   'boss.countdown.3',
   'boss.countdown.4',
   'boss.countdown.5',
+  'overdrive.ignite',
 ];
 
 /**

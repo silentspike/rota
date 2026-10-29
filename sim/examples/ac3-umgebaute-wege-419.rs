@@ -358,6 +358,7 @@ fn vorgezogen(apl: &Apl, traeger: usize) -> Option<Apl> {
     Some(Apl {
         rules,
         name: format!("{}-vorgezogen", apl.name),
+        overdrive: apl.overdrive.clone(),
     })
 }
 

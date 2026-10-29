@@ -267,6 +267,8 @@ export interface CombatSnapshot {
   readonly nextDoomStepAtMs: number;
   readonly nextEnergyStepAtMs: number;
   readonly nextStackStepAtMs: number;
+  /** Wann Overdrive gezündet wurde, sonst -1 (#1177). */
+  readonly overdriveIgnitedAtMs: number;
   readonly pendingTimelineDelayMs: number;
   readonly phaseHoldPercent: number;
   readonly playerDamage: number;
@@ -1000,6 +1002,7 @@ export function installDevTools(app: App): void {
         nextDoomStepAtMs: combat.nextDoomStepAtMs,
         nextEnergyStepAtMs: combat.nextEnergyStepAtMs,
         nextStackStepAtMs: combat.nextStackStepAtMs,
+        overdriveIgnitedAtMs: combat.overdriveIgnitedAtMs,
         pendingTimelineDelayMs: combat.pendingTimelineDelayMs,
         phaseHoldPercent: combat.phaseHoldPercent,
         playerDamage: combat.playerDamage,

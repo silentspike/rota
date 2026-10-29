@@ -160,7 +160,7 @@ pub fn max_from_affixes(item_level: u32) -> u32 {
 const MAX_PERMILLE: [[u32; STAT_COUNT]; SOURCE_COUNT] = [
     [0, 0, 0],       // Affixe — kommen aus dem Budget
     [100, 100, 200], // Talente
-    [300, 0, 0],     // Zauber (Overdrive) — nur Tempo, nur kurzzeitig
+    [0, 0, 0],       // Zauber (Overdrive) — Tempo aus den Daten, siehe `max_of`
     [50, 50, 100],   // legendaere Effekte
     [80, 80, 160],   // Satz-Boni, zwei Stufen zusammen
 ];
@@ -181,6 +181,14 @@ pub fn max_of(source: usize, stat: usize, item_level: u32) -> u32 {
     }
     if source == SOURCE_AFFIXES {
         return max_from_affixes(item_level);
+    }
+    // **Der Overdrive-Beitrag folgt der gebauten Mechanik** (#1177, Abschnitt
+    // 2). Bis dahin stand hier eine eigene 300 — ein Budget für einen Zauber,
+    // den es nicht gab. Jetzt gibt es ihn, und seine Stärke steht in
+    // `data/player/base.json`; eine zweite Zahl hier liefe beim ersten
+    // Balance-Schritt still auseinander.
+    if source == SOURCE_SPELLS && stat == STAT_CATALYSIS {
+        return crate::data::PLAYER.overdrive_catalysis_permille;
     }
     MAX_PERMILLE[source][stat]
 }

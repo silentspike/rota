@@ -34,6 +34,18 @@
 //! kindle
 //! ```
 //!
+//! ## Overdrive: eine Zeile, aber keine Regel (#1177)
+//!
+//! ```text
+//! overdrive if boss.hp_pct <= 20
+//! ```
+//!
+//! Zündet Overdrive, sobald die Bedingung zutrifft — ohne `if` gleich zu
+//! Beginn, ohne Zeile nie. Die Stelle in der Liste ist gleichgültig: Overdrive
+//! löst keine Wartezeit aus, konkurriert also mit keinem Zauber, und er wird vor
+//! der Zauberwahl gefragt. Höchstens eine solche Zeile; die Bedingungen sind
+//! dieselben wie bei jeder Regel. Einzelheiten an [`Apl::overdrive`].
+//!
 //! ## Dass der Zauber wirkbar sein muss, steht nicht in der Liste
 //!
 //! Eine Regel wird übersprungen, wenn ihre Abklingzeit noch läuft — ohne dass
@@ -488,6 +500,21 @@ pub struct Apl {
     pub rules: Vec<Rule>,
     /// Name der Liste, für Berichte.
     pub name: String,
+    /// Wann Overdrive gezündet wird (#1177, Abschnitt 2) — `None` heißt nie.
+    ///
+    /// # Warum kein Platz in `rules`
+    ///
+    /// Eine Regel nennt einen Zauber, und ihre Stelle in der Liste ist ihre
+    /// Priorität gegen die anderen. Overdrive ist kein Zauber der Leiste und
+    /// konkurriert mit keinem: Er löst keine Wartezeit aus und geht einmal je
+    /// Kampf. Eine Stelle in der Rangfolge hätte also keine Bedeutung — und
+    /// jede Auswertung, die `rules` nach Zaubern durchgeht, müsste ihn
+    /// ausnehmen. Als eigenes Feld kann ihn keine übersehen, die ihn nicht
+    /// kennt, und keine stolpert über ihn.
+    ///
+    /// In der Datei steht er wie eine Regel: `overdrive` oder
+    /// `overdrive if <bedingung>`, an beliebiger Stelle, höchstens einmal.
+    pub overdrive: Option<Condition>,
 }
 
 impl crate::fight::Decide for Apl {
@@ -501,6 +528,10 @@ impl crate::fight::Decide for Apl {
 
     fn next_wakeup_ohne_gcd(&self, fight: &Fight) -> Option<Millis> {
         Apl::next_wakeup_ohne_gcd(self, fight)
+    }
+
+    fn ignite_overdrive(&self, fight: &Fight) -> bool {
+        Apl::ignite_overdrive(self, fight)
     }
 }
 
@@ -535,7 +566,37 @@ impl Apl {
     /// `None`, wenn keine Bedingung von der Uhr abhängt.
     #[must_use]
     pub fn next_wakeup(&self, fight: &Fight) -> Option<Millis> {
-        self.wakeup_ueber(fight, |_| true)
+        frueher(
+            self.wakeup_ueber(fight, |_| true),
+            self.overdrive_wakeup(fight),
+        )
+    }
+
+    /// Ob jetzt Overdrive gezündet werden soll (#1177, Abschnitt 2).
+    ///
+    /// Nur, solange er bereit ist, und nur, wenn die Liste eine
+    /// `overdrive`-Zeile hat, deren Bedingung jetzt zutrifft.
+    #[must_use]
+    pub fn ignite_overdrive(&self, fight: &Fight) -> bool {
+        fight.overdrive().is_ready()
+            && self
+                .overdrive
+                .as_ref()
+                .is_some_and(|condition| condition.holds(fight))
+    }
+
+    /// Wann die `overdrive`-Bedingung frühestens umschlägt — wie die der
+    /// Regeln, solange er noch bereit ist.
+    ///
+    /// Ohne diesen Weckruf zündete `overdrive if fight.remains <= 20000` erst
+    /// am nächsten fremden Ereignis, nicht an seinem Takt.
+    fn overdrive_wakeup(&self, fight: &Fight) -> Option<Millis> {
+        if !fight.overdrive().is_ready() {
+            return None;
+        }
+        self.overdrive
+            .as_ref()
+            .and_then(|condition| wakeup_der_terme(condition.terms(), fight))
     }
 
     /// Dasselbe, aber nur über die Regeln, deren Zauber **keine** globale
@@ -547,45 +608,72 @@ impl Apl {
     /// `quench if boss.cast_remains < 500` einen Weckruf **darin**. Aus dem
     /// frühesten Umschlag aller Regeln lässt er sich nicht ablesen: Liegt der
     /// einer Zeile mit Wartezeit früher, verdeckt er den der Zeile ohne.
+    ///
+    /// **Overdrive gehört dazu** (#1177): Er löst keine Wartezeit aus und darf
+    /// in einer laufenden gezündet werden.
     #[must_use]
     pub fn next_wakeup_ohne_gcd(&self, fight: &Fight) -> Option<Millis> {
-        self.wakeup_ueber(fight, |rule| !SPELLS[rule.spell].triggers_gcd)
+        frueher(
+            self.wakeup_ueber(fight, |rule| !SPELLS[rule.spell].triggers_gcd),
+            self.overdrive_wakeup(fight),
+        )
     }
 
     /// Der früheste Umschlag über die Regeln, die `beachten` zulässt.
     fn wakeup_ueber(&self, fight: &Fight, beachten: impl Fn(&Rule) -> bool) -> Option<Millis> {
-        let now = fight.time();
-        let mut earliest: Option<Millis> = None;
+        wakeup_der_terme(
+            self.rules
+                .iter()
+                .filter(|rule| beachten(rule))
+                .flat_map(|rule| rule.condition.terms()),
+            fight,
+        )
+    }
+}
 
-        for rule in self.rules.iter().filter(|rule| beachten(rule)) {
-            for term in rule.condition.terms() {
-                for (value, other, compare) in [
-                    (term.left, term.right, term.compare),
-                    (term.right, term.left, term.compare.reversed()),
-                ] {
-                    if !value.is_time_dependent() {
-                        continue;
-                    }
-                    // Der Schwellwert ist nur dann bekannt, wenn die andere
-                    // Seite selbst nicht von der Uhr abhängt. Zwei zeitabhängige
-                    // Seiten (`dot.a.remains < dot.b.remains`) laufen aufeinander
-                    // zu; dafür gäbe es einen Umschlagpunkt, aber keine der
-                    // gebrauchten Rotationen schreibt so etwas. Solche Vergleiche
-                    // werden hier übersprungen — sie werden weiterhin an jedem
-                    // Ereignis geprüft, nur eben nicht dazwischen.
-                    if other.is_time_dependent() {
-                        continue;
-                    }
-                    if let Some(at) = switch_point(value, other.read(fight), compare, fight) {
-                        if at > now {
-                            earliest = Some(earliest.map_or(at, |best| best.min(at)));
-                        }
-                    }
+/// Der frühere zweier Weckrufe.
+fn frueher(a: Option<Millis>, b: Option<Millis>) -> Option<Millis> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, None) => a,
+        (None, b) => b,
+    }
+}
+
+/// Der früheste Umschlag über eine Folge von Vergleichen.
+///
+/// Herausgelöst aus `wakeup_ueber` (#1177), damit die `overdrive`-Bedingung
+/// **dieselbe** Rechnung bekommt wie jede Regel und keine zweite daneben.
+fn wakeup_der_terme<'a>(terms: impl Iterator<Item = &'a Term>, fight: &Fight) -> Option<Millis> {
+    let now = fight.time();
+    let mut earliest: Option<Millis> = None;
+
+    for term in terms {
+        for (value, other, compare) in [
+            (term.left, term.right, term.compare),
+            (term.right, term.left, term.compare.reversed()),
+        ] {
+            if !value.is_time_dependent() {
+                continue;
+            }
+            // Der Schwellwert ist nur dann bekannt, wenn die andere
+            // Seite selbst nicht von der Uhr abhängt. Zwei zeitabhängige
+            // Seiten (`dot.a.remains < dot.b.remains`) laufen aufeinander
+            // zu; dafür gäbe es einen Umschlagpunkt, aber keine der
+            // gebrauchten Rotationen schreibt so etwas. Solche Vergleiche
+            // werden hier übersprungen — sie werden weiterhin an jedem
+            // Ereignis geprüft, nur eben nicht dazwischen.
+            if other.is_time_dependent() {
+                continue;
+            }
+            if let Some(at) = switch_point(value, other.read(fight), compare, fight) {
+                if at > now {
+                    earliest = Some(earliest.map_or(at, |best| best.min(at)));
                 }
             }
         }
-        earliest
     }
+    earliest
 }
 
 /// An welchem Takt der Vergleich `value <compare> threshold` frühestens kippt.
@@ -929,6 +1017,22 @@ impl fmt::Display for Apl {
         for rule in &self.rules {
             writeln!(f, "{rule}")?;
         }
+        // **Mitgeschrieben, sonst geht er beim Zurücklesen verloren** (#1177).
+        // Eine Liste, die als Text in einen Bericht wandert und daraus wieder
+        // gelesen wird, zündete sonst nie — und der Bericht sähe gleich aus.
+        if let Some(condition) = &self.overdrive {
+            if condition.is_always() {
+                writeln!(f, "{OVERDRIVE_ACTION}")?;
+            } else {
+                writeln!(f, "{OVERDRIVE_ACTION} if {condition}")?;
+            }
+        }
         Ok(())
     }
 }
+
+/// Das Wort, mit dem eine Liste Overdrive zündet (#1177, Abschnitt 2).
+///
+/// Kein Zauber heißt so — `parse` prüft das Wort vor den Zaubernamen, und
+/// `sim/tests/overdrive.rs` hält fest, dass es keinen Zauber verdeckt.
+pub const OVERDRIVE_ACTION: &str = "overdrive";

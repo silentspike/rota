@@ -1835,10 +1835,27 @@ fn emit_player(out: &mut String, player: &Value) {
         ward * 1000.0
     );
 
+    // Overdrive (#1177, Abschnitt 2). Eine Dauer von null wäre ein Overdrive,
+    // der gezündet wird und nichts tut — die Taste schiene kaputt. Eine Dauer
+    // neben dem Takt-Raster endete zwischen zwei Takten, und das Spiel sähe
+    // das Ende einen Takt später als der Simulator.
+    let overdrive_ms = uint(player, "overdriveDurationMs", whose);
+    assert!(
+        overdrive_ms > 0 && overdrive_ms.is_multiple_of(RASTER_MS),
+        "{whose}: overdriveDurationMs {overdrive_ms} muss groesser als null sein und auf \
+         dem {RASTER_MS}-ms-Raster liegen"
+    );
+    let overdrive_permille = uint(player, "overdriveCatalysisPermille", whose);
+    assert!(
+        overdrive_permille > 0,
+        "{whose}: overdriveCatalysisPermille muss groesser als null sein — sonst ist \
+         Overdrive ein Tastendruck ohne Wirkung"
+    );
+
     let _ = writeln!(out, "/// Die Grundwerte des Spielers aus `data/player/`.");
     let _ = writeln!(
         out,
-        "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?}, ward_cap_permille: {ward_cap} }};\n"
+        "pub static PLAYER: &PlayerBase = &PlayerBase {{ vessel: {vessel}, ward_reduction: {ward:?}, ward_cap_permille: {ward_cap}, overdrive_duration_ms: {overdrive_ms}, overdrive_catalysis_permille: {overdrive_permille} }};\n"
     );
 }
 

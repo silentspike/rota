@@ -996,6 +996,7 @@ fn mit_bezugspunkt(mut config: BalanceConfig) -> BalanceConfig {
         let leer = Apl {
             name: "bezugspunkt".to_owned(),
             rules: Vec::new(),
+            overdrive: None,
         };
         config.damage_taken_baseline = balance::run(&config, &leer).damage_taken.mean;
     }

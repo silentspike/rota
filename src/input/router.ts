@@ -15,7 +15,14 @@
  *    läuft in derselben Uhr wie `performance.now()` und ist die Grundlage der
  *    Messung der Eingabe-Verzögerung.
  */
-import { KEYS_PER_LAYER, NO_SLOT, positionForCode, slotFor } from './keys.js';
+import {
+  KEYS_PER_LAYER,
+  NO_SLOT,
+  OVERDRIVE_CODE,
+  OVERDRIVE_PRESS,
+  positionForCode,
+  slotFor,
+} from './keys.js';
 import type { PressQueue } from './queue.js';
 
 export interface InputRouterOptions {
@@ -39,6 +46,11 @@ export class InputRouter {
 
   /** Gedrückt-Zustand je **Stelle**, nicht je Belegung. */
   private readonly held = new Uint8Array(KEYS_PER_LAYER);
+  /**
+   * Gedrückt-Zustand der Overdrive-Taste (#1177). Eine eigene Sperre, weil sie
+   * keine Stelle der Leiste ist — dieselbe Regel gegen Wiederholung gilt.
+   */
+  private overdriveHeld = false;
 
   private readonly boundKeyDown: (event: KeyboardEvent) => void;
   private readonly boundKeyUp: (event: KeyboardEvent) => void;
@@ -65,6 +77,7 @@ export class InputRouter {
     };
     this.boundBlur = (): void => {
       this.held.fill(0);
+      this.overdriveHeld = false;
     };
   }
 
@@ -105,6 +118,7 @@ export class InputRouter {
     target.removeEventListener('keyup', this.boundKeyUp);
     target.removeEventListener('blur', this.boundBlur);
     this.held.fill(0);
+    this.overdriveHeld = false;
   }
 
   /** Ist die Stelle gerade gedrückt? Nur für Tests und Werkzeuge. */
@@ -114,7 +128,33 @@ export class InputRouter {
 
   private handleKeyDown(event: KeyboardEvent): void {
     if (event.ctrlKey || event.altKey || event.metaKey) {
-      if (positionForCode(event.code) !== NO_SLOT) this.modifierIgnored++;
+      if (positionForCode(event.code) !== NO_SLOT || event.code === OVERDRIVE_CODE) {
+        this.modifierIgnored++;
+      }
+      return;
+    }
+
+    // **Overdrive: eigene Taste, kein Platz der Leiste** (#1177, Abschnitt 2).
+    // Erkannt an `code`, also an der Stelle rechts neben F — nicht an `key`,
+    // dem Buchstaben, der dort gerade steht. Umschalt ändert nichts: G hat
+    // keine zweite Ebene, und wer für einen Umschalt-Zauber die Taste noch
+    // hält, soll Overdrive trotzdem zünden können.
+    if (event.code === OVERDRIVE_CODE) {
+      event.preventDefault();
+      // Dieselben zwei Sperren wie für die Leiste (Design-Gesetz 1): Halten
+      // zündet nicht nach, auch wenn ein Browser `repeat` nicht setzt.
+      if (event.repeat || this.overdriveHeld) {
+        this.repeatSuppressed++;
+        this.overdriveHeld = true;
+        return;
+      }
+      this.overdriveHeld = true;
+      if (!this.sawInput) {
+        this.sawInput = true;
+        if (this.onFirstInput !== null) this.onFirstInput();
+      }
+      this.queue.push(OVERDRIVE_PRESS, this.nextTickIndex(), event.timeStamp, this.frameIndex());
+      this.pressCount++;
       return;
     }
 
@@ -149,6 +189,10 @@ export class InputRouter {
   }
 
   private handleKeyUp(event: KeyboardEvent): void {
+    if (event.code === OVERDRIVE_CODE) {
+      this.overdriveHeld = false;
+      return;
+    }
     const position = positionForCode(event.code);
     if (position === NO_SLOT) return;
     this.held[position] = 0;

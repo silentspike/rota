@@ -80,6 +80,7 @@ fn main() {
                 condition: k.condition.clone(),
             })
             .collect(),
+        overdrive: None,
     };
     println!("== Arbeitspaket ==");
     println!("  Rotation aus greedy, {} Zeilen", apl.rules.len());
