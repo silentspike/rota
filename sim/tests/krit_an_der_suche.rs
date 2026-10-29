@@ -551,6 +551,46 @@ fn der_randabgleich_erkennt_einen_anderen_kampf() {
     }
 }
 
+/// **Schaden ohne Krit ist kein anderer Kampf.** PYROCLASM bucht neben seinem
+/// Entladeschaden den Rest der laufenden Brände (`Fight::cast`,
+/// `consume_active_dots`) — ohne Krit-Faktor, also in beiden Randläufen
+/// derselbe Betrag. Gemessen am 29.10. auf node3: Alle 211 Verweigerungen der
+/// Suche über 21 Bosse hingen an diesem Eintrag.
+#[test]
+fn der_randabgleich_nimmt_schaden_ohne_krit_hin() {
+    let apl = liste("smoulder if dot.smoulder.remains < 1500\npyroclasm\n");
+    let config = gegen("first-crucible", 250);
+    let (ohne, mit) = raender(&config, &apl).expect("das Protokoll reicht");
+    let pyroclasm =
+        u8::try_from(index_of("pyroclasm").expect("den Zauber gibt es")).expect("passt");
+    let gleich_ohne_krit = ohne
+        .eintraege
+        .iter()
+        .zip(&mit.eintraege)
+        .filter(|(a, b)| {
+            a.kind == rota_sim::log::LogKind::Damage
+                && a.spell == pyroclasm
+                && a.value > 0
+                && a.value == b.value
+        })
+        .count();
+    assert!(
+        gleich_ohne_krit > 0,
+        "Trägerzusicherung: PYROCLASM bucht einen Betrag, der in beiden Rändern gleich ist"
+    );
+    let aufteilung =
+        StochastischeAufteilung::fuer(&config, &apl, Ergebnisgroesse::ErwarteterSchaden);
+    assert!(
+        aufteilung.analytisch(),
+        "Trägerzusicherung: die Maske sieht die Liste frei"
+    );
+    assert_eq!(
+        randabgleich(&ohne, &mit, config.worn.crit_factor()),
+        Ok(()),
+        "{gleich_ohne_krit} Beträge ohne Krit-Faktor sind derselbe Kampf, kein anderer"
+    );
+}
+
 /// An jedem wertungsfähigen Boss, den die Maske frei sieht, fochten die
 /// Ränder denselben Kampf — die Nachprüfung der Bossbeschreibung im Kampf.
 #[test]
