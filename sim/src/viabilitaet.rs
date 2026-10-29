@@ -70,6 +70,7 @@
 use crate::apl::Apl;
 use crate::balance::{self, BalanceConfig, BalanceResult};
 use crate::data::{Boss, TimelineEntry, MAX_LEVEL, SPELLS, SPELL_COUNT};
+use crate::gear::WornValues;
 use crate::objective::{CampaignCoverage, Coverage, PortfolioConstraints};
 use crate::rotation_search::{
     candidates_for, exhaustive_besuchen, exhaustive_messungen, greedy, measure, Candidate,
@@ -109,6 +110,8 @@ pub struct Projektion {
     pub zeilen: Vec<Candidate>,
     /// Höchstlänge der Listen.
     pub max_len: usize,
+    /// Die Ausrüstung, mit der gemessen wurde.
+    pub ausruestung: WornValues,
     /// Wie viele Listen gemessen wurden.
     ///
     /// **Genau [`exhaustive_messungen`] von `zeilen.len()` und `max_len`.**
@@ -125,18 +128,53 @@ impl Projektion {
         self.listen == exhaustive_messungen(self.zeilen.len(), self.max_len)
     }
 
-    /// Eine Zeile für den Bericht.
+    /// Der Geltungsbereich, ausgeschrieben — **nicht nur ein Verweis**.
+    ///
+    /// Ein Beweis ist so viel wert wie seine Projektion: Ohne Budgetgrenze
+    /// heißt `smoulder` in der Projektion der Länge 1 bewiesen dominiert
+    /// (1120,0 gegen 4000,0) und ist bei Länge 3 bezeugt. Wer nur die
+    /// Befund-Spalte liest, darf deshalb nicht „tot an diesem Boss" lesen
+    /// können — der Bereich steht in jeder Zeile mit.
+    #[must_use]
+    pub fn geltungsbereich(&self) -> String {
+        let ausruestung = if self.ausruestung == WornValues::none() {
+            "ohne Ausruestung".to_owned()
+        } else {
+            format!(
+                "mit Ausruestung (CATALYSIS {}, PURITY {}, YIELD {}, ESSENCE {})",
+                self.ausruestung.catalysis,
+                self.ausruestung.purity,
+                self.ausruestung.yield_bonus,
+                self.ausruestung.essence
+            )
+        };
+        format!(
+            "in der Projektion Elite-Zeilen + eigene Zeilen, Laenge <= {}, {ausruestung}, {}",
+            self.max_len, self.boss
+        )
+    }
+
+    /// Eine Zeile für den Bericht: Geltungsbereich und Umfang.
     #[must_use]
     pub fn beschreibung(&self) -> String {
         format!(
-            "Projektion {}: {} Zeilen (Elite + Zauber), Laenge bis {}, {} Listen",
-            self.boss,
+            "{}; {} Zeilen, {} Listen",
+            self.geltungsbereich(),
             self.zeilen.len(),
-            self.max_len,
             self.listen
         )
     }
 }
+
+/// Die Einordnung, die der Bericht einmal im Kopf trägt.
+///
+/// Vom Orchestrator am 2026-10-29 als Auflage zu #946 gesetzt: Die
+/// Dominanz-Aussagen gelten für die Nachbarschaft der Elite, nicht für den
+/// Zauber insgesamt.
+pub const EINORDNUNG: &str = "Die Dominanz-Aussagen gelten fuer die Nachbarschaft der Elite \
+(ihre Zeilen + die eigenen des Zaubers). Die Projektionen des Masterplans (Zauber-Paare, \
+Talent-Paare, Referenz-Ausruestung) baut N3; bis dahin ist \"bewiesen dominiert\" keine \
+Aussage ueber den Zauber insgesamt.";
 
 /// Was „bewiesen dominiert" trägt (AC7).
 ///
@@ -315,6 +353,23 @@ impl Befund {
         matches!(self, Self::BewiesenDominiert(_))
     }
 
+    /// Der Befund, wie er in der Befund-Spalte steht.
+    ///
+    /// **„Bewiesen dominiert" nie ohne Geltungsbereich** (Auflage vom
+    /// 2026-10-29). Die übrigen drei sagen nichts über einen Raum aus, in dem
+    /// der Zauber verliert — sie stehen mit ihrem Namen da.
+    #[must_use]
+    pub fn bezeichnung(&self) -> String {
+        self.art().name().to_owned()
+    }
+
+    /// Der Geltungsbereich, auf dem ein Beweis ruht — nur bei „bewiesen
+    /// dominiert".
+    #[must_use]
+    pub fn geltungsbereich(&self) -> Option<String> {
+        None
+    }
+
     /// Der Beleg als eine Zeile: woraus der Befund folgt.
     #[must_use]
     pub fn beleg(&self) -> String {
@@ -330,12 +385,14 @@ impl Befund {
                 )
             }
             Self::BewiesenDominiert(s) => format!(
-                "zu schwach in seiner Projektion: Schranke {:.1} gegen {:.1} \
-                 (Abstand {:.1}); {}",
+                "zu schwach nur {}: Schranke {:.1} gegen {:.1} (Abstand {:.1}); {} Zeilen, \
+                 {} Listen",
+                s.projektion.geltungsbereich(),
                 s.mit_zauber,
                 s.bester,
                 s.abstand(),
-                s.projektion.beschreibung()
+                s.projektion.zeilen.len(),
+                s.projektion.listen
             ),
             Self::NichtGefunden(Suchgrund::UeberBudget { listen, budget }) => format!(
                 "Such-Befund: Projektion braucht {listen} Listen, Budget {budget}"
@@ -764,6 +821,7 @@ fn aus_der_projektion(
         boss: config.boss.id,
         zeilen: zeilen.clone(),
         max_len,
+        ausruestung: config.worn,
         listen: gemessen,
     };
     let Some((bester_wert, beste)) = bester else {
