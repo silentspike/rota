@@ -1309,6 +1309,32 @@ laufenden 45-s-Balken. **Das macht aus Reagieren Planen.**
 **Normal / Heroisch / Mythisch** je Boss: mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken,
 mehr Punkte. Mit 68 Bossen ergibt das **204 Herausforderungen**.
 
+#### Wie eine Stufe entsteht (Issue #1177)
+
+Eine Stufe ist ein **abgeleiteter Boss**, kein Schalter im Kampf. Aus der Bossdatei und ihrer Stufe
+entsteht ein vollständiger Datensatz; der Kampf rechnet ihn wie jeden anderen.
+
+| Zusage               | Umsetzung                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| mehr Leben           | `hp × hpPermille / 1000` aus `data/difficulty.json`                                                      |
+| härteres Zeitlimit   | `overpressureMs × overpressurePermille / 1000`, abgerundet auf das 10-ms-Raster                          |
+| zusätzliche Mechanik | je Boss in `difficulties.heroic.add` / `.mythic.add` — **ein Baustein je Stufe, kumulativ**, nie ersetzt |
+| mehr Punkte          | die Auszahlung × `pointsPermille / 1000`, nach dem Abstandsfaktor                                        |
+
+- **Kumulativ**: Mythisch trägt die heroische Zutat und legt eine eigene darauf.
+- **Erlaubt sind** Energieleiste, Zähler, Stapel, Wettrennen, Schwächung, Eskalation und weitere
+  Zeitleisten-Einträge. **Nie** das umgekehrte Ziel (es tauscht Sieg und Niederlage) und **nie** die
+  Heilung durch Fehler (11.2: „nur für einzelne Bosse").
+- **Beim umgekehrten Ziel kehrt sich das Zeitlimit um**: Dort ist das Überstehen der Sieg, ein
+  härteres Zeitlimit ist eine **längere** Frist. Die beiden Bosse mit `runaway` überschreiben die
+  Faktoren je Stufe (Leben gleich, Frist 1,1- und 1,2-fach).
+- **Die Faktoren sind vorläufig** (Heroisch 1,3 / 0,9 / 2,0, Mythisch 1,6 / 0,8 / 4,0 für Leben /
+  Zeit / Punkte), abgeleitet und nicht gemessen; die Herleitung steht in `data/difficulty.json`. Der
+  Punkte-Faktor ist so gewählt, dass bei gleichem relativem Vorsprung die höhere Stufe mehr zahlt —
+  die Kurve rechnet im Quadrat, das kürzere Zeitlimit kostet also quadratisch.
+- Spiel (`src/core/difficulty.ts`) und Simulator (`sim/build.rs`) leiten mit derselben Regel ab;
+  `tests/parity/recordings/difficulty-stages.json` hält beide für jeden Boss gegeneinander.
+
 #### Die Schwierigkeit gehört zur INSTANZ, nicht zur Spielerstufe
 
 _Entschieden am 2026-07-29, nachdem der Auftraggeber die Frage stellte, wie sich Normal und Mythisch
@@ -1441,6 +1467,18 @@ Vier Kriterien **nebeneinander**:
 | **Meisterschafts-Schlüssel** | Nur für optionale Geheim-Instanzen. **Nie im Hauptpfad**                                      |
 
 Innerhalb einer freigeschalteten Instanz sind die Bosse **frei wählbar**.
+
+**Umgesetzt (Issue #1177):**
+
+- **Schwierigkeitsstufe je Instanz**: Heroisch öffnet, wenn **jeder** Boss der Instanz auf Normal
+  besiegt ist; Mythisch, wenn jeder auf Heroisch besiegt ist. Die Boss-Wahl bietet nur die offenen
+  Stufen an, je Boss als eigener Knopf unter dem Namen.
+- **Punkte-Schwelle** (`pointsThreshold` in `data/instances.json`): öffnet eine Instanz ohne den
+  Abschluss der vorigen. Gemessen an den **verdienten** Punkten, nicht am Guthaben — Entscheidung
+  des Auftraggebers vom 29.10.: „Instanzen öffnen über die Punkte-Schwelle ohne Ausgeben". Die
+  Schwellen (6000, 12000, 18000, 24000 für Instanz 2 bis 5) sind **vorläufig**; sie liegen über dem
+  bloßen Durchkommen und unter dem, was perfektionierte Normal-Siege der offenen Kämpfe bringen.
+- **Meisterschafts-Schlüssel**: nach V1 (Entscheidung des Auftraggebers vom 29.10.).
 
 ### 12.8 Frust-Vermeidung
 
