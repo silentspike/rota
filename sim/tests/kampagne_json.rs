@@ -16,10 +16,9 @@
 use std::time::Duration;
 
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ComputeRequirement, ConfidenceSpec,
-    CoverageSpec, CpuReservation, CpuRole, DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError,
-    Mission, NetworkRequirement, ProjectionSet, QualityTargets, ReferenceProfile, ResultGuarantee,
-    WorkUnits, REFERENCE_PROFILE_STANDARD,
+    CampaignDefinition, CampaignRunContract, ComputeRequirement, CpuReservation, CpuRole,
+    DateTimeUtc, DeadlinePolicy, HostRequirement, JsonError, NetworkRequirement, ReferenceProfile,
+    ResultGuarantee, WorkUnits, REFERENCE_PROFILE_STANDARD,
 };
 
 const LAPTOP_RECHNET: ComputeRequirement = ComputeRequirement {
@@ -81,16 +80,6 @@ fn kampagne() -> CampaignDefinition {
         },
         target_wall_time: Duration::new(7200, 5),
         canonical_work_budget: WorkUnits(1_234_567),
-        exact_obligations: ProjectionSet { required: 12 },
-        coverage_spec: CoverageSpec { strength: 2 },
-        quality_targets: QualityTargets {
-            minimum_niche_coverage: 0.95,
-            independent_restarts: 8,
-            plateau_work_units: WorkUnits(50_000),
-            maximum_bound_gap: None,
-            confidence_requirement: ConfidenceSpec { level: 0.99 },
-            final_audit: AuditPolicy::ScalarReplayAll,
-        },
     }
 }
 
@@ -133,13 +122,6 @@ fn die_kampagne_schreibt_gueltiges_json_mit_ihren_werten() {
     assert_eq!(v["targetWallTime"]["secs"], 7200);
     assert_eq!(v["targetWallTime"]["nanos"], 5);
     assert_eq!(v["canonicalWorkBudget"], 1_234_567);
-    assert_eq!(v["exactObligations"], 12);
-    assert_eq!(v["coverageStrength"], 2);
-    assert_eq!(v["minimumNicheCoverage"], 0.95);
-    assert_eq!(v["independentRestarts"], 8);
-    assert_eq!(v["plateauWorkUnits"], 50_000);
-    assert_eq!(v["confidence"], 0.99);
-    assert_eq!(v["finalAudit"], "scalarReplayAll");
 
     let hosts = v["referenceProfile"]["hosts"]
         .as_array()
@@ -275,12 +257,6 @@ fn ein_fehlender_wert_wird_null_und_nicht_null_komma_null() {
     let text = kampagne().to_json().expect("gültiger Vertrag");
     let v: serde_json::Value = serde_json::from_str(&text).expect("kein gültiges JSON");
 
-    assert!(
-        v["maximumBoundGap"].is_null(),
-        "Eine fehlende Schranke steht nicht als null im Text: {}",
-        v["maximumBoundGap"]
-    );
-
     let hosts = v["referenceProfile"]["hosts"].as_array().unwrap();
     assert!(
         hosts[1]["guaranteedCpuQuota"].is_null(),
@@ -294,26 +270,13 @@ fn ein_fehlender_wert_wird_null_und_nicht_null_komma_null() {
         "Auch die vorhandene Zusicherung steht als null — dann unterscheidet \
          der Text die beiden Fälle gar nicht."
     );
-
-    // Und eine gesetzte Schranke von 0.0 muss als Zahl erscheinen, nicht als
-    // null. Das ist die Richtung, die beim Schreiben am leichtesten kippt.
-    let mut mit_null = kampagne();
-    mit_null.quality_targets.maximum_bound_gap = Some(0.0);
-    let v2: serde_json::Value =
-        serde_json::from_str(&mit_null.to_json().expect("gültiger Vertrag")).unwrap();
-    assert_eq!(
-        v2["maximumBoundGap"], 0.0,
-        "Eine ausdrücklich verlangte Schranke von 0.0 wurde zu null."
-    );
-    assert!(!v2["maximumBoundGap"].is_null());
 }
 
 /// Der Vertrag ohne Frist schreibt `null` — nicht eine sehr grosse Zahl (AC5).
 #[test]
 fn ohne_frist_steht_null_im_vertrag() {
-    let v0 = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
-    let v: serde_json::Value =
-        serde_json::from_str(&v0.to_json().expect("gültiger Vertrag")).expect("kein gültiges JSON");
+    let v0 = CampaignRunContract::from_campaign(&kampagne());
+    let v: serde_json::Value = serde_json::from_str(&v0.to_json()).expect("kein gültiges JSON");
 
     assert!(
         v["hardDeadline"].is_null(),
@@ -324,12 +287,6 @@ fn ohne_frist_steht_null_im_vertrag() {
     assert_eq!(v["deterministicWorkBudget"], 1_234_567);
     assert_eq!(v["targetWallTime"]["secs"], 7200);
     assert_eq!(v["targetWallTime"]["nanos"], 5);
-    assert_eq!(v["mission"]["kind"], "fullBalance");
-
-    // Die drei Festlegungen stehen im Text, nicht nur im Typ (AC6).
-    assert_eq!(v["runtimeAccounting"]["countsPausedTime"], false);
-    assert_eq!(v["runtimeAccounting"]["countsCoordinatorOutage"], false);
-    assert_eq!(v["runtimeAccounting"]["countsHostWait"], false);
 }
 
 /// Beide Fristarten sind im Text unterscheidbar (AC6).
@@ -339,7 +296,7 @@ fn ohne_frist_steht_null_im_vertrag() {
 /// benannt haben will.
 #[test]
 fn beide_fristarten_stehen_unterscheidbar_im_text() {
-    let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
+    let basis = CampaignRunContract::from_campaign(&kampagne());
 
     let wanduhr = basis.with_hard_deadline(DeadlinePolicy::WallClockUtc {
         deadline: DateTimeUtc {
@@ -350,10 +307,8 @@ fn beide_fristarten_stehen_unterscheidbar_im_text() {
         remaining: Duration::new(7200, 123_456_789),
     });
 
-    let a: serde_json::Value =
-        serde_json::from_str(&wanduhr.to_json().expect("gültiger Vertrag")).unwrap();
-    let b: serde_json::Value =
-        serde_json::from_str(&rechenzeit.to_json().expect("gültiger Vertrag")).unwrap();
+    let a: serde_json::Value = serde_json::from_str(&wanduhr.to_json()).unwrap();
+    let b: serde_json::Value = serde_json::from_str(&rechenzeit.to_json()).unwrap();
 
     assert_eq!(a["hardDeadline"]["kind"], "wallClockUtc");
     assert_eq!(
@@ -367,34 +322,6 @@ fn beide_fristarten_stehen_unterscheidbar_im_text() {
         a["hardDeadline"], b["hardDeadline"],
         "Die beiden Fristarten sehen im Text gleich aus."
     );
-}
-
-/// Alle drei Missionsarten sind im Text unterscheidbar.
-#[test]
-fn jede_mission_steht_unterscheidbar_im_text() {
-    let k = kampagne();
-    let texte: Vec<serde_json::Value> = [
-        Mission::FullBalance,
-        Mission::SingleInstance { instance: 5 },
-        Mission::SingleBoss { boss: "boss-1-2" },
-    ]
-    .into_iter()
-    .map(|m| {
-        let vertrag = CampaignRunContract::from_campaign(&k, m);
-        serde_json::from_str(&vertrag.to_json().expect("gültiger Vertrag"))
-            .expect("kein gültiges JSON")
-    })
-    .collect();
-
-    assert_eq!(texte[0]["mission"]["kind"], "fullBalance");
-    assert_eq!(texte[1]["mission"]["kind"], "singleInstance");
-    assert_eq!(texte[1]["mission"]["instance"], 5);
-    assert_eq!(texte[2]["mission"]["kind"], "singleBoss");
-    assert_eq!(texte[2]["mission"]["boss"], "boss-1-2");
-
-    // Die drei Missionen dürfen nicht denselben Text ergeben.
-    assert_ne!(texte[0]["mission"], texte[1]["mission"]);
-    assert_ne!(texte[1]["mission"], texte[2]["mission"]);
 }
 
 /// Alle JSON-Steuerzeichen, Anführungszeichen, Backslash und nicht-ASCII
@@ -414,74 +341,6 @@ fn namen_mit_steuerzeichen_und_unicode_sind_gueltige_json_strings() {
     let text = host.to_json().expect("endliche Quote");
     let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Hostname");
     assert_eq!(gelesen["name"].as_str(), Some(NAME));
-
-    let vertrag =
-        CampaignRunContract::from_campaign(&kampagne(), Mission::SingleBoss { boss: NAME });
-    let text = vertrag.to_json().expect("endlicher Vertrag");
-    let gelesen: serde_json::Value = serde_json::from_str(&text).expect("JSON-Bossname");
-    assert_eq!(gelesen["mission"]["boss"].as_str(), Some(NAME));
-}
-
-/// Ungültige Zahlen werden nicht zu `null`: Das hieße bei maximumBoundGap,
-/// die Schranke aufzuheben, statt einen fehlerhaften Vertrag zurückzuweisen.
-#[test]
-fn nichtendliche_qualitaetsvorgaben_werden_mit_feldname_abgelehnt() {
-    for wert in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let mut k = kampagne();
-        k.quality_targets.minimum_niche_coverage = wert;
-        assert_eq!(
-            k.to_json(),
-            Err(JsonError::NonFinite {
-                field: "minimumNicheCoverage"
-            })
-        );
-
-        let mut k = kampagne();
-        k.quality_targets.maximum_bound_gap = Some(wert);
-        assert_eq!(
-            k.to_json(),
-            Err(JsonError::NonFinite {
-                field: "maximumBoundGap"
-            })
-        );
-
-        let mut k = kampagne();
-        k.quality_targets.confidence_requirement.level = wert;
-        assert_eq!(
-            k.to_json(),
-            Err(JsonError::NonFinite {
-                field: "confidence"
-            })
-        );
-
-        // Der Laufvertrag ist öffentlich veränderbar. Seine Ausgabe darf
-        // sich deshalb nicht allein auf die vorherige Kampagne verlassen.
-        let basis = CampaignRunContract::from_campaign(&kampagne(), Mission::FullBalance);
-        let mut vertrag = basis;
-        vertrag.minimum_niche_coverage = wert;
-        assert_eq!(
-            vertrag.to_json(),
-            Err(JsonError::NonFinite {
-                field: "minimumNicheCoverage"
-            })
-        );
-        let mut vertrag = basis;
-        vertrag.maximum_bound_gap = Some(wert);
-        assert_eq!(
-            vertrag.to_json(),
-            Err(JsonError::NonFinite {
-                field: "maximumBoundGap"
-            })
-        );
-        let mut vertrag = basis;
-        vertrag.confidence_requirement.level = wert;
-        assert_eq!(
-            vertrag.to_json(),
-            Err(JsonError::NonFinite {
-                field: "confidence"
-            })
-        );
-    }
 }
 
 #[test]

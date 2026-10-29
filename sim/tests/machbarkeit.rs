@@ -6,8 +6,7 @@ use std::time::Duration;
 use rota_sim::hostcaps::{HostCaps, IsaSet};
 use rota_sim::kalibrierung::{Abbruchgrund, Arbeitsart, Profil, Profilschluessel, RateModel};
 use rota_sim::kampagne::{
-    AuditPolicy, CampaignDefinition, CampaignRunContract, ConfidenceSpec, CoverageSpec,
-    DateTimeUtc, DeadlinePolicy, Mission, ProjectionSet, QualityTargets, ReferenceProfile,
+    CampaignDefinition, CampaignRunContract, DateTimeUtc, DeadlinePolicy, ReferenceProfile,
     WorkUnits,
 };
 use rota_sim::machbarkeit::{preflight, CalibratedHost, FeasibilityError, WorkEstimate};
@@ -18,32 +17,17 @@ fn contract(target_ms: u64) -> CampaignRunContract {
 
 /// Die Zielzeit gehört seit #914 zur Kampagne; der Vertrag übernimmt sie.
 fn contract_for(target_wall_time: Duration) -> CampaignRunContract {
-    CampaignRunContract::from_campaign(
-        &CampaignDefinition {
-            profile_version: 1,
-            reference_profile: ReferenceProfile {
-                name: "fixture-only",
-                version: 1,
-                hosts: &[],
-                network: None,
-            },
-            target_wall_time,
-            canonical_work_budget: WorkUnits(1_000_000),
-            exact_obligations: ProjectionSet { required: 1 },
-            coverage_spec: CoverageSpec { strength: 0 },
-            quality_targets: QualityTargets {
-                minimum_niche_coverage: 0.0,
-                independent_restarts: 1,
-                plateau_work_units: WorkUnits(0),
-                maximum_bound_gap: None,
-                confidence_requirement: ConfidenceSpec { level: 0.99 },
-                final_audit: AuditPolicy::ScalarReplayAll,
-            },
+    CampaignRunContract::from_campaign(&CampaignDefinition {
+        profile_version: 1,
+        reference_profile: ReferenceProfile {
+            name: "fixture-only",
+            version: 1,
+            hosts: &[],
+            network: None,
         },
-        Mission::SingleBoss {
-            boss: "fixture-only",
-        },
-    )
+        target_wall_time,
+        canonical_work_budget: WorkUnits(1_000_000),
+    })
 }
 
 fn rate(value: f64) -> RateModel {
@@ -103,7 +87,7 @@ fn work() -> WorkEstimate {
 #[test]
 fn zu_kurze_zielzeit_bricht_ab_und_nennt_alle_drei_auswege() {
     let contract = contract(999);
-    let before = contract.to_json().expect("finite fixture");
+    let before = contract.to_json();
     let profile = profile("fixture", 100.0);
     let error = preflight(&contract, &[work()], &[host(&profile)]).expect_err("too short");
     assert!(matches!(error, FeasibilityError::TimeBudgetExceeded { .. }));
@@ -116,7 +100,7 @@ fn zu_kurze_zielzeit_bricht_ab_und_nennt_alle_drei_auswege() {
     ] {
         assert!(message.contains(path), "missing {path}: {message}");
     }
-    assert_eq!(before, contract.to_json().expect("unchanged fixture"));
+    assert_eq!(before, contract.to_json());
 }
 
 #[test]
@@ -145,12 +129,12 @@ fn weitere_rechner_aendern_eta_aber_nicht_pflichtmenge_oder_vertrag() {
     let first = profile("one", 100.0);
     let second = profile("two", 100.0);
     let contract = contract(500);
-    let before = contract.to_json().expect("finite fixture");
+    let before = contract.to_json();
     assert!(preflight(&contract, &[work()], &[host(&first)]).is_err());
     let estimate = preflight(&contract, &[work()], &[host(&first), host(&second)]).expect("fits");
     assert_eq!(estimate.mandatory_ms, 500.0);
     assert_eq!(estimate.mandatory_work_units, WorkUnits(100));
-    assert_eq!(before, contract.to_json().expect("unchanged fixture"));
+    assert_eq!(before, contract.to_json());
 }
 
 #[test]
