@@ -87,6 +87,12 @@ use crate::stacks::{PendingGain, StackMechanic};
 use crate::sublimation::{shorten_cooldowns, PendingShorten, PendingSlot, SublimationMechanic};
 use crate::time::{snap_up, Millis, GCD_MS, TICK_MS};
 
+// Issue #917: der verdichtete Kampfzustand als Prüfpunkt und der Suchkampf.
+// Ein Untermodul, weil beide an die privaten Felder von `Fight` müssen.
+mod zustand;
+
+pub use zustand::{CompactFightState, SearchFight, Zielwerte};
+
 /// Kampfzustand „laeuft" — der Wert, den `src/core/combat.ts` als
 /// `FIGHT_RUNNING` fuehrt.
 ///
@@ -1063,7 +1069,48 @@ pub struct Fight {
     /// abgeschlossene Handlung und beeinflusst den naechsten Zauber, nicht den
     /// laufenden. Dieselbe Reihenfolge im Spiel (`src/core/combat.ts`).
     events: RuleEvents,
+
+    // -- Entscheidungsphase (#917) --
+    /// Die Würfe beim selben Zeitstempel (#1027, Teil c).
+    ///
+    /// **Ein Feld und keine Variable in `run_with` mehr** (#917): Ein Prüfpunkt
+    /// der inkrementellen Auswertung liegt mitten in einer Entscheidungsphase,
+    /// und wer dort weiterrechnet, muss wissen, wie viele Würfe bei diesem
+    /// Zeitstempel schon liegen. Als Variable wäre der Stand nur im Stapel der
+    /// laufenden Schleife gewesen.
+    nullzeit: Nullzeit,
+    /// Ob die globale Wartezeit zu **Beginn** der laufenden Entscheidungsphase
+    /// bereit war (#917) — die Grundlage der Leerlauf-Zählung.
+    ///
+    /// Aus demselben Grund ein Feld wie `nullzeit`: Nach einem Wurf beim selben
+    /// Zeitstempel lässt sich der Wert nicht mehr aus `gcd_ready_at` ablesen.
+    entscheidung_gcd_bereit: bool,
+    /// Wie viele Ereignisse dieser Kampf abgearbeitet hat (#917, `event_cursor`).
+    ///
+    /// Er rechnet nichts, er zählt: Wie weit ein Prüfpunkt im Ereignisstrom
+    /// liegt, ist die Arbeit, die ein Suffix-Lauf ab dort nicht wiederholt.
+    ereignisse: u32,
+    /// Ob der Kampf das Zählwerk der Prüfung führt (#917, AC5).
+    ///
+    /// `true` ist der Prüfkampf ([`AuditFight`]), und das ist jeder Kampf aus
+    /// [`Fight::new`]. `false` setzt nur [`SearchFight::new`]: Dann bleiben
+    /// `casts`, `damage_by_spell`, `lost_dot_ticks` und `idle_ms` unberührt —
+    /// keine Rechnung liest sie, und ein Suchkampf, der sie trotzdem fortschriebe,
+    /// trüge die Diagnosefelder mit, die nur die Abnahme braucht.
+    fuehrt_pruefung: bool,
+    /// Eine Kennung der unveränderlichen Felder (#917): Ein Prüfpunkt wird nur
+    /// in einen Kampf mit derselben Konfiguration geladen. Einmal beim Aufbau
+    /// gerechnet, siehe `zustand::konstant_kennung`.
+    kennung: u64,
 }
+
+/// Der Prüfkampf (#917, AC5): der volle Kampf mit Protokoll, Zählwerk je Zauber
+/// und Paritäts-Prüfsummen.
+///
+/// Er ist [`Fight`] selbst, wie [`Fight::new`] ihn anlegt — Elites, Fehlerfälle
+/// und Stichproben laufen so, und jede Paritäts-Aufzeichnung auch. Das
+/// Gegenstück ohne Diagnosefelder ist [`SearchFight`].
+pub type AuditFight = Fight;
 
 /// Der Widerstands-Faktor **je Zauber** (Issue #328).
 ///
@@ -1365,8 +1412,14 @@ impl Fight {
             stack_gains: std::rc::Rc::default(),
             pending_shorten: PendingSlot::default(),
             sublimation_uses: std::rc::Rc::default(),
+            nullzeit: Nullzeit::neu(NULLZEIT_BUDGET),
+            entscheidung_gcd_bereit: false,
+            ereignisse: 0,
+            fuehrt_pruefung: true,
+            kennung: 0,
         };
         fight.register_school_mechanics();
+        fight.kennung = fight.konstant_kennung();
         fight
     }
 
@@ -1498,6 +1551,16 @@ impl Fight {
         self.run_with(apl, NULLZEIT_BUDGET)
     }
 
+    /// Rechnet den Kampf mit einer beliebigen Entscheidung durch (#917).
+    ///
+    /// Dieselbe Schleife wie [`Fight::run_apl`]; gebraucht für Entscheidungen,
+    /// die eine Liste umhüllen — etwa eine, die vor jeder Entscheidung den
+    /// Zustand festhält, um Such- und Prüfkampf Schritt für Schritt zu
+    /// vergleichen.
+    pub fn run_mit<D: Decide + ?Sized>(&mut self, decider: &D) -> RunResult {
+        self.run_with(decider, NULLZEIT_BUDGET)
+    }
+
     /// Dasselbe mit einem anderen Nullzeit-Budget (#1027, Teil c).
     ///
     /// **Nur für Prüfungen.** Mit den heutigen Zauberdaten lässt sich kein
@@ -1517,7 +1580,7 @@ impl Fight {
     }
 
     fn run_with<D: Decide + ?Sized>(&mut self, decider: &D, nullzeit_budget: u32) -> RunResult {
-        let mut nullzeit = Nullzeit::neu(nullzeit_budget);
+        self.nullzeit = Nullzeit::neu(nullzeit_budget);
         // Der Verfall laeuft ab Kampfbeginn, unabhaengig davon, ob ueberhaupt
         // Ressource da ist — so macht es die Referenz, und das ist auch richtig:
         // Der Takt haengt am Kampf, nicht am Fuellstand.
@@ -1534,7 +1597,39 @@ impl Fight {
         // Die erste Entscheidung faellt bei 0.
         self.queue.push(0, EventKind::Wakeup);
 
-        while let Some(now) = self.queue.peek_time() {
+        self.kampfschleife(decider, false);
+
+        // Der Diagnosepfad (#896). **Hier und nicht am Anfang:** Gezaehlt wird,
+        // was fertig gerechnet ist. Ein Kampf, der oben abbricht, gehoert nicht
+        // in einen Durchsatz — sonst zaehlte der Nenner Arbeit mit, die nie
+        // stattgefunden hat.
+        #[cfg(feature = "diagnostics")]
+        crate::diagnostics::note_fight();
+
+        self.result()
+    }
+
+    /// Die Kampfschleife: je Ereigniszeitpunkt die drei Phasen aus dem
+    /// Modulkopf, bis die Zeit abläuft, der Boss fällt (bei `stop_on_kill`) oder
+    /// der Spieler stirbt.
+    ///
+    /// **Seit #917 eine eigene Funktion, und zwar mit einem zweiten Einstieg.**
+    /// `vor_entscheidung = true` heißt: Der Zustand steht schon vor einer
+    /// Entscheidung — geladen aus einem Prüfpunkt der inkrementellen Auswertung
+    /// ([`SearchFight::fortsetzen`]). Dann beginnt die Schleife mit Phase 3 dieses
+    /// Zeitpunkts, ohne Phase 1 und 2 ein zweites Mal zu rechnen; danach läuft
+    /// sie wie jede andere. Ein Suffix-Lauf rechnet damit **dieselben Zeilen** wie
+    /// ein Vollkampf, nicht eine zweite Fassung davon.
+    fn kampfschleife<D: Decide + ?Sized>(&mut self, decider: &D, mut vor_entscheidung: bool) {
+        loop {
+            if vor_entscheidung {
+                vor_entscheidung = false;
+                self.entscheidungsphase(decider);
+                continue;
+            }
+            let Some(now) = self.queue.peek_time() else {
+                break;
+            };
             if now >= self.duration_ms {
                 break;
             }
@@ -1546,6 +1641,7 @@ impl Fight {
             // einen halb fortgeschriebenen Zustand.
             while self.queue.peek_time() == Some(now) {
                 let event = self.queue.pop().expect("peek_time hat bestaetigt");
+                self.ereignisse += 1;
                 self.apply(event.kind);
             }
 
@@ -1581,96 +1677,108 @@ impl Fight {
             self.advance_race(now);
             self.check_phase();
 
-            // Phase 3 — die Entscheidung des Spielers.
-            //
-            // **Nach jedem Wurf beim selben Zeitstempel erneut, bis die
-            // Rotation nichts mehr wählt — und auch während einer laufenden
-            // Wartezeit** (#1027, Entscheidungsmodell des Orchestrators vom
-            // 2026-10-28). Das ist, was das Spiel einem Spieler erlaubt
-            // (`Session.tick` arbeitet alle Drücke eines Takts ab, QUENCH sperrt
-            // keine Wartezeit), und dieselbe Schleife wie `driveRotation` in
-            // `src/devtools/reference-run.ts`:
-            //
-            //   (a) nach QUENCH oder dem Wurf, den SUBLIME befreit, wählt die
-            //       Rotation beim selben Zeitstempel weiter;
-            //   (b) während einer Wartezeit kommt ein Zauber ohne Wartezeit
-            //       zum Zug — `is_ready` sperrt dann alle anderen;
-            //   (c) mehr als `nullzeit_budget` Würfe beim selben Zeitstempel
-            //       sind ein Nullzeit-Zyklus und brechen ab.
-            //
-            // Bis dahin entschied der Kampf nur bei bereiter Wartezeit und
-            // einmal je Zeitpunkt, nach QUENCH also erst einen Takt später.
-            //
-            // **Ein gewählter Zauber, der nicht bereit ist, heißt warten** —
-            // wie im Spiel, wo `Combat.cast` den Druck abweist. `cast` selbst
-            // prüft nichts (die Aufrufer prüfen vorher); eine Rotation, die
-            // einen Zauber im GCD zurückgäbe, wirkte ihn sonst.
-            let gcd_bereit = self.gcd_ready_at <= now;
-            while let Some(index) = decider.decide(self) {
-                if !self.is_ready(index) {
-                    break;
-                }
-                if let Err(zyklus) = nullzeit.wurf(now) {
-                    panic!("{zyklus}");
-                }
-                self.cast(index);
-            }
-            let gewirkt = nullzeit.wuerfe_bei(now) > 0;
-            // **Nach einem Wurf, nach dem die Wartezeit bereit bleibt, ein
-            // Weckruf im nächsten Takt** (#1027, PR #1135). Er entscheidet dort
-            // nichts Neues — beim selben Zeitstempel hat die Rotation schon
-            // „warten" gesagt, und was sich danach ändert, weckt selbst. Er
-            // trägt den Leerlauf: Der Takt des Wurfs ist kein leerer Takt, die
-            // danach schon, und gezählt wird ab der nächsten Entscheidung.
-            if gewirkt && self.gcd_ready_at <= now {
-                let naechster_takt = snap_up(now + TICK_MS);
-                if naechster_takt < self.duration_ms {
-                    self.queue.push(naechster_takt, EventKind::Wakeup);
-                }
-            }
-            let gewartet = gcd_bereit && !gewirkt;
+            // Phase 3 — die Entscheidung des Spielers ([`Fight::entscheidungsphase`]).
+            // Ob die Wartezeit JETZT bereit ist, trägt die Leerlauf-Zählung; es
+            // steht im Zustand, damit ein Prüfpunkt mitten in der Phase es kennt.
+            self.entscheidung_gcd_bereit = self.gcd_ready_at <= now;
+            self.entscheidungsphase(decider);
+        }
+    }
 
-            // Der Trace-Hash (#896), an derselben Stelle wie im Abspiel-Pfad:
-            // nach der Entscheidung, wenn der Takt fertig ist.
-            //
-            // **Der Schalter wird VOR `checksum_at` geprueft.** Als Argument
-            // ausgewertet, liefe die Pruefsumme auch bei ausgeschalteter
-            // Erfassung mit — und AC6 dieses Issues verlangt, dass die
-            // Instrumentierung im Suchpfad nichts kostet.
-            #[cfg(feature = "diagnostics")]
-            if crate::diagnostics::is_trace_enabled() {
-                let hash = self.checksum_at(now);
-                crate::diagnostics::note_state(hash);
+    /// Phase 3 eines Zeitpunkts: die Entscheidung des Spielers, der Weckruf und
+    /// die Leerlauf-Zählung.
+    ///
+    /// Herausgelöst aus der Kampfschleife (#917), damit ein geladener Prüfpunkt
+    /// genau hier weiterrechnet. Jede Zeile steht in der Reihenfolge, in der sie
+    /// vorher in der Schleife stand.
+    fn entscheidungsphase<D: Decide + ?Sized>(&mut self, decider: &D) {
+        let now = self.time;
+        // Phase 3 — die Entscheidung des Spielers.
+        //
+        // **Nach jedem Wurf beim selben Zeitstempel erneut, bis die
+        // Rotation nichts mehr wählt — und auch während einer laufenden
+        // Wartezeit** (#1027, Entscheidungsmodell des Orchestrators vom
+        // 2026-10-28). Das ist, was das Spiel einem Spieler erlaubt
+        // (`Session.tick` arbeitet alle Drücke eines Takts ab, QUENCH sperrt
+        // keine Wartezeit), und dieselbe Schleife wie `driveRotation` in
+        // `src/devtools/reference-run.ts`:
+        //
+        //   (a) nach QUENCH oder dem Wurf, den SUBLIME befreit, wählt die
+        //       Rotation beim selben Zeitstempel weiter;
+        //   (b) während einer Wartezeit kommt ein Zauber ohne Wartezeit
+        //       zum Zug — `is_ready` sperrt dann alle anderen;
+        //   (c) mehr als `nullzeit_budget` Würfe beim selben Zeitstempel
+        //       sind ein Nullzeit-Zyklus und brechen ab.
+        //
+        // Bis dahin entschied der Kampf nur bei bereiter Wartezeit und
+        // einmal je Zeitpunkt, nach QUENCH also erst einen Takt später.
+        //
+        // **Ein gewählter Zauber, der nicht bereit ist, heißt warten** —
+        // wie im Spiel, wo `Combat.cast` den Druck abweist. `cast` selbst
+        // prüft nichts (die Aufrufer prüfen vorher); eine Rotation, die
+        // einen Zauber im GCD zurückgäbe, wirkte ihn sonst.
+        let gcd_bereit = self.entscheidung_gcd_bereit;
+        while let Some(index) = decider.decide(self) {
+            if !self.is_ready(index) {
+                break;
             }
-
-            self.schedule_decision_wakeup(decider, now);
-
-            // Gewartet, obwohl gewirkt werden durfte. Das Spiel zaehlt dafuer
-            // je leerem Takt 10 ms; hier ist es dieselbe Spanne am Stueck, bis
-            // zur **naechsten Entscheidung**.
-            //
-            // **Erst nach dem Weckruf gemessen** (#1027). Hier stand die
-            // Spanne bis zum naechsten BEREITS eingereihten Ereignis, gemessen
-            // vor `schedule_decision_wakeup`. Lag der Weckruf davor, entschied
-            // der Kampf dort erneut, wartete wieder und zaehlte bis zum selben
-            // Ereignis noch einmal: `kindle if time >= 5000` ergab 6000 statt
-            // 5000 ms (`tests/entscheidung_nach_gcd_freiem_wurf.rs`), die
-            // Takt-Referenz aus `examples/e1027-operator-measure.rs` mit einem
-            // Weckruf an jedem Takt 1.846.410 ms in 30 s.
-            if gewartet {
-                let next = self.queue.peek_time().unwrap_or(self.duration_ms);
-                self.idle_ms += next.min(self.duration_ms) - now;
+            if let Err(zyklus) = self.nullzeit.wurf(now) {
+                panic!("{zyklus}");
+            }
+            self.cast(index);
+        }
+        let gewirkt = self.nullzeit.wuerfe_bei(now) > 0;
+        // **Nach einem Wurf, nach dem die Wartezeit bereit bleibt, ein
+        // Weckruf im nächsten Takt** (#1027, PR #1135). Er entscheidet dort
+        // nichts Neues — beim selben Zeitstempel hat die Rotation schon
+        // „warten" gesagt, und was sich danach ändert, weckt selbst. Er
+        // trägt den Leerlauf: Der Takt des Wurfs ist kein leerer Takt, die
+        // danach schon, und gezählt wird ab der nächsten Entscheidung.
+        if gewirkt && self.gcd_ready_at <= now {
+            let naechster_takt = snap_up(now + TICK_MS);
+            if naechster_takt < self.duration_ms {
+                self.queue.push(naechster_takt, EventKind::Wakeup);
             }
         }
+        let gewartet = gcd_bereit && !gewirkt;
 
-        // Der Diagnosepfad (#896). **Hier und nicht am Anfang:** Gezaehlt wird,
-        // was fertig gerechnet ist. Ein Kampf, der oben abbricht, gehoert nicht
-        // in einen Durchsatz — sonst zaehlte der Nenner Arbeit mit, die nie
-        // stattgefunden hat.
+        // Der Trace-Hash (#896), an derselben Stelle wie im Abspiel-Pfad:
+        // nach der Entscheidung, wenn der Takt fertig ist.
+        //
+        // **Der Schalter wird VOR `checksum_at` geprueft.** Als Argument
+        // ausgewertet, liefe die Pruefsumme auch bei ausgeschalteter
+        // Erfassung mit — und AC6 dieses Issues verlangt, dass die
+        // Instrumentierung im Suchpfad nichts kostet.
+        //
+        // **Nur im Prüfkampf** (#917, AC5): Die Paritäts-Prüfsumme rührt
+        // `casts` und `lostDotTicks` ein, die ein Suchkampf nicht führt — dort
+        // ergäbe sie eine Spur, die keinem Prüfkampf gleicht.
         #[cfg(feature = "diagnostics")]
-        crate::diagnostics::note_fight();
+        if self.fuehrt_pruefung && crate::diagnostics::is_trace_enabled() {
+            let hash = self.checksum_at(now);
+            crate::diagnostics::note_state(hash);
+        }
 
-        self.result()
+        self.schedule_decision_wakeup(decider, now);
+
+        // Gewartet, obwohl gewirkt werden durfte. Das Spiel zaehlt dafuer
+        // je leerem Takt 10 ms; hier ist es dieselbe Spanne am Stueck, bis
+        // zur **naechsten Entscheidung**.
+        //
+        // **Erst nach dem Weckruf gemessen** (#1027). Hier stand die
+        // Spanne bis zum naechsten BEREITS eingereihten Ereignis, gemessen
+        // vor `schedule_decision_wakeup`. Lag der Weckruf davor, entschied
+        // der Kampf dort erneut, wartete wieder und zaehlte bis zum selben
+        // Ereignis noch einmal: `kindle if time >= 5000` ergab 6000 statt
+        // 5000 ms (`tests/entscheidung_nach_gcd_freiem_wurf.rs`), die
+        // Takt-Referenz aus `examples/e1027-operator-measure.rs` mit einem
+        // Weckruf an jedem Takt 1.846.410 ms in 30 s.
+        //
+        // Der Leerlauf gehört zum Zählwerk der Prüfung (#917, AC5).
+        if gewartet && self.fuehrt_pruefung {
+            let next = self.queue.peek_time().unwrap_or(self.duration_ms);
+            self.idle_ms += next.min(self.duration_ms) - now;
+        }
     }
 
     /// Spielt eine aufgezeichnete Runde ab (GAME-DESIGN 18.4).
@@ -2142,6 +2250,11 @@ impl Fight {
         // Nur die Folge, nicht die Anmeldungen: Ein neuer Durchgang behaelt
         // seine Empfaenger und beginnt lediglich wieder bei null Ereignissen.
         self.events.clear_sequence();
+        // Die Entscheidungsphase (#917). `fuehrt_pruefung` bleibt: Es ist die
+        // Art des Kampfes, kein Stand eines Durchgangs.
+        self.nullzeit = Nullzeit::neu(NULLZEIT_BUDGET);
+        self.entscheidung_gcd_bereit = false;
+        self.ereignisse = 0;
     }
 
     /// Plant den ersten Anstieg der Energieleiste ein, falls der Boss eine hat.
@@ -4629,7 +4742,9 @@ impl Fight {
             // ("der Verkuerzer wurde nie gewirkt — die Probe hat keinen
             // Traeger"). Bei einem Kanalzauber haette sie immer 0 gemeldet und
             // damit einen laufenden Zauber fuer nie gewirkt gehalten.
-            self.casts[index] += 1;
+            if self.fuehrt_pruefung {
+                self.casts[index] += 1;
+            }
             if spell.triggers_gcd && !self.take_free_gcd() {
                 self.gcd_ready_at = snap_up(now + self.gcd_length());
                 self.queue.push(self.gcd_ready_at, EventKind::Wakeup);
@@ -4737,7 +4852,10 @@ impl Fight {
         let spell: &Spell = &SPELLS[index];
         let now = self.time;
 
-        self.casts[index] += 1;
+        // Das Zählwerk der Prüfung (#917, AC5) — keine Rechnung liest es.
+        if self.fuehrt_pruefung {
+            self.casts[index] += 1;
+        }
 
         // **Wirkt dieser Wurf zweimal?** (CONDENSE, Issue #480.)
         //
@@ -5008,7 +5126,9 @@ impl Fight {
                 // Ticks verloren geht, ist die Kennzahl, an der die Fehleranalyse
                 // den haeufigsten Anfaengerfehler festmacht.
                 let remaining = self.dot_expires_at[index].unwrap_or(now) - now;
-                self.lost_dot_ticks[index] += remaining / self.dot_interval(&dot);
+                if self.fuehrt_pruefung {
+                    self.lost_dot_ticks[index] += remaining / self.dot_interval(&dot);
+                }
             }
             self.dot_generation[index] = self.dot_generation[index].wrapping_add(1);
             // **Die Dauer bleibt unangetastet** (GAME-DESIGN 6.7). Tempo macht
@@ -5135,7 +5255,9 @@ impl Fight {
             return amount;
         }
         self.book_progress(amount, true);
-        self.damage_by_spell[index] += amount;
+        if self.fuehrt_pruefung {
+            self.damage_by_spell[index] += amount;
+        }
         self.log.push(self.time, kind, index as u8, amount);
         // **Hier und nur hier** speist Weg 3 (Issue #79). Jeder ausgeteilte
         // Schaden laeuft durch diese Funktion — Sofortschaden, Entladung und
@@ -5249,6 +5371,25 @@ impl Fight {
     #[must_use]
     pub fn damage(&self) -> u32 {
         self.damage
+    }
+
+    /// Wie viele Ereignisse dieser Kampf bisher abgearbeitet hat (#917).
+    ///
+    /// Der Ereigniszeiger eines Prüfpunkts: Ein Suffix-Lauf ab dort wiederholt
+    /// diese Ereignisse nicht.
+    #[must_use]
+    pub fn ereignisse(&self) -> u32 {
+        self.ereignisse
+    }
+
+    /// Wann das nächste eingeplante Ereignis fällig ist (#917).
+    ///
+    /// Gegen diesen Wert prüft [`Fight::schedule_decision_wakeup`], ob ein
+    /// Weckruf eingeplant wird — wer vorhersagen will, wann der Kampf als
+    /// Nächstes entscheidet, braucht genau ihn.
+    #[must_use]
+    pub(crate) fn naechstes_ereignis(&self) -> Option<Millis> {
+        self.queue.peek_time()
     }
 
     /// Ob ein Zauber jetzt gewirkt werden kann: eigene Abklingzeit **und**

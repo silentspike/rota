@@ -65,6 +65,8 @@ pub mod austausch;
 pub mod balance;
 // Issue #118: die Suche nach dem besten Aufbau.
 pub mod best_build;
+// Issue #917: Bitmengen und kleine Listen ohne feste Breite.
+pub mod bitmenge;
 // Issue E3-5: Verstaerkungen und Synergie-Fenster.
 pub mod buffs;
 // Issue #959: die Werte-Deckel je Wirkgroesse, als Tabelle.
@@ -95,6 +97,8 @@ pub mod gear_balance;
 pub mod haste;
 // Issue #912: was ein Rechner meldet — und was er wirklich leistet.
 pub mod hostcaps;
+// Issue #917: inkrementelle Auswertung — der Startpunkt wird berechnet.
+pub mod inkrementell;
 // Issue #932: kooperative Laufzeitsteuerung zwischen vollständigen Kämpfen.
 pub mod drosselung;
 // Issue #912: was dieser Rechner je Arbeitsart leistet, gemessen.
