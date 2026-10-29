@@ -780,8 +780,9 @@ fn randlauf(config: &BalanceConfig, apl: &Apl, purity: u32) -> Result<Rand, Verw
 /// Verglichen wird Eintrag für Eintrag, ohne die Sieg-Einträge (der Sieg ist
 /// das, was der Krit verschieben darf). Zeitpunkt, Art und Zauber müssen
 /// übereinstimmen; ein Treffer muss zu seinem Gegenstück passen
-/// (`mit ≈ ohne · krit_faktor`, bis auf die Rundung je Teilbetrag); jeder
-/// andere Eintrag muss gleich sein.
+/// (`mit ≈ ohne · krit_faktor`, bis auf die Rundung je Teilbetrag, oder
+/// `mit == ohne` für Schaden ohne Krit-Wurf); jeder andere Eintrag muss gleich
+/// sein.
 ///
 /// **Das ist eine Nachprüfung, kein Beweis.** Zwei Ränder, die übereinstimmen,
 /// belegen nicht, dass jeder der `2ⁿ` Ausgänge dieselbe Trefferfolge hat. Sie
@@ -820,7 +821,17 @@ pub fn randabgleich(ohne: &Rand, mit: &Rand, krit_faktor: f64) -> Result<(), Ver
             // verdoppelt); je Teil weicht die Rundung um höchstens einen
             // halben Punkt vor und nach dem Faktor ab.
             let toleranz = 2.0 * krit_faktor + 1.0;
-            if (f64::from(y.value) - f64::from(x.value) * krit_faktor).abs() > toleranz {
+            let skaliert =
+                (f64::from(y.value) - f64::from(x.value) * krit_faktor).abs() <= toleranz;
+            // **Oder er kritet gar nicht** (#920): PYROCLASM bucht den Rest der
+            // laufenden Brände über `deal` ohne Krit-Faktor
+            // (`consume_active_dots` in `Fight::cast`). Ein Betrag, der in
+            // beiden Rändern gleich ist, hängt nicht am Krit — für die
+            // Linearität ist er eine Konstante. Gemessen am 29.10. auf node3:
+            // Ohne diese Zeile verweigerte die Suche über 21 Bosse 211 Listen,
+            // jede mit PYROCLASM.
+            let ohne_krit = y.value == x.value;
+            if !skaliert && !ohne_krit {
                 return abweichung(i, "der Betrag passt nicht zum Krit-Faktor");
             }
         } else if x.value != y.value {
