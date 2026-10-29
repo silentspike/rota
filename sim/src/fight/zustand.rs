@@ -649,6 +649,7 @@ impl SearchFight {
             log_capacity: 0,
             ..config
         });
+        kampf.fuehrt_pruefung = false;
         Self { kampf }
     }
 
