@@ -464,7 +464,30 @@ fn text_posten(ergebnisse: &[Pruefung], sekunden: f64) -> Vec<String> {
         sekunden,
         summen.iter().map(|q| q.kaempfe).sum::<u64>()
     ));
+    out.push(stapel_zeile(ergebnisse));
     out
+}
+
+/// Die Projektionen aller Kombinationen als Stapel — für den Auslöser von
+/// #971 („Stapel ab 50 000 Kandidaten") die Größe des größten, nicht nur die
+/// Summe.
+fn stapel_zeile(ergebnisse: &[Pruefung]) -> String {
+    let mut projektionen = 0;
+    let mut listen = 0;
+    let mut groesste: (u64, &str) = (0, "-");
+    for p in ergebnisse {
+        let s = p.stapel();
+        projektionen += s.projektionen;
+        listen += s.listen;
+        if s.groesste > groesste.0 {
+            groesste = (s.groesste, p.kombination.boss.id);
+        }
+    }
+    format!(
+        "   Befunde: {projektionen} erschoepfende Projektionen mit zusammen {listen} Listen, \
+         die groesste {} Listen ({})",
+        groesste.0, groesste.1
+    )
 }
 
 fn text_lauf(ergebnisse: &[Pruefung], rahmen: &Rahmen, sekunden: f64, frei: bool) -> Vec<String> {
@@ -599,6 +622,7 @@ fn posten_markdown(ergebnisse: &[Pruefung], sekunden: f64) -> String {
             )
         }
     );
+    let _ = writeln!(md, "{}\n", stapel_zeile(ergebnisse).trim());
     let _ = writeln!(
         md,
         "| Teil | Wanduhr s | Anteil | Kaempfe | Durchgaenge | Auswertungen |"
@@ -733,12 +757,14 @@ fn json_kombination(p: &Pruefung) -> String {
         })
         .collect();
     let posten: Vec<String> = p.posten.iter().map(json_posten).collect();
+    let stapel = p.stapel();
     let zahl = |t: Option<u32>| t.map_or(-1_i64, i64::from);
     format!(
         "{{\"boss\":{:?},\"stufe\":{:?},\"zauberVergleich\":{},\
          \"feasibility\":{{\"ziel\":\"{:?}\",\"ausgang\":\"{:?}\",\"won\":{},\"limitMs\":{},\"killTimeMs\":{},\
          \"winTimeMs\":{},\"reserveMs\":{},\"reserveShare\":{:?},\"ringRest\":{},\"hpShare\":{:?}}},\
-         \"achievements\":[{}],\"shippable\":{},\"posten\":[{}]}}",
+         \"achievements\":[{}],\"shippable\":{},\"posten\":[{}],\
+         \"stapel\":{{\"projektionen\":{},\"listen\":{},\"groesste\":{}}}}}",
         p.kombination.boss.id,
         p.kombination.stufe.id(),
         json_vergleich(p),
@@ -754,7 +780,10 @@ fn json_kombination(p: &Pruefung) -> String {
         f.hp_share,
         achievements.join(","),
         p.auslieferbar(),
-        posten.join(",")
+        posten.join(","),
+        stapel.projektionen,
+        stapel.listen,
+        stapel.groesste
     )
 }
 

@@ -361,14 +361,13 @@ pub fn feasibility_gegen(boss: &'static Boss, apl: &Apl, limit_ms: Option<Millis
             died: fight.player_dead(),
             died_at_ms,
         },
-        // STAND VOR #891 N1: Der Ring auf null gilt als Sieg, auch bei `runaway`.
-        WinCondition::RingDepleted,
+        ziel,
     );
     let gewonnen = ausgang.is_win();
     let sieg_ms = match (gewonnen, ziel) {
         (false, _) => None,
         (true, WinCondition::RingDepleted) => result.killed_at_ms,
-        (true, WinCondition::SurviveTimer) => result.killed_at_ms,
+        (true, WinCondition::SurviveTimer) => Some(limit),
     };
     let ring_rest = boss.hp.saturating_sub(result.damage);
     let reserve_ms = if ziel.is_inverted() {
