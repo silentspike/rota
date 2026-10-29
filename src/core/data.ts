@@ -36,6 +36,8 @@ import {
   SPIELER_PFLICHT,
   STUFEN_PFLICHT,
   ZAUBER_PFLICHT,
+  BELOHNUNG_PFLICHT,
+  INSTANZ_PFLICHT,
 } from './pflichtfelder.js';
 import { BUFF_KIND_CAPACITY } from '../combat/schools/buffs.js';
 
@@ -2792,6 +2794,9 @@ export interface InstanceDef {
  * ein Abbruch ehrlicher als eine Auswahl, die stillschweigend leer bleibt.
  */
 export const INSTANCES: readonly InstanceDef[] = (() => {
+  // Zuerst, was `build.rs` zwingend liest (#1055) — Abbruch wie in der
+  // ganzen Funktion: Die Instanzen sind die Welt, kein Datensatz unter vielen.
+  abbrechenBeiLuecke(rawInstances, INSTANZ_PFLICHT, 'data/instances.json');
   const roh = rawInstances as { instances?: unknown[] };
   const alle: InstanceDef[] = [];
   const gesehen = new Set<string>();
@@ -3399,6 +3404,10 @@ export const TALENTS: readonly TalentDef[] = (() => {
 })();
 
 export const REWARD: RewardDef = (() => {
+  // Zuerst, was `build.rs` zwingend liest (#1055): Ein fehlendes Feld fiel bis
+  // dahin auf 0 und meldete sich erst über eine Wertprüfung weiter unten — ohne
+  // zu sagen, dass es fehlt.
+  abbrechenBeiLuecke(rawReward, BELOHNUNG_PFLICHT, 'data/player/reward.json');
   const roh = rawReward as Record<string, unknown>;
   const falloffPerMille = Array.isArray(roh['falloffPerMille'])
     ? (roh['falloffPerMille'] as unknown[]).map((x) => number(x, 0))

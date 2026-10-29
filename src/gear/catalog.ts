@@ -31,6 +31,7 @@
  * die `affixKinds` nennen nur die Affixe.
  */
 import rawItems from '../../data/items.json';
+import { abbrechenBeiLuecke, GEGENSTAND_PFLICHT } from '../core/pflichtfelder.js';
 import {
   distributeBudget,
   MAX_ITEM_LEVEL,
@@ -153,6 +154,11 @@ export interface ItemDef {
  * gehört dem Auftraggeber. Sie steht deshalb in den Daten und nicht im Code:
  * Der Wechsel ist ein Zahlenwert, kein Umbau.
  */
+// **Zuerst, was `build.rs` von der Datei zwingend liest** (#1055), mit Feld
+// und Datei im Wortlaut von `build.rs`. Harter Abbruch wie unten: Die Datei
+// ist eine Voraussetzung, keine Inhaltsdatei.
+abbrechenBeiLuecke(rawItems, GEGENSTAND_PFLICHT, 'data/items.json');
+
 export const DROP_CHANCE_PER_MILLE: number = (() => {
   const wert = Math.trunc(
     Number((rawItems as { dropChancePerMille?: unknown }).dropChancePerMille),
