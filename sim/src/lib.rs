@@ -87,6 +87,8 @@ pub mod engpass;
 pub mod event;
 pub mod factors;
 pub mod fight;
+// Issue #919 AC6: der Fingerabdruck eines Balance-Ergebnisses, über jedes Feld.
+pub mod fingerabdruck;
 pub mod fortschritt;
 pub mod gear;
 // Issue #118: die Balance-Messung der Ausruestung.

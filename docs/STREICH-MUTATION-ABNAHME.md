@@ -11,6 +11,14 @@ er die Quellen hochlädt und die er unverändert durchreicht. In keinem dieser
 Fälle lief ein Compiler. Der Durchgang endet dann mit NICHT GELAUFEN (Exit 2),
 das Feld steht als ABBRUCH im Nachweis, und die Daten sind zurückgestellt.
 
+Nur Exit 75, die Absage des Dienstes, wird vorher wiederholt: nach 120 s, höchstens
+10 Versuche je Schritt, in Nullprobe, Vorproben und Feldern gleich. Auf keinem
+Weg zu 75 bleibt ein Auftrag aktiv (gelesen in der installierten v2-Fassung
+20261004-r30-approved); ein neuer Versuch stellt also keinen zweiten daneben. Jeder Abweis steht mit Zeit und Meldung in der Ausgabe (`lauf.log`), in
+`service_refusals` des Nachweises und mit der vollen Antwort in
+`<stufe>.abgewiesen.log`. Erst nach dem zehnten folgt NICHT GELAUFEN. Die übrigen
+Ausgänge enden sofort; 70 kann einen zurückgehaltenen Auftrag hinterlassen.
+
 Jeder neue Durchgang schreibt neben dem Bericht einen JSON-Nachweis und ein
 Protokollverzeichnis. Für **jedes** Feld stehen dort tatsächliche Mutationen,
 Bau-Exit, Rust- und TS-Status, Zahl ausgeführter Fälle, getrennte Fehlernamen und
@@ -90,7 +98,8 @@ gemessen wurde also nicht im Fenster): Nullprobe 6,9 min (Bau 70 s, Rust 132 s,
 TS 211 s), BAU-Vorprobe 10 min (die TS-Suite brauchte bei gebrochenem Datensatz
 594 s), ROT-Vorprobe 6,5 min, die zwei Felder 2,8 und 3,9 min. Für 60 Felder
 ergibt das rund 3,2 bis 4,3 Stunden. Eine Stufe, die hängt, läuft bis zum
-Timeout von 1800 s; dann endet der Durchgang.
+Timeout von 1800 s; dann endet der Durchgang. Die Grenze gilt je Versuch, die
+Wartezeit nach Exit 75 zählt nicht mit (höchstens 9 × 120 s = 18 min je Schritt).
 
 Der Checkout ist für den Bau-Dienst ein neuer Arbeitsbereich. Nach dem Lauf wird
 er mit `git worktree remove` entfernt; der Bereich auf dem Server gehört danach

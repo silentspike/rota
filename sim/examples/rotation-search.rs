@@ -403,6 +403,101 @@ fn kreuzvergleich(gefundene: &[Gefunden]) {
     urteil_ueber_die_tiefe(&fremde_verluste);
 }
 
+/// Die spielbaren Zauber, als Indizes in `SPELLS`.
+///
+/// **Nur spielbare Zauber.** Ein Pruef-Zauber, der gar nicht zur Wahl stand,
+/// als „nie gewirkt" zu melden, waere eine Zahl, die etwas anderes zaehlt als
+/// sie behauptet — sie wuerde die Zahl der toten Zauber um einen zu hoch
+/// ausweisen.
+fn spielbare_zauber() -> Vec<usize> {
+    (0..rota_sim::SPELL_COUNT)
+        .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
+        .collect()
+}
+
+/// Wie oft jeder Zauber im Lauf einer Liste an einem Boss gewirkt wurde.
+///
+/// Welche Zauber kamen im Lauf vor — nicht: welche stehen in der Liste. Eine
+/// Funktion fuer die Boss-Abschnitte, die Listen nach dem Nachlauf und die
+/// Schlusszahl (#550): Zwei Kampfaufbauten fuer dieselbe Frage liefen
+/// auseinander, sobald einer nachgezogen wird.
+fn wuerfe_im_lauf(boss_id: &str, apl: &rota_sim::apl::Apl) -> [u32; rota_sim::SPELL_COUNT] {
+    let boss = boss_by_id(boss_id).expect("Boss");
+    let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
+        seed: SEED,
+        boss,
+        ..rota_sim::FightConfig::default()
+    });
+    fight.run_apl(apl).casts
+}
+
+/// Die Zeilen „nie gewirkt" eines Boss-Abschnitts.
+fn nie_gewirkt_zeilen(boss_id: &str, apl: &rota_sim::apl::Apl) {
+    let wuerfe = wuerfe_im_lauf(boss_id, apl);
+    let spielbar = spielbare_zauber();
+    let nie: Vec<&str> = spielbar
+        .iter()
+        .filter(|&&i| wuerfe[i] == 0)
+        .map(|&i| SPELLS[i].id)
+        .collect();
+    println!("  nie gewirkt  {} von {}", nie.len(), spielbar.len());
+    println!("    {}", nie.join(", "));
+    println!(
+        "  (ausgenommen  {} Pruef-Zauber ueber Stufe {})",
+        rota_sim::SPELL_COUNT - spielbar.len(),
+        rota_sim::data::MAX_LEVEL
+    );
+}
+
+/// Wer ueber ALLE Bosse mindestens einmal drankam (#509 AC4), gezaehlt an den
+/// Listen in `gefundene`.
+///
+/// Die Zahl je Boss steht in den Abschnitten; gefragt ist hier die andere:
+/// Welcher Zauber ist NIRGENDS die beste Wahl. Von Hand aus den Listen
+/// gebildet waere das eine zweite Rechnung neben der ersten.
+fn abdeckung(gefundene: &[Gefunden]) -> Vec<bool> {
+    let mut gewirkt = vec![false; rota_sim::SPELL_COUNT];
+    for g in gefundene {
+        let wuerfe = wuerfe_im_lauf(&g.boss, &g.apl);
+        for i in spielbare_zauber() {
+            if wuerfe[i] > 0 {
+                gewirkt[i] = true;
+            }
+        }
+    }
+    gewirkt
+}
+
+/// Die Listen, die der Nachlauf ersetzt hat — im Format der Boss-Abschnitte
+/// (#550).
+///
+/// Ohne diesen Abschnitt stuende die beste gefundene Liste eines Bosses
+/// nirgends im Bericht, sobald der Nachlauf sie ersetzt: Die Abschnitte oben
+/// zeigen den Stand davor, der Kreuzvergleich nur Werte und Aehnlichkeit.
+fn listen_nach_dem_nachlauf(gefundene: &[Gefunden], vor_dem_nachlauf: &[String]) {
+    println!("== Listen nach dem Nachlauf (Issue #550) ==");
+    println!();
+    let mut ersetzt = 0;
+    for (g, vorher) in gefundene.iter().zip(vor_dem_nachlauf) {
+        if g.apl.to_string() == *vorher {
+            continue;
+        }
+        ersetzt += 1;
+        println!("Boss {} nach dem Nachlauf", g.boss);
+        println!("  gefunden     {:9.1}", g.wert);
+        println!("  Rotation:");
+        for zeile in g.apl.to_string().lines() {
+            println!("    {zeile}");
+        }
+        nie_gewirkt_zeilen(&g.boss, &g.apl);
+        println!();
+    }
+    if ersetzt == 0 {
+        println!("  Keine Liste ersetzt — die Boss-Abschnitte oben sind der Endstand.");
+        println!();
+    }
+}
+
 /// Welche Zauber sind ueber ALLE Bosse hinweg nie drangekommen (#509 AC4).
 ///
 /// # Warum das nicht die Summe der Einzelzahlen ist
@@ -415,20 +510,30 @@ fn kreuzvergleich(gefundene: &[Gefunden]) {
 ///
 /// Das ist Leitplanke 2 aus GAME-DESIGN: „jeder Zauber muss irgendwo die beste
 /// Wahl sein." Die Zahl hier ist das direkte Mass dafuer.
-fn nirgends_die_beste_wahl(irgendwo_gewirkt: &[bool], anzahl_bosse: usize) {
-    let spielbar: Vec<usize> = (0..rota_sim::SPELL_COUNT)
-        .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
-        .collect();
+///
+/// **`irgendwo_gewirkt` ist der Endstand nach dem Nachlauf** (#550);
+/// `vor_dem_nachlauf` steht nur als Vergleichszeile daneben.
+fn nirgends_die_beste_wahl(
+    irgendwo_gewirkt: &[bool],
+    vor_dem_nachlauf: &[bool],
+    anzahl_bosse: usize,
+) {
+    let spielbar = spielbare_zauber();
     let tot: Vec<&str> = spielbar
         .iter()
         .filter(|&&i| !irgendwo_gewirkt[i])
         .map(|&i| SPELLS[i].id)
         .collect();
     let lebendig = spielbar.len() - tot.len();
+    let vorher = spielbar.iter().filter(|&&i| vor_dem_nachlauf[i]).count();
 
     println!("Welche Zauber sind NIRGENDS die beste Wahl? (Issue #509 AC4)");
     println!(
         "  ueber alle {anzahl_bosse} Bosse gewirkt   {lebendig} von {}",
+        spielbar.len()
+    );
+    println!(
+        "    (vor dem Nachlauf      {vorher} von {})",
         spielbar.len()
     );
     println!(
@@ -595,11 +700,6 @@ fn main() {
 
     // Je Boss die gefundene Rotation — fuer den Kreuzvergleich unten (#509 AC3).
     let mut gefundene: Vec<Gefunden> = Vec::new();
-    // Wer ueber ALLE Bosse mindestens einmal drankam (#509 AC4). Die Zahl je
-    // Boss steht schon unten je Abschnitt; gefragt ist aber die andere: Welcher
-    // Zauber ist NIRGENDS die beste Wahl. Von Hand aus fuenf Listen gebildet
-    // waere das eine zweite Rechnung neben der ersten.
-    let mut irgendwo_gewirkt: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
 
     for boss_id in &bosse {
         let config = config(boss_id);
@@ -637,38 +737,7 @@ fn main() {
             println!("    {zeile}");
         }
 
-        // Welche Zauber kamen im Lauf vor — nicht: welche stehen in der Liste.
-        let boss = boss_by_id(boss_id).expect("Boss");
-        let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
-            seed: SEED,
-            boss,
-            ..rota_sim::FightConfig::default()
-        });
-        let lauf = fight.run_apl(&gefunden.best.apl);
-        // **Nur spielbare Zauber.** Ein Pruef-Zauber, der gar nicht zur Wahl
-        // stand, als „nie gewirkt" zu melden, waere eine Zahl, die etwas
-        // anderes zaehlt als sie behauptet — sie wuerde die Zahl der toten
-        // Zauber um einen zu hoch ausweisen.
-        let spielbar: Vec<usize> = (0..rota_sim::SPELL_COUNT)
-            .filter(|&i| u32::from(SPELLS[i].unlock_level) <= rota_sim::data::MAX_LEVEL)
-            .collect();
-        for &i in &spielbar {
-            if lauf.casts[i] > 0 {
-                irgendwo_gewirkt[i] = true;
-            }
-        }
-        let nie: Vec<&str> = spielbar
-            .iter()
-            .filter(|&&i| lauf.casts[i] == 0)
-            .map(|&i| SPELLS[i].id)
-            .collect();
-        println!("  nie gewirkt  {} von {}", nie.len(), spielbar.len());
-        println!("    {}", nie.join(", "));
-        println!(
-            "  (ausgenommen  {} Pruef-Zauber ueber Stufe {})",
-            rota_sim::SPELL_COUNT - spielbar.len(),
-            rota_sim::data::MAX_LEVEL
-        );
+        nie_gewirkt_zeilen(boss_id, &gefunden.best.apl);
         println!();
         gefundene.push(Gefunden {
             boss: (*boss_id).clone(),
@@ -678,16 +747,26 @@ fn main() {
         });
     }
 
+    // Die Listen VOR dem Nachlauf, um unten zu zeigen, welche er ersetzt hat.
+    let vor_dem_nachlauf: Vec<String> = gefundene.iter().map(|g| g.apl.to_string()).collect();
+    let abdeckung_vorher = abdeckung(&gefundene);
     if nachlauf_gewuenscht() {
         nachlauf(&bosse, &pool, max_len, &mut gefundene);
+        listen_nach_dem_nachlauf(&gefundene, &vor_dem_nachlauf);
     } else {
         println!("== Nachlauf UEBERSPRUNGEN (--kein-nachlauf) ==");
         println!("  Die Zahlen unten sind der Stand VOR #558 — zur Gegenprobe, dass die");
         println!("  ACHTUNG-Zeile des Kreuzvergleichs noch anschlagen kann.");
         println!();
     }
+    // **Gezaehlt wird der Endstand** (#550). Bis zum 2026-10-29 kam diese Zahl
+    // aus den Boss-Abschnitten oben, also von VOR dem Nachlauf — der
+    // Kreuzvergleich direkt darueber rechnete schon mit den Listen danach. Bei
+    // `--max-len 6` folgenlos, bei `--max-len 12` an der ersten Instanz alle
+    // vier Listen ersetzt (`boss-1-1` 9446 -> 11552).
+    let abdeckung_endstand = abdeckung(&gefundene);
     kreuzvergleich(&gefundene);
-    nirgends_die_beste_wahl(&irgendwo_gewirkt, bosse.len());
+    nirgends_die_beste_wahl(&abdeckung_endstand, &abdeckung_vorher, bosse.len());
 
     println!("Was NICHT durchsucht wurde");
     println!("  1  Freie Bedingungssuche. Nicht der Aufwand ist der Grund, sondern die");
@@ -754,8 +833,13 @@ fn main() {
     println!(
         "     Fenstern, und ueber alle gefundenen Rotationen zusammen stehen {gewaehlte_buff_zeilen}"
     );
-    println!("     davon in einer Liste. Der Nachlauf aus #558 aendert das nicht — er nimmt");
-    println!("     fremde Startpunkte, findet aber nichts, was an keinem Boss gefunden wurde.");
+    // Hier stand bis zum 2026-10-29: „Der Nachlauf aus #558 aendert das nicht —
+    // er nimmt fremde Startpunkte, findet aber nichts, was an keinem Boss
+    // gefunden wurde." Gemessen an `2f0c0d77`, erste Instanz, `--max-len 12`:
+    // `virulence` steht nach dem Nachlauf in drei Listen und vor ihm in keiner
+    // — `greedy_from` sucht vom fremden Startpunkt aus weiter. Was der Satz
+    // tragen sollte, steht jetzt als Tatsache da: gezaehlt wird der Endstand.
+    println!("     davon in einer Liste — gezaehlt an den Listen NACH dem Nachlauf aus #558.");
     println!("     WER DIE LISTE DER NIE GEWIRKTEN ZAUBER ALS BALANCE-AUSSAGE LIEST, ZIEHT");
     println!("     DESHALB EINEN ZU WEITEN SCHLUSS: Ein Verstaerker kann tragen und hier");
     println!("     trotzdem stehen.");

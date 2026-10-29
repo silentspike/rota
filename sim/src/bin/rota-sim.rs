@@ -45,6 +45,7 @@ use rota_sim::checksum::{mix_named_int, FNV_OFFSET};
 use rota_sim::data::{self, Boss};
 use rota_sim::drosselung::{ControlFileWatcher, ControlSettings, RuntimeControl};
 use rota_sim::engpass::{Erhebung, Grundlage};
+use rota_sim::fingerabdruck::{abdruck, abweichungen};
 use rota_sim::fortschritt::{
     Anzeigestrang, Arbeitsmenge, Ausgabe, Kampfzahl, Kostenbild, Laufbeschreibung, Weg, Zaehlwerk,
 };
@@ -687,6 +688,9 @@ rota-sim verify
   das Spiel, Stabilitaet der Trace-Hashes, Determinismus ueber Straenge und
   Bitgleichheit gegen einen zweiten Rechner.
 
+  Der Determinismus wird mit und ohne Wuerfel geprueft, ueber den Abdruck
+  JEDES Feldes des Ergebnisses, und nennt die Kaempfe, die er gerechnet hat.
+
   Ein bestandener Selbsttest ist KEINE Abnahme. Er prueft die Grundlage, nicht
   das Ergebnis.
 
@@ -711,7 +715,9 @@ OPTIONEN
                          eine Pruefstrecke. Gemessen kostete er dort achtzig
                          Sekunden und haette bei jedem Lauf eine SSH-Sitzung
                          auf den Bau-Server geoeffnet.
-  --print-fingerprint    nur den Fingerabdruck dieses Baus, eine Zeile.
+  --print-fingerprint    nur den Fingerabdruck dieses Baus, eine Zeile. Er
+                         umfasst die Aufzeichnungen und einen Balance-Lauf
+                         mit Wuerfel ueber einen Strang.
   --help                 dieser Text.
 
 WAS ER NICHT LEISTET
@@ -2113,51 +2119,177 @@ fn pruefe_trace_hashes() -> Pruefergebnis {
     }
 }
 
-/// **Determinismus unter Drosselung**: Das Ergebnis darf nicht davon abhaengen,
-/// wie schnell oder ueber wie viele Straenge gerechnet wird.
+/// Die Strangzahlen der Determinismuspruefung — dieselben wie im Prueffall zu
+/// #919 AC6 (`tests/parallel_lauf.rs`).
+const STRANGZAHLEN: [usize; 6] = [1, 2, 3, 4, 8, 16];
+
+/// Der Balance-Lauf, den die Strangpruefung vergleicht und der in den
+/// Fingerabdruck des Baus eingeht (#891 N6).
 ///
-/// Ein Balance-Lauf wird ueber eine, zwei und vier Straenge gefahren. Kommen
-/// verschiedene Zahlen heraus, haengt das Ergebnis an der Aufteilung — und
-/// jede Messung auf einer anderen Maschine waere damit unvergleichbar.
-fn pruefe_determinismus() -> Pruefergebnis {
-    let Ok((_, apl)) = lade_apl(None) else {
-        return Pruefergebnis::Uebersprungen(
-            "die mitgelieferte Rotation liess sich nicht lesen".to_owned(),
-        );
-    };
-    let mut werte = Vec::new();
-    for threads in [1usize, 2, 4] {
-        let config = BalanceConfig {
-            iterations: 40,
-            threads,
-            ..BalanceConfig::default()
-        };
-        let ergebnis = run(&config, &apl);
-        werte.push((threads, ergebnis.damage.mean, ergebnis.kills));
-    }
-    let (_, erste_mean, erste_kills) = werte[0];
-    let abweichend: Vec<String> = werte
-        .iter()
-        .filter(|(_, mean, kills)| {
-            // Bitgleich, nicht "nahe genug": Der Simulator rechnet in
-            // ganzen Zahlen, ein Unterschied waere ein echter Fehler.
-            (*mean - erste_mean).abs() > f64::EPSILON || *kills != erste_kills
-        })
-        .map(|(t, mean, kills)| format!("{t} Straenge: {mean} / {kills} Siege"))
-        .collect();
-    if abweichend.is_empty() {
-        Pruefergebnis::Bestanden(format!(
-            "ein, zwei und vier Straenge liefern {erste_mean} und {erste_kills} Siege"
-        ))
-    } else {
-        Pruefergebnis::Gescheitert(format!(
-            "ein Strang liefert {erste_mean} / {erste_kills} Siege, aber:\n      {}",
-            abweichend.join("\n      ")
-        ))
+/// **Mit Wuerfel, `purity` 500.** Ohne Wuerfel schrumpft ein Lauf seit #908 auf
+/// einen Kampf und beruehrt den parallelen Pfad gar nicht — bis N6 verglich
+/// diese Pruefung genau das und meldete danach „Kaempfe gerechnet: 3".
+///
+/// **997 Durchgaenge**, eine Primzahl: Sie teilt sich auf keine der
+/// [`STRANGZAHLEN`] und auf keine Happengroesse glatt auf.
+fn lauf_mit_wuerfel(threads: usize) -> BalanceConfig {
+    let mut worn = WornValues::none();
+    worn.purity = 500;
+    BalanceConfig {
+        iterations: 997,
+        threads,
+        worn,
+        ..BalanceConfig::default()
     }
 }
 
-/// Der Fingerabdruck dieses Baus — eine Zahl ueber alle Aufzeichnungen.
+/// Der Lauf ohne Wuerfel — der Weg, den #908 auf einen Kampf verkuerzt.
+fn lauf_ohne_wuerfel(threads: usize) -> BalanceConfig {
+    BalanceConfig {
+        iterations: 40,
+        threads,
+        ..BalanceConfig::default()
+    }
+}
+
+/// Was ein Lauf dieser Pruefung tatsaechlich gerechnet hat — gezaehlt im
+/// heissen Pfad (#933), nicht aus der Zahl der bestellten Durchgaenge.
+struct Gerechnet {
+    /// Kaempfe ueber alle Plaetze.
+    kaempfe: u64,
+    /// Wie viele Plaetze mindestens einen Kampf gerechnet haben.
+    beteiligt: usize,
+}
+
+/// Rechnet `config` und zaehlt dabei, was das Zaehlwerk dazugewinnt.
+fn gezaehlt(werk: &Zaehlwerk, config: &BalanceConfig, apl: &Apl) -> (BalanceResult, Gerechnet) {
+    let vorher = werk.momentaufnahme().kaempfe_je_strang;
+    let ergebnis = run(config, apl);
+    let nachher = werk.momentaufnahme().kaempfe_je_strang;
+    let je_platz: Vec<u64> = nachher.iter().zip(&vorher).map(|(n, v)| n - v).collect();
+    let gerechnet = Gerechnet {
+        kaempfe: je_platz.iter().sum(),
+        beteiligt: je_platz.iter().filter(|k| **k > 0).count(),
+    };
+    (ergebnis, gerechnet)
+}
+
+/// Ein Lauf der Strangpruefung: Strangzahl, Ergebnis, was gerechnet wurde.
+type Stranglauf = (usize, BalanceResult, Gerechnet);
+
+/// Vergleicht die Abdruecke aller Laeufe mit dem ersten, dem einen Strang.
+///
+/// Liefert je abweichender Strangzahl eine Zeile mit den Feldern, die
+/// abweichen — „die Abdruecke stimmen nicht" hiesse, die Stelle von Hand zu
+/// suchen.
+fn abweichende_straenge(laeufe: &[Stranglauf]) -> Vec<String> {
+    let Some((_, bezug, _)) = laeufe.first() else {
+        return Vec::new();
+    };
+    let erwartet = abdruck(bezug);
+    laeufe
+        .iter()
+        .filter(|(_, ergebnis, _)| abdruck(ergebnis) != erwartet)
+        .map(|(threads, ergebnis, _)| {
+            format!(
+                "{threads} Straenge weichen ab in: {}",
+                abweichungen(ergebnis, bezug).join(", ")
+            )
+        })
+        .collect()
+}
+
+/// **Determinismus unter Drosselung**: Das Ergebnis darf nicht davon abhaengen,
+/// wie schnell oder ueber wie viele Straenge gerechnet wird.
+///
+/// Zwei Balance-Laeufe werden ueber jede der [`STRANGZAHLEN`] gefahren, einer
+/// mit und einer ohne Wuerfel. Verglichen wird der Abdruck ueber JEDES Feld
+/// des Ergebnisses ([`rota_sim::fingerabdruck`]), nicht Mittelwert und Siege:
+/// Bei ganzzahligen Schaeden sind die exakt, gleich in welcher Reihenfolge
+/// summiert wird, und koennen eine fehlende Sortierung nicht zeigen. Kommen
+/// verschiedene Abdruecke heraus, haengt das Ergebnis an der Aufteilung — und
+/// jede Messung auf einer anderen Maschine waere damit unvergleichbar.
+///
+/// `einer` ist der Lauf mit Wuerfel ueber einen Strang. Er ist schon
+/// gerechnet, weil er auch in den Fingerabdruck des Baus eingeht.
+///
+/// # Wann sie scheitert, obwohl alle Abdruecke stimmen
+///
+/// Wenn ein Lauf mit Wuerfel nicht jeden Durchgang selbst gerechnet hat, oder
+/// wenn in keinem Lauf mit mehreren Straengen mehr als einer gerechnet hat.
+/// Dann waere die Gleichheit eine, die nicht scheitern kann. Gezaehlt wird am
+/// Zaehlwerk, nicht an der Konfiguration.
+///
+/// **Je Lauf zwei Teilnehmer zu verlangen waere strenger, haengt aber an der
+/// Zuteilung der Kerne:** Bekommt ein Helfer keinen Kern, bevor der Aufrufer
+/// alle Happen genommen hat, rechnet er nichts — und ein gesunder Bau hiesse
+/// auf einem belasteten Rechner gescheitert. Die Zahl je Lauf steht deshalb in
+/// der Ausgabe.
+fn pruefe_determinismus(werk: &Zaehlwerk, apl: &Apl, einer: Stranglauf) -> Pruefergebnis {
+    let mut mit = vec![einer];
+    for threads in STRANGZAHLEN.into_iter().skip(1) {
+        let (ergebnis, gerechnet) = gezaehlt(werk, &lauf_mit_wuerfel(threads), apl);
+        mit.push((threads, ergebnis, gerechnet));
+    }
+    let ohne: Vec<Stranglauf> = STRANGZAHLEN
+        .into_iter()
+        .map(|threads| {
+            let (ergebnis, gerechnet) = gezaehlt(werk, &lauf_ohne_wuerfel(threads), apl);
+            (threads, ergebnis, gerechnet)
+        })
+        .collect();
+
+    let mut befunde: Vec<String> = abweichende_straenge(&mit)
+        .into_iter()
+        .map(|z| format!("mit Wuerfel: {z}"))
+        .collect();
+    befunde.extend(
+        abweichende_straenge(&ohne)
+            .into_iter()
+            .map(|z| format!("ohne Wuerfel: {z}")),
+    );
+    let durchgaenge = u64::from(lauf_mit_wuerfel(1).iterations);
+    for (threads, _, gerechnet) in &mit {
+        if gerechnet.kaempfe != durchgaenge {
+            befunde.push(format!(
+                "mit Wuerfel: {threads} Straenge rechneten {} statt {durchgaenge} Kaempfe",
+                gerechnet.kaempfe
+            ));
+        }
+    }
+    let am_meisten = mit[1..].iter().map(|(_, _, g)| g.beteiligt).max();
+    if am_meisten.unwrap_or(0) < 2 {
+        befunde.push(
+            "mit Wuerfel: in keinem Lauf rechnete mehr als ein Strang — der parallele \
+             Pfad wurde nicht betreten"
+                .to_owned(),
+        );
+    }
+    if !befunde.is_empty() {
+        return Pruefergebnis::Gescheitert(befunde.join("\n      "));
+    }
+
+    let kaempfe: u64 = mit.iter().map(|(_, _, g)| g.kaempfe).sum();
+    let beteiligt: Vec<String> = mit
+        .iter()
+        .map(|(threads, _, g)| format!("{}/{threads}", g.beteiligt))
+        .collect();
+    let liste: Vec<String> = STRANGZAHLEN.iter().map(ToString::to_string).collect();
+    Pruefergebnis::Bestanden(format!(
+        "{} Straenge, Abdruck ueber jedes Feld des Ergebnisses bitgleich\n      \
+         mit Wuerfel: {durchgaenge} Durchgaenge je Lauf, {kaempfe} Kaempfe gerechnet, \
+         Abdruck 0x{:08x}\n      \
+         gerechnet haben je Lauf: {} Straenge\n      \
+         ohne Wuerfel: auf einen Kampf verkuerzt (#908), Abdruck 0x{:08x}",
+        liste.join(", "),
+        abdruck(&mit[0].1),
+        beteiligt.join(", "),
+        abdruck(&ohne[0].1)
+    ))
+}
+
+/// Der Fingerabdruck dieses Baus — eine Zahl ueber alle Aufzeichnungen und den
+/// Balance-Lauf mit Wuerfel.
 ///
 /// # Warum selbst gebildet
 ///
@@ -2165,7 +2297,16 @@ fn pruefe_determinismus() -> Pruefergebnis {
 /// und er ist 63-bittig, waehrend `checksum.rs` durchgehend in `u32` rechnet.
 /// Er kann also nicht aus diesem Mechanismus stammen. Der Orchestrator hat ihn
 /// daraufhin zurueckgezogen; dieser Fingerabdruck ist der belegte Ersatz.
-fn fingerabdruck(gespielt: &[(&EmbeddedRecording, Option<u32>)]) -> u32 {
+///
+/// # Warum der Balance-Lauf eingeht (#891 N6)
+///
+/// Die Aufzeichnungen beruehren weder die Statistik — Wurzel, Division,
+/// Summen in Gleitkomma — noch den Lauf ueber mehrere Durchgaenge. Genau
+/// dort entstehen aber die Balance-Zahlen, und die entstehen auf node3,
+/// waehrend die CI auf `ubuntu-latest` rechnet (#891 N5). Eingerechnet wird
+/// der Lauf ueber EINEN Strang; dass jede andere Strangzahl denselben Abdruck
+/// gibt, prueft [`pruefe_determinismus`].
+fn fingerabdruck(gespielt: &[(&EmbeddedRecording, Option<u32>)], lauf: &BalanceResult) -> u32 {
     let mut hash = FNV_OFFSET;
     for (eintrag, ergebnis) in gespielt {
         // Der NAME geht mit ein: Sonst ergaeben zwei Baue mit derselben
@@ -2176,7 +2317,7 @@ fn fingerabdruck(gespielt: &[(&EmbeddedRecording, Option<u32>)]) -> u32 {
             None => hash = mix_named_int(hash, "unplayable", 0),
         }
     }
-    hash
+    mix_named_int(hash, "balance", abdruck(lauf) as i32)
 }
 
 /// **Bitgleichheit ueber Rechner**: Derselbe Bau muss anderswo dieselbe Zahl
@@ -2185,11 +2326,7 @@ fn fingerabdruck(gespielt: &[(&EmbeddedRecording, Option<u32>)]) -> u32 {
 /// Ist kein zweiter Rechner erreichbar, wird die Pruefung UEBERSPRUNGEN und
 /// sagt das — sie scheitert nicht (#970, AC5). In der CI ist das der
 /// Normalfall.
-fn pruefe_bitgleichheit(
-    gegenstelle: Option<&str>,
-    gespielt: &[(&EmbeddedRecording, Option<u32>)],
-) -> Pruefergebnis {
-    let eigener = fingerabdruck(gespielt);
+fn pruefe_bitgleichheit(gegenstelle: Option<&str>, eigener: u32) -> Pruefergebnis {
     let Some(host) = gegenstelle else {
         return Pruefergebnis::Uebersprungen(format!(
             "kein zweiter Rechner angegeben; eigener Fingerabdruck 0x{eigener:08x}\n      \
@@ -2268,26 +2405,37 @@ fn befehl_verify(argumente: &[String]) -> Result<ExitCode, String> {
         i += 1;
     }
 
-    // Vier Plaetze: Die Determinismuspruefung rechnet ueber bis zu vier Straenge.
-    let werk = Zaehlwerk::neu(4);
+    // Ein Platz je Strang der Determinismuspruefung: Sie zaehlt je Lauf, wie
+    // viele Straenge gerechnet haben, und ueberzaehlige teilten sich den
+    // letzten Platz.
+    let meiste = STRANGZAHLEN.into_iter().max().unwrap_or(1);
+    let werk = Zaehlwerk::neu(meiste);
     let _anmeldung = werk.anmelden();
 
     // **Einmal abspielen, dreimal auswerten.** Die Reihenfolge ist wichtig:
     // Ohne die gesammelten Werte rechnete jede Pruefung dieselben Runden neu.
     let gespielt = spiele_alle_ab();
+    // Ebenso der Lauf mit Wuerfel ueber einen Strang: Er geht in den
+    // Fingerabdruck ein und ist der Bezug der Strangpruefung.
+    let (_, apl) = lade_apl(None)?;
+    let (einer, gerechnet) = gezaehlt(&werk, &lauf_mit_wuerfel(1), &apl);
+    let eigener = fingerabdruck(&gespielt, &einer);
 
     if nur_fingerabdruck {
-        println!("0x{:08x}", fingerabdruck(&gespielt));
+        println!("0x{eigener:08x}");
         return Ok(ExitCode::SUCCESS);
     }
 
     let pruefungen = [
         ("Paritaet gegen das Spiel", pruefe_paritaet(&gespielt)),
         ("Trace-Hashes", pruefe_trace_hashes()),
-        ("Determinismus ueber Straenge", pruefe_determinismus()),
+        (
+            "Determinismus ueber Straenge",
+            pruefe_determinismus(&werk, &apl, (1, einer, gerechnet)),
+        ),
         (
             "Bitgleichheit ueber Rechner",
-            pruefe_bitgleichheit(gegenstelle.as_deref(), &gespielt),
+            pruefe_bitgleichheit(gegenstelle.as_deref(), eigener),
         ),
     ];
 
