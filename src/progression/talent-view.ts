@@ -1,5 +1,5 @@
 import { TALENTS, type TalentDef } from '../core/data.js';
-import { effectiveRanks, spentPoints, type TalentAllocation } from './talents.js';
+import { effectiveRanks, spentPoints, talentById, type TalentAllocation } from './talents.js';
 import { withPlainText } from '../analysis/help.js';
 
 /**
@@ -157,7 +157,13 @@ export function buildTalentView(options: TalentViewOptions): HTMLElement {
       }
 
       if (!offen) {
-        zeile.appendChild(element('span', 'talents-locked-hint', `needs ${talent.requires ?? ''}`));
+        // **Der Name, nicht die Kennung** (Issue #1177): Hier stand
+        // „needs calcination-trunk" — ein Wort, das der Spieler nirgends sonst
+        // liest und das deshalb auch kein Erklärfenster hat.
+        const vorher = talent.requires === null ? undefined : talentById(talent.requires);
+        zeile.appendChild(
+          element('span', 'talents-locked-hint', `needs ${vorher?.name ?? talent.requires ?? ''}`),
+        );
       }
       block.appendChild(zeile);
     }

@@ -114,6 +114,18 @@ describe('Jedes data-help der Ansichten hat seinen Eintrag', () => {
   });
 });
 
+describe('Kein Begriff steht als Kennung da', () => {
+  it('die Talentansicht nennt Voraussetzungen beim Namen', () => {
+    // Im Browser gesehen: „needs calcination-trunk". Eine Kennung ist kein
+    // Begriff, den der Spieler lernen kann — und sie hat kein Erklärfenster.
+    const text = buildTalentView({ allocation: {}, punkte: 50, onChange: () => true }).textContent;
+    const mitVoraussetzung = TALENTS.filter((t) => t.requires !== null);
+    expect(mitVoraussetzung.length, 'ZUSICHERUNG: es gibt Voraussetzungen').toBeGreaterThan(0);
+    const roh = TALENTS.filter((t) => text.includes(t.id)).map((t) => t.id);
+    expect(roh).toEqual([]);
+  });
+});
+
 describe('Jeder Begriff der Zeichenfläche steht in einer Einführung', () => {
   /** Die Beschriftungen des HUD, so wie hud.ts sie exportiert. */
   const begriffe = Object.entries(hud)

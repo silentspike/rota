@@ -881,7 +881,7 @@
     {
       "mechanicId": "interruptibleCast",
       "title": "Interruptible cast",
-      "body": "This target casts spells that take time. A bar fills under its name while it casts. QUENCH breaks the cast while the bar runs and triggers no global cooldown. A cast that completes lands in full."
+      "body": "This target casts spells that take time. While it casts, a bar under the ring carries the name of the cast and runs down. QUENCH breaks the cast while the bar runs and triggers no global cooldown. A cast that completes lands in full."
     },
     {
       "mechanicId": "strike",
