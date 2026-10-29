@@ -6,10 +6,13 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -76,13 +79,17 @@ class MutationEvidence(unittest.TestCase):
             '| `shield.amount` | 2 | 1/2 | gedeckt | shielding |\n')
         self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
 
-    def drive(self, process, *extra):
+    def drive(self, process, *extra, wait=0.01):
+        # The wait after a service refusal (exit 75) is shortened here; its real
+        # value is pinned in test_the_retry_policy_is_120_seconds_and_ten_attempts.
         args = ['streich-mutation.py', '--aus', 'result.md', '--roh', 'names.json',
                 '--nachweis', 'evidence.json', '--vergleich', 'old.md', '--bau-log', 'build.log', *extra]
+        self.stdout = io.StringIO()
         with patch.object(self.tool, 'WURZEL', self.root), \
              patch.object(self.tool, 'eingecheckter_stand', return_value=self.originals), \
              patch.object(self.tool, 'lauf', side_effect=process), \
-             patch.object(sys, 'argv', args), contextlib.redirect_stdout(io.StringIO()):
+             patch.object(self.tool, 'DIENST_WARTEN_S', wait, create=True), \
+             patch.object(sys, 'argv', args), contextlib.redirect_stdout(self.stdout):
             return self.tool.main()
 
     def missing(self):
@@ -235,6 +242,154 @@ class MutationEvidence(unittest.TestCase):
             self.drive(process, '--feld', 'heal.amount')
         evidence = json.loads((self.root / 'evidence.json').read_text())
         self.assertEqual(evidence['fields']['heal.amount']['status'], 'ABBRUCH')
+        self.assert_restored()
+
+    def plain_process(self, command, _timeout):
+        """Builds pass, Rust passes, TS colours a mutated field: the field reads ROT."""
+        if command.startswith('npx'):
+            return (1, TS_FAIL) if self.missing() else (0, TS_PASS)
+        if '--no-run' in command:
+            return 0, 'Finished test profile\n'
+        return 0, RUST_PASS
+
+    @staticmethod
+    def refused_first(base, hit, refusals):
+        """Exit 75 for the first `refusals` calls that `hit` matches, then `base`.
+
+        Every matching call is recorded with its time and the timeout it got.
+        """
+        calls = []
+
+        def process(command, timeout):
+            if hit(command):
+                calls.append((time.monotonic(), timeout))
+                if len(calls) <= refusals:
+                    return 75, V2_REFUSAL
+            return base(command, timeout)
+        return process, calls
+
+    def test_two_refusals_then_an_accepted_stage_run_and_count_in_every_stage(self):
+        # Exit 75 means the service queued nothing (#1055). One refusal ended
+        # the whole 3-4 h pass; with six packages building next to it, one in
+        # 60 fields is close to certain. The same path serves the baseline, a
+        # probe and a field — each is checked here.
+        stages = {
+            'baseline/build': lambda c: '--no-run' in c and self.missing() is None,
+            'baseline/rust': lambda c: '--no-fail-fast' in c and self.missing() is None,
+            'field/build': lambda c: '--no-run' in c and self.missing() == 'heal.amount',
+            'field/rust': lambda c: '--no-fail-fast' in c and self.missing() == 'heal.amount',
+            'vorprobe-bau/build': lambda c: '--no-run' in c and self.probe_state() == 'bau',
+        }
+        for stage, hit in stages.items():
+            with self.subTest(stage=stage):
+                self.fresh_tool()
+                extra = ['--feld', 'heal.amount', '--timeout', '7']
+                if stage.startswith('vorprobe'):
+                    self.with_base_damage()
+                    base, extra = self.probe_process()[0], ['--vorproben', *extra]
+                else:
+                    base = self.plain_process
+                process, calls = self.refused_first(base, hit, refusals=2)
+                try:
+                    code = self.drive(process, *extra)
+                except self.tool.NichtGelaufen as refused:
+                    self.fail(f'NICHT GELAUFEN after two refusals: {refused}')
+                self.assertEqual(code, 0)
+                evidence = json.loads((self.root / 'evidence.json').read_text())
+                self.assertEqual(evidence['fields']['heal.amount']['status'], 'ROT')
+                self.assertEqual(len(calls), 3, 'two refused attempts and one accepted')
+                # The wait lies between the attempts, and every attempt gets the
+                # full stage limit — the wait does not count against it.
+                self.assertTrue(all(b[0] - a[0] >= 0.01 for a, b in zip(calls, calls[1:])))
+                self.assertEqual([timeout for _, timeout in calls], [7, 7, 7])
+                refusals = evidence['service_refusals']
+                self.assertEqual([(r['attempt'], r['exit']) for r in refusals], [(1, 75), (2, 75)])
+                self.assertTrue(all(r['stage'].endswith(stage.split('/')[1]) for r in refusals))
+                self.assertTrue(all(r['message'] == 'cargo-remote: This workspace already has an active job'
+                                    for r in refusals))
+                self.assertTrue(all(isinstance(r['started_unix'], float) for r in refusals))
+                protocol = [line for line in self.stdout.getvalue().splitlines() if 'Exit 75' in line]
+                self.assertEqual(len(protocol), 2, self.stdout.getvalue())
+                for attempt, line in enumerate(protocol, 1):
+                    self.assertIn(f'Versuch {attempt}/10', line)
+                    self.assertRegex(line, r'\b\d\d:\d\d:\d\d\b')
+                    self.assertIn('This workspace already has an active job', line)
+                self.assert_restored()
+
+    def test_other_service_exits_are_not_retried(self):
+        # 70 can leave a job running (`--resume`); a second attempt could
+        # stand next to it. The rest are faults someone has to look at.
+        for code in sorted(set(self.tool.DIENST_AUSGAENGE) - {75}):
+            with self.subTest(code=code):
+                self.fresh_tool()
+                output = TRANSPORT_EXITS.get(code, f'cargo-remote: exit {code}\n')
+                hit = lambda c: '--no-run' in c and self.missing() == 'heal.amount'
+                process, calls = self.refused_first(
+                    lambda c, t, code=code, output=output: (code, output) if hit(c) else self.plain_process(c, t),
+                    hit, refusals=0)
+                with self.assertRaises(self.tool.NichtGelaufen) as raised:
+                    self.drive(process, '--feld', 'heal.amount')
+                self.assertIn(f'Exit {code}', str(raised.exception))
+                self.assertEqual(len(calls), 1, 'no second attempt')
+                evidence = json.loads((self.root / 'evidence.json').read_text())
+                self.assertEqual(evidence.get('service_refusals', []), [])
+                self.assertEqual(evidence['fields']['heal.amount']['status'], 'ABBRUCH')
+                self.assertNotIn('Versuch', self.stdout.getvalue())
+                self.assert_restored()
+
+    def test_eleven_refusals_end_as_not_run_after_exactly_ten_attempts(self):
+        hit = lambda c: '--no-run' in c and self.missing() == 'heal.amount'
+        process, calls = self.refused_first(self.plain_process, hit, refusals=11)
+        with self.assertRaises(self.tool.NichtGelaufen) as raised:
+            self.drive(process, '--feld', 'heal.amount')
+        self.assertEqual(len(calls), 10)
+        self.assertIn('Exit 75', str(raised.exception))
+        self.assertIn('10 Versuchen', str(raised.exception))
+        evidence = json.loads((self.root / 'evidence.json').read_text())
+        self.assertEqual([r['attempt'] for r in evidence['service_refusals']], list(range(1, 11)))
+        self.assertEqual(evidence['fields']['heal.amount']['status'], 'ABBRUCH')
+        self.assertFalse(evidence['completed'] or evidence['full_pass'])
+        self.assertIn('Versuch 10/10', self.stdout.getvalue())
+        self.assertIn('Kein weiterer Versuch', self.stdout.getvalue())
+        self.assert_restored()
+
+    def test_the_retry_policy_is_120_seconds_and_ten_attempts(self):
+        self.assertEqual((self.tool.DIENST_WARTEN_S, self.tool.DIENST_VERSUCHE), (120, 10))
+
+    def test_sigterm_during_the_wait_stops_at_once_and_restores(self):
+        # A wait of 120 s in one `time.sleep` would outlast SIGTERM: Python
+        # resumes the sleep after a handler that does not raise, and the
+        # tool's handler deliberately does not. Whoever sends SIGTERM
+        # escalates to SIGKILL — and then nothing is restored.
+        done = threading.Event()
+
+        def stop():
+            if not done.is_set():
+                os.kill(os.getpid(), signal.SIGTERM)
+
+        timer = threading.Timer(0.3, stop)
+        self.addCleanup(timer.cancel)
+        hit = lambda c: '--no-run' in c and self.missing() == 'heal.amount'
+        process, calls = self.refused_first(self.plain_process, hit, refusals=10)
+
+        def refusing(command, timeout):
+            self.tool._unterbrechung_pruefen()     # as the real `lauf` does before each start
+            if hit(command) and not calls:
+                timer.start()
+            return process(command, timeout)
+
+        started = time.monotonic()
+        try:
+            with self.assertRaises(SystemExit) as stopped:
+                self.drive(refusing, '--feld', 'heal.amount', wait=30)
+        finally:
+            done.set()
+        self.assertEqual(stopped.exception.code, 143)
+        self.assertLess(time.monotonic() - started, 10, 'SIGTERM waited for the end of the wait')
+        self.assertEqual(len(calls), 1)
+        evidence = json.loads((self.root / 'evidence.json').read_text())
+        self.assertEqual(evidence['fields']['heal.amount']['status'], 'ABBRUCH')
+        self.assertTrue(evidence['fields']['heal.amount']['restored'])
         self.assert_restored()
 
     def fresh_tool(self):
