@@ -301,7 +301,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       # Der erste Lauf bleibt unberührt: Er sichert zu, dass die Bibliothek
-      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 54 Prüffälle
+      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 55 Prüffälle
       # dazu (einer davon ignoriert), die `cargo test` allein NIE ausführt —
       # aus DREI verschiedenen Gründen, die man leicht für einen hält:
       #
@@ -313,6 +313,7 @@ jobs:
       #   --all-targets            sim/examples/messumgebung.rs       29 Fälle
       #                            sim/examples/trace-stabilitaet.rs   3 Fälle
       #                            sim/examples/e21-0b-machbarkeit.rs  7 Fälle
+      #                            sim/examples/zauber-abdeckung.rs    1 Fall
       #        `cargo test` BAUT Beispiele, führt ihre `#[test]` aber nicht aus.
       #        `main()` läuft dabei nie — nur die Prüffälle. Einer der sieben in
       #        e21-0b-machbarkeit.rs ist der ignorierte Hilfsprozess
@@ -330,17 +331,21 @@ jobs:
       #        Fälle auch der erste Lauf fährt. Wer die Zusatzfälle über Dateien
       #        sucht, findet sie deshalb nicht — bis zum 2026-08-19 stand hier
       #        „25 Prüffälle aus ZWEI Gründen", und die drei in der Bibliothek
-      #        fehlten in der Zahl; bis zum 2026-10-29 „35", gemessen waren 47
-      #        (messumgebung.rs stand bei 21, die vier in tests/ fehlten).
+      #        fehlten in der Zahl; bis zum 2026-10-29 „35", gemessen waren 48
+      #        (messumgebung.rs stand bei 21, die vier in tests/ und der Fall in
+      #        zauber-abdeckung.rs fehlten).
       #
       #        Gefunden über einen Vergleich der `--list`-Ausgaben beider
       #        Bauten: `cargo test -- --list` gegen `cargo test --all-targets
       #        --features diagnostics -- --list`, die Namen je Suite
-      #        gegeneinander gehalten. Am 2026-10-29: 220 Suiten mit 1580
-      #        Fällen gegen 223 mit 1629, die lib-Suite von 275 auf 278. Die 5
-      #        Doc-Tests fährt nur der erste Lauf; `--all-targets` schließt sie
-      #        aus. Wer die Zahl erneut prüfen will, nimmt denselben Weg — eine
-      #        Zahl allein wäre in einem Jahr wieder eine unbelegte Angabe.
+      #        gegeneinander gehalten. Am 2026-10-29: 1582 Fälle gegen 1632,
+      #        die lib-Suite von 275 auf 278. Die 5 Doc-Tests fährt nur der
+      #        erste Lauf; `--all-targets` schließt sie aus. Wer die Zahl erneut
+      #        prüfen will, nimmt denselben Weg — eine Zahl allein wäre in
+      #        einem Jahr wieder eine unbelegte Angabe. Beide Ausgaben in EINE
+      #        Datei umgeleitet, stehen die `Running`-Zeilen (stderr) nicht
+      #        immer vor ihrer Liste (stdout): Die Summen stimmen dann, die
+      #        Zuordnung zu Suiten nicht — gemessen, sieben Fälle wanderten.
       #
       # Die 8 sind die wichtigsten: Sie prüfen, ob die Auswertung überhaupt
       # etwas zu rechnen BEKOMMT. Die 7 in diagnostics.rs prüfen nur, dass sie
