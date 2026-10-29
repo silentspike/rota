@@ -869,7 +869,7 @@ fn pruefzeile(pool: &[Candidate], spielbar: &[usize], name: &str, boss: &'static
     let schlag = boss.timeline[0];
     format!(
         "  {name:<26} {:>5} bei {:>5} ms   {:>7.1}  FIXATION {:<10} tot {:<5} unterbrochen {}   \
-         ohne FIXATION {:>7.1} tot {}",
+         ohne FIXATION {:>7.1} tot {:<5}  gewirkt {}",
         schlag.damage,
         schlag.at_ms,
         mit.wert_frei,
@@ -877,7 +877,8 @@ fn pruefzeile(pool: &[Candidate], spielbar: &[usize], name: &str, boss: &'static
         mit.tot,
         mit.unterbrochen,
         ohne.wert_frei,
-        ohne.tot
+        ohne.tot,
+        namen(&mit.gewirkt)
     )
 }
 
@@ -1199,11 +1200,17 @@ fn main() {
     // Hinter einem Schalter aus demselben Grund wie AC4: Die Viabilität rechnet
     // je Boss bis zu 58 erschöpfende Projektionen, über 21 Bosse. Der Nightly
     // braucht die Zahl oben täglich, diese Erhebung nicht.
-    if std::env::args().any(|a| a == "--schulen") {
+    //
+    // `--pruefboss` fährt nur den Prüfboss-Teil — Sekunden statt Minuten, weil
+    // er keine Viabilität rechnet.
+    let schulen_schalter = std::env::args().any(|a| a == "--schulen");
+    if schulen_schalter {
         let bosse = schulerhebung(&pool, &spielbar);
         for zeile in schulbericht(&bosse, &spielbar) {
             println!("{zeile}");
         }
+    }
+    if schulen_schalter || std::env::args().any(|a| a == "--pruefboss") {
         for zeile in pruefbericht(&pool, &spielbar) {
             println!("{zeile}");
         }
