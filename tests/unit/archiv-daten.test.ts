@@ -93,3 +93,37 @@ describe('AC3 — ZUSICHERUNG: der gültige Rohling geht wirklich durch', () => 
     expect(parseEntries([roh()])).toHaveLength(1);
   });
 });
+
+describe('#1177 — die neuen Auslöser verlangen ihr Feld, und nur sie', () => {
+  it('Zauber, Schule, Satz und Fund kommen ohne Instanz durch', () => {
+    // Sie hängen an keiner Instanz; eine Pflicht-Instanz wäre eine erfundene
+    // Zuordnung. Gegliedert wird nach Kapitel (`ARCHIVE_CHAPTERS`).
+    const [zauber, schule, satz, fund] = parseEntries([
+      roh({ id: 'a', trigger: 'spellLearned', instanceId: undefined, spellId: 'kindle' }),
+      roh({ id: 'b', trigger: 'schoolLearned', instanceId: undefined, school: 'CALCINATION' }),
+      roh({ id: 'c', trigger: 'setFound', instanceId: undefined, setId: 2 }),
+      roh({ id: 'd', trigger: 'firstOutcome', instanceId: undefined, outcome: 'death' }),
+    ]);
+    expect(zauber?.spellId).toBe('kindle');
+    expect(zauber?.instanceId).toBeUndefined();
+    expect(schule?.school).toBe('CALCINATION');
+    expect(satz?.setId).toBe(2);
+    expect(fund?.outcome).toBe('death');
+  });
+
+  it('ohne ihr Feld erschienen sie nie — und werfen deshalb', () => {
+    expect(() => parseEntries([roh({ trigger: 'spellLearned' })])).toThrow(/spellId/);
+    expect(() => parseEntries([roh({ trigger: 'schoolLearned' })])).toThrow(/school/);
+    expect(() => parseEntries([roh({ trigger: 'setFound' })])).toThrow(/Satz/);
+    expect(() => parseEntries([roh({ trigger: 'firstOutcome', outcome: 'sieg' })])).toThrow(
+      /Ausgang/,
+    );
+  });
+
+  it('die zwei Auslöser an einer Instanz verlangen sie weiter', () => {
+    expect(() => parseEntries([roh({ instanceId: undefined })])).toThrow(/keine Instanz/);
+    expect(() =>
+      parseEntries([roh({ trigger: 'afterFirstKill', bossId: 'boss-1-1', instanceId: '' })]),
+    ).toThrow(/keine Instanz/);
+  });
+});

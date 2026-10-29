@@ -38,8 +38,8 @@ import type { RunCurve } from './run-compare.js';
 import { attemptFrom, recordAttempt, type MarkUpdate } from './progress-mark.js';
 import { recordBest, type BestUpdate } from './best-run.js';
 import { nextAutomaticEntry, unlock } from './archive.js';
-import type { ArchiveEntry } from './archive.js';
-import { ALL_ARCHIVE_ENTRIES } from './archive-data.js';
+import type { ArchiveEntry, ArchiveOutcome } from './archive.js';
+import { PLAYABLE_ARCHIVE_ENTRIES } from './archive-data.js';
 import { bossById } from '../core/data.js';
 import { recordDefeat } from './defeated.js';
 import { lootStreamFor } from '../loot/stream.js';
@@ -264,6 +264,18 @@ export interface RecordResult extends RecordedState {
 }
 
 /**
+ * Welcher versteckte Fund an einem Ausgang hängt, oder `null` (Issue #1177).
+ *
+ * Nur die zwei gezählten Niederlagen. Ein Sieg hat seinen eigenen Eintrag,
+ * ein Abbruch zählt nicht als Versuch und kommt hier nie an.
+ */
+function fundAusgang(outcome: number): ArchiveOutcome | null {
+  if (outcome === OUTCOME_DEATH) return 'death';
+  if (outcome === OUTCOME_OVERPRESSURE) return 'overpressure';
+  return null;
+}
+
+/**
  * Einen abgeschlossenen Kampf festhalten.
  *
  * Gibt einen **neuen** Stand zurück und ändert den übergebenen nicht: Der
@@ -407,9 +419,15 @@ export function recordRun(
   //
   // **Nur bei einem Sieg**, wie 17.4 es sagt: „nach jedem ersten Boss-Sieg".
   // Eine Niederlage schaltet nichts frei; sie ist kein erster Sieg.
+  //
+  // **Der Katalog, nicht die Prüfeinträge** (Issue #1177). Hier stand bis
+  // dahin `ALL_ARCHIVE_ENTRIES` mit den Prüfeinträgen — und nach dem ersten
+  // Sieg über den Prolog-Boss erschien beim Spieler „Test Entry — Prologue
+  // Victory".
   const archivZustand = { unlockedEntryIds: state.unlockedEntryIds };
+  const fund = fundAusgang(outcome);
   const neuerEintrag = grantsRewards
-    ? nextAutomaticEntry(ALL_ARCHIVE_ENTRIES, archivZustand, {
+    ? nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, archivZustand, {
         trigger: 'afterFirstKill',
         // **Die Kennung des Bosses, nicht `context.instance`.** Zwei
         // verschiedene Dinge heissen hier `instance`: Der Kontext fuehrt eine
@@ -418,7 +436,16 @@ export function recordRun(
         instanceId: bossById(context.bossId)?.instance ?? '',
         bossId: context.bossId,
       })
-    : null;
+    : // **Der versteckte Fund** (Issue #1177): der erste Tod, der erste
+      // Überdruck. Auf demselben Weg wie der erste Sieg, und deshalb auch
+      // mit demselben Fenster auf der Auswertung — ein Fund, den man nicht
+      // sieht, wäre keiner.
+      fund === null
+      ? null
+      : nextAutomaticEntry(PLAYABLE_ARCHIVE_ENTRIES, archivZustand, {
+          trigger: 'firstOutcome',
+          outcome: fund,
+        });
   const archivDanach =
     neuerEintrag === null ? archivZustand : unlock(archivZustand, neuerEintrag.id);
   // **Und er reist mit** (AC1 von #85). Bis hierher wurde `neuerEintrag` nur
