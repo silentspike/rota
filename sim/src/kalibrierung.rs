@@ -587,9 +587,35 @@ where
     modell(&abschnitte, grund, start.elapsed(), takt_drift(&takte))
 }
 
+// Ein Schalter für Prüffälle (#912): Die Vorprüfung entfällt. Gesetzt auf
+// dem aufrufenden Strang; außerhalb der Prüffälle gibt es ihn nicht. Fälle,
+// deren Arbeit synthetisch ist — Schlafen und Zählen —, prüfen Logik, die
+// nicht an der Last des Rechners hängt. Mit Vorprüfung kehrten sie auf einem
+// belasteten Bau-Rechner nach `ABKLINGEN_MAX` ohne einen Abschnitt grün
+// zurück: Am 2026-10-29 überlebten so fünf Mutationen, ohne geprüft zu sein.
+#[cfg(test)]
+thread_local! {
+    static OHNE_VORPRUEFUNG: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Ob die Vorprüfung in diesem Prüffall entfällt.
+#[cfg(test)]
+fn vorpruefung_entfaellt() -> bool {
+    OHNE_VORPRUEFUNG.with(std::cell::Cell::get)
+}
+
+/// Außerhalb der Prüffälle entfällt sie nie.
+#[cfg(not(test))]
+const fn vorpruefung_entfaellt() -> bool {
+    false
+}
+
 /// Die Vorprüfung vor jeder Messung. `Some` ist der Abbruch mit
 /// [`Abbruchgrund::Druck`], `None` heißt: messen.
 fn vorpruefung() -> Option<RateModel> {
+    if vorpruefung_entfaellt() {
+        return None;
+    }
     // **Fremdlast VOR der Messung ist ein Abbruchgrund, eigener Druck nicht.**
     //
     // Der Unterschied ist der ganze Punkt: Was hier anliegt, hat mit dieser
@@ -1391,6 +1417,12 @@ where
 mod tests {
     use super::*;
 
+    /// Lässt die Vorprüfung für den laufenden Prüffall entfallen (siehe
+    /// `OHNE_VORPRUEFUNG`). Jeder Prüffall hat seinen eigenen Strang.
+    fn ohne_vorpruefung() {
+        OHNE_VORPRUEFUNG.with(|s| s.set(true));
+    }
+
     #[test]
     fn streuung_ist_null_bei_gleichen_werten() {
         assert!((streuung(&[100.0, 100.0, 100.0, 100.0]) - 0.0).abs() < 1e-12);
@@ -2120,6 +2152,7 @@ mod tests {
 
     #[test]
     fn bestaetigungslauf_verlaengert_nicht() {
+        ohne_vorpruefung();
         // Abschnitte zwischen 2 und 40 ms: Das Mittel bleibt lange unsicher,
         // eine volle Erhebung liefe weiter. Der Bestätigungslauf hört nach
         // der Mindestdauer auf — das ist der ganze Punkt.
@@ -2131,9 +2164,6 @@ mod tests {
             1.0
         });
         let gelaufen = start.elapsed();
-        if r.reason == Abbruchgrund::Druck && r.samples == 0 {
-            return;
-        }
         assert_eq!(r.reason, Abbruchgrund::FesteDauer);
         assert!(
             !r.reason.brauchbar(),
@@ -2211,6 +2241,7 @@ mod tests {
 
     #[test]
     fn verschraenkt_feste_dauer_hoert_nach_der_dauer_auf() {
+        ohne_vorpruefung();
         let folge = std::cell::RefCell::new(Vec::<char>::new());
         let v = verschraenkt_feste_dauer(
             || {
@@ -2225,9 +2256,6 @@ mod tests {
             },
             Duration::from_secs(2),
         );
-        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
-            return;
-        }
         assert_eq!(v.kalibrierung.reason, Abbruchgrund::FesteDauer);
         assert_eq!(v.referenz.reason, Abbruchgrund::FesteDauer);
         assert!(!v.kalibrierung.reason.brauchbar());
@@ -2249,6 +2277,7 @@ mod tests {
 
     #[test]
     fn ein_abschnitt_mit_eigenem_fenster_zaehlt_nach_seinem_fenster() {
+        ohne_vorpruefung();
         // Die Kalibrierung braucht 10 ms Wanduhr, meldet aber ein Fenster von
         // einer Sekunde mit zehn Einheiten: Ihre Rate ist 10 je Sekunde, nicht
         // 1000. Die Referenz daneben meldet kein Fenster und wird an der
@@ -2268,9 +2297,6 @@ mod tests {
             },
             Duration::from_millis(100),
         );
-        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
-            return;
-        }
         assert!(
             (v.kalibrierung.rate_per_s - 10.0).abs() < 1e-9,
             "Rate mit eigenem Fenster {} statt 10",
@@ -2357,6 +2383,7 @@ mod tests {
 
     #[test]
     fn verschraenkt_wechselt_kalibrierung_und_referenz_ab() {
+        ohne_vorpruefung();
         // ABAB…, vom ersten Aufwärmabschnitt an, und jede Reihe gleich lang.
         let folge = std::cell::RefCell::new(Vec::<char>::new());
         let v = kalibriere_verschraenkt(
@@ -2371,12 +2398,6 @@ mod tests {
                 10.0
             },
         );
-        // Derselbe Ausweg wie bei `kalibriere_haelt_die_mindestdauer_ein`:
-        // Fremdlast vor der Messung bricht ab, bevor gerechnet wird.
-        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
-            assert!(folge.borrow().is_empty(), "gerechnet trotz Druck-Abbruch");
-            return;
-        }
         let folge = folge.into_inner();
         assert!(
             folge.len() >= 2 * ABSCHNITTE_MIN,
@@ -2399,6 +2420,7 @@ mod tests {
 
     #[test]
     fn verschraenkt_hebt_eine_drift_auf() {
+        ohne_vorpruefung();
         // **Der Grund für die Verschränkung** (P1 auf node3, 28.10.): Die
         // Referenz davor und danach lag 10,7 % auseinander. Hier wird dieselbe
         // Arbeit während des Laufs stetig langsamer — wie eine Maschine, deren
@@ -2412,9 +2434,6 @@ mod tests {
             1.0
         };
         let v = kalibriere_verschraenkt(arbeit, arbeit);
-        if v.kalibrierung.reason == Abbruchgrund::Druck && v.kalibrierung.samples == 0 {
-            return;
-        }
         // Positive Kontrolle: Die Drift ist im Lauf angekommen — die
         // Abschnitte streuen weit. Ohne sie prüfte der Fall gleiche Arbeit
         // unter gleichen Bedingungen und könnte nicht scheitern.
