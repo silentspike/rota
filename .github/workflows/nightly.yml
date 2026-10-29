@@ -15,6 +15,12 @@ jobs:
   balance:
     runs-on: ubuntu-latest
     steps:
+      # #891 N4: Die Wanduhr des ganzen Laufs zählt ab hier — der letzte
+      # Schritt schreibt sie in die Zusammenfassung, gegen die 6-h-Grenze
+      # GitHub-gehosteter Jobs.
+      - name: Beginn festhalten
+        shell: bash
+        run: echo "NACHTLAUF_BEGINN=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Compiler aus rust-toolchain.toml, wie im PR-Gate (ci.yml, Job sim) —
       # derselbe, mit dem cargo remote v2 baut.
@@ -41,9 +47,27 @@ jobs:
           cargo run --release --quiet --example balance \
             --manifest-path sim/Cargo.toml -- --iterations 10000 --threads 4
       - name: Boss-Machbarkeit und Erfolgs-Prüflauf
-        # Endet mit 1, wenn für einen Erfolg keine Lösung existiert — dann gilt
-        # der Boss als nicht auslieferbar (GAME-DESIGN 12.9).
-        run: cargo run --release --quiet --example report --manifest-path sim/Cargo.toml
+        # #891 N1: über jeden wertungsfähigen Boss, je mit gesuchter Rotation.
+        # Endet mit 1, wenn für eine Kombination ein Erfolg ohne gefundene
+        # Lösung bleibt — dann gilt der Boss als nicht auslieferbar (Masterplan,
+        # „Prüflauf vor Auslieferung").
+        #
+        # #891 N4: Wanduhr und Kampfzahl je Posten gehen in die Zusammenfassung
+        # des Laufs, auch wenn der Bericht rot endet — gerade dann wird sie
+        # gelesen. Deshalb `set +e` um den Lauf und der Exit-Code danach.
+        shell: bash
+        run: |
+          posten="$RUNNER_TEMP/posten.md"
+          set +e
+          cargo run --release --quiet --example report --manifest-path sim/Cargo.toml -- --posten-md "$posten"
+          rc=$?
+          set -e
+          if [ -f "$posten" ]; then
+            cat "$posten" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Posten-Tabelle fehlt: der Bericht endete mit $rc, bevor er sie schrieb." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$rc"
       - name: Abgleich Simulator gegen Spiel
         # Läuft im PR-Gate bereits, hier zusätzlich im Release-Bau: Optimierungen
         # dürfen Fließkomma-Operationen umordnen, und die Zustands-Prüfsumme
@@ -76,6 +100,25 @@ jobs:
         # Hier und nicht im PR-Gate: 28 s gemessen (2026-08-14, rustbuild,
         # --release). Das ist für den Nightly tragbar und für jeden PR nicht.
         run: cargo run --release --quiet --example zauber-abdeckung --manifest-path sim/Cargo.toml
+      - name: Wanduhr des Nachtlaufs
+        # #891 N4: Die ruhenden Pakete in #891 Abschnitt 4 hängen an dieser
+        # Zahl. Der Lauf bleibt auf ubuntu-latest, bis sie die 6-h-Grenze
+        # GitHub-gehosteter Jobs erreicht. `always()`, damit sie auch nach
+        # einem roten Schritt dasteht — dann fehlen die übersprungenen Schritte
+        # darin, und das sagt die Zeile.
+        if: always()
+        shell: bash
+        env:
+          STATUS: ${{ job.status }}
+        run: |
+          sekunden=$(( $(date +%s) - NACHTLAUF_BEGINN ))
+          echo "Nachtlauf ${GITHUB_SHA}: ${sekunden} s Wanduhr, Job-Status ${STATUS}"
+          {
+            echo "### Wanduhr des Nachtlaufs (#891 N4)"
+            echo
+            echo "\`${GITHUB_SHA}\`: **${sekunden} s** vom ersten bis zu diesem Schritt (Grenze GitHub-gehosteter Jobs: 21600 s), Job-Status ${STATUS}."
+            echo "Bei einem anderen Status als success fehlen die übersprungenen Schritte in dieser Zahl."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   codeql:
     runs-on: ubuntu-latest
