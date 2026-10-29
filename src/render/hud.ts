@@ -53,6 +53,7 @@ import {
 } from '../combat/schools/indicators.js';
 import { SLOT_COUNT } from '../input/keys.js';
 import type { PointsDisplay } from '../analysis/points-display.js';
+import { bossTitle } from '../core/difficulty.js';
 
 const BACKGROUND = '#0b0b0f';
 const LETTERBOX = '#000000';
@@ -588,8 +589,13 @@ export class HudRenderer {
     // ANZEIGE (9.3, dieselbe Schreibweise wie alle Beschriftungen), nicht des
     // Bosses. Ein Datensatz, der seinen Namen in Versalien führte, wäre in
     // jeder anderen Verwendung falsch.
+    //
+    // **Mit der Stufe** (Issue #1177): `bossTitle` hängt sie hinter den Namen,
+    // dieselbe Zeile wie im Vorbereitungs-Bildschirm. Ohne sie sähe ein
+    // Wechsel auf Heroisch aus wie gar kein Wechsel — derselbe Irrtum, vor dem
+    // der Absatz darüber warnt, eine Stufe tiefer.
     ctx.fillText(
-      this.session.combat.boss.name.toUpperCase(),
+      bossTitle(this.session.combat.boss).toUpperCase(),
       VESSEL_CENTER_X,
       VESSEL_CENTER_Y - VESSEL_RADIUS - 26,
     );
