@@ -461,7 +461,11 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
             })
             .collect(),
     };
-    let result = crate::balance::run(config, &apl);
+    // **Über die Durchgangswahl** (#920): Wo die Abhängigkeitsmaske keinen
+    // verzweigenden Leser findet, rechnen zwei Randläufe den Erwartungswert
+    // statt `iterations` gewürfelter Kämpfe — mit Standardfehler null. Sonst,
+    // und ohne Würfel, ist es derselbe Lauf wie vorher und bitgleich.
+    let result = crate::balance::run_erwartet(config, &apl);
     // **Verhinderter Schaden zaehlt mit** (Issue #472).
     //
     // Vorher stand hier `result.damage.mean` allein. Gemessen an boss-1-2:
@@ -478,11 +482,11 @@ pub fn measure(config: &BalanceConfig, name: &str, chosen: &[Candidate]) -> Meas
     // **Der Bezugspunkt ist `damage_taken_baseline` aus der Konfiguration**,
     // nicht ein zweiter Lauf: Ein Vergleichslauf je Messung vervielfachte die
     // Laufzeit einer Suche, die heute schon 1778 Messungen braucht.
-    let verhindert = (config.damage_taken_baseline - result.damage_taken.mean).max(0.0);
+    let verhindert = (config.damage_taken_baseline - result.erlitten).max(0.0);
     Measured {
         apl,
-        mean: result.damage.mean + config.prevented_weight * verhindert,
-        stderr: result.damage.stderr,
+        mean: result.schaden + config.prevented_weight * verhindert,
+        stderr: result.stderr,
     }
 }
 

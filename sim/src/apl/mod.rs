@@ -366,6 +366,45 @@ impl Value {
             | Value::Control => false,
         }
     }
+
+    /// Welchen Kampfzustand dieser Wert liest (#920, AC2).
+    ///
+    /// Gebraucht für die Abhängigkeitsmaske in [`crate::analytisch`]: Eine
+    /// Bedingung der Rotation ist eine Verzweigung, und ob der Ausgang eines
+    /// Krit-Wurfs sie erreicht, hängt allein daran, welchen Zustand sie liest.
+    /// `boss.hp_pct < 20` liest den Fortschritt am Boss — und der hängt am Krit.
+    ///
+    /// **Erschöpfend und ohne Auffangzweig**, aus demselben Grund wie
+    /// [`Self::is_time_dependent`]: Ein neuer Wert muss hier sagen, was er
+    /// liest. Ein `_ => StateMask::EMPTY` erklärte ihn still für unabhängig
+    /// vom Krit, und die Maske ließe einen Kampf analytisch rechnen, dessen
+    /// Rotation am Krit verzweigt.
+    #[must_use]
+    pub const fn zustand(self) -> crate::effects::StateMask {
+        use crate::effects::StateMask;
+        match self {
+            // Feste Zahlen und die Uhr. Die Kampfdauer steht fest, also auch
+            // die Restzeit — kein Krit verschiebt sie.
+            Value::Literal(_) | Value::Time | Value::FightRemains | Value::Gcd => StateMask::EMPTY,
+            // Die Kontroll-Punkte liegen neben der Schul-Ressource; build.rs
+            // beschreibt `controlGain` als Schreiber von RESOURCE.
+            Value::Resource | Value::Control => StateMask::RESOURCE,
+            Value::CooldownRemains(_) | Value::CooldownReady(_) => StateMask::COOLDOWNS,
+            Value::DotRemains(_) | Value::DotActive(_) | Value::DotTicks(_) => StateMask::DOTS,
+            Value::BossHp | Value::BossHpPercent => StateMask::BOSS_HP,
+            Value::BossCasting | Value::BossCastRemains | Value::BossNextStrikeIn => {
+                StateMask::TIMELINE
+            }
+            Value::Decay => StateMask::DECAY_STACKS,
+            Value::Shield => StateMask::SHIELD,
+            Value::Doom | Value::DoomCharges | Value::Afflicted => StateMask::BOSS_SYSTEMS,
+            // Der Ring füllt sich mit dem Schaden, der im Fenster ankommt
+            // (`Fight::deal`, `race_progress += amount`) — er liest also den
+            // Betrag jedes Treffers, nicht nur einen Bosszustand.
+            Value::RaceProgress => StateMask::BOSS_HP.union(StateMask::BOSS_SYSTEMS),
+            Value::BuffActive(_) | Value::BuffRemains(_) => StateMask::BUFFS,
+        }
+    }
 }
 
 /// Wie zwei Werte verglichen werden.

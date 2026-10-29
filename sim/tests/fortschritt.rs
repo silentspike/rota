@@ -75,7 +75,12 @@ fn kaempfe_stufe(aufgaben: u64, wiederholungen: u64) -> Stufe {
 }
 
 /// Eine Probe nach `sekunden`, mit gleichmäßig wachsenden Zählern.
-fn probe(sekunden: f64, kaempfe: u64, kandidaten: [u64; 3], stand: Laufstand) -> Momentaufnahme {
+fn probe(
+    sekunden: f64,
+    kaempfe: u64,
+    kandidaten: [u64; Weg::ANZAHL],
+    stand: Laufstand,
+) -> Momentaufnahme {
     Momentaufnahme {
         elapsed_ns: (sekunden * 1e9).round() as u64,
         kaempfe,
@@ -138,7 +143,7 @@ fn ein_reduzierter_lauf_zaehlt_einen_kampf_und_zwanzig_durchgaenge() {
     assert_eq!(m.durchgaenge, 20, "geliefert werden zwanzig Durchgänge");
     assert_eq!(
         m.kandidaten,
-        [1, 0, 0],
+        [1, 0, 0, 0],
         "eine Auswertung auf dem Weg 'ein Kampf'"
     );
 }
@@ -152,7 +157,7 @@ fn eine_stichprobe_zaehlt_jeden_kampf_im_strang_der_ihn_rechnet() {
     let _ = run(&config, &gute_liste());
     let m = werk.momentaufnahme();
     assert_eq!(m.kaempfe, 20);
-    assert_eq!(m.kandidaten, [0, 1, 0]);
+    assert_eq!(m.kandidaten, [0, 1, 0, 0]);
     // **Die Eigenschaft, nicht die Verteilung** (Entscheidung des
     // Orchestrators vom 2026-10-28, #912): Seit der dynamischen Entnahme
     // rechnet jeder Strang so viele Kämpfe, wie er schafft — `[0, 5, 5, 5, 5]`
@@ -187,7 +192,7 @@ fn der_vollstaendige_lauf_rechnet_jeden_durchgang() {
     let voll = run_vollstaendig(&config, &gute_liste());
     let m = werk.momentaufnahme();
     assert_eq!(m.kaempfe, 20, "jeder Durchgang ein gerechneter Kampf");
-    assert_eq!(m.kandidaten, [0, 1, 0]);
+    assert_eq!(m.kandidaten, [0, 1, 0, 0]);
     // Und dasselbe Ergebnis wie der reduzierte Lauf — Bitgleichheit.
     let reduziert = run(&config, &gute_liste());
     assert_eq!(voll.samples, reduziert.samples);
@@ -213,7 +218,7 @@ fn der_gestaffelte_lauf_zaehlt_seine_kaempfe() {
     assert!(lauf.kaempfe > 1, "Trägerzusicherung: es wurde gestaffelt");
     assert_eq!(m.kaempfe, lauf.kaempfe);
     assert_eq!(m.durchgaenge, lauf.kaempfe);
-    assert_eq!(m.kandidaten, [0, 0, 1]);
+    assert_eq!(m.kandidaten, [0, 0, 1, 0]);
 }
 
 #[test]
@@ -387,7 +392,7 @@ fn gleichmaessig(fenster: &mut Fenster, bis_s: f64, ab_s: f64, rate: f64, mut ka
         fenster.aufnehmen(probe(
             t,
             kaempfe.round() as u64,
-            [0, 0, 0],
+            [0, 0, 0, 0],
             Laufstand::default(),
         ));
         t += 0.25;
@@ -459,7 +464,7 @@ fn strangrate_braucht_vier_sekundenabschnitte_und_traegt_die_streuung() {
     for sekunde in 0..8u32 {
         let je_viertel = if sekunde % 2 == 0 { 225 } else { 275 };
         for _ in 0..4 {
-            fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0], Laufstand::default()));
+            fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0, 0], Laufstand::default()));
             t += 0.25;
             kaempfe += je_viertel;
         }
@@ -470,7 +475,7 @@ fn strangrate_braucht_vier_sekundenabschnitte_und_traegt_die_streuung() {
             );
         }
     }
-    fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0], Laufstand::default()));
+    fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0, 0], Laufstand::default()));
     let r = fenster.strangrate().expect("acht Abschnitte");
     assert!(nah(r.rate_per_s, 1000.0), "Rate {}", r.rate_per_s);
     assert!(nah(r.spread, 0.1), "Streuung {}", r.spread);
@@ -482,7 +487,7 @@ fn aktive_straenge_sind_die_der_letzten_sekunde() {
     let mut fenster = Fenster::neu(FENSTER);
     for i in 0..=12u32 {
         let t = f64::from(i) * 0.25;
-        let mut p = probe(t, 0, [0, 0, 0], Laufstand::default());
+        let mut p = probe(t, 0, [0, 0, 0, 0], Laufstand::default());
         // Platz 1 rechnet die ganze Zeit, Platz 2 hört nach einer Sekunde auf.
         p.kaempfe_je_strang = vec![0, u64::from(i) * 10, u64::from(i.min(4)) * 10];
         p.kaempfe = p.kaempfe_je_strang.iter().sum();
@@ -590,7 +595,7 @@ fn raten_mit(kandidaten_je_s: f64) -> rota_sim::fortschritt::Raten {
         kaempfe_gleitend: 1000.0,
         kandidaten_aktuell: kandidaten_je_s,
         kandidaten_gleitend: kandidaten_je_s,
-        wege_gleitend: [kandidaten_je_s, 0.0, 0.0],
+        wege_gleitend: [kandidaten_je_s, 0.0, 0.0, 0.0],
         fenster_s: 30.0,
         aktive_straenge: 1,
     }
@@ -804,12 +809,12 @@ fn der_trend_ist_die_verschiebung_zwischen_den_fensterhaelften() {
     for sekunde in 0..8u32 {
         let je_viertel = if sekunde < 4 { 250 } else { 200 };
         for _ in 0..4 {
-            fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0], Laufstand::default()));
+            fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0, 0], Laufstand::default()));
             t += 0.25;
             kaempfe += je_viertel;
         }
     }
-    fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0], Laufstand::default()));
+    fenster.aufnehmen(probe(t, kaempfe, [0, 0, 0, 0], Laufstand::default()));
     let trend = fenster.strangtrend().expect("acht Abschnitte");
     assert!(nah(trend, 0.2), "Trend {trend}");
     // Und ohne Wandern kein Trend — sonst weitete der Term jede Spanne.
@@ -884,7 +889,7 @@ fn fenster_mit(stand: Laufstand) -> Fenster {
     let mut fenster = Fenster::neu(FENSTER);
     for i in 0..=32u64 {
         let n = i * 25;
-        let mut p = probe(i as f64 * 0.25, n, [n, 0, 0], stand);
+        let mut p = probe(i as f64 * 0.25, n, [n, 0, 0, 0], stand);
         p.durchgaenge = n * 50;
         fenster.aufnehmen(p);
     }
@@ -961,7 +966,7 @@ fn ac3_eine_offene_suche_zeigt_keine_restzeit() {
     // vier Messsekunden". Die Entscheidung fällt vor jeder Rechnung.
     let mut kurz = Fenster::neu(FENSTER);
     for i in 0..=4u64 {
-        kurz.aufnehmen(probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], stand));
+        kurz.aufnehmen(probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0, 0], stand));
     }
     assert!(kurz.strangrate().is_none(), "Zusicherung: noch keine Rate");
     let frueh = beschreibung(EIN_KAMPF)
@@ -1078,7 +1083,7 @@ fn ac2_beide_durchsatzzahlen_stehen_nebeneinander_und_laufen_auseinander() {
         fenster.aufnehmen(probe(
             i as f64 * 0.25,
             n * 50,
-            [0, n, 0],
+            [0, n, 0, 0],
             Laufstand::default(),
         ));
     }
@@ -1179,7 +1184,7 @@ fn engpass_liest_den_hoechsten_druck_im_fenster() {
     )));
     let mut fenster = Fenster::neu(FENSTER);
     for i in 0..=32u64 {
-        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], plateau_stand());
+        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0, 0], plateau_stand());
         p.engpass.straenge = vec![
             Strangzeit {
                 arbeit_ns: i * 600,
@@ -1262,7 +1267,7 @@ fn engpass_mit_erhebung_steht_als_satz_in_zeile_und_strom() {
     // Acht Sekunden, in denen vier Stränge 40 % ihrer Zeit warten.
     let mut fenster = Fenster::neu(FENSTER);
     for i in 0..=32u64 {
-        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0], plateau_stand());
+        let mut p = probe(i as f64 * 0.25, i * 25, [i * 25, 0, 0, 0], plateau_stand());
         p.engpass.straenge = vec![
             Strangzeit {
                 arbeit_ns: i * 600,

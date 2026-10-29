@@ -1640,7 +1640,7 @@ fn run_range(
 /// ihren Kampf hier; stünde das Literal zweimal da, liefe ein neues Feld nur in
 /// einen der beiden durch, und die Stichprobe mäße einen anderen Kampf als der
 /// Balance-Lauf daneben.
-fn kampf_konfiguration(config: &BalanceConfig, seed: u32) -> FightConfig {
+pub(crate) fn kampf_konfiguration(config: &BalanceConfig, seed: u32) -> FightConfig {
     FightConfig {
         seed,
         duration_ms: config.duration_ms,
@@ -1735,41 +1735,142 @@ fn probe_aus(fight: &Fight, seed: u32, result: &crate::fight::RunResult) -> Samp
 
 // ------------------------------------------------ Durchgangssteuerung (#915)
 
-/// Welcher Weg die Zahl der Durchgänge bestimmt (Issue #915, AC3).
+/// Welcher Weg die Zahl der Durchgänge bestimmt (Issue #915, AC3; #920).
 ///
-/// # Vorerst genau zwei Wege
+/// # Drei Wege
 ///
 /// | Weg | wann | Kämpfe |
 /// | --- | --- | --- |
 /// | [`Durchgangswahl::EinDurchgang`] | kein Strom zieht ([`crate::durchgaenge::ein_durchgang_genuegt`]) | genau einer |
-/// | [`Durchgangswahl::Gestaffelt`] | sonst | bis die Schwelle sicher über- oder unterschritten ist, höchstens das Budget |
+/// | [`Durchgangswahl::Analytisch`] | es wird gewürfelt, aber jede ziehende Quelle lässt sich für die gefragte Größe ausintegrieren ([`crate::analytisch::StochastischeAufteilung::analytisch`]) | zwei Randläufe |
+/// | [`Durchgangswahl::Gestaffelt`] | sonst | die Stichprobe |
 ///
-/// **Die Verteilungs-DP und der analytische Krit sind NICHT Teil der Wahl.**
-/// Beide wären schneller, und beide setzen voraus, dass der Krit den
-/// Kontrollfluss des Kampfes nicht berührt — bei einem Boss mit
-/// Lebenspunkt-Phasen kann er es (#915, AC2). Woran die Durchgangssteuerung
-/// das erkennt, ist noch nicht entschieden. Bis dahin läuft alles, was
-/// würfelt, über die Stichprobe: langsamer, aber ohne eine Voraussetzung, die
-/// niemand geprüft hat.
+/// **Die Wahl hängt an der gefragten Größe** (#920, AC3). Die gestaffelte
+/// Stichprobe fragt nach der Siegwahrscheinlichkeit, und die ist im Krit nicht
+/// linear — dort fällt die Wahl nie auf den analytischen Weg, auch an einem
+/// Boss ohne Phasen. Die Rotationssuche fragt nach dem erwarteten Schaden;
+/// dort greift er überall, wo die Abhängigkeitsmaske keinen verzweigenden
+/// Leser findet. An einem Boss mit Lebenspunkt-Phasen bleibt es bei der
+/// Stichprobe.
+///
+/// Die Verteilungs-DP ist weiterhin NICHT Teil der Wahl.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Durchgangswahl {
     /// Kein Strom zieht: Ein Kampf ist die ganze Verteilung, sein Ausgang ist
     /// exakt.
     EinDurchgang,
-    /// Es wird gewürfelt: die gestaffelte Stichprobe aus [`crate::stichprobe`].
+    /// Es wird gewürfelt, aber keine ziehende Quelle berührt den Kontrollfluss,
+    /// und die gefragte Größe ist in den Treffern linear: zwei Randläufe statt
+    /// einer Stichprobe ([`crate::analytisch::erwartung`]).
+    Analytisch,
+    /// Es wird gewürfelt: die Stichprobe — die gestaffelte aus
+    /// [`crate::stichprobe`] in [`run_gestaffelt`], die feste in [`run`].
     Gestaffelt,
 }
 
 impl Durchgangswahl {
-    /// Die Wahl für diese Konfiguration — abgeleitet aus der Beschreibung und
-    /// der getragenen Ausrüstung, nicht aus einer Bossliste.
+    /// Die Wahl für diese Rotation und diese gefragte Größe — abgeleitet aus
+    /// der Beschreibung, der getragenen Ausrüstung und dem Boss, nicht aus
+    /// einer Bossliste.
     #[must_use]
-    pub fn fuer(config: &BalanceConfig) -> Self {
-        if crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn) {
-            Self::EinDurchgang
-        } else {
-            Self::Gestaffelt
+    pub fn fuer(
+        config: &BalanceConfig,
+        apl: &Apl,
+        gefragt: crate::analytisch::Ergebnisgroesse,
+    ) -> Self {
+        waehle(config, apl, gefragt).0
+    }
+}
+
+/// Die Wahl und, wenn sie analytisch ausfällt, die Aufteilung dazu.
+///
+/// Eine Stelle für beide: [`Durchgangswahl::fuer`] braucht nur die Wahl,
+/// [`run_erwartet`] auch die Aufteilung — und sie zweimal abzuleiten hieße,
+/// je Messung der Suche zweimal über die Wirkungsbeschreibung zu gehen.
+fn waehle(
+    config: &BalanceConfig,
+    apl: &Apl,
+    gefragt: crate::analytisch::Ergebnisgroesse,
+) -> (
+    Durchgangswahl,
+    Option<crate::analytisch::StochastischeAufteilung>,
+) {
+    if crate::durchgaenge::ein_durchgang_genuegt(crate::data::EFFECT_NODES, &config.worn) {
+        return (Durchgangswahl::EinDurchgang, None);
+    }
+    if crate::analytisch::ausintegration_erlaubt() {
+        let aufteilung = crate::analytisch::StochastischeAufteilung::fuer(config, apl, gefragt);
+        if aufteilung.analytisch() {
+            return (Durchgangswahl::Analytisch, Some(aufteilung));
         }
+    }
+    (Durchgangswahl::Gestaffelt, None)
+}
+
+/// Der erwartete Schaden einer Rotation, über den Weg der Durchgangswahl (#920).
+///
+/// Die Größe, nach der die Rotationssuche fragt
+/// ([`crate::rotation_search::measure`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Erwartungswert {
+    /// Der mittlere ausgeteilte Schaden — beim analytischen Weg der
+    /// Erwartungswert selbst.
+    pub schaden: f64,
+    /// Sein Standardfehler. **Null beim analytischen Weg**: Ausintegriert
+    /// heißt, dass der Krit keine Streuung mehr beiträgt.
+    pub stderr: f64,
+    /// Der mittlere erlittene Schaden.
+    pub erlitten: f64,
+    /// Welcher Weg gerechnet hat — nach einem verweigerten Randabgleich
+    /// [`Durchgangswahl::Gestaffelt`], nicht die ursprüngliche Wahl.
+    pub weg: Durchgangswahl,
+}
+
+/// Der erwartete Schaden einer Rotation (#920).
+///
+/// Wählt die Durchgangswahl den analytischen Weg, rechnet
+/// [`crate::analytisch::erwartung`] zwei Randläufe. Verweigert der
+/// Randabgleich, zählt das [`crate::analytisch::verweigerungen`], und es
+/// rechnet [`run`] — wie auf den beiden anderen Wegen, bitgleich wie vor #920.
+#[must_use]
+pub fn run_erwartet(config: &BalanceConfig, apl: &Apl) -> Erwartungswert {
+    let (wahl, aufteilung) = waehle(
+        config,
+        apl,
+        crate::analytisch::Ergebnisgroesse::ErwarteterSchaden,
+    );
+    if let Some(aufteilung) = aufteilung {
+        match crate::analytisch::erwartung(config, apl, &aufteilung) {
+            Ok(e) => {
+                // Derselbe Nenner der Trefferquote wie in `run` (#934): Gefragt
+                // wurde, ob ein Kampf genügt — getroffen hat es hier nicht.
+                // Nur hier: Beim Rückfall zählt `run` ihn selbst.
+                crate::fortschritt::reduktionsversuch();
+                // Die zwei Randläufe stehen für die Stichprobe, die sie
+                // ersetzen — wie der eine Kampf der Reduktion für `iterations`.
+                crate::fortschritt::kandidat(
+                    crate::fortschritt::Weg::Analytisch,
+                    u64::from(config.iterations),
+                );
+                return Erwartungswert {
+                    schaden: e.schaden,
+                    stderr: 0.0,
+                    erlitten: e.erlitten,
+                    weg: wahl,
+                };
+            }
+            Err(_) => crate::analytisch::verweigerung_zaehlen(),
+        }
+    }
+    let ergebnis = run(config, apl);
+    Erwartungswert {
+        schaden: ergebnis.damage.mean,
+        stderr: ergebnis.damage.stderr,
+        erlitten: ergebnis.damage_taken.mean,
+        weg: match wahl {
+            Durchgangswahl::EinDurchgang => Durchgangswahl::EinDurchgang,
+            Durchgangswahl::Analytisch | Durchgangswahl::Gestaffelt => Durchgangswahl::Gestaffelt,
+        },
     }
 }
 
@@ -1901,6 +2002,34 @@ pub struct GestaffelterLauf {
     /// auf denselben Startwerten; Siegzahl und Befund allein fingen einen
     /// verschobenen Startwert nicht, weil fast alle Kämpfe gleich ausgehen.
     pub schaden: u64,
+    /// Die Summe der Quadrate des Schadens je Kampf (#920).
+    ///
+    /// Mit [`Self::schaden`] und [`Self::kaempfe`] ergibt sie die Streuung und
+    /// damit die Stichproben-Unsicherheit des Mittelwerts — die Größe, an der
+    /// sich der analytische Weg messen lassen muss. Ganzzahlig und in `u128`,
+    /// damit die Summe exakt bleibt: Bei 2³² Kämpfen zu je 10⁵ Schaden läge sie
+    /// über `u64::MAX`, und eine `f64`-Summe hinge an der Reihenfolge.
+    pub schaden_quadrate: u128,
+}
+
+impl GestaffelterLauf {
+    /// Der mittlere Schaden je Kampf und sein Standardfehler (#920).
+    ///
+    /// `None` bei weniger als zwei Kämpfen: Aus einem Kampf lässt sich keine
+    /// Streuung schätzen — und beim Weg [`Durchgangswahl::EinDurchgang`] gibt
+    /// es keine.
+    #[must_use]
+    pub fn schaden_mit_fehler(&self) -> Option<(f64, f64)> {
+        if self.kaempfe < 2 {
+            return None;
+        }
+        let n = self.kaempfe as f64;
+        let mittel = self.schaden as f64 / n;
+        // Die Stichprobenvarianz aus den exakten Summen: (Σx² − (Σx)²/n)/(n−1).
+        let quadrate = self.schaden_quadrate as f64;
+        let varianz = ((quadrate - (self.schaden as f64).powi(2) / n) / (n - 1.0)).max(0.0);
+        Some((mittel, (varianz / n).sqrt()))
+    }
 }
 
 /// Fährt einen Balance-Lauf mit Durchgangssteuerung (Issue #915, AC3).
@@ -1943,7 +2072,14 @@ pub fn run_gestaffelt(
     staffelung: Staffelung,
 ) -> Result<GestaffelterLauf, Staffelungsfehler> {
     staffelung.pruefe()?;
-    let wahl = Durchgangswahl::fuer(config);
+    // **Gefragt ist die Siegwahrscheinlichkeit** (#920, AC3): Sie ist im Krit
+    // nicht linear, also fällt die Wahl hier nie auf den analytischen Weg —
+    // auch an einem Boss, an dem die Maske den Kontrollfluss frei sieht.
+    let wahl = Durchgangswahl::fuer(
+        config,
+        apl,
+        crate::analytisch::Ergebnisgroesse::Siegwahrscheinlichkeit,
+    );
     // Dieselbe Frage wie im festen Lauf — genügt ein Kampf? —, also derselbe
     // Nenner der Trefferquote (#934).
     crate::fortschritt::reduktionsversuch();
@@ -1953,6 +2089,7 @@ pub fn run_gestaffelt(
     let mut siege = 0u64;
     let mut wuerfe = 0u64;
     let mut schaden = 0u64;
+    let mut schaden_quadrate = 0u128;
     let strang = crate::fortschritt::strang();
     let mut versuch = |i: u64| -> bool {
         // `pruefe` hat `budget <= STARTWERTE` sichergestellt, also passt jeder
@@ -1969,6 +2106,7 @@ pub fn run_gestaffelt(
         siege += u64::from(sieg);
         wuerfe += u64::from(result.random_draws);
         schaden += u64::from(result.damage);
+        schaden_quadrate += u128::from(result.damage) * u128::from(result.damage);
         sieg
     };
 
@@ -1990,6 +2128,15 @@ pub fn run_gestaffelt(
             staffelung.budget,
             &mut versuch,
         ),
+        // Die zweistellige Prüfung hat für die Siegwahrscheinlichkeit „nein"
+        // zu sagen. Steht die Wahl trotzdem hier, rechnet sie falsch — und ein
+        // Befund aus zwei Randläufen wäre eine Siegwahrscheinlichkeit von 0
+        // oder 1, die niemand gemessen hat.
+        Durchgangswahl::Analytisch => panic!(
+            "die Siegwahrscheinlichkeit ist im Krit nicht linear — die \
+             zweistellige Prüfung durfte hier den analytischen Weg nicht wählen \
+             (#920, AC3)"
+        ),
     };
 
     if wahl == Durchgangswahl::EinDurchgang {
@@ -2005,6 +2152,7 @@ pub fn run_gestaffelt(
     crate::fortschritt::kandidat(
         match wahl {
             Durchgangswahl::EinDurchgang => crate::fortschritt::Weg::EinKampf,
+            Durchgangswahl::Analytisch => crate::fortschritt::Weg::Analytisch,
             Durchgangswahl::Gestaffelt => crate::fortschritt::Weg::Gestaffelt,
         },
         kaempfe,
@@ -2018,6 +2166,7 @@ pub fn run_gestaffelt(
         siege,
         wuerfe,
         schaden,
+        schaden_quadrate,
     })
 }
 

@@ -36,6 +36,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use rota_sim::analytisch::Ergebnisgroesse;
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{
     auswertungsweg, run, run_gestaffelt, run_vollstaendig, BalanceConfig, BalanceResult,
@@ -330,6 +331,24 @@ fn kostenbild(config: &BalanceConfig) -> Kostenbild {
         } else {
             u64::from(config.iterations)
         }),
+    }
+}
+
+/// Das Kostenbild der Suche (#920).
+///
+/// Die Suche fragt die Durchgangswahl je Liste: zwei Randlaeufe, wo der Krit
+/// ausintegriert wird, sonst die Stichprobe. Welcher Weg es wird, haengt an den
+/// Zaubern der Liste — vorher steht nur die Obergrenze fest. `Fest` hiesse hier
+/// „genau `iterations` Kaempfe", und die Restzeit rechnete mit fuenfzig, wo
+/// zwei anfallen.
+fn such_kostenbild(config: &BalanceConfig) -> Kostenbild {
+    let je_liste = kostenbild(config);
+    if je_liste.weg == Weg::EinKampf || !rota_sim::analytisch::ausintegration_erlaubt() {
+        return je_liste;
+    }
+    Kostenbild {
+        weg: je_liste.weg,
+        kaempfe_je_kandidat: Kampfzahl::Hoechstens(u64::from(config.iterations)),
     }
 }
 
@@ -1041,7 +1060,12 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         let anzeige = starte_anzeige(
             &werk,
             &optionen.anzeige,
-            Laufbeschreibung::neu("greedy", Some(boss.id), config.threads, kostenbild(&config)),
+            Laufbeschreibung::neu(
+                "greedy",
+                Some(boss.id),
+                config.threads,
+                such_kostenbild(&config),
+            ),
             &format!(
                 "greedy boss={} max-len={} iterations={} purity={} threads={} seed={}",
                 boss.id,
@@ -1327,11 +1351,18 @@ fn lauf_gestaffelt(
     let (name, apl, kennung) = lade_apl_mit_kennung(optionen.apl_pfad.as_deref())?;
     let staffelung = staffelung_aus(optionen);
     // Der Weg kommt aus derselben Wahl, die der Lauf gleich trifft: Ohne Wuerfel
-    // ist es EIN Kampf, sonst hoechstens das Budget.
-    let kosten = match Durchgangswahl::fuer(config) {
+    // ist es EIN Kampf, sonst hoechstens das Budget. Gefragt ist die
+    // Siegwahrscheinlichkeit, wie in `run_gestaffelt` (#920).
+    let kosten = match Durchgangswahl::fuer(config, &apl, Ergebnisgroesse::Siegwahrscheinlichkeit) {
         Durchgangswahl::EinDurchgang => Kostenbild {
             weg: Weg::EinKampf,
             kaempfe_je_kandidat: Kampfzahl::Fest(1),
+        },
+        // Die zwei Randlaeufe — fuer die Siegwahrscheinlichkeit waehlt die
+        // zweistellige Pruefung diesen Weg nie; `run_gestaffelt` bricht dann ab.
+        Durchgangswahl::Analytisch => Kostenbild {
+            weg: Weg::Analytisch,
+            kaempfe_je_kandidat: Kampfzahl::Fest(2),
         },
         Durchgangswahl::Gestaffelt => Kostenbild {
             weg: Weg::Gestaffelt,
@@ -1435,6 +1466,7 @@ fn berichte_gestaffelt(
         Durchgangswahl::EinDurchgang => {
             "ein Durchgang — nirgends wird gewuerfelt, der Ausgang ist exakt"
         }
+        Durchgangswahl::Analytisch => "analytisch — der Krit ist ausintegriert",
         Durchgangswahl::Gestaffelt => "gestaffelt — es wird gewuerfelt",
     };
     println!("Weg                  {weg}");
