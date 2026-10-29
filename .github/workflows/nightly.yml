@@ -75,7 +75,26 @@ jobs:
         #
         # Hier und nicht im PR-Gate: 28 s gemessen (2026-08-14, rustbuild,
         # --release). Das ist für den Nightly tragbar und für jeden PR nicht.
-        run: cargo run --release --quiet --example zauber-abdeckung --manifest-path sim/Cargo.toml
+        #
+        # #550 AC1: Der Bericht nennt Datum (UTC), Stand und je Boss die
+        # gewirkten Zauber, und er steht in der Zusammenfassung des Laufs —
+        # damit jede Nacht nachlesbar bleibt, welche Zauber auf welchem Stand
+        # vorkamen. Der Stand kommt aus GITHUB_SHA; der Exit-Code des Läufers
+        # bleibt der des Schritts (keine Pipe, sonst entschiede `cat`).
+        shell: bash
+        run: |
+          rc=0
+          cargo run --release --quiet --example zauber-abdeckung --manifest-path sim/Cargo.toml \
+            -- --stand "${GITHUB_SHA}" > "${RUNNER_TEMP}/zauber-abdeckung.txt" 2>&1 || rc=$?
+          cat "${RUNNER_TEMP}/zauber-abdeckung.txt"
+          {
+            echo "### Zauber-Abdeckung der ersten Instanz (#550), Exit ${rc}"
+            echo
+            echo '```text'
+            cat "${RUNNER_TEMP}/zauber-abdeckung.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
 
   codeql:
     runs-on: ubuntu-latest
