@@ -49,6 +49,18 @@ jobs:
         # dürfen Fließkomma-Operationen umordnen, und die Zustands-Prüfsumme
         # rührt Fließkomma-Bits ein.
         run: cargo run --release --quiet --example parity --manifest-path sim/Cargo.toml
+      - name: Fingerabdruck des Simulators
+        # #891 N5: Die Balance-Zahlen entstehen auf node3, dieser Lauf auf
+        # ubuntu-latest. Derselbe Commit muss auf beiden denselben Wert liefern;
+        # der Wert steht deshalb in der Zusammenfassung des Laufs, zum Vergleich
+        # mit `rota-sim verify --print-fingerprint` auf node3. `verify` endet mit
+        # 1, wenn einer seiner Selbsttests scheitert (auch Strangunabhängigkeit).
+        shell: bash
+        run: |
+          set -o pipefail
+          wert=$(cargo run --release --quiet --bin rota-sim --manifest-path sim/Cargo.toml -- verify --print-fingerprint)
+          echo "Fingerabdruck ${GITHUB_SHA}: ${wert}"
+          echo "Fingerabdruck \`${GITHUB_SHA}\`: \`${wert}\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Zauber-Abdeckung der ersten Instanz
         # Issue #550 AC5. Endet mit 1, wenn über die vier Bosse der ersten
         # Instanz weniger als 11 spielbare Zauber gewirkt werden — dann hat ein
