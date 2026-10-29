@@ -237,6 +237,11 @@ class SimRegistry(unittest.TestCase):
         self.zuschnitt('E11.0', zuschnitt='erledigt', zuschnitt_grund='Messumgebung.')
         self.assert_rejected('E11.0 (#896): zuschnitt outside the #891 inventory')
 
+    def test_two_entries_cannot_share_one_number_of_the_inventory(self):
+        self.entries['E11.0']['issue'] = 946
+        self.zuschnitt('E11.0', zuschnitt='verworfen', zuschnitt_grund='Messumgebung.')
+        self.assert_rejected('#946: two registry entries, E11.0 and E12.6')
+
     def test_inventory_number_listed_twice_is_rejected(self):
         inventory = self.inventory()
         inventory['issues'] = inventory.get('issues', []) + [946]
