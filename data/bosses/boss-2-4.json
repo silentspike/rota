@@ -40,5 +40,28 @@
       "castTimeMs": 2500
     }
   ],
-  "resistances": {}
+  "resistances": {},
+  "difficulties": {
+    "_comment": "ARBEITSWAHL (Issue #1177, Freigabe vom 28.10.: Inhalt nach Plan, Namen als Arbeitsnamen). Masterplan A.4: ‚Normal / Heroisch / Mythisch pro Boss — mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken, mehr Punkte‘. Leben, Zeitlimit und Punkte kommen aus data/difficulty.json; HIER steht nur, welche Mechanik dazukommt — kumulativ, Mythisch trägt die heroische mit. Gewählt wird je Stufe EIN Baustein, den der Boss noch nicht trägt, aus denen, die jede Zusammenstellung beantworten kann (11.3): der Zähler über PURGE, Schwächung und Unterbrechung über QUENCH oder TEMPER, Schläge, Stapel und Energie über Schutz und VESSEL. Nie runaway (tauscht das Ziel), nie bossHeal (11.2: ‚nur für einzelne Bosse‘). Die Zahlen der Bausteine sind VORLÄUFIG, aus denselben Bausteinen anderer Bosse übernommen, nicht gemessen.\n\nSIGNATUR: Wettrennen, Heilung und Schwächung — er trägt schon vier Bausteine. Heroisch die Eskalation: Der Sealing Chant wird je Zyklus kürzer, das Fenster enger (Masterplan, Ankündigungen: ‚Die Härte kommt aus mehr Lebenspunkten, engeren Fenstern und zusätzlichen Mechaniken‘). Mythisch dazu der Zähler.",
+    "heroic": {
+      "add": {
+        "escalation": {
+          "castTimeShrinkMs": 200,
+          "minCastTimeMs": 1200
+        }
+      }
+    },
+    "mythic": {
+      "add": {
+        "doom": {
+          "name": "Fracture Pressure",
+          "perStepMs": 1000,
+          "amount": 2,
+          "threshold": 100,
+          "clearAmount": 40,
+          "clearCharges": 2
+        }
+      }
+    }
+  }
 }

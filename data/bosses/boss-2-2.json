@@ -37,5 +37,31 @@
     "atMs": 10000,
     "windowMs": 5000,
     "threshold": 900
+  },
+  "difficulties": {
+    "_comment": "ARBEITSWAHL (Issue #1177, Freigabe vom 28.10.: Inhalt nach Plan, Namen als Arbeitsnamen). Masterplan A.4: ‚Normal / Heroisch / Mythisch pro Boss — mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken, mehr Punkte‘. Leben, Zeitlimit und Punkte kommen aus data/difficulty.json; HIER steht nur, welche Mechanik dazukommt — kumulativ, Mythisch trägt die heroische mit. Gewählt wird je Stufe EIN Baustein, den der Boss noch nicht trägt, aus denen, die jede Zusammenstellung beantworten kann (11.3): der Zähler über PURGE, Schwächung und Unterbrechung über QUENCH oder TEMPER, Schläge, Stapel und Energie über Schutz und VESSEL. Nie runaway (tauscht das Ziel), nie bossHeal (11.2: ‚nur für einzelne Bosse‘). Die Zahlen der Bausteine sind VORLÄUFIG, aus denselben Bausteinen anderer Bosse übernommen, nicht gemessen.\n\nSIGNATUR: Reihenfolge — erst unterbrechen, dann reinigen, dazu das Wettrennen. Heroisch der Zähler (eine dritte Taste in derselben Lage), Mythisch dazu der Stapel.",
+    "heroic": {
+      "add": {
+        "doom": {
+          "name": "Ash Pressure",
+          "perStepMs": 1000,
+          "amount": 2,
+          "threshold": 100,
+          "clearAmount": 40,
+          "clearCharges": 2
+        }
+      }
+    },
+    "mythic": {
+      "add": {
+        "stacks": {
+          "name": "Cinder Layer",
+          "perStepMs": 5000,
+          "baseDamage": 14,
+          "factor": 2,
+          "maxStacks": 4
+        }
+      }
+    }
   }
 }

@@ -26,5 +26,30 @@
       "castTimeMs": 2500
     }
   ],
-  "resistances": {}
+  "resistances": {},
+  "difficulties": {
+    "_comment": "ARBEITSWAHL (Issue #1177, Freigabe vom 28.10.: Inhalt nach Plan, Namen als Arbeitsnamen). Masterplan A.4: ‚Normal / Heroisch / Mythisch pro Boss — mehr Leben, härteres Zeitlimit, zusätzliche Mechaniken, mehr Punkte‘. Leben, Zeitlimit und Punkte kommen aus data/difficulty.json; HIER steht nur, welche Mechanik dazukommt — kumulativ, Mythisch trägt die heroische mit. Gewählt wird je Stufe EIN Baustein, den der Boss noch nicht trägt, aus denen, die jede Zusammenstellung beantworten kann (11.3): der Zähler über PURGE, Schwächung und Unterbrechung über QUENCH oder TEMPER, Schläge, Stapel und Energie über Schutz und VESSEL. Nie runaway (tauscht das Ziel), nie bossHeal (11.2: ‚nur für einzelne Bosse‘). Die Zahlen der Bausteine sind VORLÄUFIG, aus denselben Bausteinen anderer Bosse übernommen, nicht gemessen.\n\nSIGNATUR: Wettrennen und Heilung durch einen verpassten Unterbrecher. Heroisch eine Schwächung, die QUENCH beansprucht — wer sie mit QUENCH löst, hat ihn beim Sealing Chant vielleicht nicht, und der Boss heilt. Mythisch dazu der Stapel.",
+    "heroic": {
+      "add": {
+        "affliction": {
+          "name": "Seal Dust",
+          "atMs": 8000,
+          "perStepMs": 1000,
+          "damage": 30,
+          "clearedBy": ["quench", "temper"]
+        }
+      }
+    },
+    "mythic": {
+      "add": {
+        "stacks": {
+          "name": "Seal Weight",
+          "perStepMs": 5000,
+          "baseDamage": 15,
+          "factor": 2,
+          "maxStacks": 4
+        }
+      }
+    }
+  }
 }
