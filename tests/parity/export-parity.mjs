@@ -115,6 +115,10 @@ import {
   instance3Payload,
   instance4Payload,
   instance5Payload,
+  difficultyStagesPayload,
+  DIFFICULTY_STAGES_NAME,
+  difficultyFightPayload,
+  DIFFICULTY_FIGHT_NAMES,
   INSTANCE2_NAMES,
   INSTANCE1_NAMES,
   INSTANCE3_NAMES,
@@ -365,6 +369,26 @@ for (let i = 0; i < INSTANCE5_NAMES.length; i++) {
     `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
       `gefallen ${datensatz.expected.killedAtMs}, gestorben ${datensatz.expected.diedAtMs}, ` +
       `Druecke ${datensatz.presses.length}`,
+  );
+}
+
+// Die Schwierigkeitsstufen (Issue #1177): die Tabelle aller Bosse auf Heroisch
+// und Mythisch, und ein Boss auf beiden Stufen im Kampf.
+const stufen = difficultyStagesPayload();
+writeFileSync(
+  join(here, 'recordings', `${DIFFICULTY_STAGES_NAME}.json`),
+  serialize(stufen),
+  'utf8',
+);
+console.log(`geschrieben: ${DIFFICULTY_STAGES_NAME}  ${stufen.stages.length} Stufen`);
+for (const name of DIFFICULTY_FIGHT_NAMES) {
+  const stufe = name.endsWith('-mythic') ? 2 : 1;
+  const datensatz = difficultyFightPayload('boss-1-1', stufe, name);
+  writeFileSync(join(here, 'recordings', `${name}.json`), serialize(datensatz), 'utf8');
+  console.log(
+    `geschrieben: ${name}  Schaden ${datensatz.expected.damage}, ` +
+      `gefallen ${datensatz.expected.killedAtMs}, gestorben ${datensatz.expected.diedAtMs}, ` +
+      `geklaert ${datensatz.expected.afflictionsCleared}, Zaehler ${datensatz.expected.doomPeak}`,
   );
 }
 

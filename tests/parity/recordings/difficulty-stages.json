@@ -1,0 +1,2396 @@
+{
+  "schema": 1,
+  "name": "difficulty-stages",
+  "stages": [
+    {
+      "id": "boss-1-1",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 6760,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 15000,
+      "timeline": [
+        {
+          "atMs": 3000,
+          "mechanic": "interruptibleCast",
+          "name": "Kindling Roar",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 8000,
+          "mechanic": "strike",
+          "name": "Backlash",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 13000,
+          "mechanic": "interruptibleCast",
+          "name": "Kindling Roar",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Smoke Taint",
+        "atMs": 6000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": {
+        "castTimeShrinkMs": 400,
+        "minCastTimeMs": 1200
+      },
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-1-1",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 8320,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 15000,
+      "timeline": [
+        {
+          "atMs": 3000,
+          "mechanic": "interruptibleCast",
+          "name": "Kindling Roar",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 8000,
+          "mechanic": "strike",
+          "name": "Backlash",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 13000,
+          "mechanic": "interruptibleCast",
+          "name": "Kindling Roar",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Roar Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Smoke Taint",
+        "atMs": 6000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": {
+        "castTimeShrinkMs": 400,
+        "minCastTimeMs": 1200
+      },
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-1-2",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 8320,
+      "overpressureMs": 54000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 10000,
+          "mechanic": "strike",
+          "name": "Cinder Sweep",
+          "damage": 350,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 25000,
+          "mechanic": "interruptibleCast",
+          "name": "Fusion Call",
+          "damage": 1100,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 40000,
+          "mechanic": "strike",
+          "name": "Cinder Sweep",
+          "damage": 350,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 1
+        },
+        {
+          "atMs": 52000,
+          "mechanic": "strike",
+          "name": "Cinder Sweep",
+          "damage": 350,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Fusion Surge",
+          "damage": 250
+        }
+      },
+      "doom": {
+        "name": "Rising Fusion",
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-1-2",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 10240,
+      "overpressureMs": 48000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 10000,
+          "mechanic": "strike",
+          "name": "Cinder Sweep",
+          "damage": 350,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 25000,
+          "mechanic": "interruptibleCast",
+          "name": "Fusion Call",
+          "damage": 1100,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 40000,
+          "mechanic": "strike",
+          "name": "Cinder Sweep",
+          "damage": 350,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 1
+        },
+        {
+          "atMs": 52000,
+          "mechanic": "strike",
+          "name": "Cinder Sweep",
+          "damage": 350,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Fusion Surge",
+          "damage": 250
+        }
+      },
+      "doom": {
+        "name": "Rising Fusion",
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": {
+        "name": "Fusion Layer",
+        "perStepMs": 5000,
+        "baseDamage": 15,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-1-3",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 7540,
+      "overpressureMs": 54000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 20000,
+          "mechanic": "strike",
+          "name": "Blight Wash",
+          "damage": 400,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Blight Call",
+          "damage": 1000,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 44000,
+          "mechanic": "strike",
+          "name": "Blight Wash",
+          "damage": 400,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Clinging Blight",
+        "atMs": 9000,
+        "perStepMs": 1000,
+        "damage": 35,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-1-3",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 9280,
+      "overpressureMs": 48000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 20000,
+          "mechanic": "strike",
+          "name": "Blight Wash",
+          "damage": 400,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Blight Call",
+          "damage": 1000,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 44000,
+          "mechanic": "strike",
+          "name": "Blight Wash",
+          "damage": 400,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Blight Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Clinging Blight",
+        "atMs": 9000,
+        "perStepMs": 1000,
+        "damage": 35,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-1-4",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 6370,
+      "overpressureMs": 54000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Sealing Chant",
+          "damage": 700,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": {
+        "name": "Glass Seal",
+        "atMs": 14000,
+        "windowMs": 6000,
+        "threshold": 900
+      },
+      "affliction": {
+        "name": "Seal Dust",
+        "atMs": 8000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": {
+        "amount": 800,
+        "on": "interrupt"
+      },
+      "runaway": null
+    },
+    {
+      "id": "boss-1-4",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7840,
+      "overpressureMs": 48000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Sealing Chant",
+          "damage": 700,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": {
+        "name": "Seal Weight",
+        "perStepMs": 5000,
+        "baseDamage": 15,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": {
+        "name": "Glass Seal",
+        "atMs": 14000,
+        "windowMs": 6000,
+        "threshold": 900
+      },
+      "affliction": {
+        "name": "Seal Dust",
+        "atMs": 8000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": {
+        "amount": 800,
+        "on": "interrupt"
+      },
+      "runaway": null
+    },
+    {
+      "id": "boss-2-1",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 6500,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 8000,
+      "timeline": [
+        {
+          "atMs": 2000,
+          "mechanic": "strike",
+          "name": "Miasma",
+          "damage": 180,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 6000,
+          "mechanic": "strike",
+          "name": "Miasma",
+          "damage": 180,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Miasma Surge",
+          "damage": 220
+        }
+      },
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Miasma Taint",
+        "atMs": 6000,
+        "perStepMs": 500,
+        "damage": 90,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-2-1",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 8000,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 8000,
+      "timeline": [
+        {
+          "atMs": 2000,
+          "mechanic": "strike",
+          "name": "Miasma",
+          "damage": 180,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 6000,
+          "mechanic": "strike",
+          "name": "Miasma",
+          "damage": 180,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Miasma Surge",
+          "damage": 220
+        }
+      },
+      "doom": {
+        "name": "Miasma Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Miasma Taint",
+        "atMs": 6000,
+        "perStepMs": 500,
+        "damage": 90,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-2-2",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5980,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 14000,
+      "timeline": [
+        {
+          "atMs": 3000,
+          "mechanic": "strike",
+          "name": "Cinder Rain",
+          "damage": 200,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 11000,
+          "mechanic": "interruptibleCast",
+          "name": "Collapse",
+          "damage": 2200,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Ash Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": {
+        "name": "Cinder Shell",
+        "atMs": 10000,
+        "windowMs": 5000,
+        "threshold": 900
+      },
+      "affliction": {
+        "name": "Ash Lung",
+        "atMs": 8000,
+        "perStepMs": 800,
+        "damage": 120,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-2-2",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7360,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 14000,
+      "timeline": [
+        {
+          "atMs": 3000,
+          "mechanic": "strike",
+          "name": "Cinder Rain",
+          "damage": 200,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 11000,
+          "mechanic": "interruptibleCast",
+          "name": "Collapse",
+          "damage": 2200,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Ash Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": {
+        "name": "Cinder Layer",
+        "perStepMs": 5000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": {
+        "name": "Cinder Shell",
+        "atMs": 10000,
+        "windowMs": 5000,
+        "threshold": 900
+      },
+      "affliction": {
+        "name": "Ash Lung",
+        "atMs": 8000,
+        "perStepMs": 800,
+        "damage": 120,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-2-3",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5400,
+      "overpressureMs": 66000,
+      "timelineLoopMs": 10000,
+      "timeline": [
+        {
+          "atMs": 3000,
+          "mechanic": "interruptibleCast",
+          "name": "Accelerate",
+          "damage": 450,
+          "castTimeMs": 2000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 9000,
+          "mechanic": "strike",
+          "name": "Surge",
+          "damage": 200,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Runaway Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": {
+        "perStepMs": 1000,
+        "amount": 80
+      }
+    },
+    {
+      "id": "boss-2-3",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 5400,
+      "overpressureMs": 72000,
+      "timelineLoopMs": 10000,
+      "timeline": [
+        {
+          "atMs": 3000,
+          "mechanic": "interruptibleCast",
+          "name": "Accelerate",
+          "damage": 450,
+          "castTimeMs": 2000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 9000,
+          "mechanic": "strike",
+          "name": "Surge",
+          "damage": 200,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Runaway Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": {
+        "castTimeShrinkMs": 200,
+        "minCastTimeMs": 1000
+      },
+      "bossHeal": null,
+      "runaway": {
+        "perStepMs": 1000,
+        "amount": 80
+      }
+    },
+    {
+      "id": "boss-2-4",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 6500,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 14000,
+      "timeline": [
+        {
+          "atMs": 5000,
+          "mechanic": "strike",
+          "name": "Fracture",
+          "damage": 250,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 13000,
+          "mechanic": "interruptibleCast",
+          "name": "Sealing Chant",
+          "damage": 800,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": {
+        "name": "Fracture Seal",
+        "atMs": 12000,
+        "windowMs": 5000,
+        "threshold": 1400
+      },
+      "affliction": {
+        "name": "Hairline Rot",
+        "atMs": 20000,
+        "perStepMs": 1500,
+        "damage": 40,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": {
+        "castTimeShrinkMs": 200,
+        "minCastTimeMs": 1200
+      },
+      "bossHeal": {
+        "amount": 1600,
+        "on": "interrupt"
+      },
+      "runaway": null
+    },
+    {
+      "id": "boss-2-4",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 8000,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 14000,
+      "timeline": [
+        {
+          "atMs": 5000,
+          "mechanic": "strike",
+          "name": "Fracture",
+          "damage": 250,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 13000,
+          "mechanic": "interruptibleCast",
+          "name": "Sealing Chant",
+          "damage": 800,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Fracture Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": {
+        "name": "Fracture Seal",
+        "atMs": 12000,
+        "windowMs": 5000,
+        "threshold": 1400
+      },
+      "affliction": {
+        "name": "Hairline Rot",
+        "atMs": 20000,
+        "perStepMs": 1500,
+        "damage": 40,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": {
+        "castTimeShrinkMs": 200,
+        "minCastTimeMs": 1200
+      },
+      "bossHeal": {
+        "amount": 1600,
+        "on": "interrupt"
+      },
+      "runaway": null
+    },
+    {
+      "id": "boss-3-1",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5720,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 12000,
+          "mechanic": "strike",
+          "name": "Molten Lash",
+          "damage": 380,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Cinder Bloom",
+          "damage": 1200,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 48000,
+          "mechanic": "strike",
+          "name": "Molten Lash",
+          "damage": 380,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": {
+        "name": "Molten Layer",
+        "perStepMs": 5000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-1",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7040,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 12000,
+          "mechanic": "strike",
+          "name": "Molten Lash",
+          "damage": 380,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Cinder Bloom",
+          "damage": 1200,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 48000,
+          "mechanic": "strike",
+          "name": "Molten Lash",
+          "damage": 380,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Molten Surge",
+          "damage": 240
+        }
+      },
+      "doom": null,
+      "stacks": {
+        "name": "Molten Layer",
+        "perStepMs": 5000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-2",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5850,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 20000,
+          "mechanic": "strike",
+          "name": "Backdraft",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 32000,
+          "mechanic": "interruptibleCast",
+          "name": "Overload Chant",
+          "damage": 1100,
+          "castTimeMs": 2800,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 45000,
+          "mechanic": "strike",
+          "name": "Backdraft",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Overload",
+          "damage": 240
+        }
+      },
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-2",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7200,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 20000,
+          "mechanic": "strike",
+          "name": "Backdraft",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 32000,
+          "mechanic": "interruptibleCast",
+          "name": "Overload Chant",
+          "damage": 1100,
+          "castTimeMs": 2800,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 45000,
+          "mechanic": "strike",
+          "name": "Backdraft",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Overload",
+          "damage": 240
+        }
+      },
+      "doom": {
+        "name": "Backdraft Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-3",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5590,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 15000,
+          "mechanic": "strike",
+          "name": "Chant",
+          "damage": 260,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 40000,
+          "mechanic": "strike",
+          "name": "Chant",
+          "damage": 260,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": {
+        "name": "Swelling Chant",
+        "perStepMs": 4000,
+        "baseDamage": 15,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": {
+        "name": "Chant Rot",
+        "atMs": 10000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-3",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 6880,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 15000,
+          "mechanic": "strike",
+          "name": "Chant",
+          "damage": 260,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 28000,
+          "mechanic": "interruptibleCast",
+          "name": "Swelling Hymn",
+          "damage": 1200,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 40000,
+          "mechanic": "strike",
+          "name": "Chant",
+          "damage": 260,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": {
+        "name": "Swelling Chant",
+        "perStepMs": 4000,
+        "baseDamage": 15,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": {
+        "name": "Chant Rot",
+        "atMs": 10000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-4",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5980,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "strike",
+          "name": "Seal Break",
+          "damage": 340,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 1
+        },
+        {
+          "atMs": 36000,
+          "mechanic": "interruptibleCast",
+          "name": "Final Seal",
+          "damage": 1400,
+          "castTimeMs": 3500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 54000,
+          "mechanic": "strike",
+          "name": "Seal Break",
+          "damage": 340,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Seal Surge",
+          "damage": 240
+        }
+      },
+      "doom": {
+        "name": "Seal Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 45,
+        "clearCharges": 3
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-3-4",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7360,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "strike",
+          "name": "Seal Break",
+          "damage": 340,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 1
+        },
+        {
+          "atMs": 36000,
+          "mechanic": "interruptibleCast",
+          "name": "Final Seal",
+          "damage": 1400,
+          "castTimeMs": 3500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 54000,
+          "mechanic": "strike",
+          "name": "Seal Break",
+          "damage": 340,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Seal Surge",
+          "damage": 240
+        }
+      },
+      "doom": {
+        "name": "Seal Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 45,
+        "clearCharges": 3
+      },
+      "stacks": {
+        "name": "Seal Layer",
+        "perStepMs": 5000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-1",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 6110,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 12000,
+          "mechanic": "strike",
+          "name": "Brittle Lash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 22000,
+          "mechanic": "interruptibleCast",
+          "name": "Brittle Chant",
+          "damage": 1000,
+          "castTimeMs": 2600,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 34000,
+          "mechanic": "strike",
+          "name": "Brittle Lash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-1",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7520,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 12000,
+          "mechanic": "strike",
+          "name": "Brittle Lash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 22000,
+          "mechanic": "interruptibleCast",
+          "name": "Brittle Chant",
+          "damage": 1000,
+          "castTimeMs": 2600,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 34000,
+          "mechanic": "strike",
+          "name": "Brittle Lash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": {
+        "name": "Brittle Shell",
+        "atMs": 40000,
+        "windowMs": 5000,
+        "threshold": 900
+      },
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-2",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5850,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 25000,
+          "mechanic": "strike",
+          "name": "Vent",
+          "damage": 260,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 45,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Backdraft Surge",
+          "damage": 200
+        }
+      },
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Vent Soot",
+        "atMs": 9000,
+        "perStepMs": 1000,
+        "damage": 32,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-2",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7200,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 25000,
+          "mechanic": "strike",
+          "name": "Vent",
+          "damage": 260,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 45,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Backdraft Surge",
+          "damage": 200
+        }
+      },
+      "doom": null,
+      "stacks": {
+        "name": "Vent Layer",
+        "perStepMs": 5000,
+        "baseDamage": 12,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": {
+        "name": "Vent Soot",
+        "atMs": 9000,
+        "perStepMs": 1000,
+        "damage": 32,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-3",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5720,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "strike",
+          "name": "Cinder Choir",
+          "damage": 240,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 42000,
+          "mechanic": "strike",
+          "name": "Cinder Choir",
+          "damage": 240,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Choir Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": {
+        "name": "Choir Swell",
+        "perStepMs": 8000,
+        "baseDamage": 12,
+        "factor": 4,
+        "maxStacks": 6
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-3",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7040,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "strike",
+          "name": "Cinder Choir",
+          "damage": 240,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Choir Crescendo",
+          "damage": 1200,
+          "castTimeMs": 2800,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 42000,
+          "mechanic": "strike",
+          "name": "Cinder Choir",
+          "damage": 240,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Choir Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": {
+        "name": "Choir Swell",
+        "perStepMs": 8000,
+        "baseDamage": 12,
+        "factor": 4,
+        "maxStacks": 6
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-4",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5980,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 15000,
+      "timeline": [
+        {
+          "atMs": 4000,
+          "mechanic": "interruptibleCast",
+          "name": "Sealing Chant",
+          "damage": 700,
+          "castTimeMs": 2600,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 11000,
+          "mechanic": "strike",
+          "name": "Ash Fall",
+          "damage": 220,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": {
+        "name": "Ash Weight",
+        "perStepMs": 5000,
+        "baseDamage": 12,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": {
+        "castTimeShrinkMs": 200,
+        "minCastTimeMs": 600
+      },
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-4-4",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7360,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 15000,
+      "timeline": [
+        {
+          "atMs": 4000,
+          "mechanic": "interruptibleCast",
+          "name": "Sealing Chant",
+          "damage": 700,
+          "castTimeMs": 2600,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 11000,
+          "mechanic": "strike",
+          "name": "Ash Fall",
+          "damage": 220,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": {
+        "name": "Ash Weight",
+        "perStepMs": 5000,
+        "baseDamage": 12,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": {
+        "name": "Ash Taint",
+        "atMs": 7000,
+        "perStepMs": 1000,
+        "damage": 30,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": {
+        "castTimeShrinkMs": 200,
+        "minCastTimeMs": 600
+      },
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-5-1",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5980,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "strike",
+          "name": "Sour Draught",
+          "damage": 320,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Sour Chant",
+          "damage": 1100,
+          "castTimeMs": 2800,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 42000,
+          "mechanic": "strike",
+          "name": "Sour Draught",
+          "damage": 320,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Split Discharge",
+          "damage": 260
+        }
+      },
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Sour Taint",
+        "atMs": 8000,
+        "perStepMs": 1000,
+        "damage": 38,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-5-1",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7360,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "strike",
+          "name": "Sour Draught",
+          "damage": 320,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "interruptibleCast",
+          "name": "Sour Chant",
+          "damage": 1100,
+          "castTimeMs": 2800,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 42000,
+          "mechanic": "strike",
+          "name": "Sour Draught",
+          "damage": 320,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 6,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Split Discharge",
+          "damage": 260
+        }
+      },
+      "doom": {
+        "name": "Sour Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": {
+        "name": "Sour Taint",
+        "atMs": 8000,
+        "perStepMs": 1000,
+        "damage": 38,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-5-2",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5850,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 12000,
+          "mechanic": "strike",
+          "name": "Settling Ash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 48000,
+          "mechanic": "strike",
+          "name": "Settling Ash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Crust Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": {
+        "name": "Ash Layer",
+        "perStepMs": 4000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": {
+        "name": "Ash Crust",
+        "atMs": 32000,
+        "windowMs": 6000,
+        "threshold": 1100
+      },
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-5-2",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7200,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 12000,
+          "mechanic": "strike",
+          "name": "Settling Ash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 24000,
+          "mechanic": "interruptibleCast",
+          "name": "Settling Chant",
+          "damage": 1100,
+          "castTimeMs": 2800,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 48000,
+          "mechanic": "strike",
+          "name": "Settling Ash",
+          "damage": 280,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Crust Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": {
+        "name": "Ash Layer",
+        "perStepMs": 4000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": {
+        "name": "Ash Crust",
+        "atMs": 32000,
+        "windowMs": 6000,
+        "threshold": 1100
+      },
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-5-3",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 4700,
+      "overpressureMs": 66000,
+      "timelineLoopMs": 14000,
+      "timeline": [
+        {
+          "atMs": 4000,
+          "mechanic": "interruptibleCast",
+          "name": "Quickening Chant",
+          "damage": 600,
+          "castTimeMs": 2400,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 10000,
+          "mechanic": "strike",
+          "name": "Slippage",
+          "damage": 240,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Slip Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": {
+        "castTimeShrinkMs": 300,
+        "minCastTimeMs": 900
+      },
+      "bossHeal": null,
+      "runaway": {
+        "perStepMs": 1000,
+        "amount": 70
+      }
+    },
+    {
+      "id": "boss-5-3",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 4700,
+      "overpressureMs": 72000,
+      "timelineLoopMs": 14000,
+      "timeline": [
+        {
+          "atMs": 4000,
+          "mechanic": "interruptibleCast",
+          "name": "Quickening Chant",
+          "damage": 600,
+          "castTimeMs": 2400,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 10000,
+          "mechanic": "strike",
+          "name": "Slippage",
+          "damage": 240,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 12000,
+          "mechanic": "interruptibleCast",
+          "name": "Slipping Chant",
+          "damage": 600,
+          "castTimeMs": 2400,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": {
+        "name": "Slip Pressure",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 2
+      },
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": {
+        "castTimeShrinkMs": 300,
+        "minCastTimeMs": 900
+      },
+      "bossHeal": null,
+      "runaway": {
+        "perStepMs": 1000,
+        "amount": 70
+      }
+    },
+    {
+      "id": "boss-5-4",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 6110,
+      "overpressureMs": 54000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 15000,
+          "mechanic": "strike",
+          "name": "Toll",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "strike",
+          "name": "Culmination",
+          "damage": 520,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 1
+        },
+        {
+          "atMs": 45000,
+          "mechanic": "interruptibleCast",
+          "name": "Last Reckoning",
+          "damage": 1300,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 2
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Reckoning Discharge",
+          "damage": 300
+        }
+      },
+      "doom": {
+        "name": "Final Tally",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 3
+      },
+      "stacks": {
+        "name": "Tally Layer",
+        "perStepMs": 5000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": null,
+      "escalation": {
+        "castTimeShrinkMs": 250,
+        "minCastTimeMs": 800
+      },
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "boss-5-4",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 7520,
+      "overpressureMs": 48000,
+      "timelineLoopMs": 60000,
+      "timeline": [
+        {
+          "atMs": 15000,
+          "mechanic": "strike",
+          "name": "Toll",
+          "damage": 300,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 30000,
+          "mechanic": "strike",
+          "name": "Culmination",
+          "damage": 520,
+          "castTimeMs": 0,
+          "interruptsPlayer": false,
+          "phase": 1
+        },
+        {
+          "atMs": 45000,
+          "mechanic": "interruptibleCast",
+          "name": "Last Reckoning",
+          "damage": 1300,
+          "castTimeMs": 3000,
+          "interruptsPlayer": false,
+          "phase": 2
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Reckoning Discharge",
+          "damage": 300
+        }
+      },
+      "doom": {
+        "name": "Final Tally",
+        "perStepMs": 1000,
+        "amount": 2,
+        "threshold": 100,
+        "clearAmount": 40,
+        "clearCharges": 3
+      },
+      "stacks": {
+        "name": "Tally Layer",
+        "perStepMs": 5000,
+        "baseDamage": 14,
+        "factor": 2,
+        "maxStacks": 4
+      },
+      "race": null,
+      "affliction": {
+        "name": "Reckoning Taint",
+        "atMs": 10000,
+        "perStepMs": 1000,
+        "damage": 32,
+        "clearedBy": [
+          "quench",
+          "temper"
+        ]
+      },
+      "escalation": {
+        "castTimeShrinkMs": 250,
+        "minCastTimeMs": 800
+      },
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "first-crucible",
+      "difficulty": 1,
+      "problems": [],
+      "hp": 5460,
+      "overpressureMs": 54000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "interruptibleCast",
+          "name": "Crucible Flare",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 38000,
+          "mechanic": "interruptibleCast",
+          "name": "Crucible Flare",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": null,
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    },
+    {
+      "id": "first-crucible",
+      "difficulty": 2,
+      "problems": [],
+      "hp": 6720,
+      "overpressureMs": 48000,
+      "timelineLoopMs": null,
+      "timeline": [
+        {
+          "atMs": 18000,
+          "mechanic": "interruptibleCast",
+          "name": "Crucible Flare",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        },
+        {
+          "atMs": 38000,
+          "mechanic": "interruptibleCast",
+          "name": "Crucible Flare",
+          "damage": 900,
+          "castTimeMs": 2500,
+          "interruptsPlayer": false,
+          "phase": 0
+        }
+      ],
+      "energy": {
+        "perStepMs": 1000,
+        "amount": 5,
+        "threshold": 100,
+        "resetTo": 0,
+        "onTrigger": {
+          "mechanic": "strike",
+          "name": "Crucible Surge",
+          "damage": 250
+        }
+      },
+      "doom": null,
+      "stacks": null,
+      "race": null,
+      "affliction": null,
+      "escalation": null,
+      "bossHeal": null,
+      "runaway": null
+    }
+  ]
+}
