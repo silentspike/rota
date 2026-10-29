@@ -1670,7 +1670,9 @@ fn berichte_suche(
     zaehlung: Zaehlung,
 ) {
     println!("{}", "=".repeat(72));
-    println!("ROTA — Suche gegen {} ({})", boss.name, boss.id);
+    // Mit der Stufe (#1177), wie die Kopfzeile des Balance-Laufs.
+    let stufe = data::difficulty_name(boss.difficulty).unwrap_or("?");
+    println!("ROTA — Suche gegen {} ({}, {stufe})", boss.name, boss.id);
     println!(
         "Durchgaenge je Messung {}, Straenge {}, Startwert ab {}",
         config.iterations, config.threads, config.base_seed
