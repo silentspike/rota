@@ -484,6 +484,9 @@ BEISPIELE
   # dieselben Zahlen maschinenlesbar, fuer jq und Skripte
   rota-sim run --boss boss-1-1 --iterations 20 --max-len 3 --json
 
+  # derselbe Boss auf Mythisch: mehr Leben, kuerzeres Zeitlimit, mehr Mechanik
+  rota-sim run --boss boss-1-1 --difficulty mythic --iterations 20 --max-len 3
+
   # genauer: mehr Durchgaenge je Messung, ueber vier Straenge, laengere Liste
   rota-sim run --boss boss-1-1 --iterations 100 --threads 4 --max-len 4
 
@@ -527,6 +530,9 @@ OPTIONEN
                      Ohne ihn gegen den Standard, der KEINEN Schaden austeilt —
                      dann ist jeder Verteidigungszauber unmessbar.
                      Alle Kennungen:  rota-sim data bosses
+  --difficulty <s>   die Stufe des Bosses: normal (Voreinstellung), heroic
+                     oder mythic. Mehr Leben, kuerzeres Zeitlimit und die
+                     Mechanik der Stufe, wie im Spiel (data/difficulty.json).
   --apl <datei>      eine Rotationsdatei messen statt zu suchen.
                      Der Pfad ist relativ zum Wurzelverzeichnis des Projekts,
                      also sim/apl/DATEI.apl.
@@ -901,6 +907,8 @@ fn fehler_mit_ausweg(was: &str, vorschlag: Option<String>, ausweg: &str) -> Stri
 #[derive(Debug, Clone, PartialEq)]
 struct RunOptionen {
     boss_id: Option<String>,
+    /// `--difficulty`: die Stufe des Bosses (#1177), 0 fuer Normal.
+    stufe: u32,
     apl_pfad: Option<String>,
     control_file: Option<String>,
     suche: Suchart,
@@ -947,6 +955,7 @@ impl Default for RunOptionen {
     fn default() -> Self {
         Self {
             boss_id: None,
+            stufe: data::DIFFICULTY_NORMAL,
             apl_pfad: None,
             control_file: None,
             suche: Suchart::Greedy,
@@ -998,7 +1007,7 @@ fn befehl_run(argumente: &[String]) -> Result<ExitCode, String> {
         return Ok(ExitCode::SUCCESS);
     }
 
-    let boss = waehle_boss(optionen.boss_id.as_deref())?;
+    let boss = auf_stufe(waehle_boss(optionen.boss_id.as_deref())?, optionen.stufe)?;
     // Ohne `--purity` ist das `WornValues::none()` — dieselbe Ausruestung wie
     // in `BalanceConfig::default`, also aendert sich an keinem Lauf ohne die
     // Angabe etwas.
@@ -1156,6 +1165,10 @@ fn zerlege_run(argumente: &[String]) -> Result<RunOptionen, String> {
             "--help" | "-h" => optionen.hilfe = true,
             "--json" => optionen.json = true,
             "--boss" => optionen.boss_id = Some(hole_wert(argumente, &mut i, name)?),
+            "--difficulty" => {
+                let wert = hole_wert(argumente, &mut i, name)?;
+                optionen.stufe = stufe_aus(&wert)?;
+            }
             "--apl" => optionen.apl_pfad = Some(hole_wert(argumente, &mut i, name)?),
             "--control-file" => optionen.control_file = Some(hole_wert(argumente, &mut i, name)?),
             "--search" => {
@@ -1495,12 +1508,13 @@ fn gestaffelt_json(
 }
 
 /// Die Angaben, die `run` kennt — Grundlage fuer den Vorschlag bei Tippfehlern.
-const ANGABEN_RUN: [&str; 20] = [
+const ANGABEN_RUN: [&str; 21] = [
     "--progress",
     "--jsonl",
     "--baseline",
     "--write-baseline",
     "--boss",
+    "--difficulty",
     "--apl",
     "--control-file",
     "--search",
@@ -1581,7 +1595,13 @@ fn lade_apl_mit_kennung(pfad: Option<&str>) -> Result<(String, Apl, String), Str
 
 fn berichte_lauf(name: &str, ergebnis: &BalanceResult, boss: &Boss, dauer: f64, kaempfe: u64) {
     println!("{}", "=".repeat(72));
-    println!("ROTA — Balance-Lauf gegen {} ({})", boss.name, boss.id);
+    // Mit der Stufe (#1177): Ein heroischer Lauf, dessen Kopfzeile wie ein
+    // normaler aussieht, ist beim Vergleichen zweier Ausgaben nicht zu trennen.
+    let stufe = data::difficulty_name(boss.difficulty).unwrap_or("?");
+    println!(
+        "ROTA — Balance-Lauf gegen {} ({}, {stufe})",
+        boss.name, boss.id
+    );
     println!(
         "Durchgaenge {}, Straenge {}, Startwert ab {}, Liste {name}",
         ergebnis.iterations, ergebnis.threads, ergebnis.base_seed
@@ -1923,8 +1943,10 @@ fn spiele_alle_ab() -> Vec<(&'static EmbeddedRecording, Option<u32>)> {
 /// Spielt eine eingebettete Aufzeichnung ab und liefert die Pruefsumme des
 /// letzten Takts.
 fn spiele_ab(eintrag: &EmbeddedRecording) -> Option<u32> {
+    // Mit der Stufe der Aufzeichnung (#1177) — gegen die Normal-Fassung
+    // abgespielt, endete eine heroische Runde anders.
     let boss = match eintrag.boss_id {
-        Some(id) => data::boss_by_id(id)?,
+        Some(id) => data::boss_at(id, eintrag.difficulty)?,
         None => FightConfig::default().boss,
     };
     let recording = eintrag.to_recording();
@@ -2076,7 +2098,7 @@ fn pruefe_trace_hashes() -> Pruefergebnis {
     let mut takte = 0usize;
     for eintrag in &data::RECORDINGS {
         let boss = match eintrag.boss_id {
-            Some(id) => match data::boss_by_id(id) {
+            Some(id) => match data::boss_at(id, eintrag.difficulty) {
                 Some(b) => b,
                 None => continue,
             },
@@ -3195,6 +3217,37 @@ fn waehle_boss(id: Option<&str>) -> Result<&'static Boss, String> {
         aehnlichster_boss(id).map(|treffer| format!("Meintest du '{treffer}'?")),
         "Alle anzeigen:  rota-sim data bosses",
     ))
+}
+
+/// Die Stufe aus ihrem Namen (`normal`, `heroic`, `mythic`), wie
+/// `data/difficulty.json` sie fuehrt (#1177).
+///
+/// **Nur der Name, keine Ziffer**: `--difficulty 1` liesse offen, ob von null
+/// oder von eins gezaehlt wird — genau die Verwechslung, die der Spielstand bis
+/// Fassung 3 hatte (Normal stand dort unter 1).
+fn stufe_aus(wert: &str) -> Result<u32, String> {
+    (0..data::DIFFICULTY_COUNT)
+        .find(|&stufe| data::difficulty_name(stufe) == Some(wert))
+        .ok_or_else(|| {
+            format!(
+                "Stufe '{wert}' gibt es nicht. Bekannt: {}",
+                data::DIFFICULTY_NAMES.join(", ")
+            )
+        })
+}
+
+/// Der Boss auf der verlangten Stufe — oder ein Fehler, der sagt, warum nicht.
+///
+/// Ein Pruef-Boss hat keine Stufen. Ihn still auf Normal zu rechnen hiesse,
+/// eine Messung zu liefern, die jemand anders bestellt hat, als sie lief.
+fn auf_stufe(boss: &'static Boss, stufe: u32) -> Result<&'static Boss, String> {
+    data::boss_at(boss.id, stufe).ok_or_else(|| {
+        format!(
+            "Boss '{}' hat keine Stufe '{}'. Stufen tragen nur die Bosse aus data/instances.json.",
+            boss.id,
+            data::difficulty_name(stufe).unwrap_or("?")
+        )
+    })
 }
 
 /// Der Boss mit der kleinsten Editierdistanz zur Eingabe.

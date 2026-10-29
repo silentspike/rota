@@ -262,6 +262,19 @@ fn zerlege(config: &BalanceConfig) -> Zerlegung {
     semantik.zahl(u64::from(*base_seed));
     semantik.vielleicht(duration_ms.map(u64::from));
     semantik.wahrheit(*stop_on_kill);
+    // **Die Stufe des Bosses gehoert zur Semantik** (Issue #1177). Der
+    // Schluessel fuehrt den Boss nur ueber seine Kennung — und die heroische
+    // Fassung traegt dieselbe Kennung wie die normale, mit anderem Leben,
+    // Zeitlimit und anderer Mechanik. Ohne diese Zeile gaebe der Speicher fuer
+    // einen heroischen Lauf das Ergebnis des normalen zurueck, still und
+    // plausibel.
+    //
+    // **Nur ueber Normal**, damit jeder bestehende Abdruck gilt: Fuer Normal
+    // aendert sich nichts, und genau dort liegen alle bisherigen Ergebnisse.
+    if boss.difficulty != crate::data::DIFFICULTY_NORMAL {
+        semantik.text("stufe");
+        semantik.zahl(u64::from(boss.difficulty));
+    }
     {
         let DamageFactors {
             essence,
