@@ -5203,7 +5203,6 @@ Ergebnis hinge dann an der Tageslast** — und wäre als Balance-Grundlage wertl
 CampaignDefinition {          // VERSIONIERT, hardwareunabhängig
     profile_version,
     canonical_work_budget,    // aus dem REFERENZPROFIL abgeleitet, dann fest
-    exact_obligations, coverage_spec, quality_targets,
 }
 
 RunDeployment {               // je Lauf, dynamisch
@@ -5285,7 +5284,7 @@ vorkommt.
 > |                                                 | trägt                                                                   | Stand                                                                           |
 > | ----------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 > | **`RunContract`** (Zielvertrag, Abschnitt 2582) | die Schwellen 99 % / 99,9 %, `determinism`, `target_band`, `vessel_max` | **gebaut**, `sim/src/objective.rs:432`, aus #939, zwei Prüfdateien hängen daran |
-> | **`CampaignRunContract`** (Laufvertrag, hier)   | Mission, Arbeitsbudget, Fristen, Projektionen                           | E21.0, #914                                                                     |
+> | **`CampaignRunContract`** (Laufvertrag, hier)   | Zielzeit, Herkunft, Arbeitsbudget, Frist                                | E21.0, #914                                                                     |
 >
 > **Null Überschneidung in den Feldern.** Der eine sagt, was ein guter Kandidat erfüllen muss;
 > der andere, wie viel überhaupt gerechnet wird. Gefunden hat es Worker-1 beim Bau von #914,
@@ -5298,23 +5297,24 @@ vorkommt.
 
 ```rust
 struct CampaignRunContract {
-    mission:                   Mission,
     target_wall_time:          Duration,
     campaign_definition_hash:  Hash,             // WOHER das Budget stammt
     deterministic_work_budget: WorkUnits,        // aus CampaignDefinition, NICHT aus
                                                  // der Kalibrierung
     hard_deadline:             Option<DeadlinePolicy>,  // nur auf ausdrücklichen Wunsch
-
-    exact_obligations:      ProjectionSet,   // was VOLLSTÄNDIG gerechnet werden MUSS
-    interaction_coverage:   CoverageSpec,    // t-Wege-Abdeckung, siehe E21.1
-    minimum_niche_coverage: f64,
-    independent_restarts:   u16,
-    plateau_work_units:     WorkUnits,       // die Abbruchregel, endlich benannt
-    maximum_bound_gap:      Option<f64>,
-    confidence_requirement: ConfidenceSpec,
-    final_audit:            AuditPolicy,
 }
 ```
+
+> **Geändert am 2026-10-29 — Zuschnitt in #891, vom Auftraggeber freigegeben.** Hier stand vor
+> der Zielzeit der Zweck des Laufs und nach der Frist acht Felder zu Pflichtprojektionen,
+> Wechselwirkungsabdeckung und Qualität; der Code trug dazu die Zählweise der Rechenzeit, und
+> `CampaignDefinition` oben trug die Gegenstücke. Keines davon las ein Produktionspfad — nur
+> Fingerabdruck, JSON und die Herkunftsprüfung —, und ihre geplanten Leser (#950, #953, #954,
+> #924, #925, #948) sind verworfen oder ruhen. Sie sind samt ihren Typen entfernt; der alte
+> Wortlaut steht in #914. Die drei Festlegungen zur Rechenzeit aus dem Kasten oben legt erst ein
+> Läufer fest, der pausieren kann; heute liest nur die Machbarkeitsprüfung die Restzeit, als Zahl
+> gegen die Schätzung. **Ein neues Feld braucht einen Leser im Produktionspfad**, sonst bricht
+> `ac0_jedes_vertragsfeld_hat_einen_leser_im_produktionspfad` in `sim/tests/kampagne_budget.rs`.
 
 #### E21.0b — Die Machbarkeitsprüfung: lieber melden als still weniger prüfen
 
