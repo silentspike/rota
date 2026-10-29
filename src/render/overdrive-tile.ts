@@ -30,8 +30,15 @@ import type { KeyLabels } from '../input/layout.js';
 import { drawFixedRight, measureDigitAdvance } from './numerals.js';
 import { BAR_RIGHT, BLOCK_TOP, SLOT_GAP, SLOT_SIZE } from './spellbar.js';
 
-/** Rechts neben der Leiste, mit demselben Abstand wie zwischen zwei Plätzen. */
-export const OVERDRIVE_TILE_LEFT = BAR_RIGHT + 2 * SLOT_GAP;
+/**
+ * Rechts neben der Leiste, mit demselben Abstand wie zwischen zwei Plätzen —
+ * als fünfte Taste hinter F, die sie auf der Tastatur ist.
+ *
+ * **Nachgemessen am Bild, einmal verschoben:** Mit doppeltem Abstand lag die
+ * Kachel 20 px vor den Anzeigen rechts (`READOUT_LEFT` 1180) und las sich als
+ * Teil ihrer Spalte statt der Leiste.
+ */
+export const OVERDRIVE_TILE_LEFT = BAR_RIGHT + SLOT_GAP;
 /** In der mittleren Reihe — die Reihe von A S D F, und G liegt daneben. */
 export const OVERDRIVE_TILE_TOP = BLOCK_TOP + SLOT_SIZE + SLOT_GAP;
 export const OVERDRIVE_TILE_SIZE = SLOT_SIZE;
@@ -57,7 +64,11 @@ const FLASH_REJECT = '#c03a30';
 const FONT_KEY = '21px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_STATE = '19px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_TITLE = '15px ui-monospace, "DejaVu Sans Mono", monospace';
-const FONT_SECONDS = '34px ui-monospace, "DejaVu Sans Mono", monospace';
+/**
+ * Kleiner als die Restzeit auf der Leiste (34 px): Vier Zeichen wie „17.0"
+ * standen dort im Bild bündig am linken Rand der Kachel.
+ */
+const FONT_SECONDS = '30px ui-monospace, "DejaVu Sans Mono", monospace';
 
 const EDGE_WIDTH = 4;
 /** Dieselben Rückmeldezeiten wie auf der Leiste (GAME-DESIGN 8.2, 9.4). */
@@ -120,11 +131,17 @@ export class OverdriveTile {
     if (zustand === OVERDRIVE_ACTIVE) {
       ctx.font = FONT_SECONDS;
       ctx.fillStyle = INK;
+      // **Mittig nach der Zahl der Zeichen**, nicht fest um anderthalb
+      // Ziffern verschoben: „18.2" hat vier Zeichen, und mit der festen
+      // Verschiebung der Leiste ragte die erste Ziffer im Bild über den
+      // linken Rand der Kachel.
+      const sekunden = overdrive.remainingMs(shownMs) / 1000;
+      const zeichen = sekunden >= 9.95 ? 4 : 3;
       drawFixedRight(
         ctx,
-        overdrive.remainingMs(shownMs) / 1000,
+        sekunden,
         1,
-        x + size * 0.5 + this.digitAdvance * 1.5,
+        x + size * 0.5 + this.digitAdvance * zeichen * 0.5,
         y + size * 0.5 + 10,
         this.digitAdvance,
       );
@@ -137,15 +154,15 @@ export class OverdriveTile {
     ctx.fillStyle = hell ? INK : INK_DIM;
     ctx.fillText(LABEL_TITLE, x + size * 0.5, y + size - 12);
 
+    ctx.textAlign = 'left';
     // Was er tut, solange er es tut — als Zahl, damit der Tempo-Schub nicht
-    // nur am Rand abzulesen ist. Unter der Anzeige, wo die untere Reihe der
-    // Leiste schon zu Ende ist.
+    // nur am Rand abzulesen ist. Unter der Anzeige, bündig mit ihrer linken
+    // Kante: Mittig gesetzt ragte die Zeile in die untere Reihe der Leiste.
     if (zustand === OVERDRIVE_ACTIVE) {
       ctx.font = FONT_TITLE;
       ctx.fillStyle = INK;
-      ctx.fillText(this.bonusText, x + size * 0.5, y + size + 24);
+      ctx.fillText(this.bonusText, x, y + size + 24);
     }
-    ctx.textAlign = 'left';
 
     this.drawFlash(ctx, x, y, size, shownMs);
   }
