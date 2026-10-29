@@ -360,14 +360,24 @@ impl Befund {
     /// der Zauber verliert — sie stehen mit ihrem Namen da.
     #[must_use]
     pub fn bezeichnung(&self) -> String {
-        self.art().name().to_owned()
+        match self {
+            Self::BewiesenDominiert(s) => format!(
+                "{} — {}",
+                Befundart::BewiesenDominiert.name(),
+                s.projektion.geltungsbereich()
+            ),
+            _ => self.art().name().to_owned(),
+        }
     }
 
     /// Der Geltungsbereich, auf dem ein Beweis ruht — nur bei „bewiesen
     /// dominiert".
     #[must_use]
     pub fn geltungsbereich(&self) -> Option<String> {
-        None
+        match self {
+            Self::BewiesenDominiert(s) => Some(s.projektion.geltungsbereich()),
+            _ => None,
+        }
     }
 
     /// Der Beleg als eine Zeile: woraus der Befund folgt.
