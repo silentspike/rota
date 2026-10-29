@@ -1045,6 +1045,10 @@ const MIT_FRISCHE_FALL: readonly string[] = [
   'instance5-boss-2',
   'instance5-boss-3',
   'instance5-boss-4',
+  // Die Schwierigkeitsstufen (#1177).
+  'difficulty-stages',
+  'difficulty-boss-1-1-heroic',
+  'difficulty-boss-1-1-mythic',
   'instance1-boss-1',
   'instance1-boss-2',
   'instance1-boss-3',
