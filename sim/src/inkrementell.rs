@@ -415,17 +415,32 @@ impl Basislauf {
     /// Wenn `liste` eine Kennung enthält, die nicht im Universum steht.
     #[must_use]
     pub fn startpunkt(&self, liste: &[RuleId]) -> Option<usize> {
-        // Abgeleitet: die erste geänderte Position der Liste als Prüfpunkt.
-        let basis = self.basis();
-        if liste == basis.as_slice() {
-            return None;
+        let mut drin = RuleBits::mit_breite(self.universum.len());
+        for &id in liste {
+            drin.setzen(usize::from(id));
         }
-        let erste = liste
-            .iter()
-            .zip(&basis)
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| liste.len().min(basis.len()));
-        Some(erste.min(self.punkte.len().saturating_sub(1)))
+        for (index, punkt) in self.punkte.iter().enumerate() {
+            let wahl = liste
+                .iter()
+                .map(|&id| usize::from(id))
+                .find(|&id| {
+                    punkt.valid_rules.enthaelt(id)
+                        && punkt.ready_spells.enthaelt(self.universum[id].spell)
+                })
+                .map(|id| self.universum[id].spell);
+            let basiswahl = punkt
+                .selected_rule
+                .map(|id| self.universum[usize::from(id)].spell);
+            if wahl != basiswahl {
+                return Some(index);
+            }
+            if let Some(weckruf) = &punkt.weckruf {
+                if weckruf.naechste(|id| drin.enthaelt(usize::from(id))) != weckruf.basis_naechste {
+                    return Some(index);
+                }
+            }
+        }
+        None
     }
 
     /// Wertet die Liste `liste` aus: unverändert, wenn kein Prüfpunkt
