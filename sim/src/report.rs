@@ -51,13 +51,17 @@ pub struct SpellContribution {
 }
 
 impl SpellContribution {
-    /// Ob dieser Zauber in der geprüften Rotation **gar nicht vorkommt**.
+    /// Ob dieser Zauber in der geprüften Rotation **gar nicht gewirkt** wird.
     ///
-    /// Das ist der eigentliche Zweck der Tabelle: Ein Zauber, den die beste
-    /// Rotation nie wirkt, ist entweder falsch bemessen oder überflüssig —
-    /// beides muss auffallen, bevor Inhalte darauf gebaut werden.
+    /// **Eine Zählung, kein Urteil** (Issue #946). Bis hierher hieß die
+    /// Funktion `is_dead`, und ihr Kommentar schloss aus `casts == 0`, der
+    /// Zauber sei „falsch bemessen oder überflüssig". Das folgt nicht: Eine
+    /// feste oder gesuchte Liste, die ihn nicht wirkt, sagt nichts darüber, ob
+    /// eine andere ihn mit Gewinn wirken könnte. Ob ein Zauber zu schwach ist,
+    /// sagt allein [`crate::viabilitaet::Befund::BewiesenDominiert`] — mit
+    /// Schranke und Projektion.
     #[must_use]
-    pub fn is_dead(&self) -> bool {
+    pub fn never_cast(&self) -> bool {
         self.casts == 0
     }
 }
