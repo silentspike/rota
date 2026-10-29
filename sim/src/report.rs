@@ -9,28 +9,36 @@
 //! Alle drei geben Text und JSON aus, keine Diagramme — sie liest Claude, nicht
 //! der Auftraggeber.
 //!
-//! # Was diese Auswertungen heute noch nicht können
+//! # Über welche Bosse sie laufen (#891 N1)
 //!
-//! Der Erfolgs-Prüflauf soll laut 12.9 über **Boss × Schwierigkeit × Erfolg**
-//! laufen. Von den dreien gibt es heute genau eines:
+//! Der Prüflauf soll laut Masterplan („Prüflauf vor Auslieferung") über **Boss
+//! × Schwierigkeit × Erfolg** laufen. Diese Datei rechnet **eine** Kombination:
+//! [`feasibility_gegen`] und [`erfolge_pruefen`] nehmen den Boss als Argument.
+//! Über welche Kombinationen der Lauf geht, entscheidet
+//! [`crate::auslieferung`] — heute jeder wertungsfähige Boss auf der Stufe
+//! Normal.
 //!
-//! * **Ein Boss** — THE FIRST CRUCIBLE, ohne Mechaniken und ohne Phasen
-//!   (`STEP1-SPEC` § 3).
-//! * **Keine Schwierigkeitsstufen** — 11.7 nennt Normal/Heroisch/Mythisch,
-//!   aber welche Mechanik auf welcher Stufe dazukommt, ist noch nicht
-//!   ausgeplant (GAME-DESIGN 22, vor E4).
-//! * **Keine Erfolge** — die konkreten Ziele je Boss stehen ebenfalls in
-//!   Kapitel 22 (vor E10).
+//! * **Schwierigkeitsstufen** gibt es im Spiel noch nicht (`app.ts` führt eine
+//!   feste `DIFFICULTY_NORMAL`). Die Achse steht in
+//!   [`crate::auslieferung::Stufe`]; eine Stufe ist dort ein anderer Boss, und
+//!   diese Datei merkt davon nichts.
+//! * **Boss-eigene Erfolge** gibt es ebenfalls noch nicht. Die Achse ist
+//!   [`Erfolg`]: Ein neuer Erfolg ist eine neue Variante, und
+//!   [`erfolge_pruefen`] verlangt für jede eine Prüfung.
 //!
-//! Ableitbar ist trotzdem etwas, und zwar genau das, was 21.6 dem Balance-Läufer
-//! zuschreibt: die **Zeitmarken**. Aus der errechneten Bestzeit folgen Gold,
-//! Silber und Bronze als feste Vielfache — siehe [`time_tiers`]. Damit prüft der
-//! Prüflauf heute drei echte Erfolge statt gar keiner, und die Maschinerie steht,
-//! sobald die übrigen dazukommen.
+//! Ableitbar ist heute genau das, was 21.6 dem Balance-Läufer zuschreibt: die
+//! **Zeitmarken**. Aus der errechneten Bestzeit folgen Gold, Silber und Bronze
+//! als feste Vielfache — siehe [`time_tiers`]. **Erreichbar sind sie damit per
+//! Bauart**, sobald der Boss fällt: 110 % der Bestzeit liegt nie unter ihr. Was
+//! sie tatsächlich prüfen, ist der Sieg selbst und ob die Marke unter dem
+//! Zeitlimit liegt ([`AchievementCheck::meaningful`]). Von Hand gesetzte Marken
+//! (Masterplan A.2, „Tempo-Stufen von Hand festgelegt") machen daraus eine echte
+//! Prüfung, sobald es sie gibt.
 
 use crate::apl::Apl;
-use crate::data::{Spell, BOSS, SPELLS, SPELL_COUNT};
+use crate::data::{Boss, Spell, BOSS, SPELLS, SPELL_COUNT};
 use crate::fight::{Fight, FightConfig, RunResult};
+use crate::objective::{Outcome, WinCondition};
 use crate::time::Millis;
 
 /// Was ein einzelner Zauber beigetragen hat.
@@ -266,23 +274,45 @@ pub fn spell_table(result: &RunResult) -> Vec<SpellContribution> {
 pub struct Feasibility {
     /// Name des Bosses.
     pub boss: &'static str,
+    /// Woran sich der Sieg bemisst — bei `runaway` umgekehrt.
+    pub ziel: WinCondition,
     /// Zeitlimit, gegen das gerechnet wurde.
     pub limit_ms: Millis,
-    /// Ob er gefallen ist.
+    /// Ob der Ring auf null fiel.
+    ///
+    /// **Bei umgekehrtem Ziel ist das die Niederlage.** Das Urteil steht in
+    /// [`Feasibility::gewonnen`]; dieses Feld sagt nur, was im Kampf geschah.
     pub defeated: bool,
-    /// Wann er gefallen ist.
+    /// Der Ausgang nach der Siegbedingung des Bosses
+    /// ([`Outcome::of`], dieselbe Deutung wie überall im Simulator).
+    pub ausgang: Outcome,
+    /// Ob der Kampf gewonnen wurde.
+    pub gewonnen: bool,
+    /// Wann der Ring auf null fiel.
     pub kill_time_ms: Option<Millis>,
-    /// Wie viel Zeit übrig blieb.
+    /// Wann der Sieg feststand: bei gewöhnlichem Ziel der Fall des Rings, bei
+    /// umgekehrtem das Ende der Frist. `None` ohne Sieg.
+    pub sieg_ms: Option<Millis>,
+    /// Wann der Spieler starb, falls er starb.
+    pub died_at_ms: Option<Millis>,
+    /// Wie viel Zeit nach dem Sieg übrig blieb. Bei umgekehrtem Ziel immer 0 —
+    /// der Sieg fällt dort auf das Ende der Frist.
     pub reserve_ms: Millis,
-    /// Reserve als Anteil des Zeitlimits, 0 bis 1.
+    /// Die Reserve als Anteil, 0 bis 1: bei gewöhnlichem Ziel der Anteil des
+    /// Zeitlimits, bei umgekehrtem der Anteil des Rings, der am Ende stand.
     pub reserve_share: f64,
-    /// Verursachter Schaden.
+    /// Verursachter Schaden — bei `runaway` der ganze Fortschritt des Rings,
+    /// den die Reaktion selbst eingeschlossen.
     pub damage: u32,
+    /// Lebenspunkte des Bosses — die Größe des Rings.
+    pub hp: u32,
+    /// Was vom Ring am Ende stand, in Lebenspunkten.
+    pub ring_rest: u32,
     /// Anteil der Lebenspunkte, der abgetragen wurde.
     pub hp_share: f64,
 }
 
-/// Prüft, ob der Boss mit dieser Rotation im Zeitlimit fällt.
+/// Prüft, ob der voreingestellte Boss mit dieser Rotation im Zeitlimit fällt.
 ///
 /// `limit_ms` überschreibt den Überdruck-Timer des Bosses. Genau darüber laufen
 /// die Gegenproben: Ein Zeitlimit, das zu kurz ist, macht die Lage
@@ -290,32 +320,94 @@ pub struct Feasibility {
 /// prüft nichts.
 #[must_use]
 pub fn feasibility(apl: &Apl, limit_ms: Option<Millis>) -> Feasibility {
+    feasibility_gegen(BOSS, apl, limit_ms)
+}
+
+/// Dieselbe Prüfung gegen einen beliebigen Boss (#891 N1).
+///
+/// **Ein Kampf, ohne Ausrüstung.** Ohne sie würfelt nichts
+/// ([`crate::durchgaenge::ein_durchgang_genuegt`]), und ein Kampf entscheidet
+/// exakt. Der Kampf wird beim angemeldeten Zählwerk mitgezählt
+/// ([`crate::fortschritt::strang`]), damit die Kampfzahl eines Prüflaufs auch
+/// diese Kämpfe enthält.
+#[must_use]
+pub fn feasibility_gegen(boss: &'static Boss, apl: &Apl, limit_ms: Option<Millis>) -> Feasibility {
     let mut fight = Fight::new(FightConfig {
         duration_ms: limit_ms,
         stop_on_kill: true,
         log_capacity: 0,
+        boss,
         ..FightConfig::default()
     });
     let result = fight.run_apl(apl);
-    let limit = limit_ms.unwrap_or(BOSS.overpressure_ms);
+    if let Some(strang) = crate::fortschritt::strang() {
+        strang.kampf();
+    }
+    let limit = limit_ms.unwrap_or(boss.overpressure_ms);
+    let ziel = WinCondition::of(boss);
+    let died_at_ms = fight.died_at_ms();
+    // **Dieselbe Deutung wie [`crate::balance::siege`]**, über dieselbe
+    // Funktion — eine zweite Fallunterscheidung hier liefe beim nächsten
+    // Umbau auseinander.
+    let ausgang = Outcome::of(
+        &crate::balance::Sample {
+            seed: 0,
+            damage: result.damage,
+            killed_at_ms: result.killed_at_ms,
+            damage_taken: fight.damage_taken(),
+            absorbed: fight.shield_absorbed(),
+            healed: fight.healed(),
+            boss_healed: fight.boss_healed(),
+            died: fight.player_dead(),
+            died_at_ms,
+        },
+        // STAND VOR #891 N1: Der Ring auf null gilt als Sieg, auch bei `runaway`.
+        WinCondition::RingDepleted,
+    );
+    let gewonnen = ausgang.is_win();
+    let sieg_ms = match (gewonnen, ziel) {
+        (false, _) => None,
+        (true, WinCondition::RingDepleted) => result.killed_at_ms,
+        (true, WinCondition::SurviveTimer) => result.killed_at_ms,
+    };
+    let ring_rest = boss.hp.saturating_sub(result.damage);
+    let reserve_ms = if ziel.is_inverted() {
+        0
+    } else {
+        result.remaining_ms
+    };
+    let anteil = |zaehler: u32, nenner: u32| {
+        if nenner > 0 {
+            f64::from(zaehler) / f64::from(nenner)
+        } else {
+            0.0
+        }
+    };
 
     Feasibility {
-        boss: BOSS.name,
+        boss: boss.name,
+        ziel,
         limit_ms: limit,
         defeated: result.killed_at_ms.is_some(),
+        ausgang,
+        gewonnen,
         kill_time_ms: result.killed_at_ms,
-        reserve_ms: result.remaining_ms,
-        reserve_share: if limit > 0 {
-            f64::from(result.remaining_ms) / f64::from(limit)
+        sieg_ms,
+        died_at_ms,
+        reserve_ms,
+        reserve_share: if ziel.is_inverted() {
+            if gewonnen {
+                anteil(ring_rest, boss.hp)
+            } else {
+                0.0
+            }
         } else {
-            0.0
+            anteil(reserve_ms, limit)
         },
         damage: result.damage,
-        hp_share: if BOSS.hp > 0 {
-            f64::from(result.damage.min(BOSS.hp)) / f64::from(BOSS.hp)
-        } else {
-            0.0
-        },
+        hp: boss.hp,
+        ring_rest,
+        hp_share: anteil(result.damage.min(boss.hp), boss.hp),
     }
 }
 
@@ -380,76 +472,174 @@ pub struct AchievementCheck {
     pub evidence: String,
 }
 
-/// Der Erfolgs-Prüflauf (GAME-DESIGN 12.9).
+/// Eine der drei Tempo-Stufen (Masterplan A.2, GAME-DESIGN 21.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tempostufe {
+    /// 110 % der Bestzeit.
+    Gold,
+    /// 130 % der Bestzeit.
+    Silber,
+    /// 160 % der Bestzeit.
+    Bronze,
+}
+
+impl Tempostufe {
+    /// Alle drei, von der schärfsten zur mildesten.
+    pub const ALLE: [Self; 3] = [Self::Gold, Self::Silber, Self::Bronze];
+
+    /// Der Name im Bericht.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Gold => "Gold",
+            Self::Silber => "Silber",
+            Self::Bronze => "Bronze",
+        }
+    }
+
+    /// Die Marke dieser Stufe aus den abgeleiteten Zeitmarken.
+    #[must_use]
+    pub const fn marke(self, tiers: &TimeTiers) -> Millis {
+        match self {
+            Self::Gold => tiers.gold_ms,
+            Self::Silber => tiers.silver_ms,
+            Self::Bronze => tiers.bronze_ms,
+        }
+    }
+}
+
+/// Ein Erfolg, für den der Prüflauf eine Lösung bestätigen muss — die dritte
+/// Achse aus „Boss × Schwierigkeit × Erfolg".
+///
+/// # Wie boss-eigene Erfolge dazukommen
+///
+/// Als weitere Variante, mit den Daten, aus denen [`erfolge`] sie liest.
+/// [`erfolge_pruefen`] matcht ohne Platzhalter-Arm: Eine Variante ohne
+/// Prüfung baut nicht. Ein Erfolg wie „jeden Zauber unterbrochen" wird dabei
+/// eine eigene Suche brauchen — die Lösung dafür ist nicht die Liste mit dem
+/// meisten Schaden, sondern eine, die das Kriterium erfüllt und trotzdem im
+/// Zeitlimit siegt (Masterplan: „inklusive der Kosten, die etwa ein
+/// Schutzschild an globaler Wartezeit verursacht").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Erfolg {
+    /// Der Kampf ist zu gewinnen — bei umgekehrtem Ziel heißt das: die Frist
+    /// überstehen.
+    Sieg,
+    /// Eine Zeitmarke, abgeleitet aus der Bestzeit.
+    Zeitmarke(Tempostufe),
+}
+
+/// Die Erfolge, die ein Boss heute trägt.
+///
+/// **Für jeden Boss dieselben vier**, weil es boss-eigene noch nicht gibt
+/// (#1177, Abschnitt 2). Der Boss steht trotzdem in der Signatur: Dort lesen
+/// die boss-eigenen ihre Daten, und kein Aufrufer muss dann umgebaut werden.
+#[must_use]
+pub fn erfolge(_boss: &Boss) -> Vec<Erfolg> {
+    let mut alle = vec![Erfolg::Sieg];
+    alle.extend(Tempostufe::ALLE.map(Erfolg::Zeitmarke));
+    alle
+}
+
+/// Der Erfolgs-Prüflauf (GAME-DESIGN 12.9) gegen den voreingestellten Boss.
 ///
 /// > Der Simulator läuft über jede Kombination aus Boss × Schwierigkeit ×
 /// > Erfolg und bestätigt, dass eine Lösung existiert. **Ohne gefundene Lösung
 /// > gilt der Boss als nicht auslieferbar.**
 ///
-/// Heute prüft er die drei Zeitmarken und den Sieg selbst — mehr gibt es nicht,
-/// solange Erfolge und Schwierigkeitsstufen nicht ausgeplant sind (Kapitel 22).
 /// Die Kriterien sind **absolut formuliert**, wie 12.9 es verlangt: „unter
 /// dieser Zeit", nicht „besser als der Durchschnitt".
 #[must_use]
 pub fn achievement_run(apl: &Apl, limit_ms: Option<Millis>) -> Vec<AchievementCheck> {
-    let result = feasibility(apl, limit_ms);
-    let mut checks = Vec::with_capacity(4);
+    erfolge_pruefen(&erfolge(BOSS), &feasibility(apl, limit_ms))
+}
 
-    checks.push(AchievementCheck {
-        name: "Sieg".to_owned(),
-        solved: result.defeated,
-        meaningful: true,
-        evidence: match result.kill_time_ms {
-            Some(t) => format!("besiegt bei {t} ms von {} ms", result.limit_ms),
-            None => format!(
-                "nicht besiegt, {} von {} Lebenspunkten abgetragen ({:.1} %)",
-                result.damage,
-                BOSS.hp,
-                result.hp_share * 100.0
-            ),
-        },
-    });
-
-    let Some(best) = result.kill_time_ms else {
-        // Ohne Sieg gibt es keine Bestzeit, aus der sich Zeitmarken ableiten
-        // liessen. Die drei Stufen als "ungeloest" zu melden waere richtig, aber
-        // nichtssagend — der Sieg-Eintrag oben sagt bereits alles.
-        return checks;
-    };
-
-    let tiers = time_tiers(best);
-    for (name, ziel) in [
-        ("Gold", tiers.gold_ms),
-        ("Silber", tiers.silver_ms),
-        ("Bronze", tiers.bronze_ms),
-    ] {
-        // Eine Zeitmarke ist eine OBERGRENZE: "schaffe es unter X". Sie ist
-        // erfuellt, wenn die Bestzeit darunter liegt — mehr braucht es nicht.
-        let solved = best <= ziel;
-
-        // Liegt die Marke ueber dem Zeitlimit, erfuellt sie jeder Sieg. Dann
-        // ist sie zwar geloest, unterscheidet aber niemanden. Das ist ein
-        // Befund ueber die Marke, nicht ueber den Lauf — siehe
-        // `AchievementCheck::meaningful`.
-        let meaningful = ziel < result.limit_ms;
-
-        checks.push(AchievementCheck {
-            name: format!("Zeitmarke {name}"),
-            solved,
-            meaningful,
-            evidence: if meaningful {
-                format!("Bestzeit {best} ms, Marke {ziel} ms")
-            } else {
-                format!(
-                    "Bestzeit {best} ms, Marke {ziel} ms — die Marke liegt ueber dem \
-                     Zeitlimit von {} ms und wird damit von jedem Sieg erfuellt",
-                    result.limit_ms
-                )
-            },
-        });
+/// Prüft eine Liste von Erfolgen gegen eine Machbarkeit (#891 N1).
+///
+/// **Ohne Sieg steht nur der Sieg-Eintrag da.** Ohne ihn gibt es keine
+/// Bestzeit, aus der sich Zeitmarken ableiten ließen; sie als „ungelöst" zu
+/// melden wäre richtig, aber nichtssagend — der Sieg-Eintrag sagt alles.
+#[must_use]
+pub fn erfolge_pruefen(erfolge: &[Erfolg], result: &Feasibility) -> Vec<AchievementCheck> {
+    let mut checks = Vec::with_capacity(erfolge.len());
+    for &erfolg in erfolge {
+        match erfolg {
+            Erfolg::Sieg => checks.push(sieg_pruefen(result)),
+            Erfolg::Zeitmarke(stufe) => {
+                if let Some(best) = result.sieg_ms {
+                    checks.push(zeitmarke_pruefen(result, stufe, best));
+                }
+            }
+        }
     }
-
     checks
+}
+
+/// Der Sieg-Eintrag, mit dem Grund im Beleg.
+fn sieg_pruefen(result: &Feasibility) -> AchievementCheck {
+    let evidence = match (result.ausgang, result.ziel) {
+        (Outcome::Won, WinCondition::RingDepleted) => format!(
+            "besiegt bei {} ms von {} ms",
+            result.kill_time_ms.unwrap_or_default(),
+            result.limit_ms
+        ),
+        (Outcome::Won, WinCondition::SurviveTimer) => format!(
+            "Frist von {} ms ueberstanden (umgekehrtes Ziel), Ring {} von {} uebrig",
+            result.limit_ms, result.ring_rest, result.hp
+        ),
+        (Outcome::Died, _) => format!(
+            "Spieler gestorben bei {} ms, {} von {} Lebenspunkten abgetragen ({:.1} %)",
+            result.died_at_ms.unwrap_or_default(),
+            result.damage.min(result.hp),
+            result.hp,
+            result.hp_share * 100.0
+        ),
+        (Outcome::Overpressure, WinCondition::SurviveTimer) => format!(
+            "Ring bei {} ms auf null — bei umgekehrtem Ziel die Niederlage",
+            result.kill_time_ms.unwrap_or_default()
+        ),
+        (Outcome::Overpressure, WinCondition::RingDepleted) => format!(
+            "nicht besiegt, {} von {} Lebenspunkten abgetragen ({:.1} %)",
+            result.damage,
+            result.hp,
+            result.hp_share * 100.0
+        ),
+    };
+    AchievementCheck {
+        name: "Sieg".to_owned(),
+        solved: result.gewonnen,
+        meaningful: true,
+        evidence,
+    }
+}
+
+/// Eine Zeitmarke gegen die Bestzeit.
+fn zeitmarke_pruefen(result: &Feasibility, stufe: Tempostufe, best: Millis) -> AchievementCheck {
+    let ziel = stufe.marke(&time_tiers(best));
+    // Eine Zeitmarke ist eine OBERGRENZE: "schaffe es unter X". Sie ist
+    // erfuellt, wenn die Bestzeit darunter liegt — mehr braucht es nicht.
+    let solved = best <= ziel;
+
+    // Liegt die Marke ueber dem Zeitlimit, erfuellt sie jeder Sieg. Dann
+    // ist sie zwar geloest, unterscheidet aber niemanden. Das ist ein
+    // Befund ueber die Marke, nicht ueber den Lauf — siehe
+    // `AchievementCheck::meaningful`.
+    let meaningful = ziel < result.limit_ms;
+
+    AchievementCheck {
+        name: format!("Zeitmarke {}", stufe.name()),
+        solved,
+        meaningful,
+        evidence: if meaningful {
+            format!("Bestzeit {best} ms, Marke {ziel} ms")
+        } else {
+            format!(
+                "Bestzeit {best} ms, Marke {ziel} ms — die Marke liegt ueber dem \
+                 Zeitlimit von {} ms und wird damit von jedem Sieg erfuellt",
+                result.limit_ms
+            )
+        },
+    }
 }
 
 /// Ob der Prüflauf den Boss freigibt.

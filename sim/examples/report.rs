@@ -1,186 +1,128 @@
-//! Die drei Auswertungen aus GAME-DESIGN 18.5, als Kommandozeilen-Werkzeug.
+//! Die Masterplan-Ausgaben 2 bis 4 über alle wertungsfähigen Bosse
+//! (#891 N1, N4), als Kommandozeilen-Werkzeug.
 //!
 //! ```text
 //! cargo run --release --example report
 //! cargo run --release --example report -- --json
 //! cargo run --release --example report -- --budget 500000
+//! cargo run --release --example report -- --posten-md posten.md
 //! ```
 //!
-//! Beendet sich mit 1, wenn der Erfolgs-Prüflauf keine Lösung findet — dann
-//! gilt der Boss als **nicht auslieferbar** (GAME-DESIGN 12.9). Genau dafür
-//! hängt er im nächtlichen Lauf.
+//! Beendet sich mit 1, wenn für eine Kombination aus Boss und Stufe ein Erfolg
+//! ohne gefundene Lösung bleibt — dann gilt der Boss als **nicht
+//! auslieferbar** (Masterplan, „Prüflauf vor Auslieferung"). Genau dafür hängt
+//! er im nächtlichen Lauf.
 //!
-//! # Der Zauber-Vergleich trennt vier Befunde (Issue #946)
+//! # Was je Kombination gerechnet wird
 //!
-//! Abschnitt 1 nennt je spielbarem Zauber genau einen Befund aus
-//! [`rota_sim::viabilitaet`]: mindestens bezeugt, bewiesen dominiert, nicht
-//! gefunden, ungeklärt. Bis hierher stand dort „TOT", sobald die feste Liste
-//! `step1-good` einen Zauber nicht wirkte — und das hieß dasselbe, ob die
-//! Suche ihn nur nicht gefunden hatte oder ob er bewiesen verliert.
+//! Der Prüfplan ist [`rota_sim::auslieferung::pruefplan`]: jeder wertungsfähige
+//! Boss auf jeder Stufe, die das Spiel kennt (heute Normal). Je Kombination
+//! sucht die gierige Suche die Rotation, und auf ihr stehen alle drei
+//! Abschnitte: der Zauber-Vergleich mit vier Befunden je Zauber (Issue #946),
+//! die Machbarkeit nach der Siegbedingung des Bosses und der Erfolgs-Prüflauf.
+//! Bis #891 N1 rechneten Abschnitt 2 und 3 nur first-crucible, mit der festen
+//! Liste `step1-good`.
 //!
-//! Gerechnet wird gegen die **gesuchte** Rotation (gierig, Länge bis
-//! [`MAX_LEN`]), nicht gegen die feste: Ein Zeuge aus einer Handschrift sagt,
-//! was sie wirkt, nicht was die beste Liste wirkt. Die Abschnitte 2 und 3
-//! bleiben bei `step1-good`.
+//! **Das Budget** begrenzt jede Projektion auf
+//! [`rota_sim::auslieferung::BUDGET`] Listen. Was darüber liegt, wird nicht
+//! gerechnet und steht als „nicht gefunden" da — mit der Zahl, die es gebraucht
+//! hätte. `--budget N` setzt eine andere Grenze.
 //!
-//! **Das Budget** begrenzt jede Projektion auf [`BUDGET`] Listen. Was darüber
-//! liegt, wird nicht gerechnet und steht als „nicht gefunden" da — mit der
-//! Zahl, die es gebraucht hätte. `--budget N` setzt eine andere Grenze.
+//! # Wanduhr und Kampfzahl je Posten (#891 N4)
+//!
+//! Jede Kombination wird in fünf Teilen gemessen
+//! ([`rota_sim::auslieferung::Teil`]). Die Tabelle steht am Ende der
+//! Textausgabe; `--posten-md DATEI` schreibt sie zusätzlich als Markdown, für
+//! die Zusammenfassung des Nachtlaufs. Die Datei entsteht auch dann, wenn ein
+//! Boss nicht auslieferbar ist — gerade dann wird sie gelesen.
 
+use std::fmt::Write as _;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use rota_sim::apl::{parse, Apl, AplName};
-use rota_sim::balance::BalanceConfig;
-use rota_sim::factors::NEUTRAL;
-use rota_sim::objective::Coverage;
-use rota_sim::report::{
-    achievement_run, feasibility, is_shippable, meaningless, time_tiers, AchievementCheck,
-    Feasibility,
+use rota_sim::auslieferung::{
+    alle_auslieferbar, nicht_auslieferbar, pruefe, pruefplan, summe_je_teil, Posten, Pruefung,
+    Rahmen, Stufe, Teil, BUDGET,
 };
-use rota_sim::rotation_search::{all_candidates, Candidate};
-use rota_sim::viabilitaet::{
-    befunde, mechanikproben, portfolio, schulproben, spielbare_zauber, Befundart, Befundtabelle,
-    Mechanikprobe, Schulprobe, EINORDNUNG,
-};
-use rota_sim::{Fight, FightConfig, RunResult, BOSS, SPELLS};
+use rota_sim::objective::{Coverage, WinCondition};
+use rota_sim::report::{meaningless, time_tiers};
+use rota_sim::viabilitaet::{portfolio, Befundart, EINORDNUNG};
+use rota_sim::SPELLS;
 
-/// Die gute Rotation, wie sie im Repository liegt.
-const GOOD: &str = include_str!("../apl/step1-good.apl");
-
-/// Höchstlänge der gesuchten Liste und der Projektionen — dieselbe wie im
-/// Abdeckungs-Wächter aus #550.
-const MAX_LEN: usize = 6;
-
-/// Wie viele Listen eine Projektion höchstens messen darf.
-///
-/// Gemessen am 2026-10-29 auf node3 (CT 105): First-crucible bei Länge 6
-/// braucht 53 Projektionen mit zusammen 1 266 939 Listen, die größte hat
-/// 79 209; der ganze Abschnitt 1 lief in 15,0 s. Die Grenze liegt so, dass
-/// keine Projektion an ihr scheitert, die sich in Sekunden rechnen lässt — sie
-/// fängt erst die Projektionen, die mit der Länge der Elite in die Millionen
-/// wachsen (neun Zeilen bei Länge 8 sind schon 623 529 Listen,
-/// `exhaustive_messungen(9, 8)`).
-const BUDGET: u64 = 1_000_000;
-
-/// Die Einstellungen des Zauber-Vergleichs.
-///
-/// **Ein Durchgang mit festem Startwert**, wie in der erschöpfenden Suche:
-/// Ohne Ausrüstung würfelt der Kampf nicht, also ist jede Messung exakt — und
-/// nur dann trägt ein Beweis. `stop_on_kill` steht auf `false`, sonst wären
-/// zwei verschieden schnelle Listen nicht vergleichbar (`rotation_search::measure`).
-fn befund_config() -> BalanceConfig {
-    BalanceConfig {
-        iterations: 1,
-        base_seed: 0,
-        threads: 1,
-        duration_ms: None,
-        stop_on_kill: false,
-        factors: NEUTRAL,
-        boss: BOSS,
-        ..BalanceConfig::default()
-    }
-}
-
-/// Alles, was Abschnitt 1 braucht.
-struct Vergleich {
-    tabelle: Befundtabelle,
-    /// Der Lauf der Elite, für Schaden und Anteil je Zauber.
-    elite_lauf: RunResult,
-    schulen: Vec<Schulprobe>,
-    mechaniken: Result<Vec<Mechanikprobe>, Vec<&'static str>>,
-    sekunden: f64,
-}
-
-fn vergleich(budget: u64) -> Vergleich {
-    vergleich_mit(
-        &befund_config(),
-        &all_candidates(),
-        &spielbare_zauber(),
-        MAX_LEN,
-        budget,
-    )
-}
-
-/// Abschnitt 1 für einen beliebigen Vorrat — der Prüffall unten rechnet ihn
-/// auf einem kleinen.
-fn vergleich_mit(
-    config: &BalanceConfig,
-    pool: &[Candidate],
-    grundmenge: &[usize],
-    max_len: usize,
+/// Was die Kommandozeile setzt.
+struct Optionen {
+    json: bool,
     budget: u64,
-) -> Vergleich {
-    let beginn = Instant::now();
-    let tabelle = befunde(config, pool, grundmenge, max_len, budget);
-    let schulen = schulproben(config, pool, grundmenge, max_len);
-    let mechaniken = mechanikproben(config, pool, max_len);
-
-    // Schaden je Zauber gibt der Balance-Lauf nicht her, nur der einzelne
-    // Kampf. Derselbe Kampf wie im Lauf — und das wird geprüft, nicht
-    // angenommen: Wirft er anders, ist die Schadensspalte die eines anderen
-    // Kampfs.
-    let elite_lauf = Fight::new(FightConfig {
-        stop_on_kill: config.stop_on_kill,
-        boss: config.boss,
-        log_capacity: 0,
-        ..FightConfig::default()
-    })
-    .run_apl(&tabelle.elite.best.apl);
-    for zeile in &tabelle.zeilen {
-        assert_eq!(
-            elite_lauf.casts[zeile.spell], zeile.casts,
-            "{} wird im Einzelkampf {}-mal gewirkt, im Lauf {}-mal — die Schadensspalte \
-             gehoerte dann zu einem anderen Kampf",
-            zeile.id, elite_lauf.casts[zeile.spell], zeile.casts
-        );
-    }
-
-    Vergleich {
-        tabelle,
-        elite_lauf,
-        schulen,
-        mechaniken,
-        sekunden: beginn.elapsed().as_secs_f64(),
-    }
+    posten_md: Option<String>,
 }
 
-fn budget_aus_argumenten() -> u64 {
+fn wert_nach(args: &[String], schalter: &str) -> Option<String> {
+    args.iter().position(|a| a == schalter).map(|i| {
+        args.get(i + 1)
+            .unwrap_or_else(|| panic!("{schalter} erwartet einen Wert"))
+            .clone()
+    })
+}
+
+fn optionen() -> Optionen {
     let args: Vec<String> = std::env::args().collect();
-    args.iter()
-        .position(|a| a == "--budget")
-        .and_then(|i| args.get(i + 1))
-        .map_or(BUDGET, |wert| {
+    Optionen {
+        json: args.iter().any(|a| a == "--json"),
+        budget: wert_nach(&args, "--budget").map_or(BUDGET, |wert| {
             wert.parse()
                 .unwrap_or_else(|_| panic!("--budget erwartet eine Zahl, nicht {wert:?}"))
-        })
+        }),
+        posten_md: wert_nach(&args, "--posten-md"),
+    }
+}
+
+/// Rechnet den ganzen Prüfplan, eine Kombination nach der anderen.
+///
+/// Der Fortschritt geht nach stderr: stdout bleibt bei `--json` ein einziges
+/// Objekt.
+fn lauf(rahmen: &Rahmen) -> (Vec<Pruefung>, f64) {
+    let plan = pruefplan();
+    let beginn = Instant::now();
+    let mut ergebnisse = Vec::with_capacity(plan.len());
+    for (nummer, kombination) in plan.into_iter().enumerate() {
+        let p = pruefe(kombination, rahmen);
+        eprintln!(
+            "[{:>2}] {:<15} {:<7} {:>8.2} s  {:>10} Kaempfe  {}",
+            nummer + 1,
+            kombination.boss.id,
+            kombination.stufe.id(),
+            p.wanduhr().as_secs_f64(),
+            p.kaempfe(),
+            if p.auslieferbar() {
+                "auslieferbar"
+            } else {
+                "NICHT auslieferbar"
+            }
+        );
+        ergebnisse.push(p);
+    }
+    (ergebnisse, beginn.elapsed().as_secs_f64())
 }
 
 fn main() -> ExitCode {
-    let json = std::env::args().any(|a| a == "--json");
-    let budget = budget_aus_argumenten();
+    let opt = optionen();
+    let rahmen = Rahmen::voll(opt.budget);
+    let (ergebnisse, sekunden) = lauf(&rahmen);
+    let frei = alle_auslieferbar(&ergebnisse);
 
-    let apl = match parse(AplName("step1-good"), GOOD) {
-        Ok(apl) => apl,
-        Err(error) => {
-            eprintln!("Die eingebaute Liste ist fehlerhaft:\n{error}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    let result = Fight::new(FightConfig::default()).run_apl(&apl);
-    let feas = feasibility(&apl, None);
-    let checks = achievement_run(&apl, None);
-    let shippable = is_shippable(&checks);
-    let v = vergleich(budget);
-
-    if json {
-        print_json(&apl, &result, &v, &feas, &checks, shippable);
+    if let Some(pfad) = &opt.posten_md {
+        std::fs::write(pfad, posten_markdown(&ergebnisse, sekunden))
+            .unwrap_or_else(|e| panic!("{pfad} laesst sich nicht schreiben: {e}"));
+    }
+    if opt.json {
+        println!("{}", json_lauf(&ergebnisse, &rahmen, sekunden, frei));
     } else {
-        print_text(&apl, &v, &feas, &checks, shippable);
+        for zeile in text_lauf(&ergebnisse, &rahmen, sekunden, frei) {
+            println!("{zeile}");
+        }
     }
 
-    if shippable {
+    if frei {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
@@ -194,9 +136,23 @@ fn coverage_text(c: Coverage) -> String {
     }
 }
 
-/// Abschnitt 1 als Zeilen — dieselben, die gedruckt werden.
-fn text_vergleich(v: &Vergleich) -> Vec<String> {
-    let t = &v.tabelle;
+fn ziel_text(ziel: WinCondition) -> &'static str {
+    match ziel {
+        WinCondition::RingDepleted => "Ring auf null",
+        WinCondition::SurviveTimer => "Frist ueberstehen (umgekehrt)",
+    }
+}
+
+// ------------------------------------------------------------------- Text
+
+/// Abschnitt 1 einer Kombination als Zeilen — dieselben, die gedruckt werden.
+fn text_vergleich(p: &Pruefung) -> Vec<String> {
+    let t = &p.tabelle;
+    let befunde = p
+        .posten
+        .iter()
+        .find(|q| q.teil == Teil::Befunde)
+        .map_or(0.0, |q| q.wanduhr.as_secs_f64());
     let mut out = vec![
         "1. ZAUBER-VERGLEICH — vier Befunde je Zauber (Issue #946)".to_owned(),
         format!(
@@ -204,8 +160,8 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
             t.boss, t.max_len
         ),
         format!(
-            "   Budget {} Listen je Projektion, gerechnet in {:.1} s",
-            t.budget, v.sekunden
+            "   Budget {} Listen je Projektion, Befunde gerechnet in {befunde:.1} s",
+            t.budget
         ),
         format!("   {EINORDNUNG}"),
         format!("   Elite ({:.1}):", t.elite.best.mean),
@@ -215,7 +171,7 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
     }
     out.push(String::new());
 
-    let gesamt = f64::from(v.elite_lauf.damage);
+    let gesamt = f64::from(p.elite_lauf.damage);
     out.push(format!(
         "   {:<14} {:<13} {:>5} {:>8} {:>7}  Befund",
         "Zauber", "Schule", "Wirkt", "Schaden", "Anteil"
@@ -225,11 +181,11 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
     // Reihenfolge der Daten.
     zeilen.sort_by(|a, b| {
         a.befund.art().cmp(&b.befund.art()).then_with(|| {
-            v.elite_lauf.damage_by_spell[b.spell].cmp(&v.elite_lauf.damage_by_spell[a.spell])
+            p.elite_lauf.damage_by_spell[b.spell].cmp(&p.elite_lauf.damage_by_spell[a.spell])
         })
     });
     for zeile in zeilen {
-        let schaden = v.elite_lauf.damage_by_spell[zeile.spell];
+        let schaden = p.elite_lauf.damage_by_spell[zeile.spell];
         out.push(format!(
             "   {:<14} {:<13} {:>5} {:>8} {:>5.1} %  {}",
             zeile.id,
@@ -272,7 +228,7 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
     out.push(String::new());
     out.push("   Faecher des Zielvertrags (#939), aus diesem Lauf:".to_owned());
     let kampagne = t.kampagnenabdeckung();
-    let menge = portfolio(&v.schulen, &v.mechaniken);
+    let menge = portfolio(&p.schulen, &p.mechaniken);
     out.push(format!(
         "     every_spell_has_viable_niche                   {}",
         coverage_text(kampagne.every_spell_has_viable_niche)
@@ -281,7 +237,7 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
         "     no_school_is_globally_mandatory                {}",
         coverage_text(menge.no_school_is_globally_mandatory)
     ));
-    for probe in &v.schulen {
+    for probe in &p.schulen {
         out.push(format!(
             "       ohne {:<13} {}",
             probe.schule,
@@ -296,7 +252,7 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
         "     every_mechanic_has_multiple_solution_families  {}",
         coverage_text(menge.every_mechanic_has_multiple_solution_families)
     ));
-    match &v.mechaniken {
+    match &p.mechaniken {
         Ok(liste) if liste.is_empty() => {
             out.push(
                 "       der Boss hat keine Mechanik — nichts zu loesen, nichts verletzt".to_owned(),
@@ -324,7 +280,8 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
         )),
     }
     out.push(format!(
-        "     robustness_across_encounters                   {} (braucht mehr als einen Boss)",
+        "     robustness_across_encounters                   {} (braucht die Kreuzprobe \
+         ueber die Begegnungen)",
         coverage_text(menge.robustness_across_encounters)
     ));
 
@@ -335,99 +292,365 @@ fn text_vergleich(v: &Vergleich) -> Vec<String> {
     out
 }
 
-fn print_text(
-    apl: &Apl,
-    v: &Vergleich,
-    feas: &Feasibility,
-    checks: &[AchievementCheck],
-    shippable: bool,
-) {
-    println!("{}", "=".repeat(74));
-    println!("ROTA — Auswertungen (GAME-DESIGN 18.5)");
-    println!(
-        "Abschnitt 1 gegen die gesuchte Rotation, 2 und 3 gegen \"{}\", Boss \"{}\"",
-        apl.name, feas.boss
-    );
-    println!("{}", "=".repeat(74));
-
-    println!();
-    for zeile in text_vergleich(v) {
-        println!("{zeile}");
+/// Abschnitt 2 und 3 einer Kombination.
+fn text_machbarkeit(p: &Pruefung) -> Vec<String> {
+    let f = &p.machbarkeit;
+    let mut out = vec![
+        "2. BOSS-MACHBARKEIT (gesuchte Rotation, Elite aus Abschnitt 1)".to_owned(),
+        format!("   Ziel                 {}", ziel_text(f.ziel)),
+        format!("   Zeitlimit            {:>8} ms", f.limit_ms),
+    ];
+    match (f.gewonnen, f.ziel) {
+        (true, WinCondition::RingDepleted) => {
+            out.push(format!(
+                "   besiegt bei          {:>8} ms",
+                f.kill_time_ms.unwrap_or_default()
+            ));
+            out.push(format!(
+                "   Reserve              {:>8} ms   ({:.1} % des Zeitlimits)",
+                f.reserve_ms,
+                f.reserve_share * 100.0
+            ));
+        }
+        (true, WinCondition::SurviveTimer) => {
+            out.push(format!("   Frist ueberstanden   {:>8} ms", f.limit_ms));
+            out.push(format!(
+                "   Reserve              {:>8} von {} Ringpunkten ({:.1} %)",
+                f.ring_rest,
+                f.hp,
+                f.reserve_share * 100.0
+            ));
+        }
+        (false, _) => {
+            out.push(format!("   NICHT gewonnen       Ausgang {:?}", f.ausgang));
+            if let Some(t) = f.kill_time_ms {
+                out.push(format!("   Ring auf null bei    {t:>8} ms"));
+            }
+            if let Some(t) = f.died_at_ms {
+                out.push(format!("   Spieler tot bei      {t:>8} ms"));
+            }
+            out.push(format!(
+                "   abgetragen           {:>8}      ({:.1} % der Lebenspunkte)",
+                f.damage,
+                f.hp_share * 100.0
+            ));
+        }
     }
 
-    println!();
-    println!("2. BOSS-MACHBARKEIT");
-    println!("   Zeitlimit            {:>8} ms", feas.limit_ms);
-    if let Some(t) = feas.kill_time_ms {
-        println!("   besiegt bei          {t:>8} ms");
-        println!(
-            "   Reserve              {:>8} ms   ({:.1} % des Zeitlimits)",
-            feas.reserve_ms,
-            feas.reserve_share * 100.0
-        );
-    } else {
-        println!("   NICHT besiegt");
-        println!(
-            "   abgetragen           {:>8}      ({:.1} % der Lebenspunkte)",
-            feas.damage,
-            feas.hp_share * 100.0
-        );
-    }
-
-    println!();
-    println!("3. ERFOLGS-PRUEFLAUF");
-    if let Some(best) = feas.kill_time_ms {
+    out.push(String::new());
+    out.push("3. ERFOLGS-PRUEFLAUF".to_owned());
+    if let Some(best) = f.sieg_ms {
         let t = time_tiers(best);
-        println!(
+        out.push(format!(
             "   Zeitmarken aus der Bestzeit (GAME-DESIGN 21.6): Gold {} ms, Silber {} ms, Bronze {} ms",
             t.gold_ms, t.silver_ms, t.bronze_ms
-        );
+        ));
     }
-    for check in checks {
-        println!(
+    for check in &p.erfolge {
+        out.push(format!(
             "   {:<20} {}   {}",
             check.name,
             if check.solved { "geloest " } else { "OFFEN   " },
             check.evidence
-        );
+        ));
     }
-
-    let ohne_wirkung = meaningless(checks);
+    let ohne_wirkung = meaningless(&p.erfolge);
     if !ohne_wirkung.is_empty() {
-        println!();
-        println!(
-            "   HINWEIS: {} Erfolg(e) sind zwar loesbar, unterscheiden aber niemanden —",
-            ohne_wirkung.len()
-        );
-        println!("   ihre Marke liegt ueber dem Zeitlimit und wird von jedem Sieg erfuellt:");
-        for check in ohne_wirkung {
-            println!("     {}", check.name);
+        let namen: Vec<&str> = ohne_wirkung.iter().map(|c| c.name.as_str()).collect();
+        out.push(format!(
+            "   HINWEIS: loesbar, unterscheidet aber niemanden (Marke ueber dem Zeitlimit): {}",
+            namen.join(", ")
+        ));
+    }
+    out.push(format!(
+        "   -> {}",
+        if p.auslieferbar() {
+            "auslieferbar"
+        } else {
+            "NICHT AUSLIEFERBAR"
         }
-        println!("   Sie sperren die Auslieferung nicht (12.9 verlangt nur eine Loesung),");
-        println!("   vergeben aber Punkte fuer nichts.");
-    }
-
-    println!();
-    println!("{}", "-".repeat(74));
-    if shippable {
-        println!("AUSLIEFERBAR: Fuer jeden geprueften Erfolg existiert eine Loesung.");
-    } else {
-        println!("NICHT AUSLIEFERBAR: Mindestens ein Erfolg hat keine Loesung (GAME-DESIGN 12.9).");
-    }
-    println!("{}", "-".repeat(74));
-
-    println!();
-    println!("Was hier NOCH NICHT geprueft wird, weil es das Design noch nicht gibt");
-    println!("(GAME-DESIGN 22): Schwierigkeitsstufen (vor E4), boss-eigene Erfolge und");
-    println!("die 288 Zeitmarken (vor E10). Geprueft wird ein Boss auf einer Stufe mit");
-    println!("den drei Marken, die sich aus der Bestzeit ableiten lassen.");
-    println!("Der Zauber-Vergleich gilt fuer diesen einen Boss: Ein Befund ist eine");
-    println!("Aussage in seinem Geltungsbereich, kein Urteil ueber den Zauber im Spiel.");
+    ));
+    out
 }
 
-/// Abschnitt 1 als JSON-Objekt — dasselbe, das `--json` ausgibt.
-fn json_vergleich(v: &Vergleich) -> String {
-    let t = &v.tabelle;
+/// Eine Zeile der Übersicht über alle Kombinationen.
+fn text_uebersicht_zeile(p: &Pruefung) -> String {
+    let f = &p.machbarkeit;
+    let reserve = match (f.gewonnen, f.ziel) {
+        (true, WinCondition::RingDepleted) => format!("{:>5.1} % Zeit", f.reserve_share * 100.0),
+        (true, WinCondition::SurviveTimer) => format!("{:>5.1} % Ring", f.reserve_share * 100.0),
+        (false, _) => "-".to_owned(),
+    };
+    let marken: String = p
+        .erfolge
+        .iter()
+        .filter(|c| c.name.starts_with("Zeitmarke"))
+        .map(|c| if c.meaningful { 'x' } else { '-' })
+        .collect();
+    let z = p.tabelle.zaehlung();
+    // Abgeleitetes `Debug` einer Variante ohne Felder schreibt ohne Auffüllung
+    // — die Spalte braucht deshalb erst die Zeichenkette.
+    let ausgang = format!("{:?}", f.ausgang);
+    format!(
+        "   {:<15} {:<7} {:<6} {:<13} {:>8} {:>13}  {:<4} {:>3}/{:>3}/{:>3}/{:>3}  {}",
+        p.kombination.boss.id,
+        p.kombination.stufe.id(),
+        if f.ziel.is_inverted() {
+            "umgek."
+        } else {
+            "Ring"
+        },
+        ausgang,
+        f.sieg_ms.map_or_else(|| "-".to_owned(), |t| t.to_string()),
+        reserve,
+        if marken.is_empty() {
+            "-".to_owned()
+        } else {
+            marken
+        },
+        z.von(Befundart::MindestensBezeugt),
+        z.von(Befundart::BewiesenDominiert),
+        z.von(Befundart::NichtGefunden),
+        z.von(Befundart::Ungeklaert),
+        if p.auslieferbar() { "ja" } else { "NEIN" }
+    )
+}
+
+/// Die Posten-Tabelle (#891 N4) als Zeilen.
+fn text_posten(ergebnisse: &[Pruefung], sekunden: f64) -> Vec<String> {
+    let mut out = vec![
+        "POSTEN (#891 N4) — Wanduhr und Kampfzahl je Teil".to_owned(),
+        format!(
+            "   {:<15} {:<7} {:<15} {:>10} {:>12} {:>12} {:>12}",
+            "Boss", "Stufe", "Teil", "Wanduhr s", "Kaempfe", "Durchgaenge", "Auswertungen"
+        ),
+    ];
+    let zeile = |boss: &str, stufe: &str, q: &Posten| {
+        format!(
+            "   {:<15} {:<7} {:<15} {:>10.3} {:>12} {:>12} {:>12}",
+            boss,
+            stufe,
+            q.teil.name(),
+            q.wanduhr.as_secs_f64(),
+            q.kaempfe,
+            q.durchgaenge,
+            q.auswertungen
+        )
+    };
+    for p in ergebnisse {
+        for q in &p.posten {
+            out.push(zeile(p.kombination.boss.id, p.kombination.stufe.id(), q));
+        }
+    }
+    out.push(String::new());
+    let summen = summe_je_teil(ergebnisse);
+    let gesamt_s: f64 = summen.iter().map(|q| q.wanduhr.as_secs_f64()).sum();
+    for q in &summen {
+        out.push(format!(
+            "{}   ({:.1} % der Wanduhr)",
+            zeile("Summe", "", q),
+            if gesamt_s > 0.0 {
+                q.wanduhr.as_secs_f64() / gesamt_s * 100.0
+            } else {
+                0.0
+            }
+        ));
+    }
+    out.push(format!(
+        "   Gesamt: {} Kombinationen, {:.1} s Wanduhr ueber die Posten, {:.1} s fuer den ganzen \
+         Lauf, {} Kaempfe",
+        ergebnisse.len(),
+        gesamt_s,
+        sekunden,
+        summen.iter().map(|q| q.kaempfe).sum::<u64>()
+    ));
+    out
+}
+
+fn text_lauf(ergebnisse: &[Pruefung], rahmen: &Rahmen, sekunden: f64, frei: bool) -> Vec<String> {
+    let bosse = ergebnisse
+        .iter()
+        .filter(|p| p.kombination.stufe == Stufe::ALLE[0])
+        .count();
+    let mut out = vec![
+        "=".repeat(74),
+        "ROTA — Masterplan-Ausgaben 2 bis 4, Pruefllauf vor Auslieferung (#891 N1)".to_owned(),
+        format!(
+            "{} Kombinationen: {bosse} wertungsfaehige Bosse x {} Stufe(n) ({})",
+            ergebnisse.len(),
+            Stufe::ALLE.len(),
+            Stufe::ALLE.map(Stufe::name).join(", ")
+        ),
+        format!(
+            "Rotation je Kombination gesucht: gierig, Laenge bis {}, {} Kandidatenzeilen, \
+             ohne Ausruestung",
+            rahmen.max_len,
+            rahmen.pool.len()
+        ),
+        "=".repeat(74),
+    ];
+    for p in ergebnisse {
+        out.push(String::new());
+        out.push(format!(
+            "##### {} \"{}\" ({}), Stufe {} #####",
+            p.kombination.boss.id,
+            p.kombination.boss.name,
+            p.kombination.boss.instance,
+            p.kombination.stufe.name()
+        ));
+        out.push(String::new());
+        out.extend(text_vergleich(p));
+        out.push(String::new());
+        out.extend(text_machbarkeit(p));
+    }
+
+    out.push(String::new());
+    out.push("=".repeat(74));
+    out.push("UEBERSICHT".to_owned());
+    out.push(format!(
+        "   {:<15} {:<7} {:<6} {:<13} {:>8} {:>13}  {:<4} {:>15}  {}",
+        "Boss", "Stufe", "Ziel", "Ausgang", "Sieg ms", "Reserve", "GSB", "bez/dom/nf/ung", "frei"
+    ));
+    for p in ergebnisse {
+        out.push(text_uebersicht_zeile(p));
+    }
+    out.push(
+        "   GSB: je Zeitmarke x = unterscheidet (Marke unter dem Zeitlimit), - = nicht".to_owned(),
+    );
+
+    out.push(String::new());
+    out.extend(text_posten(ergebnisse, sekunden));
+
+    out.push(String::new());
+    out.push("-".repeat(74));
+    let gesperrt: Vec<String> = nicht_auslieferbar(ergebnisse)
+        .iter()
+        .map(|p| format!("{} ({})", p.kombination.boss.id, p.kombination.stufe.id()))
+        .collect();
+    if frei {
+        out.push(format!(
+            "AUSLIEFERBAR: Fuer jeden Erfolg aller {} Kombinationen existiert eine Loesung.",
+            ergebnisse.len()
+        ));
+    } else {
+        out.push(format!(
+            "NICHT AUSLIEFERBAR: {} von {} Kombinationen ohne Loesung fuer mindestens einen \
+             Erfolg: {}",
+            gesperrt.len(),
+            ergebnisse.len(),
+            if gesperrt.is_empty() {
+                "keine Kombination geprueft".to_owned()
+            } else {
+                gesperrt.join(", ")
+            }
+        ));
+    }
+    out.push("-".repeat(74));
+
+    out.push(String::new());
+    out.push(
+        "Was hier NOCH NICHT geprueft wird, weil es das Spiel noch nicht hat (#1177):".to_owned(),
+    );
+    out.push(
+        "Schwierigkeitsstufen ueber Normal, boss-eigene Erfolge und von Hand gesetzte".to_owned(),
+    );
+    out.push(
+        "Zeitmarken. Die abgeleiteten Marken sind per Bauart erreichbar, sobald der Boss"
+            .to_owned(),
+    );
+    out.push("faellt; sie pruefen den Sieg und ob die Marke unter dem Zeitlimit liegt.".to_owned());
+    out.push(
+        "Ein Befund im Zauber-Vergleich gilt fuer seinen Boss: eine Aussage in seinem".to_owned(),
+    );
+    out.push("Geltungsbereich, kein Urteil ueber den Zauber im Spiel.".to_owned());
+    out
+}
+
+// ------------------------------------------------------------------- Posten als Markdown
+
+/// Die Posten-Tabelle für die Zusammenfassung des Nachtlaufs (#891 N4).
+fn posten_markdown(ergebnisse: &[Pruefung], sekunden: f64) -> String {
+    let mut md = String::new();
+    let summen = summe_je_teil(ergebnisse);
+    let gesamt_s: f64 = summen.iter().map(|q| q.wanduhr.as_secs_f64()).sum();
+    let kaempfe: u64 = summen.iter().map(|q| q.kaempfe).sum();
+    let gesperrt = nicht_auslieferbar(ergebnisse);
+    let _ = writeln!(
+        md,
+        "### Masterplan-Lauf (report): Wanduhr und Kampfzahl je Posten (#891 N4)\n"
+    );
+    let _ = writeln!(
+        md,
+        "{} Kombinationen, {:.1} s fuer den ganzen Lauf, {} Kaempfe, {} nicht auslieferbar{}.\n",
+        ergebnisse.len(),
+        sekunden,
+        kaempfe,
+        gesperrt.len(),
+        if gesperrt.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " ({})",
+                gesperrt
+                    .iter()
+                    .map(|p| p.kombination.boss.id)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        }
+    );
+    let _ = writeln!(
+        md,
+        "| Teil | Wanduhr s | Anteil | Kaempfe | Durchgaenge | Auswertungen |"
+    );
+    let _ = writeln!(md, "| --- | ---: | ---: | ---: | ---: | ---: |");
+    for q in &summen {
+        let _ = writeln!(
+            md,
+            "| {} | {:.3} | {:.1} % | {} | {} | {} |",
+            q.teil.name(),
+            q.wanduhr.as_secs_f64(),
+            if gesamt_s > 0.0 {
+                q.wanduhr.as_secs_f64() / gesamt_s * 100.0
+            } else {
+                0.0
+            },
+            q.kaempfe,
+            q.durchgaenge,
+            q.auswertungen
+        );
+    }
+    let _ = writeln!(md, "\n<details><summary>Je Boss und Teil</summary>\n");
+    let _ = writeln!(
+        md,
+        "| Boss | Stufe | Teil | Wanduhr s | Kaempfe | Durchgaenge | Auswertungen | frei |"
+    );
+    let _ = writeln!(md, "| --- | --- | --- | ---: | ---: | ---: | ---: | --- |");
+    for p in ergebnisse {
+        for q in &p.posten {
+            let _ = writeln!(
+                md,
+                "| {} | {} | {} | {:.3} | {} | {} | {} | {} |",
+                p.kombination.boss.id,
+                p.kombination.stufe.id(),
+                q.teil.name(),
+                q.wanduhr.as_secs_f64(),
+                q.kaempfe,
+                q.durchgaenge,
+                q.auswertungen,
+                if p.auslieferbar() { "ja" } else { "NEIN" }
+            );
+        }
+    }
+    let _ = writeln!(md, "\n</details>");
+    md
+}
+
+// ------------------------------------------------------------------- JSON
+
+/// Abschnitt 1 einer Kombination als JSON-Objekt.
+fn json_vergleich(p: &Pruefung) -> String {
+    let t = &p.tabelle;
     let zeilen: Vec<String> = t
         .zeilen
         .iter()
@@ -437,7 +660,7 @@ fn json_vergleich(v: &Vergleich) -> String {
                 z.id,
                 SPELLS[z.spell].school.unwrap_or(""),
                 z.casts,
-                v.elite_lauf.damage_by_spell[z.spell],
+                p.elite_lauf.damage_by_spell[z.spell],
                 z.befund.bezeichnung(),
                 z.befund
                     .geltungsbereich()
@@ -461,7 +684,7 @@ fn json_vergleich(v: &Vergleich) -> String {
         .get(Befundart::ALLE.len() + 2)
         .cloned()
         .unwrap_or_default();
-    let menge = portfolio(&v.schulen, &v.mechaniken);
+    let menge = portfolio(&p.schulen, &p.mechaniken);
     let kampagne = t.kampagnenabdeckung();
     format!(
         "{{\"boss\":{:?},\"maxLen\":{},\"budget\":{},\"einordnung\":{:?},\"elite\":{:?},\"eliteWert\":{:?},\
@@ -486,15 +709,21 @@ fn json_vergleich(v: &Vergleich) -> String {
     )
 }
 
-fn print_json(
-    apl: &Apl,
-    result: &RunResult,
-    v: &Vergleich,
-    feas: &Feasibility,
-    checks: &[AchievementCheck],
-    shippable: bool,
-) {
-    let achievements: Vec<String> = checks
+fn json_posten(q: &Posten) -> String {
+    format!(
+        "{{\"teil\":{:?},\"wanduhrS\":{:?},\"kaempfe\":{},\"durchgaenge\":{},\"auswertungen\":{}}}",
+        q.teil.name(),
+        q.wanduhr.as_secs_f64(),
+        q.kaempfe,
+        q.durchgaenge,
+        q.auswertungen
+    )
+}
+
+fn json_kombination(p: &Pruefung) -> String {
+    let f = &p.machbarkeit;
+    let achievements: Vec<String> = p
+        .erfolge
         .iter()
         .map(|c| {
             format!(
@@ -503,40 +732,74 @@ fn print_json(
             )
         })
         .collect();
-
-    println!(
-        "{{\"apl\":{:?},\"boss\":{:?},\"damage\":{},\"zauberVergleich\":{},\
-         \"feasibility\":{{\"limitMs\":{},\"defeated\":{},\"killTimeMs\":{},\"reserveMs\":{},\"reserveShare\":{:?},\"hpShare\":{:?}}},\
-         \"achievements\":[{}],\"shippable\":{}}}",
-        apl.name,
-        feas.boss,
-        result.damage,
-        json_vergleich(v),
-        feas.limit_ms,
-        feas.defeated,
-        feas.kill_time_ms.map_or(-1_i64, i64::from),
-        feas.reserve_ms,
-        feas.reserve_share,
-        feas.hp_share,
+    let posten: Vec<String> = p.posten.iter().map(json_posten).collect();
+    let zahl = |t: Option<u32>| t.map_or(-1_i64, i64::from);
+    format!(
+        "{{\"boss\":{:?},\"stufe\":{:?},\"zauberVergleich\":{},\
+         \"feasibility\":{{\"ziel\":\"{:?}\",\"ausgang\":\"{:?}\",\"won\":{},\"limitMs\":{},\"killTimeMs\":{},\
+         \"winTimeMs\":{},\"reserveMs\":{},\"reserveShare\":{:?},\"ringRest\":{},\"hpShare\":{:?}}},\
+         \"achievements\":[{}],\"shippable\":{},\"posten\":[{}]}}",
+        p.kombination.boss.id,
+        p.kombination.stufe.id(),
+        json_vergleich(p),
+        f.ziel,
+        f.ausgang,
+        f.gewonnen,
+        f.limit_ms,
+        zahl(f.kill_time_ms),
+        zahl(f.sieg_ms),
+        f.reserve_ms,
+        f.reserve_share,
+        f.ring_rest,
+        f.hp_share,
         achievements.join(","),
-        shippable
-    );
+        p.auslieferbar(),
+        posten.join(",")
+    )
+}
+
+fn json_lauf(ergebnisse: &[Pruefung], rahmen: &Rahmen, sekunden: f64, frei: bool) -> String {
+    let kombinationen: Vec<String> = ergebnisse.iter().map(json_kombination).collect();
+    let summen: Vec<String> = summe_je_teil(ergebnisse).iter().map(json_posten).collect();
+    format!(
+        "{{\"maxLen\":{},\"budget\":{},\"kandidatenzeilen\":{},\"kombinationen\":[{}],\
+         \"postenSumme\":[{}],\"wanduhrS\":{:?},\"shippable\":{}}}",
+        rahmen.max_len,
+        rahmen.budget,
+        rahmen.pool.len(),
+        kombinationen.join(","),
+        summen.join(","),
+        sekunden,
+        frei
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rota_sim::data::index_of;
-    use rota_sim::rotation_search::candidates_for;
+    use rota_sim::auslieferung::Kombination;
+    use rota_sim::data::{boss_by_id, index_of};
+    use rota_sim::rotation_search::{candidates_for, Candidate};
 
     /// Ein kleiner Lauf mit zwei bewiesen dominierten Zaubern (`crust`,
     /// `fester`; gemessen auf node3 am 2026-10-29) — so klein, dass er im
     /// Debug-Bau in Millisekunden durch ist.
-    fn klein() -> Vergleich {
+    fn klein() -> Pruefung {
         let ids = ["kindle", "smoulder", "pyre", "crust", "quench", "fester"];
         let grundmenge: Vec<usize> = ids.iter().map(|id| index_of(id).expect("Zauber")).collect();
         let pool: Vec<Candidate> = grundmenge.iter().flat_map(|&i| candidates_for(i)).collect();
-        vergleich_mit(&befund_config(), &pool, &grundmenge, 3, 1_000_000)
+        pruefe(
+            Kombination {
+                boss: boss_by_id("first-crucible").expect("Boss"),
+                stufe: Stufe::Normal,
+            },
+            &Rahmen {
+                pool,
+                grundmenge,
+                max_len: 3,
+                budget: 1_000_000,
+            },
+        )
     }
 
     #[test]
@@ -591,6 +854,43 @@ mod tests {
         assert_eq!(
             mit_bereich, mit_dominiert,
             "im JSON steht bewiesen dominiert ohne Geltungsbereich: {json}"
+        );
+    }
+
+    #[test]
+    fn die_posten_stehen_in_text_und_markdown() {
+        // **#891 N4: Die Zahl muss im Bericht STEHEN, nicht nur gemessen
+        // sein.** Geprüft wird die Ausgabe: Jeder Teil hat seine Zeile, und
+        // die Kampfzahl darin ist die gemessene.
+        let p = klein();
+        let ergebnisse = [p];
+        let text = text_posten(&ergebnisse, 1.0);
+        let md = posten_markdown(&ergebnisse, 1.0);
+        for q in &ergebnisse[0].posten {
+            let im_text = text.iter().any(|z| {
+                z.contains("first-crucible")
+                    && z.contains(q.teil.name())
+                    && z.split_whitespace().any(|w| w == q.kaempfe.to_string())
+            });
+            assert!(
+                im_text,
+                "{} fehlt im Text:\n{}",
+                q.teil.name(),
+                text.join("\n")
+            );
+            let im_md = md.contains(&format!(
+                "| first-crucible | normal | {} | {:.3} | {} |",
+                q.teil.name(),
+                q.wanduhr.as_secs_f64(),
+                q.kaempfe
+            ));
+            assert!(im_md, "{} fehlt im Markdown:\n{md}", q.teil.name());
+        }
+        let gesamt = ergebnisse[0].kaempfe();
+        assert!(gesamt > 0, "der kleine Lauf hat Kaempfe gerechnet");
+        assert!(
+            md.contains(&format!("{gesamt} Kaempfe")),
+            "die Gesamtzahl fehlt im Markdown:\n{md}"
         );
     }
 }

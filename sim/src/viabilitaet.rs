@@ -716,7 +716,32 @@ pub fn befunde(
     max_len: usize,
     budget: u64,
 ) -> Befundtabelle {
-    let elite = greedy(config, pool, max_len);
+    befunde_zur_elite(
+        config,
+        greedy(config, pool, max_len),
+        grundmenge,
+        max_len,
+        budget,
+    )
+}
+
+/// Dieselben Befunde zu einer schon gesuchten Elite (#891 N1).
+///
+/// Der Prüflauf über alle Bosse misst Suche und Befunde getrennt (N4: Wanduhr
+/// und Kampfzahl je Posten), und er braucht die Elite außerdem für die
+/// Machbarkeit. Ein zweiter Aufruf von [`greedy`] rechnete sie doppelt.
+///
+/// # Panics
+///
+/// Wie [`befunde`].
+#[must_use]
+pub fn befunde_zur_elite(
+    config: &BalanceConfig,
+    elite: SearchResult,
+    grundmenge: &[usize],
+    max_len: usize,
+    budget: u64,
+) -> Befundtabelle {
     let elite_lauf = balance::run(config, &elite.best.apl);
     let exakt = deterministisch(config);
 
