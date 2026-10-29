@@ -12,6 +12,7 @@ use std::time::Instant;
 
 use rota_sim::apl::{parse, Apl, AplName};
 use rota_sim::balance::{run, BalanceConfig, Statistics};
+use rota_sim::gear::WornValues;
 
 /// Die gute Rotation, wie sie im Repository liegt.
 const GOOD: &str = include_str!("../apl/step1-good.apl");
@@ -20,18 +21,35 @@ fn apl() -> Apl {
     parse(AplName("step1-good"), GOOD).expect("die eingebaute Liste ist gültig")
 }
 
+/// Getragene Werte mit Kritchance, damit jeder Durchgang würfelt.
+///
+/// **Ohne Würfel schrumpft ein Lauf seit #908 auf einen Kampf** und berührt
+/// den parallelen Pfad gar nicht. Die vier Strangvergleiche unten liefen bis
+/// #891 N6 ohne Würfel — und blieben ohne die Sortierung nach Startwert in
+/// `balance::run` grün (gemessen am 29.10., Job dfe079cf).
+fn wuerfelnd() -> WornValues {
+    let mut worn = WornValues::none();
+    worn.purity = 500;
+    worn
+}
+
 #[test]
 fn ac1_zwei_laeufe_mit_gleicher_konfiguration_ergeben_denselben_mittelwert() {
     let config = BalanceConfig {
         iterations: 500,
         base_seed: 12345,
         threads: 4,
+        worn: wuerfelnd(),
         ..BalanceConfig::default()
     };
     let apl = apl();
 
     let a = run(&config, &apl);
     let b = run(&config, &apl);
+    assert!(
+        a.damage.stddev > 0.0,
+        "der Lauf streut nicht — kein Wuerfel"
+    );
 
     // "bis auf die letzte Stelle" aus der AC heisst hier: **exakt gleich**. Ein
     // Mittelwert, der sich im letzten Bit unterscheidet, waere schon der Beleg
@@ -63,10 +81,15 @@ fn ac2_ein_kern_und_viele_kerne_ergeben_dasselbe() {
         iterations: 997, // Primzahl: teilt sich auf keine Strangzahl glatt auf
         base_seed: 777,
         threads: 1,
+        worn: wuerfelnd(),
         ..BalanceConfig::default()
     };
 
     let ein_kern = run(&basis, &apl);
+    assert!(
+        ein_kern.damage.stddev > 0.0,
+        "der Lauf streut nicht — kein Wuerfel"
+    );
 
     for threads in [2, 3, 4, 8, 16] {
         let viele = run(&BalanceConfig { threads, ..basis }, &apl);
@@ -99,6 +122,7 @@ fn jeder_durchgang_haengt_an_seinem_startwert() {
             iterations: 50,
             base_seed: 1000,
             threads: 4,
+            worn: wuerfelnd(),
             ..BalanceConfig::default()
         },
         &apl,
@@ -108,9 +132,14 @@ fn jeder_durchgang_haengt_an_seinem_startwert() {
             iterations: 50,
             base_seed: 1000,
             threads: 1,
+            worn: wuerfelnd(),
             ..BalanceConfig::default()
         },
         &apl,
+    );
+    assert!(
+        b.damage.stddev > 0.0,
+        "der Lauf streut nicht — kein Wuerfel"
     );
     for (links, rechts) in a.samples.iter().zip(&b.samples) {
         assert_eq!(links.seed, rechts.seed);
@@ -127,9 +156,14 @@ fn die_ergebnisse_kommen_nach_startwert_sortiert_zurueck() {
             iterations: 200,
             base_seed: 5,
             threads: 8,
+            worn: wuerfelnd(),
             ..BalanceConfig::default()
         },
         &apl,
+    );
+    assert!(
+        result.damage.stddev > 0.0,
+        "der Lauf streut nicht — kein Wuerfel"
     );
     let seeds: Vec<u32> = result.samples.iter().map(|s| s.seed).collect();
     let mut sortiert = seeds.clone();
