@@ -10,7 +10,7 @@
   "energy": null,
   "timeline": [
     {
-      "atMs": 12000,
+      "atMs": 24000,
       "mechanic": "strike",
       "name": "Sunder",
       "damage": 18400
