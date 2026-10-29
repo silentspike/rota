@@ -88,6 +88,8 @@ pub mod engpass;
 pub mod event;
 pub mod factors;
 pub mod fight;
+// Issue #919 AC6: der Fingerabdruck eines Balance-Ergebnisses, über jedes Feld.
+pub mod fingerabdruck;
 pub mod fortschritt;
 pub mod gear;
 // Issue #118: die Balance-Messung der Ausruestung.
@@ -132,6 +134,9 @@ pub mod time;
 // Issue #915: exakte Krit-Verteilung und zaehlerbasierter Zufall — NEBEN dem
 // Kampf, weil drei Paritaets-Aufzeichnungen wirklich wuerfeln.
 pub mod verteilung;
+// Issue #946: vier Befunde statt „TOT" — bezeugt, dominiert, nicht gefunden,
+// ungeklaert; ein Beweis nur aus der erschoepfenden Projektion.
+pub mod viabilitaet;
 
 pub use apl::{Apl, AplError};
 pub use balance::{BalanceConfig, BalanceResult, Sample, Statistics};
