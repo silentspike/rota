@@ -238,7 +238,7 @@ impl RuleBits {
     #[must_use]
     pub fn mit_breite(breite: usize) -> Self {
         let mut woerter = InlineVec::new();
-        for _ in 0..2 {
+        for _ in 0..woerter_fuer(breite) {
             woerter.push(0);
         }
         Self { breite, woerter }
@@ -256,9 +256,11 @@ impl RuleBits {
     ///
     /// Wenn `index` jenseits der Breite liegt.
     pub fn setzen(&mut self, index: usize) {
-        if index >= 128 {
-            return;
-        }
+        assert!(
+            index < self.breite,
+            "Regelmenge für {} Regeln bekam Regel {index} — sie verlöre sie still",
+            self.breite
+        );
         let wort = self
             .woerter
             .get_mut(index / 64)
@@ -273,9 +275,11 @@ impl RuleBits {
     /// Wenn `index` jenseits der Breite liegt.
     #[must_use]
     pub fn enthaelt(&self, index: usize) -> bool {
-        if index >= 128 {
-            return false;
-        }
+        assert!(
+            index < self.breite,
+            "Regelmenge für {} Regeln gefragt nach Regel {index}",
+            self.breite
+        );
         let wort = self
             .woerter
             .get(index / 64)
