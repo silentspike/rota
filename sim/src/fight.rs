@@ -2104,6 +2104,12 @@ impl Fight {
         self.energy_triggers = 0;
         self.doom = 0;
         self.doom_charges = self.boss.doom.map_or(0, |d| d.clear_charges);
+        // **Und die Rückkehr einer verbrauchten Ladung** (#561, gefunden bei
+        // #917). Ohne diese Zeile bekam ein Kampf, der die Uhr im vorigen
+        // Durchgang senkte, eine Ladung zur alten Zeit zurück — an boss-1-2
+        // 1700 statt 3300 Schaden. Das Spiel räumt das Feld in `Combat.reset`
+        // (`nextDoomChargeAtMs = 0`).
+        self.next_doom_charge_at = None;
         self.stacks = 0;
         self.race_ends_at = None;
         self.race_done = false;
