@@ -59,10 +59,15 @@ use gemeinsam::rufe;
 /// beim nächsten Mal ändert, prüft zuerst das Feld `instance` der neuen Bosse:
 /// Steht dort `test` oder `testing`, gehört die Änderung nicht hierher, sondern
 /// nach `PRUEFBOSSE`.
+///
+/// **Am 2026-10-29 `PRUEFBOSSE` auf 22:** `test-late-lethal-strike` aus #550
+/// (AC3), der Prüfboss für FIXATION in der Instanz `testing`. `WERTUNGSFAEHIG`
+/// bleibt bei 21 — die unveränderte Zahl ist der Beleg, dass er nicht in einer
+/// gewerteten Instanz gelandet ist.
 const SPIELINSTANZEN: usize = 6;
 const PRUEFPROFILE: usize = 2;
 const WERTUNGSFAEHIG: usize = 21;
-const PRUEFBOSSE: usize = 21;
+const PRUEFBOSSE: usize = 22;
 
 #[test]
 fn die_json_ausgabe_trennt_spielinstanzen_von_pruefprofilen() {

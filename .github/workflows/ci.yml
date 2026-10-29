@@ -301,7 +301,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       # Der erste Lauf bleibt unberührt: Er sichert zu, dass die Bibliothek
-      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 55 Prüffälle
+      # OHNE das Merkmal übersetzt und grün ist. Der zweite holt 60 Prüffälle
       # dazu (einer davon ignoriert), die `cargo test` allein NIE ausführt —
       # aus DREI verschiedenen Gründen, die man leicht für einen hält:
       #
@@ -313,7 +313,8 @@ jobs:
       #   --all-targets            sim/examples/messumgebung.rs       29 Fälle
       #                            sim/examples/trace-stabilitaet.rs   3 Fälle
       #                            sim/examples/e21-0b-machbarkeit.rs  7 Fälle
-      #                            sim/examples/zauber-abdeckung.rs    1 Fall
+      #                            sim/examples/zauber-abdeckung.rs    5 Fälle
+      #                            sim/examples/report.rs              1 Fall
       #        `cargo test` BAUT Beispiele, führt ihre `#[test]` aber nicht aus.
       #        `main()` läuft dabei nie — nur die Prüffälle. Einer der sieben in
       #        e21-0b-machbarkeit.rs ist der ignorierte Hilfsprozess
@@ -333,7 +334,11 @@ jobs:
       #        „25 Prüffälle aus ZWEI Gründen", und die drei in der Bibliothek
       #        fehlten in der Zahl; bis zum 2026-10-29 „35", gemessen waren 48
       #        (messumgebung.rs stand bei 21, die vier in tests/ und der Fall in
-      #        zauber-abdeckung.rs fehlten).
+      #        zauber-abdeckung.rs fehlten); am selben Abend 60 (#550:
+      #        zauber-abdeckung.rs von 1 auf 5, und der Fall in report.rs aus
+      #        #946 fehlte). Gezählt aus den `test result:`-Zeilen beider
+      #        Läufe, Suite für Suite: 1597 gegen 1652 einschließlich
+      #        ignorierter, die 5 Doc-Tests nur im ersten.
       #
       #        Gefunden über einen Vergleich der `--list`-Ausgaben beider
       #        Bauten: `cargo test -- --list` gegen `cargo test --all-targets

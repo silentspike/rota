@@ -64,18 +64,40 @@
 //! `--max-len 6`, je 2258 Listen). Das ist der Grund, warum AC5 einen Wächter
 //! bekommt und nicht den Absatz „zu teuer" — die Alternative stand in der AC
 //! ausdrücklich offen.
-use rota_sim::apl::AplName;
+//!
+//! # Datum und Stand (AC1)
+//!
+//! Jeder Lauf schreibt in seinen Kopf, **wann** er lief (UTC) und **auf
+//! welchem Stand**, und je Boss die Zauber, die die beste Rotation wirkt. Bis
+//! zum 2026-10-29 stand dort nur die Zahl je Boss; die Messung vom 14.08. war
+//! deshalb nur über den Issue-Kommentar einem Stand zuzuordnen.
+//!
+//! ```text
+//! cargo run --release --example zauber-abdeckung -- --stand "$(git rev-parse HEAD)"
+//! ```
+//!
+//! Der Stand kommt aus `--stand`, sonst aus `GITHUB_SHA` (der Nightly setzt
+//! ihn), sonst steht `unbekannt` da. Der Läufer kann ihn nicht selbst ablesen:
+//! `cargo remote` überträgt keinen Git-Verlauf, und auf node3 läuft ein
+//! kopiertes Programm ohne Arbeitsbaum.
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rota_sim::apl::{Apl, AplName};
 use rota_sim::balance::BalanceConfig;
-use rota_sim::data::{boss_by_id, SPELLS};
+use rota_sim::data::{boss_by_id, Boss, TimelineEntry, BOSSES, SPELLS};
 use rota_sim::factors::NEUTRAL;
 use rota_sim::gear::{
     distribute_budget, WornValues, QUALITY_HAS_EFFECT, QUALITY_LEGENDARY, QUALITY_NAMES,
     QUALITY_RARE, SLOT_COUNT,
 };
+use rota_sim::log::LogKind;
 use rota_sim::rotation_search::{
     all_candidates, boss_kandidaten, greedy, greedy_from, Candidate, SearchResult,
 };
+use rota_sim::scoring::class_of;
 use rota_sim::sources::gear_effects_permille;
+use rota_sim::viabilitaet::{befunde, schulen, Befund, Befundart, Laufabschluss};
+use rota_sim::Millis;
 
 /// Die vier Bosse der ERSTEN Instanz.
 ///
@@ -158,8 +180,17 @@ const BESTLISTEN: [(&str, [&str; MAX_LEN]); 4] = [
     ),
 ];
 
+fn boss(boss_id: &str) -> &'static Boss {
+    boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"))
+}
+
 fn config(boss_id: &str, worn: WornValues) -> BalanceConfig {
-    let boss = boss_by_id(boss_id).unwrap_or_else(|| panic!("Boss {boss_id} unbekannt"));
+    config_fuer(boss(boss_id), worn)
+}
+
+/// Dieselbe Konfiguration für einen Boss, der nicht aus den Daten kommen muss —
+/// die Zwillinge des Prüfbosses aus AC3 entstehen erst zur Laufzeit.
+fn config_fuer(boss: &'static Boss, worn: WornValues) -> BalanceConfig {
     BalanceConfig {
         iterations: RUNS,
         base_seed: SEED,
@@ -293,52 +324,608 @@ fn beste_liste(
     }
 }
 
-/// Sucht je Boss die beste Rotation und trägt ein, welche Zauber im LAUF
-/// vorkamen.
+/// Was die Erhebung je Boss festhält (AC1).
+struct Bosszeile {
+    boss: &'static str,
+    /// Ob die Bestliste vom 2026-08-14 gewonnen hat.
+    bestliste_gewinnt: bool,
+    /// Wert der freien Suche.
+    wert_frei: f64,
+    /// Wert der Suche von der Bestliste aus — `None` bei Bossen ohne
+    /// Bestliste (alle außer der ersten Instanz, nur in `--schulen`).
+    wert_best: Option<f64>,
+    /// Die spielbaren Zauber, die der Lauf der besten Liste wirkt, als
+    /// Indizes in `SPELLS` in der Reihenfolge der Daten.
+    gewirkt: Vec<usize>,
+    /// Ob der Spieler in diesem Lauf stirbt — gelesen vom Prüfboss (AC3).
+    tot: bool,
+    /// Wie viele Boss-Zauber der Lauf unterbricht — gelesen vom Prüfboss.
+    unterbrochen: u32,
+}
+
+/// Sucht für einen Boss die beste Rotation und trägt ein, welche Zauber im
+/// LAUF vorkamen.
 ///
 /// **Was im Lauf vorkam, nicht was in der Liste steht.** Bei `boss-1-3` stand
 /// `kindle` am 2026-08-14 in der besten Liste und wurde trotzdem nie gewirkt:
 /// Die Bedingungen davor greifen immer. Wer die Liste zählte statt den Lauf,
 /// bekäme dort einen Zauber zu viel.
-fn erhebe(
+///
+/// Bosse mit Bestliste zählen die bessere von beiden ([`beste_liste`]), alle
+/// anderen die freie Suche.
+fn erhebe_boss(
     pool: &[Candidate],
     spielbar: &[usize],
-    irgendwo_gewirkt: &mut [bool],
     worn: WornValues,
-    laut: bool,
-) {
-    for boss_id in BOSSE {
-        let cfg = config(boss_id, worn);
-        let (gefunden, bestliste_gewinnt, wert_frei, wert_best) = beste_liste(&cfg, pool, boss_id);
+    boss: &'static Boss,
+) -> Bosszeile {
+    let cfg = config_fuer(boss, worn);
+    let (gefunden, bestliste_gewinnt, wert_frei, wert_best) =
+        if BESTLISTEN.iter().any(|(b, _)| *b == boss.id) {
+            let (gefunden, gewinnt, frei, best) = beste_liste(&cfg, pool, boss.id);
+            (gefunden, gewinnt, frei, Some(best))
+        } else {
+            let frei = greedy(&cfg, pool, MAX_LEN);
+            let wert = frei.best.mean;
+            (frei, false, wert, None)
+        };
 
-        let boss = boss_by_id(boss_id).expect("Boss");
-        let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
-            seed: SEED,
-            boss,
-            worn,
-            ..rota_sim::FightConfig::default()
-        });
-        let lauf = fight.run_apl(&gefunden.best.apl);
-        let mut hier = 0;
-        for &i in spielbar {
-            if lauf.casts[i] > 0 {
-                irgendwo_gewirkt[i] = true;
-                hier += 1;
-            }
-        }
-        if laut {
-            let quelle = if bestliste_gewinnt {
-                "Bestliste"
-            } else {
-                "freie Suche"
-            };
-            println!(
-                "  {boss_id:<10} {hier:>2} von {} gewirkt   {quelle:<11}  frei {wert_frei:.1}, \
-                 von der Bestliste {wert_best:.1}",
-                spielbar.len()
-            );
+    let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
+        seed: SEED,
+        boss,
+        worn,
+        ..rota_sim::FightConfig::default()
+    });
+    let lauf = fight.run_apl(&gefunden.best.apl);
+    let mut gewirkt = Vec::new();
+    for &i in spielbar {
+        if lauf.casts[i] > 0 {
+            gewirkt.push(i);
         }
     }
+    Bosszeile {
+        boss: boss.id,
+        bestliste_gewinnt,
+        wert_frei,
+        wert_best,
+        gewirkt,
+        tot: fight.player_dead(),
+        unterbrochen: fight.interrupts_landed(),
+    }
+}
+
+/// Die Erhebung über die vier Bosse der ersten Instanz.
+fn erhebe(pool: &[Candidate], spielbar: &[usize], worn: WornValues) -> Vec<Bosszeile> {
+    BOSSE
+        .iter()
+        .map(|&boss_id| erhebe_boss(pool, spielbar, worn, boss(boss_id)))
+        .collect()
+}
+
+/// Die Zauber, die in mindestens einer Zeile gewirkt werden — in der
+/// Reihenfolge der Grundmenge.
+fn irgendwo_gewirkt(zeilen: &[Bosszeile], spielbar: &[usize]) -> Vec<&'static str> {
+    spielbar
+        .iter()
+        .filter(|i| zeilen.iter().any(|z| z.gewirkt.contains(i)))
+        .map(|&i| SPELLS[i].id)
+        .collect()
+}
+
+/// Bezeichner einer Menge von Zauber-Indizes, mit Komma getrennt.
+fn namen(zauber: &[usize]) -> String {
+    let namen: Vec<&str> = zauber.iter().map(|&i| SPELLS[i].id).collect();
+    if namen.is_empty() {
+        "—".to_owned()
+    } else {
+        namen.join(", ")
+    }
+}
+
+// ------------------------------------------------- Datum und Stand (AC1)
+
+/// Woher eine Erhebung stammt: wann sie lief und auf welchem Stand.
+struct Herkunft {
+    /// UTC, `JJJJ-MM-TT hh:mm:ss UTC`.
+    datum: String,
+    /// Der Commit — `None`, wenn ihn weder `--stand` noch `GITHUB_SHA`
+    /// nennt.
+    stand: Option<String>,
+}
+
+impl Herkunft {
+    /// Die Herkunft dieses Laufs: die Uhr jetzt, der Stand aus Schalter oder
+    /// Umgebung.
+    fn jetzt() -> Self {
+        let sekunden = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let args: Vec<String> = std::env::args().collect();
+        Self {
+            datum: datum_utc(sekunden),
+            stand: stand_aus(&args, std::env::var("GITHUB_SHA").ok()),
+        }
+    }
+}
+
+/// Der Stand: `--stand <commit>` vor `GITHUB_SHA`; leer zählt als fehlend.
+///
+/// **Der Schalter gewinnt**, weil er die ausdrückliche Angabe ist: Wer im
+/// Nightly-Umfeld einen anderen Stand nachmisst, soll nicht still den des
+/// Laufs eingetragen bekommen.
+fn stand_aus(args: &[String], github_sha: Option<String>) -> Option<String> {
+    let schalter = args
+        .iter()
+        .position(|a| a == "--stand")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
+    schalter
+        .or(github_sha)
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+}
+
+/// Sekunden seit 1970-01-01 als UTC-Datum mit Uhrzeit.
+///
+/// **Von Hand, weil die Kiste keine Abhängigkeit trägt** (`sim/Cargo.toml`:
+/// eine Uhr-Bibliothek wäre eine in allen Zielen des Pakets). Die Umrechnung
+/// der Tage ist `civil_from_days` von Howard Hinnant, eingeschränkt auf Tage
+/// ab 1970 — davor liegt keine Uhr, die hier abgelesen wird.
+fn datum_utc(sekunden: u64) -> String {
+    let tage = sekunden / 86_400;
+    let rest = sekunden % 86_400;
+    let z = tage + 719_468;
+    let ara = z / 146_097;
+    let tag_der_ara = z - ara * 146_097;
+    let jahr_der_ara =
+        (tag_der_ara - tag_der_ara / 1460 + tag_der_ara / 36_524 - tag_der_ara / 146_096) / 365;
+    let tag_im_jahr = tag_der_ara - (365 * jahr_der_ara + jahr_der_ara / 4 - jahr_der_ara / 100);
+    let mp = (5 * tag_im_jahr + 2) / 153;
+    let tag = tag_im_jahr - (153 * mp + 2) / 5 + 1;
+    let monat = if mp < 10 { mp + 3 } else { mp - 9 };
+    let jahr = jahr_der_ara + ara * 400 + u64::from(monat <= 2);
+    format!(
+        "{jahr:04}-{monat:02}-{tag:02} {:02}:{:02}:{:02} UTC",
+        rest / 3600,
+        rest % 3600 / 60,
+        rest % 60
+    )
+}
+
+/// Der Bericht des Laufs ohne Schalter, Zeile für Zeile — dieselben Zeilen,
+/// die `main` druckt und der Nightly in seine Zusammenfassung schreibt.
+fn bericht(herkunft: &Herkunft, zeilen: &[Bosszeile], spielbar: &[usize]) -> Vec<String> {
+    let mut out = vec![
+        "== Zauber-Abdeckung der ersten Instanz (Issue #550) ==".to_owned(),
+        format!("  Datum  {}", herkunft.datum),
+        format!(
+            "  Stand  {}",
+            herkunft
+                .stand
+                .as_deref()
+                .unwrap_or("unbekannt — weder --stand <commit> angegeben noch GITHUB_SHA gesetzt")
+        ),
+        String::new(),
+    ];
+    for z in zeilen {
+        let quelle = if z.bestliste_gewinnt {
+            "Bestliste"
+        } else {
+            "freie Suche"
+        };
+        let best = z
+            .wert_best
+            .map_or_else(String::new, |w| format!(", von der Bestliste {w:.1}"));
+        out.push(format!(
+            "  {:<10} {:>2} von {} gewirkt   {quelle:<11}  frei {:.1}{best}",
+            z.boss,
+            z.gewirkt.len(),
+            spielbar.len(),
+            z.wert_frei
+        ));
+        out.push(format!("  {:<10} {}", "", namen(&z.gewirkt)));
+    }
+    let gewirkt = irgendwo_gewirkt(zeilen, spielbar);
+    out.push(String::new());
+    out.push(format!(
+        "  ueber alle {} Bosse zusammen   {} von {}",
+        zeilen.len(),
+        gewirkt.len(),
+        spielbar.len()
+    ));
+    out.push(format!("    {}", gewirkt.join(", ")));
+    out
+}
+
+// ------------------------------------- AC3: Schulen über die gebauten Bosse
+
+/// Die Schule, die am 2026-10-29 über die gebauten Bosse in keiner besten
+/// Rotation gewirkt wird — so heißt sie in den Daten.
+const FIXATION: &str = "FIXATION";
+
+/// Wie oft eine Liste an einem Boss Kontrollpunkte ausgibt (FIXATION).
+///
+/// Gezählt im Kampfprotokoll (`LogKind::ControlSpent`), nicht an den Würfen:
+/// Ein FIXATION-Zauber ohne genug Punkte wird gewirkt und richtet nichts aus
+/// (`Fight::apply_fixation`, „der Zauber ist vertan").
+fn kontrolle_ausgegeben(boss: &'static Boss, liste: &Apl) -> usize {
+    let mut fight = rota_sim::Fight::new(rota_sim::FightConfig {
+        seed: SEED,
+        boss,
+        stop_on_kill: false,
+        log_capacity: 100_000,
+        ..rota_sim::FightConfig::default()
+    });
+    let _ = fight.run_apl(liste);
+    fight
+        .log()
+        .entries()
+        .iter()
+        .filter(|e| e.kind == LogKind::ControlSpent)
+        .count()
+}
+
+/// Wie viele Listen eine Projektion der Viabilität höchstens messen darf —
+/// dieselbe Grenze wie der Zauber-Vergleich im Bericht (`report.rs`,
+/// `BUDGET`), damit beide Befunde unter denselben Mitteln entstehen.
+const BUDGET: u64 = 1_000_000;
+
+/// Ein gebauter Boss in der Schul-Erhebung.
+struct Schulboss {
+    /// Was die beste Rotation wirkt — dieselbe Zeile wie in der Erhebung oben.
+    zeile: Bosszeile,
+    /// Die Zauber mit dem Befund „mindestens bezeugt" (#946).
+    bezeugt: Vec<usize>,
+    /// Ob jeder Zauber genau einen Befund hat und jede Projektion vollständig
+    /// gerechnet ist ([`Laufabschluss`]).
+    abgeschlossen: bool,
+    /// Je bezeugtem FIXATION-Zauber: wie oft seine Zeugen-Liste Kontrollpunkte
+    /// ausgibt.
+    ///
+    /// **Ein Zeuge belegt einen Beitrag, nicht welchen** (#946): Er zählt, wenn
+    /// die Liste ohne die Zeilen des Zaubers messbar weniger bringt. Ein Zauber,
+    /// der nur eine globale Wartezeit belegt und dadurch einen anderen auf den
+    /// richtigen Zeitpunkt schiebt, ist danach ebenso bezeugt. Für FIXATION
+    /// lässt sich das unterscheiden: Ihre Wirkung ist das Ausgeben von
+    /// Kontrollpunkten. Gibt die Liste keine aus, hat die Schule dort nicht
+    /// gewirkt, sondern gewartet.
+    fixation_zeugen: Vec<(usize, usize)>,
+}
+
+/// Die gebauten Bosse: alle wertungsfähigen, in der Reihenfolge der Daten.
+///
+/// **Aus der Klassifikation, nicht aus einer Liste hier.** Kommt ein Boss
+/// dazu, zählt er mit, ohne dass jemand diese Datei anfasst — die Prüfbosse
+/// (`test`, `testing`) bleiben draußen.
+fn gebaute_bosse() -> Vec<&'static str> {
+    BOSSES
+        .iter()
+        .filter(|b| class_of(b).is_scored())
+        .map(|b| b.id)
+        .collect()
+}
+
+/// Je gebautem Boss: die beste Rotation und die Befunde der Viabilität.
+fn schulerhebung(pool: &[Candidate], spielbar: &[usize]) -> Vec<Schulboss> {
+    gebaute_bosse()
+        .into_iter()
+        .map(|boss_id| {
+            let zeile = erhebe_boss(pool, spielbar, WornValues::none(), boss(boss_id));
+            let tabelle = befunde(
+                &config(boss_id, WornValues::none()),
+                pool,
+                spielbar,
+                MAX_LEN,
+                BUDGET,
+            );
+            let bezeugt = tabelle
+                .zeilen
+                .iter()
+                .filter(|z| z.befund.art() == Befundart::MindestensBezeugt)
+                .map(|z| z.spell)
+                .collect();
+            let fixation_zeugen = tabelle
+                .zeilen
+                .iter()
+                .filter(|z| SPELLS[z.spell].school == Some(FIXATION))
+                .filter_map(|z| match &z.befund {
+                    Befund::MindestensBezeugt(zeuge) => {
+                        Some((z.spell, kontrolle_ausgegeben(boss(boss_id), &zeuge.liste)))
+                    }
+                    _ => None,
+                })
+                .collect();
+            Schulboss {
+                zeile,
+                bezeugt,
+                abgeschlossen: matches!(tabelle.laufabschluss(), Laufabschluss::Abgeschlossen),
+                fixation_zeugen,
+            }
+        })
+        .collect()
+}
+
+/// Die Zauber einer Schule mit der Zahl der Bosse, an denen sie vorkommen.
+fn mit_bossen(zauber: &[usize], an: impl Fn(usize) -> usize) -> String {
+    let teile: Vec<String> = zauber
+        .iter()
+        .map(|&i| format!("{} ({})", SPELLS[i].id, an(i)))
+        .collect();
+    if teile.is_empty() {
+        "—".to_owned()
+    } else {
+        teile.join(", ")
+    }
+}
+
+/// Der Bericht der Schul-Erhebung, Zeile für Zeile.
+///
+/// Zwei Zählungen nebeneinander, weil sie Verschiedenes sagen: **gewirkt**
+/// ist, was die beste gefundene Rotation im Lauf wirkt (die Zählung oben);
+/// **bezeugt** ist der Befund „mindestens bezeugt" — auch über eine
+/// Projektion, wenn die Suche ihn nicht fand.
+fn schulbericht(bosse: &[Schulboss], spielbar: &[usize]) -> Vec<String> {
+    let mut out = vec![
+        String::new(),
+        "== AC3: Schulen ueber die gebauten Bosse (Issue #550) ==".to_owned(),
+        format!(
+            "  {} wertungsfaehige Bosse, {} spielbare Zauber, Laenge bis {MAX_LEN}, ohne \
+             Ausruestung",
+            bosse.len(),
+            spielbar.len()
+        ),
+        "  gewirkt  im Lauf der besten Rotation gewirkt (dieselbe Zaehlung wie oben)".to_owned(),
+        format!(
+            "  bezeugt  Befund \"mindestens bezeugt\" (#946), Projektionen bis {BUDGET} Listen"
+        ),
+        String::new(),
+    ];
+    for b in bosse {
+        out.push(format!(
+            "  {:<16} gewirkt {:>2}   bezeugt {:>2}   Lauf {}",
+            b.zeile.boss,
+            b.zeile.gewirkt.len(),
+            b.bezeugt.len(),
+            if b.abgeschlossen {
+                "abgeschlossen"
+            } else {
+                "NICHT abgeschlossen"
+            }
+        ));
+        out.push(format!(
+            "  {:<16}   gewirkt  {}",
+            "",
+            namen(&b.zeile.gewirkt)
+        ));
+        out.push(format!("  {:<16}   bezeugt  {}", "", namen(&b.bezeugt)));
+    }
+
+    let gewirkt_an = |i: usize| {
+        bosse
+            .iter()
+            .filter(|b| b.zeile.gewirkt.contains(&i))
+            .count()
+    };
+    let bezeugt_an = |i: usize| bosse.iter().filter(|b| b.bezeugt.contains(&i)).count();
+
+    out.push(String::new());
+    out.push(
+        "  Schule          Zauber   gewirkt   bezeugt   (in Klammern: an wie vielen Bossen)"
+            .to_owned(),
+    );
+    let mut leer_gewirkt = Vec::new();
+    let mut leer_bezeugt = Vec::new();
+    let mut reihen: Vec<Option<&str>> = schulen(spielbar).into_iter().map(Some).collect();
+    reihen.push(None);
+    for schule in reihen {
+        let zauber: Vec<usize> = spielbar
+            .iter()
+            .copied()
+            .filter(|&i| SPELLS[i].school == schule)
+            .collect();
+        let gewirkt: Vec<usize> = zauber
+            .iter()
+            .copied()
+            .filter(|&i| gewirkt_an(i) > 0)
+            .collect();
+        let bezeugt: Vec<usize> = zauber
+            .iter()
+            .copied()
+            .filter(|&i| bezeugt_an(i) > 0)
+            .collect();
+        let name = schule.unwrap_or("ohne Schule");
+        out.push(format!(
+            "  {name:<14} {:>7}   {:>7}   {:>7}",
+            zauber.len(),
+            gewirkt.len(),
+            bezeugt.len()
+        ));
+        out.push(format!(
+            "      gewirkt  {}",
+            mit_bossen(&gewirkt, gewirkt_an)
+        ));
+        out.push(format!(
+            "      bezeugt  {}",
+            mit_bossen(&bezeugt, bezeugt_an)
+        ));
+        if schule == Some(FIXATION) {
+            let zeugen: Vec<String> = bosse
+                .iter()
+                .flat_map(|b| {
+                    b.fixation_zeugen
+                        .iter()
+                        .map(move |&(i, n)| format!("{} an {}: {n}", SPELLS[i].id, b.zeile.boss))
+                })
+                .collect();
+            if !zeugen.is_empty() {
+                out.push(format!(
+                    "      Kontrollpunkte ausgegeben in der Zeugen-Liste  {}",
+                    zeugen.join(", ")
+                ));
+            }
+        }
+        // Die schulunabhängigen Sonderzauber sind keine Schule (GAME-DESIGN
+        // 7.4) — sie können nicht „leer" sein.
+        if let Some(schule) = schule {
+            if gewirkt.is_empty() {
+                leer_gewirkt.push(schule);
+            }
+            if bezeugt.is_empty() {
+                leer_bezeugt.push(schule);
+            }
+        }
+    }
+    let liste = |l: &[&str]| {
+        if l.is_empty() {
+            "keine".to_owned()
+        } else {
+            l.join(", ")
+        }
+    };
+    out.push(String::new());
+    out.push(format!("  LEER nach gewirkt:  {}", liste(&leer_gewirkt)));
+    out.push(format!("  LEER nach bezeugt:  {}", liste(&leer_bezeugt)));
+    out
+}
+
+// ------------------------------------------ AC3: der Prüfboss für FIXATION
+
+/// Der Prüfboss, der die Anforderung für FIXATION stellt (AC3).
+///
+/// Ein Schlag über der Verteidigungs-Obergrenze, der fällt, wenn vom Kampf
+/// noch genug übrig ist. **Zwilling von `test-lethal-strike`** (#797): dieselbe
+/// Datei bis auf den Zeitpunkt des Schlags, 24 s statt 12 s. Warum der
+/// Zeitpunkt die Anforderung ist, steht in `docs/ZAUBER-ABDECKUNG.md`.
+const PRUEFBOSS: &str = "test-late-lethal-strike";
+
+/// Sein Zeit-Zwilling: derselbe Schlag, 12 s früher.
+const ZEIT_ZWILLING: &str = "test-lethal-strike";
+
+/// Der Schaden des Schaden-Zwillings: derselbe wie bei
+/// `test-survivable-strike` (#797) — die halbe Verteidigungs-Obergrenze, die
+/// der Spieler mit seinen Leben allein aushält.
+const UEBERLEBBAR: u32 = 4600;
+
+/// Die Schwellenreihe über den Schaden, am Zeitpunkt des Prüfbosses.
+///
+/// Dicht an der Stelle, an der Aushalten aufhört zu tragen (9600 gegen 10000,
+/// gemessen am 2026-10-29), weil sich dort entscheidet, ob es einen Bereich
+/// gibt, in dem FIXATION die BESTE und nicht die EINZIGE Antwort ist.
+const SCHADENSREIHE: [u32; 7] = [4600, 9300, 9600, 10000, 11500, 14000, 18400];
+
+/// Die Zeitreihe über den Zeitpunkt des Schlags, mit dem Schaden des
+/// Prüfbosses. 12000 und 24000 sind die beiden Zwillinge aus den Daten.
+const ZEITREIHE: [Millis; 8] = [6000, 12000, 14000, 16000, 24000, 30000, 36000, 48000];
+
+/// Ein Boss mit verschobenem oder abgeschwächtem einzigen Schlag.
+///
+/// **Zur Laufzeit gebildet, nicht als Datei abgelegt:** Jede Zeile der
+/// Schwellenreihen wäre sonst eine eigene Bossdatei, die Spiel, Simulator und
+/// Paritäts-Aufzeichnung mitführen müssten. `Box::leak`, weil
+/// `BalanceConfig` einen `&'static Boss` verlangt; ein Lauf bildet höchstens
+/// sechzehn davon.
+fn mit_schlag(vorlage: &'static Boss, at_ms: Millis, schaden: u32) -> &'static Boss {
+    assert_eq!(
+        vorlage.timeline.len(),
+        1,
+        "{} traegt nicht genau einen Schlag — dann ist unklar, welcher verschoben wird",
+        vorlage.id
+    );
+    let mut schlag = vorlage.timeline[0];
+    schlag.at_ms = at_ms;
+    schlag.damage = schaden;
+    let timeline: &'static [TimelineEntry] = Box::leak(Box::new([schlag]));
+    Box::leak(Box::new(Boss {
+        timeline,
+        ..*vorlage
+    }))
+}
+
+/// Die FIXATION-Zauber, die der Lauf einer Zeile wirkt.
+fn fixation_gewirkt(zeile: &Bosszeile) -> Vec<usize> {
+    zeile
+        .gewirkt
+        .iter()
+        .copied()
+        .filter(|&i| SPELLS[i].school == Some(FIXATION))
+        .collect()
+}
+
+/// Die beste Rotation, wenn FIXATION nicht zur Wahl steht — die Frage aus
+/// GAME-DESIGN 11.3: „Kein Boss verlangt eine bestimmte Schule."
+fn ohne_fixation(pool: &[Candidate], spielbar: &[usize], boss: &'static Boss) -> Bosszeile {
+    let ohne: Vec<Candidate> = pool
+        .iter()
+        .filter(|k| SPELLS[k.spell].school != Some(FIXATION))
+        .cloned()
+        .collect();
+    erhebe_boss(&ohne, spielbar, WornValues::none(), boss)
+}
+
+/// Eine Zeile des Prüfboss-Berichts: mit und ohne FIXATION.
+fn pruefzeile(pool: &[Candidate], spielbar: &[usize], name: &str, boss: &'static Boss) -> String {
+    let mit = erhebe_boss(pool, spielbar, WornValues::none(), boss);
+    let ohne = ohne_fixation(pool, spielbar, boss);
+    let schlag = boss.timeline[0];
+    format!(
+        "  {name:<26} {:>5} bei {:>5} ms   {:>7.1}  FIXATION {:<10} tot {:<5} unterbrochen {}   \
+         ohne FIXATION {:>7.1} tot {:<5}  gewirkt {}",
+        schlag.damage,
+        schlag.at_ms,
+        mit.wert_frei,
+        namen(&fixation_gewirkt(&mit)),
+        mit.tot,
+        mit.unterbrochen,
+        ohne.wert_frei,
+        ohne.tot,
+        namen(&mit.gewirkt)
+    )
+}
+
+/// Der Bericht zum Prüfboss, Zeile für Zeile.
+fn pruefbericht(pool: &[Candidate], spielbar: &[usize]) -> Vec<String> {
+    let pruefboss = boss(PRUEFBOSS);
+    let schlag = pruefboss.timeline[0];
+    let mut out = vec![
+        String::new(),
+        format!("== AC3: Pruefboss fuer {FIXATION} ({PRUEFBOSS}) =="),
+        format!(
+            "  ein Schlag ({}), {} Leben, Kampf {} ms; dieselbe Suche wie oben, Laenge bis \
+             {MAX_LEN}, ohne Ausruestung",
+            schlag.mechanic, pruefboss.hp, pruefboss.overpressure_ms
+        ),
+        String::new(),
+        "  Zwillinge (je eine Zahl anders)".to_owned(),
+        pruefzeile(pool, spielbar, PRUEFBOSS, pruefboss),
+        pruefzeile(pool, spielbar, ZEIT_ZWILLING, boss(ZEIT_ZWILLING)),
+        pruefzeile(
+            pool,
+            spielbar,
+            "Schaden-Zwilling",
+            mit_schlag(pruefboss, schlag.at_ms, UEBERLEBBAR),
+        ),
+        String::new(),
+        format!("  Schadensreihe bei {} ms", schlag.at_ms),
+    ];
+    for schaden in SCHADENSREIHE {
+        out.push(pruefzeile(
+            pool,
+            spielbar,
+            "",
+            mit_schlag(pruefboss, schlag.at_ms, schaden),
+        ));
+    }
+    out.push(String::new());
+    out.push(format!("  Zeitreihe mit {} Schaden", schlag.damage));
+    for at_ms in ZEITREIHE {
+        out.push(pruefzeile(
+            pool,
+            spielbar,
+            "",
+            mit_schlag(pruefboss, at_ms, schlag.damage),
+        ));
+    }
+    out
 }
 
 /// Die spielbaren Zauber als Indizes in `SPELLS` — die Grundmenge der Zahl.
@@ -349,36 +936,16 @@ fn spielbare_zauber() -> Vec<usize> {
 }
 
 fn main() {
-    println!("== Zauber-Abdeckung der ersten Instanz (Issue #550, AC5) ==");
-    println!();
-
     let pool = all_candidates();
     let spielbar = spielbare_zauber();
-    let mut irgendwo_gewirkt: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
 
-    erhebe(
-        &pool,
-        &spielbar,
-        &mut irgendwo_gewirkt,
-        WornValues::none(),
-        true,
-    );
-
-    let gewirkt: Vec<&str> = spielbar
-        .iter()
-        .filter(|&&i| irgendwo_gewirkt[i])
-        .map(|&i| SPELLS[i].id)
-        .collect();
-
+    let zeilen = erhebe(&pool, &spielbar, WornValues::none());
+    for zeile in bericht(&Herkunft::jetzt(), &zeilen, &spielbar) {
+        println!("{zeile}");
+    }
     println!();
-    println!(
-        "  ueber alle {} Bosse zusammen   {} von {}",
-        BOSSE.len(),
-        gewirkt.len(),
-        spielbar.len()
-    );
-    println!("    {}", gewirkt.join(", "));
-    println!();
+
+    let gewirkt = irgendwo_gewirkt(&zeilen, &spielbar);
 
     // Die Zusicherung, ohne die der Wächter nichts hält: Stünde hier eine
     // leere Liste spielbarer Zauber, wäre jede Schwelle trivial verfehlt oder
@@ -532,13 +1099,7 @@ fn main() {
         ];
 
         for (name, worn) in einzeln {
-            let mut mit: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
-            erhebe(&pool, &spielbar, &mut mit, worn, false);
-            let zauber: Vec<&str> = spielbar
-                .iter()
-                .filter(|&&i| mit[i])
-                .map(|&i| SPELLS[i].id)
-                .collect();
+            let zauber = irgendwo_gewirkt(&erhebe(&pool, &spielbar, worn), &spielbar);
             let wert =
                 worn.catalysis + worn.purity + worn.yield_bonus + worn.essence + worn.gear_effects;
             println!(
@@ -561,13 +1122,7 @@ fn main() {
                 catalysis: wert,
                 ..WornValues::none()
             };
-            let mut mit: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
-            erhebe(&pool, &spielbar, &mut mit, worn, false);
-            let zauber: Vec<&str> = spielbar
-                .iter()
-                .filter(|&&i| mit[i])
-                .map(|&i| SPELLS[i].id)
-                .collect();
+            let zauber = irgendwo_gewirkt(&erhebe(&pool, &spielbar, worn), &spielbar);
             println!(
                 "  {wert:>6}    {:>2} von {}   {}",
                 zauber.len(),
@@ -599,13 +1154,7 @@ fn main() {
                  zwei mal NEUTRAL"
             );
 
-            let mut mit: Vec<bool> = vec![false; rota_sim::SPELL_COUNT];
-            erhebe(&pool, &spielbar, &mut mit, worn, false);
-            let gewirkt_mit: Vec<&str> = spielbar
-                .iter()
-                .filter(|&&i| mit[i])
-                .map(|&i| SPELLS[i].id)
-                .collect();
+            let gewirkt_mit = irgendwo_gewirkt(&erhebe(&pool, &spielbar, worn), &spielbar);
 
             println!();
             println!("  Stufe {stufe}, {} — {warum}", QUALITY_NAMES[quality]);
@@ -645,12 +1194,34 @@ fn main() {
         }
     }
 
+    // **AC3 aus #550, hinter einem Schalter:** Welche Schulen kommen über die
+    // gebauten Bosse vor — gezählt nach Wurf und nach Befund (#946)?
+    //
+    // Hinter einem Schalter aus demselben Grund wie AC4: Die Viabilität rechnet
+    // je Boss bis zu 58 erschöpfende Projektionen, über 21 Bosse. Der Nightly
+    // braucht die Zahl oben täglich, diese Erhebung nicht.
+    //
+    // `--pruefboss` fährt nur den Prüfboss-Teil — Sekunden statt Minuten, weil
+    // er keine Viabilität rechnet.
+    let schulen_schalter = std::env::args().any(|a| a == "--schulen");
+    if schulen_schalter {
+        let bosse = schulerhebung(&pool, &spielbar);
+        for zeile in schulbericht(&bosse, &spielbar) {
+            println!("{zeile}");
+        }
+    }
+    if schulen_schalter || std::env::args().any(|a| a == "--pruefboss") {
+        for zeile in pruefbericht(&pool, &spielbar) {
+            println!("{zeile}");
+        }
+    }
+
     // Der Handschrift-Vergleich bleibt `rotation-search` überlassen; dieser
     // Läufer hält genau eine Zahl. `AplName` wird nur importiert, damit die
     // Signatur von `greedy` erfüllt ist — ohne Verwendung meldet clippy.
     let _ = AplName("zauber-abdeckung");
 
-    // Der Abbruch der Untergrenze — nach beiden Schalter-Teilen, siehe oben.
+    // Der Abbruch der Untergrenze — nach allen Schalter-Teilen, siehe oben.
     if unterschritten {
         std::process::exit(1);
     }
@@ -659,6 +1230,171 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn zauber(id: &str) -> usize {
+        rota_sim::data::index_of(id).unwrap_or_else(|| panic!("Zauber {id} fehlt"))
+    }
+
+    /// **AC1: Der Bericht nennt Datum und Stand, je Boss die gewirkten Zauber.**
+    ///
+    /// Auf festen Eingaben gerechnet, nicht auf der Uhr: Ein Prüffall, der am
+    /// heutigen Datum hängt, wäre morgen rot (Auftrag vom 2026-10-29). Die
+    /// Zeilen sind dieselben, die `main` druckt und der Nightly in seine
+    /// Zusammenfassung schreibt.
+    #[test]
+    fn ac1_der_bericht_nennt_datum_stand_und_je_boss_die_zauber() {
+        let zeilen = [
+            Bosszeile {
+                boss: "boss-1-1",
+                bestliste_gewinnt: true,
+                wert_frei: 1.0,
+                wert_best: Some(2.0),
+                gewirkt: vec![zauber("kindle"), zauber("rot")],
+                tot: false,
+                unterbrochen: 0,
+            },
+            Bosszeile {
+                boss: "boss-1-2",
+                bestliste_gewinnt: false,
+                wert_frei: 3.0,
+                wert_best: Some(1.0),
+                gewirkt: vec![zauber("quench")],
+                tot: false,
+                unterbrochen: 0,
+            },
+        ];
+        let spielbar = spielbare_zauber();
+        let herkunft = Herkunft {
+            datum: datum_utc(1_000_000_000),
+            stand: Some("0123abcd".to_owned()),
+        };
+        let text = bericht(&herkunft, &zeilen, &spielbar);
+
+        assert!(
+            text.iter().any(|l| l == "  Datum  2001-09-09 01:46:40 UTC"),
+            "kein Datum im Kopf:\n{}",
+            text.join("\n")
+        );
+        assert!(
+            text.iter().any(|l| l == "  Stand  0123abcd"),
+            "kein Stand im Kopf:\n{}",
+            text.join("\n")
+        );
+        for (boss, erwartet) in [("boss-1-1", "kindle, rot"), ("boss-1-2", "quench")] {
+            let i = text
+                .iter()
+                .position(|l| l.trim_start().starts_with(boss))
+                .unwrap_or_else(|| panic!("keine Zeile fuer {boss}:\n{}", text.join("\n")));
+            assert_eq!(
+                text.get(i + 1).map(|l| l.trim()),
+                Some(erwartet),
+                "unter {boss} stehen nicht seine Zauber:\n{}",
+                text.join("\n")
+            );
+        }
+
+        let ohne = bericht(
+            &Herkunft {
+                datum: datum_utc(0),
+                stand: None,
+            },
+            &zeilen,
+            &spielbar,
+        );
+        assert!(
+            ohne.iter().any(|l| l.starts_with("  Stand  unbekannt")),
+            "ohne Stand steht nicht `unbekannt` da:\n{}",
+            ohne.join("\n")
+        );
+    }
+
+    /// **AC1: Das Datum stimmt auch an den Rändern des Kalenders.**
+    ///
+    /// Bezugswerte aus `date -u -d @<sekunden>`; dabei die Schalttage 2000
+    /// (durch 400 teilbar) und 2024 und das Nicht-Schaltjahr 2100.
+    #[test]
+    fn ac1_das_datum_rechnet_utc_aus_sekunden() {
+        for (sekunden, erwartet) in [
+            (0, "1970-01-01 00:00:00 UTC"),
+            (951_782_400, "2000-02-29 00:00:00 UTC"),
+            (951_868_800, "2000-03-01 00:00:00 UTC"),
+            (1_000_000_000, "2001-09-09 01:46:40 UTC"),
+            (1_709_251_199, "2024-02-29 23:59:59 UTC"),
+            (1_793_283_910, "2026-10-29 14:25:10 UTC"),
+            (4_107_456_000, "2100-02-28 00:00:00 UTC"),
+            (4_107_542_400, "2100-03-01 00:00:00 UTC"),
+        ] {
+            assert_eq!(datum_utc(sekunden), erwartet, "{sekunden} s");
+        }
+    }
+
+    /// **AC1: Der Stand kommt vom Schalter vor der Umgebung.**
+    #[test]
+    fn ac1_der_stand_kommt_vom_schalter_vor_github_sha() {
+        let args = |a: &[&str]| -> Vec<String> { a.iter().map(|s| (*s).to_owned()).collect() };
+        let sha = || Some("feedbeef".to_owned());
+        assert_eq!(
+            stand_aus(&args(&["x", "--stand", "0123abcd"]), sha()),
+            Some("0123abcd".to_owned())
+        );
+        assert_eq!(stand_aus(&args(&["x"]), sha()), Some("feedbeef".to_owned()));
+        assert_eq!(stand_aus(&args(&["x"]), None), None);
+        assert_eq!(stand_aus(&args(&["x"]), Some("  ".to_owned())), None);
+        assert_eq!(
+            stand_aus(&args(&["x", "--stand"]), sha()),
+            Some("feedbeef".to_owned()),
+            "`--stand` ohne Wert ist keine Angabe"
+        );
+    }
+
+    /// **AC3: Am Prüfboss kommt FIXATION in die beste Rotation — an beiden
+    /// Zwillingen nicht.**
+    ///
+    /// Dieselbe Erhebung wie die Zählung über die Bosse (`erhebe_boss`): Länge
+    /// [`MAX_LEN`], ohne Ausrüstung, nur Schaden. **Gewirkt allein genügt
+    /// nicht:** Ein FIXATION-Zauber, der nur eine Wartezeit belegt, stünde auch
+    /// in der Liste (so an `boss-4-3`, siehe `fixation_zeugen`). Verlangt ist,
+    /// dass die Liste den Schlag abwendet: Der Spieler überlebt, und ein
+    /// Boss-Zauber wird unterbrochen — den Schlag macht nur PIN unterbrechbar.
+    ///
+    /// Die Zwillinge unterscheiden sich vom Prüfboss in je EINER Zahl: dem
+    /// Zeitpunkt (`test-lethal-strike`, 12 s) und dem Schaden (4600, gebildet
+    /// mit [`mit_schlag`]). Bleibt FIXATION dort draußen, hängt die Wahl an der
+    /// Anforderung und nicht an der Suche.
+    #[test]
+    fn ac3_am_pruefboss_kommt_fixation_in_die_beste_rotation() {
+        let pool = all_candidates();
+        let spielbar = spielbare_zauber();
+        let pruefboss = boss(PRUEFBOSS);
+
+        let mit = erhebe_boss(&pool, &spielbar, WornValues::none(), pruefboss);
+        assert!(
+            !fixation_gewirkt(&mit).is_empty(),
+            "{PRUEFBOSS}: kein FIXATION-Zauber in der besten Rotation, gewirkt: {}",
+            namen(&mit.gewirkt)
+        );
+        assert!(
+            !mit.tot && mit.unterbrochen > 0,
+            "{PRUEFBOSS}: FIXATION {} wendet den Schlag nicht ab — tot {}, unterbrochen {}",
+            namen(&fixation_gewirkt(&mit)),
+            mit.tot,
+            mit.unterbrochen
+        );
+
+        let schaden_zwilling = mit_schlag(pruefboss, pruefboss.timeline[0].at_ms, UEBERLEBBAR);
+        for (name, zwilling) in [
+            (ZEIT_ZWILLING, boss(ZEIT_ZWILLING)),
+            ("Schaden-Zwilling", schaden_zwilling),
+        ] {
+            let ohne = erhebe_boss(&pool, &spielbar, WornValues::none(), zwilling);
+            assert!(
+                fixation_gewirkt(&ohne).is_empty(),
+                "{name}: FIXATION {} auch ohne die Anforderung — dann haengt die Wahl nicht \
+                 an ihr",
+                namen(&fixation_gewirkt(&ohne))
+            );
+        }
+    }
 
     /// **Die Untergrenze hält auf dem heutigen Stand** (#550, Variante B).
     ///
@@ -673,13 +1409,7 @@ mod tests {
     fn die_untergrenze_haelt_ohne_ausruestung() {
         let pool = all_candidates();
         let spielbar = spielbare_zauber();
-        let mut gewirkt = vec![false; rota_sim::SPELL_COUNT];
-        erhebe(&pool, &spielbar, &mut gewirkt, WornValues::none(), false);
-        let namen: Vec<&str> = spielbar
-            .iter()
-            .filter(|&&i| gewirkt[i])
-            .map(|&i| SPELLS[i].id)
-            .collect();
+        let namen = irgendwo_gewirkt(&erhebe(&pool, &spielbar, WornValues::none()), &spielbar);
         assert!(
             namen.len() >= MINDESTENS,
             "nur {} von {} spielbaren Zaubern ueber die vier Bosse gewirkt, erwartet mindestens \
