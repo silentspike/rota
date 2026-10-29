@@ -5,6 +5,7 @@
 //! | `fehlender_fund_folgt_der_geometrischen_reihe` | der lange Schwanz bei 10 % Fallrate, Toleranz aus n |
 //! | `aufwertung_haelt_an_der_inhaltsstufe` | die Obergrenze aus 13.6 an `upgrade_item` |
 //! | `aufwertung_bleibt_unter_der_inhaltsstufe` | dieselbe Obergrenze ueber ganze Laufbahnen |
+//! | `stufenmarken_passen_zum_verlauf` | Kaempfe bis Spielerstufe L, Verlauf auf 150 Siege begrenzt |
 //! | `gleicher_startwert_gleiche_ausgabe_bei_jeder_strangzahl` | Ausgabe bitgleich bei 1, 3 und 4 Straengen |
 //! | `kontrollprobe_zelle_gegen_direkte_simulation` | Zelle im Speicher = direkt gerechneter Kampf |
 //! | `fallrate_macht_den_fortschritt_ungueltig_nicht_die_kampftabelle` | AC5, als Lauf und als Regel |
@@ -20,9 +21,13 @@ use rota_sim::laufbahn::orakel::{
     laufkonfiguration, Kampfeinstellung, Kampforakel, OrakelFehler, OrakelSchluessel,
     Referenzspielweise, SpeicherOrakel, Zelle,
 };
-use rota_sim::laufbahn::regeln::{upgrade_cap_of, upgrade_item, KATALOG, MATERIAL_PER_LEVEL};
+use rota_sim::laufbahn::regeln::{
+    grant_xp, upgrade_cap_of, upgrade_item, xp_for_victory, Stufenstand, KATALOG,
+    MATERIAL_PER_LEVEL,
+};
 use rota_sim::laufbahn::schleife::{
     laufbahn, Anlegen, Aufwerten, Freischaltung, Fundziel, Laufbahnregeln, Messauftrag,
+    VERLAUF_SIEGE,
 };
 use rota_sim::laufbahn::{invalidierung, kampffingerabdruck, Fortschrittsfingerabdruck};
 use rota_sim::speicher::ErgebnisSchluessel;
@@ -222,6 +227,62 @@ fn aufwertung_bleibt_unter_der_inhaltsstufe() {
         zurueckgehalten > 100,
         "nur {zurueckgehalten} Laufbahnen mit zurueckgehaltenem Material"
     );
+}
+
+#[test]
+fn stufenmarken_passen_zum_verlauf() {
+    // 600 Siege: mehr als der festgehaltene Verlauf, und genug fuer Stufe 10.
+    let messung = Messauftrag {
+        siege: 600,
+        max_kaempfe: 600,
+        fund: Fundziel {
+            vorlage: vorlage("focus-mix"),
+            mindest_guete: 0,
+        },
+    };
+    let lauf = rechne_mit(
+        50,
+        13,
+        4,
+        std::slice::from_ref(&Laufbahnregeln::default()),
+        &messung,
+        immer_sieg,
+    )
+    .expect("ImmerSieg lehnt nichts ab");
+    // Die Erwartung aus der Regel selbst — `xp_for_victory` und `grant_xp`
+    // stehen unter der Aufzeichnung —, nicht aus einer Abschrift: Bei
+    // Boss-Stufe 1 und nur Siegen haengt die Stufe an nichts als der Siegzahl.
+    let mut stand = Stufenstand { level: 1, xp: 0 };
+    let mut siege_bis_10 = 0u32;
+    while stand.level < 10 {
+        stand = grant_xp(stand, xp_for_victory(1, i64::from(stand.level)));
+        siege_bis_10 += 1;
+    }
+    for l in &lauf.je_regelsatz[0] {
+        assert_eq!(l.siege_gesamt, 600, "Siege gesamt");
+        assert_eq!(l.siege.len(), VERLAUF_SIEGE, "festgehaltener Verlauf");
+        let im_verlauf: i64 = l.siege.iter().map(|s| s.punkte).sum();
+        assert!(
+            l.punkte_gesamt >= im_verlauf,
+            "Punkte gesamt unter dem Verlauf"
+        );
+        assert_eq!(l.stufe_nach_kaempfen[0], Some(0), "Stufe 1 ab dem Start");
+        assert_eq!(l.stufe_nach_kaempfen[9], Some(siege_bis_10), "Stufe 10");
+        for s in &l.siege {
+            for (index, marke) in l.stufe_nach_kaempfen.iter().enumerate() {
+                let stufe = index as u32 + 1;
+                let erreicht = marke.is_some_and(|k| k <= s.kampf);
+                assert_eq!(
+                    s.spielerstufe >= stufe,
+                    erreicht,
+                    "Kampf {}: Spielerstufe {}, Marke fuer Stufe {stufe} {marke:?}",
+                    s.kampf,
+                    s.spielerstufe
+                );
+            }
+        }
+    }
+    println!("Stufe 10 nach {siege_bis_10} Siegen, in allen 50 Laufbahnen");
 }
 
 fn kleiner_auftrag(straenge: usize, startwert: u32) -> Auftrag {

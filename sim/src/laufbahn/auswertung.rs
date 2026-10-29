@@ -25,12 +25,20 @@ use crate::gear::{QUALITY_COUNT, QUALITY_NAMES, SLOT_COUNT};
 use super::orakel::{
     Kampfeinstellung, Kampforakel, OrakelFehler, Referenzspielweise, SpeicherOrakel, FASSUNG_A,
 };
-use super::regeln::{bessere_stuecke, erwarteter_stand, INSTANZEN, KATALOG};
-use super::schleife::{laufbahn, Laufbahn, Laufbahnregeln, Messauftrag};
+use super::regeln::{bessere_stuecke, erwarteter_stand, xp_for_victory, INSTANZEN, KATALOG};
+use super::schleife::{laufbahn, Laufbahn, Laufbahnregeln, Messauftrag, VERLAUF_SIEGE};
 use super::{kampffingerabdruck, Fortschrittsfingerabdruck, Kampffingerabdruck};
 
 /// Die Siege, an denen die Verlaeufe ausgegeben werden.
 pub const BERICHTS_SIEGE: [u32; 12] = [1, 2, 3, 5, 10, 15, 20, 30, 50, 75, 100, 150];
+
+// Jeder berichtete Sieg muss im festgehaltenen Verlauf liegen — sonst griffe
+// der Bericht ueber das Ende von `Laufbahn::siege` hinaus.
+const _: () = assert!(BERICHTS_SIEGE[BERICHTS_SIEGE.len() - 1] as usize <= VERLAUF_SIEGE);
+
+/// Die Spielerstufen, bis zu denen die Kaempfe gezaehlt werden (Auftrag
+/// 29.10.: 10, 20, 30 — die Luecke der fehlenden Boss-Stufen als Zahl).
+pub const BERICHTS_STUFEN: [u32; 8] = [5, 10, 15, 20, 25, 27, 28, 30];
 
 /// Die Siege, nach denen der fehlende Fund gezaehlt wird (Masterplan: 10/20/30).
 pub const FUND_SIEGE: [u32; 3] = [10, 20, 30];
@@ -263,10 +271,7 @@ impl Anteil {
 /// denen, die `k` Siege erreicht haben.
 #[must_use]
 pub fn fehlt_nach(laufbahnen: &[Laufbahn], k: u32) -> Anteil {
-    let mit_k: Vec<&Laufbahn> = laufbahnen
-        .iter()
-        .filter(|l| l.siege.len() as u32 >= k)
-        .collect();
+    let mit_k: Vec<&Laufbahn> = laufbahnen.iter().filter(|l| l.siege_gesamt >= k).collect();
     Anteil {
         treffer: mit_k
             .iter()
@@ -375,10 +380,7 @@ pub fn bericht(
         "  Sieg | Punkte      n    mittel      p10      p50      p90 | Gegenstandsstufe (Mittel der 10 Plaetze)      n    mittel      p10      p50      p90 | Spielerstufe mittel"
     );
     for k in BERICHTS_SIEGE.iter().filter(|k| **k <= messung.siege) {
-        let mit_k: Vec<&Laufbahn> = laufbahnen
-            .iter()
-            .filter(|l| l.siege.len() as u32 >= *k)
-            .collect();
+        let mit_k: Vec<&Laufbahn> = laufbahnen.iter().filter(|l| l.siege_gesamt >= *k).collect();
         let sieg = |l: &&Laufbahn| l.siege[*k as usize - 1];
         let punkte: Vec<f64> = mit_k.iter().map(|l| sieg(l).punkte as f64).collect();
         let stufe: Vec<f64> = mit_k
@@ -457,6 +459,41 @@ pub fn bericht(
                 );
             }
         }
+    }
+
+    // ---- Kaempfe bis Spielerstufe L, mit den heutigen Boss-Stufen
+    let _ = writeln!(
+        t,
+        "\nKaempfe bis Spielerstufe L (Boss-Stufen aus den Daten; Siege je Laufbahn {}):",
+        messung.siege
+    );
+    let _ = writeln!(
+        t,
+        "  Stufe | erreicht      n    mittel      p10      p50      p90 | nicht erreicht | Erfahrung je Sieg auf Stufe L-1 gegen Boss-Stufe 1"
+    );
+    for stufe in BERICHTS_STUFEN {
+        let index = stufe as usize - 1;
+        let werte: Vec<f64> = laufbahnen
+            .iter()
+            .filter_map(|l| {
+                l.stufe_nach_kaempfen
+                    .get(index)
+                    .copied()
+                    .flatten()
+                    .map(f64::from)
+            })
+            .collect();
+        // **Aus der Regel, nicht nachgerechnet** (`xp_for_victory`, gegen
+        // `xpForVictory` aufgezeichnet): Fuer die Stufe davor — dort wird
+        // die Erfahrung verdient, die diese Stufe braucht.
+        let xp = xp_for_victory(1, i64::from(stufe) - 1);
+        let _ = writeln!(
+            t,
+            "  {stufe:>5} | {:>8} {} | {:>14} | {xp}",
+            "",
+            verteilung_zeile(Verteilung::aus(&werte)),
+            laufbahnen.len() - werte.len()
+        );
     }
 
     // ---- Kaempfe bis Instanz N (AC3) und erwarteter Stand daneben (AC4)
@@ -584,10 +621,7 @@ pub fn bericht(
         .iter()
         .map(|l| l.material_ungenutzt as f64)
         .collect();
-    let punkte_gesamt: Vec<f64> = laufbahnen
-        .iter()
-        .map(|l| l.siege.iter().map(|s| s.punkte as f64).sum())
-        .collect();
+    let punkte_gesamt: Vec<f64> = laufbahnen.iter().map(|l| l.punkte_gesamt as f64).collect();
     let kaempfe: Vec<f64> = laufbahnen.iter().map(|l| f64::from(l.kaempfe)).collect();
     let _ = writeln!(
         t,
@@ -653,10 +687,7 @@ pub fn vergleich(namen: &[&str], lauf: &Lauf) -> String {
     }
     let _ = write!(t, "  {:<12} |", "Punkte Summe");
     for laufbahnen in &lauf.je_regelsatz {
-        let summen: Vec<f64> = laufbahnen
-            .iter()
-            .map(|l| l.siege.iter().map(|s| s.punkte as f64).sum())
-            .collect();
+        let summen: Vec<f64> = laufbahnen.iter().map(|l| l.punkte_gesamt as f64).collect();
         let median = Verteilung::aus(&summen).map_or_else(|| "-".to_owned(), |v| zahl(v.p50));
         let _ = write!(t, " {:>12} {:>13} |", "Median", median);
     }
