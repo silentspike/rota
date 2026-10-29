@@ -3144,7 +3144,7 @@ mod bewertung_verknuepft_die_kriterien {
             elapsed_ns: 0,
             kaempfe: 1234,
             durchgaenge: 61_700,
-            kandidaten: [7, 3, 0],
+            kandidaten: [7, 3, 0, 0],
             kaempfe_je_strang: vec![1234],
             stand: rota_sim::fortschritt::Laufstand::default(),
             engpass: rota_sim::engpass::Rohstand::default(),
