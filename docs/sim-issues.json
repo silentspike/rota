@@ -6,6 +6,25 @@
     "issue895_task_id_headings": 58,
     "issue895_acceptance": 29
   },
+  "zuschnitt_inventar": {
+    "quelle": "https://github.com/silentspike/rota/issues/891",
+    "datum": "2026-10-29",
+    "bedeutung": "Zuschnitt vom 29.10.2026, vom Auftraggeber freigegeben: in welchen Abschnitt von #891 ein früheres Simulator-Issue fiel. Eine Planungsentscheidung, kein Arbeitsstand. zuschnitt_grund zitiert #891 vom 29.10.2026 und wird nicht nachgeführt; die Abnahme steht in #891.",
+    "issues": [
+      550, 893, 894, 898, 899, 900, 901, 902, 904, 906, 907, 912, 914, 915, 916, 917, 918, 919, 920,
+      921, 922, 923, 924, 925, 926, 927, 928, 929, 930, 931, 932, 935, 936, 937, 938, 940, 941, 942,
+      943, 944, 945, 946, 947, 948, 949, 950, 951, 952, 953, 954, 955, 956, 957, 958, 960, 961, 963,
+      964, 971, 972, 973, 974, 975, 976, 977
+    ],
+    "ohne_eintrag": [
+      {
+        "issue": 550,
+        "zuschnitt": "notwendig",
+        "zuschnitt_grund": "Zauber-Abdeckung (Masterplan-Anforderung 2) · in Arbeit, PR #1165 — Wächter zählt Nischen, beide Abdeckungsläufer berichtigt; Untergrenze bleibt `MINDESTENS = 11` von 58. Offen danach: AC1 (je Boss mit Datum und Stand) und die Fassung von AC3. Beim Abschluss den Titel auf die Grundmenge 58 umstellen.",
+        "warum_ohne_eintrag": "#550 gehört zu keinem Epic E11–E21, hat im Simulator-Plan keinen Abschnitt und liegt außerhalb des Registry-Umfangs #891–#981. Ein Eintrag würde einen Planabschnitt behaupten, den es nicht gibt."
+      }
+    ]
+  },
   "historical_issue_inventory": [
     "E12.0a",
     "E18.1",
@@ -229,6 +248,8 @@
       "acceptance": [],
       "issue": 893,
       "source": "https://github.com/silentspike/rota/issues/893",
+      "zuschnitt": "erledigt",
+      "zuschnitt_grund": "alle vier Kind-Pakete gebaut; die Epic-Abnahme „eine fremde Sitzung kann es bedienen“ steht aus.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": [
@@ -257,6 +278,8 @@
       "acceptance": [],
       "issue": 894,
       "source": "https://github.com/silentspike/rota/issues/894",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": [
@@ -341,6 +364,8 @@
       "acceptance": [],
       "issue": 898,
       "source": "https://github.com/silentspike/rota/issues/898",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": ["41-woran-jedes-issue-hängt", "44-e12-der-balance-optimierer"],
@@ -364,6 +389,8 @@
       "acceptance": [],
       "issue": 899,
       "source": "https://github.com/silentspike/rota/issues/899",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e13-die-cuda-pipeline-konkretisiert"],
@@ -389,6 +416,8 @@
       "acceptance": [],
       "issue": 900,
       "source": "https://github.com/silentspike/rota/issues/900",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": [
@@ -417,6 +446,8 @@
       "acceptance": [],
       "issue": 901,
       "source": "https://github.com/silentspike/rota/issues/901",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": [
@@ -446,6 +477,8 @@
       "acceptance": [],
       "issue": 902,
       "source": "https://github.com/silentspike/rota/issues/902",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": [
@@ -500,6 +533,8 @@
       "acceptance": [],
       "issue": 904,
       "source": "https://github.com/silentspike/rota/issues/904",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Sammel-Issue ohne eigenen Liefergegenstand.",
       "dependency_evidence": {
         "issue_context": "",
         "plan_sections": ["41-woran-jedes-issue-hängt", "46-e15-betriebsarchitektur"],
@@ -580,6 +615,8 @@
       ],
       "issue": 906,
       "source": "https://github.com/silentspike/rota/issues/906",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "in der geschriebenen Form 23 Vorbedingungen und 10 Varianten; der Kern geht als N4 nach #891.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst, was der Auftraggeber tatsächlich erlebt: die Zeit einer vollständigen\nKampagne, von vorn bis hinten. Es setzt voraus, dass die Messumgebung steht — ohne\nreproduzierbare Einzelmessungen ist eine Gesamtmessung nicht deutbar.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e110c-core-pflicht"],
@@ -608,6 +645,8 @@
       ],
       "issue": 907,
       "source": "https://github.com/silentspike/rota/issues/907",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "doppelt bedingt, beide Bedingungen fallen.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst die Kampagnenzeit mit Grafikeinheit — **bedingt**. Es wird erst begonnen,\nwenn der Grafikeinheit-Auswerter seinen Gewinnpunkt-Vertrag bestanden hat. Ohne diese\nVorbedingung ist die Messung sinnlos, weil sie einen Pfad misst, der sich nicht lohnt.\n\nDie verpflichtende Kampagnenmessung läuft nur auf dem Hauptprozessor und ist ein eigenes\nIssue. Sie darf nicht daran hängen, dass eine Grafikeinheit ihren Gewinnpunkt erreicht.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e110c-gpu-bedingt"],
@@ -756,6 +795,8 @@
       ],
       "issue": 912,
       "source": "https://github.com/silentspike/rota/issues/912",
+      "zuschnitt": "erledigt",
+      "zuschnitt_grund": "abgenommen 29.10., PR #1161 (`1000c12c`), Beleg im Kommentar vom 29.10. zu #891.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst, was jeder verfügbare Rechner tatsächlich leistet — getrennt nach\nArbeitsart. Es hat **keine Vorbedingung** und kann sofort beginnen. Jede spätere\nVerteilungsentscheidung steht darauf: Wer nicht gemessen hat, verteilt nach Kernzahl und\ndamit falsch.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -814,6 +855,8 @@
       ],
       "issue": 914,
       "source": "https://github.com/silentspike/rota/issues/914",
+      "zuschnitt": "notwendig",
+      "zuschnitt_grund": "Rest des Laufvertrags — 10 von 14 Feldern von `CampaignRunContract` haben außerhalb `kampagne.rs` keinen Leser (mission, runtime_accounting, exact_obligations, interaction_coverage, minimum_niche_coverage, independent_restarts, plateau_work_units, maximum_bound_gap, confidence_requirement, final_audit): entfernen. AC2 (1/2/3 Teilnehmer) entfällt mit #936; die Strangunabhängigkeit belegt der Prüffall `jede_strangzahl_rechnet_bitgleich_wie_einer_auch_mit_wuerfel` aus PR #1161.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue legt fest, **wie viel Arbeit** zu einer Kampagne gehört — hardwareunabhängig und\neingefroren. Es hat **keine Vorbedingung** und kann sofort beginnen. Es ist die Grundlage\ndafür, dass ein Rechnerausfall die Laufzeit ändert, aber nicht das Ergebnis.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -845,6 +888,9 @@
       ],
       "issue": 915,
       "source": "https://github.com/silentspike/rota/issues/915",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "die gestaffelte Stichprobe sprengt den Nachtlauf.",
+      "zuschnitt_hinweis": "Exakte Krit-Verteilung, nur AC1 · der gebaute Teil (PR #1133, `--mode gestaffelt`) samt der drei Prüflücken vom 24.10. wird in #891 abgenommen.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue behandelt den Fall, dass der kritische Treffer **wirklich würfelt**. Es setzt\nvoraus, dass eine abgeleitete Zufallsquellen-Maske existiert und dass eine Abhängigkeitsmaske\nsagen kann, ob der Zufall den Kontrollfluss berührt. Ohne beides wäre die Aktivierung dieses\nVerfahrens eine Bossliste — und die altert.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -876,6 +922,9 @@
       ],
       "issue": 916,
       "source": "https://github.com/silentspike/rota/issues/916",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 941,
+      "zuschnitt_grund": "Trace-Regionen, Vorbedingung.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue **beweist**, was die Stabilitätsmessung nur erkundet: Für einen konkreten Trace\nwird die exakte Menge der Parameterwerte bestimmt, in der er gültig bleibt. Es setzt die\nStabilitätsmessung voraus — sie sagt, wo sich der Beweis lohnt.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -907,6 +956,9 @@
       ],
       "issue": 917,
       "source": "https://github.com/silentspike/rota/issues/917",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "N4 zeigt, dass der Masterplan-Lauf sein Fenster überschreitet, obwohl #920 steht, und Greedy-Einfügen ist der Hauptanteil.",
+      "zuschnitt_hinweis": "gesichert als Zweig `feat/w4-917-inkrementell` (Entscheidung „Sichern und anhalten“, 29.10.).",
       "dependency_evidence": {
         "issue_context": "Dieses Issue macht die Auswertung einer geänderten Rotation inkrementell: Statt jeden\nKandidaten von vorn zu simulieren, wird der erste Punkt bestimmt, an dem die Änderung\nüberhaupt wirken kann. Es setzt den optimierten Kernel voraus, weil es dessen Zustand\nverdichtet.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -938,6 +990,8 @@
       ],
       "issue": 918,
       "source": "https://github.com/silentspike/rota/issues/918",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Speicher steht mit #913/#967, der Verteiler setzt verworfene oder ruhende Wege voraus.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue führt die verschiedenen Auswertungswege zusammen: Ein Verteiler wählt für jeden\nKandidaten den billigsten zulässigen Weg, und ein Zwischenspeicher verhindert, dass derselbe\nKandidat zweimal gerechnet wird. Es setzt die Kostenschätzung aus der übersetzten\nZusammenstellung, die Trennung von Ergebnis und Bewertung sowie den ergänzbaren\nDurchgangs-Akkumulator (#967) voraus — den Typ, den der Speicher für stochastische Ergebnisse\nablegt.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -969,6 +1023,8 @@
       ],
       "issue": 919,
       "source": "https://github.com/silentspike/rota/issues/919",
+      "zuschnitt": "erledigt",
+      "zuschnitt_grund": "gebaut über PR #1161 (dauerhafter Strangvorrat, Zähler, strang-lokaler Zustand); abzunehmen sind AC1, AC2 und AC6. AC3 (Pakete in Millisekunden), AC4 (Kandidatenfenster) und AC5 (gemessene Strangzahl) entfallen.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut die Arbeitsverteilung **innerhalb einer Maschine**: wie die Kerne während\neiner echten Suche ausgelastet werden. Es hat keine Vorbedingung innerhalb dieses Epics, wird\naber vom Ressourcen-Balancer und von der Verteilung auf mehrere Rechner vorausgesetzt.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e114c-der-produktions-scheduler"],
@@ -997,6 +1053,8 @@
       ],
       "issue": 920,
       "source": "https://github.com/silentspike/rota/issues/920",
+      "zuschnitt": "notwendig",
+      "zuschnitt_grund": "Analytischer Krit an der Suche (Zuschnitt aus E11.4d) — die zweistellige Prüfung je Aufbau × Boss einschließlich der Bossseite (Lebenspunkt-Phasen, Abbruch beim Tod) auf dem gebauten `sim/src/analytisch.rs`, angeschlossen an Durchgangswahl und Rotationssuche. Einziger Hebel, der den ungünstigen Endausbau-Fall allein in den Nachtlauf bringt. Entfällt: AC1 (CompiledBuild-Falten), Kernelsignatur, AC5–AC7.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue faltet die Faktoren einer Zusammenstellung **einmal vor der Suche** statt in\njedem Kampf — und trägt dabei die Abhängigkeitsmaske, an der drei andere Entscheidungen\nhängen. Es setzt die typisierte Wirkungsbeschreibung voraus: Die Maske wird **erzeugt**, nicht\ngepflegt.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1028,6 +1086,8 @@
       ],
       "issue": 921,
       "source": "https://github.com/silentspike/rota/issues/921",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "die eigene Messung ergab 4,8 % Gewinn, bei stillem Optimumsverlust-Risiko.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue erkennt Rotationen, die sich **verhalten** wie eine bereits gerechnete, und\nwertet sie einmal statt zweimal aus. Es setzt die inkrementelle Auswertung voraus und lohnt\nerst nach deren Zweig „ändert nichts\".\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1059,6 +1119,8 @@
       ],
       "issue": 922,
       "source": "https://github.com/silentspike/rota/issues/922",
+      "zuschnitt": "notwendig",
+      "zuschnitt_grund": "Fortschritts-Simulation — Punkte-Ausschüttung und Aufwertung messen statt raten (Masterplan Z. 18–25 und 627), Fassung A. Die Kante zu #918 entfällt, der Ergebnisspeicher ist `speicher.rs`.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue simuliert **Spielerlaufbahnen** statt Kämpfe: Wird ein Ausrüstungsstand\nüberhaupt erreicht, nach wie vielen Kämpfen, und mit welcher Streuung? Es setzt den\nErgebnisspeicher voraus — die Orakel-Tabelle **ist** dieser Speicher, nur mit einem anderen\nSchlüssel.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1090,6 +1152,8 @@
       ],
       "issue": 923,
       "source": "https://github.com/silentspike/rota/issues/923",
+      "zuschnitt": "notwendig",
+      "zuschnitt_grund": "Suche auf Zerstören-und-Reparieren, darin #924 (nur die gekoppelten Operatoren Zauber + Talente + lokale Rotationsreparatur) und aus #944 der Teil „frühere Bestlisten als Startpunkt und Gegenprobe“. AC1, AC2, AC4 von #923; das Nischenarchiv (AC3, AC5, AC5b) entfällt. Reihenfolge: nach #920.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue stellt die Suche auf ein Verfahren um, das messbar bessere Ergebnisse liefert:\nZerstören und Reparieren großer Nachbarschaften statt gieriger Einfügung. **Es ist durch\nDesign-Entscheidungen des Auftraggebers blockiert** — siehe „Stop conditions\".\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e115-die-suche-auf-lns-umstellen"],
@@ -1118,6 +1182,9 @@
       ],
       "issue": 924,
       "source": "https://github.com/silentspike/rota/issues/924",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 923,
+      "zuschnitt_grund": "nur die gekoppelten Operatoren Zauber + Talente + lokale Rotationsreparatur.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue benennt die Operatoren der Nachbarschaftssuche und verteilt ihr Budget nach\nErtrag. Es setzt die umgestellte Suche voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1149,6 +1216,8 @@
       ],
       "issue": 925,
       "source": "https://github.com/silentspike/rota/issues/925",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "bewiesene Optimalität verlangt der Masterplan nicht; die Projektionen gehen als N3 nach #891.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue ordnet jeder Projektion das Verfahren zu, das zu ihr passt, und baut ein\nOrakel, das für kleine Fälle das nachweisbare Optimum liefert. Es setzt die abgeleitete\nSchrankenfähigkeit voraus — ohne sie ist jede Schranke unsicher.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1180,6 +1249,8 @@
       ],
       "issue": 926,
       "source": "https://github.com/silentspike/rota/issues/926",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "steht auf #925 und #921.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut einen Löser, der das Optimum **innerhalb der Sprache der Prioritätslisten**\nbestimmt — nicht das eines freien Aktionsplans. Es setzt das Optimum-Orakel, die\nVerhaltensäquivalenz und die typisierte Wirkungsbeschreibung voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e115d-der-exakte-prioritätslisten-löser"],
@@ -1208,6 +1279,8 @@
       ],
       "issue": 927,
       "source": "https://github.com/silentspike/rota/issues/927",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "höchstens 6× auf einem Teilschritt; der wertvolle Teil (AC0b) ist mit #981 gebaut.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue prüft Zwischenkandidaten gegen ein kleines aktives Bossset statt gegen alle Bosse\n**einer Instanz** — und bestätigt die Elite erst am Ende gegen die vollständige Pflichtmenge\ndieser Instanz. Der Geltungsbereich ist entschieden und steht unten in AC0.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1239,6 +1312,9 @@
       ],
       "issue": 928,
       "source": "https://github.com/silentspike/rota/issues/928",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "der Lauf überschreitet sein Fenster auch nach #920; dann ist die Grundstufe (Release-Profil, `target-cpu=znver5`) der erste Hebel.",
+      "zuschnitt_hinweis": "Bei Wiederaufnahme gehören Paritätslauf und Fingerabdruck nach dem Profilwechsel und die Vertragspunkte aus #964 AC2 als Kriterium dazu.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue holt heraus, was der Übersetzer ohne Codeänderung hergibt: Optimierungsstufen,\nprofilgeführte Übersetzung und das passende Zielprofil je Rechner. Es misst gegen dieselbe\nGrundlage wie alle anderen Leistungs-Issues.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e116-compiler-optimierung"],
@@ -1267,6 +1343,8 @@
       ],
       "issue": 929,
       "source": "https://github.com/silentspike/rota/issues/929",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "vektorisiert Arbeit, die es nicht gibt oder die der Masterplan nicht braucht; die AVX-512-Prüfung hängt jetzt an #937.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue vektorisiert die Teile der Arbeit, die homogen genug dafür sind — und nur diese.\nEs kommt nach der inkrementellen Auswertung und der Übersetzer-Optimierung, weil beide\ngrößere Gewinne bei geringerem Risiko bringen.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e117-avx2-aber-nur-wo-es-homogen-ist"],
@@ -1295,6 +1373,8 @@
       ],
       "issue": 930,
       "source": "https://github.com/silentspike/rota/issues/930",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "3,9 % der Zyklen; dieselben Fehlsprünge greift #928 ohne Quelltextänderung an.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue gibt der Kernelsignatur einen Leser: Aus ihr wird ein spezialisierter Kernel\ngewählt, statt in einem Universalkernel Zweige zu prüfen, die diese Zusammenstellung nie\nnimmt. Es setzt die übersetzte Zusammenstellung voraus, in der die Signatur entsteht.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1326,6 +1406,8 @@
       ],
       "issue": 931,
       "source": "https://github.com/silentspike/rota/issues/931",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "letzte Stufe einer verworfenen Kette.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue erzeugt Kernel **zur Laufzeit** für Strukturklassen, die millionenfach\nausgewertet werden. Es ist **ausdrücklich optional** und kommt zuletzt — nach der\nprofilgeführten Übersetzung und der Kernel-Spezialisierung zur Bauzeit.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1357,6 +1439,9 @@
       ],
       "issue": 932,
       "source": "https://github.com/silentspike/rota/issues/932",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "ein Lauf auf node3 bremst den Bau-Dienst messbar (A,A-Kontrolle) oder trifft `memory.max`.",
+      "zuschnitt_hinweis": "für die CPU gebaut und bitgleich geprüft.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue lässt den Simulator zurückweichen, wenn die Maschine anderweitig gebraucht wird —\n**ohne den Lauf zu verlieren** und **ohne das Ergebnis zu ändern**. Es setzt den\nProduktions-Verteiler voraus: Stränge können nur parken, wenn definiert ist, wann ein Strang\nzwischen zwei Arbeitspaketen steht.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1450,6 +1535,9 @@
       ],
       "issue": 935,
       "source": "https://github.com/silentspike/rota/issues/935",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 958,
+      "zuschnitt_grund": "Invalidierungsregeln.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue legt fest, was bei welcher Inhaltsänderung neu gerechnet werden muss. Es setzt\nden zweiteiligen Schlüssel des Auswertungs-Verteilers voraus — dieser Schlüssel **ist** die\nInvalidierungslogik.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1481,6 +1569,8 @@
       ],
       "issue": 936,
       "source": "https://github.com/silentspike/rota/issues/936",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "unter „nur node3 rechnet“ ohne Bedarf; die Leistung kommt aus den Strängen von node3. Die Prüfform „2 Prozesse auf node3“ vom 28.10. entfällt mit, die Bitgleichheit auf node3 prüft N5. Wartet ein Lauf bei Ausfall nicht mehr, gilt Abbruch und Neustart.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue verteilt Arbeit auf einen Koordinator und beliebig viele Zusatzrechner — mit\nAusfall als Normalfall. Es setzt die Fähigkeitserhebung und den Produktions-Verteiler voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1512,6 +1602,9 @@
       ],
       "issue": 937,
       "source": "https://github.com/silentspike/rota/issues/937",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "die Kernel-Rate bestimmt die Laufzeit des Masterplan-Laufs.",
+      "zuschnitt_hinweis": "hier hängt seit dem Verwerfen von #929 die AVX-512-Prüfung.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue beantwortet, was die vorhandene Hardware für diesen Simulator tatsächlich\nbeiträgt — jede Befehlssatzerweiterung einzeln durchgegangen, mit Begründung. Der Auftraggeber\nhat ausdrücklich verlangt, dabei auch Assembler und eine mehrsprachige Lösung zu prüfen.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1541,6 +1634,9 @@
       ],
       "issue": 938,
       "source": "https://github.com/silentspike/rota/issues/938",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 971,
+      "zuschnitt_grund": "gemeinsame Kalibrierung.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue misst Haupt- und Grafikprozessor **gemeinsam** statt einzeln. Es setzt die\nFähigkeitserhebung und einen lauffähigen Grafikeinheit-Auswerter voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e150b-gemeinsame-cpu-gpu-kalibrierung"],
@@ -1598,6 +1694,8 @@
       ],
       "issue": 940,
       "source": "https://github.com/silentspike/rota/issues/940",
+      "zuschnitt": "erledigt",
+      "zuschnitt_grund": "PR #1011 und #1014 · abgenommen 29.10. an `c15b0194`: 14 von 14, zwei eigene Mutationen (AC2, AC3) rot beim Namen, Beleg im Kommentar vom 29.10. zu #891.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue legt fest, in welchem Bereich ein Balance-Parameter überhaupt liegen darf. Ohne\ndiese Bereiche ist das äußere Optimierungsproblem formal unbeschränkt. Es setzt die typisierte\nWirkungsbeschreibung und die Deckel-Tabelle voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1627,6 +1725,9 @@
       ],
       "issue": 941,
       "source": "https://github.com/silentspike/rota/issues/941",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "ein Schwellen-Sweep über die 21 Bosse braucht auf node3 mehr als eine Stunde oder übersieht nachweislich einen Optimumwechsel.",
+      "zuschnitt_hinweis": "darin #942 (Herausforderer-Hülle) und #916 (Trace-Regionen, Vorbedingung). Bei Wiederaufnahme den Festkomma-Bezug aus AC3 lösen.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue löst die Frage „wie viel Grundschaden braucht Zauber X, damit er irgendwo die\nbeste Wahl ist?\" **exakt** statt durch Ausprobieren. Es setzt die Trace-Regionen und die\nParameterdomänen voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1656,6 +1757,9 @@
       ],
       "issue": 942,
       "source": "https://github.com/silentspike/rota/issues/942",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 941,
+      "zuschnitt_grund": "Herausforderer-Hülle.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue führt eine Hülle über alle bekannten Herausforderer, damit die exakte\nParameterlösung nicht einen Wert zertifiziert, bei dem in Wahrheit ein anderer Aufbau gewonnen\nhätte. Es setzt die Parameterdomänen, die Trace-Regionen, den inneren Löser und den\nZielvertrag voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1685,6 +1789,8 @@
       ],
       "issue": 943,
       "source": "https://github.com/silentspike/rota/issues/943",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "baut auf dem ruhenden #941 auf.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue behandelt den Fall, dass mehrere Balance-Parameter gleichzeitig bewegt werden und\nsich gegenseitig beeinflussen. Es setzt die exakte Einparameter-Lösung voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e123-mehrere-gekoppelte-parameter"],
@@ -1711,6 +1817,9 @@
       ],
       "issue": 944,
       "source": "https://github.com/silentspike/rota/issues/944",
+      "zuschnitt": "verworfen",
+      "zuschnitt_ziel": 923,
+      "zuschnitt_grund": "Warmstart-Archiv, ohne den Teil, der in #923 aufgeht: die übrigen Archivbestandteile haben keinen Abnehmer. In #923 aufgegangen ist der Teil „frühere Bestlisten als Startpunkt und Gegenprobe“.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue macht das Sucharchiv zur Investition: Bei einer kleinen Parameteränderung wird\nweiterverwendet statt neu begonnen. Es setzt die Operatorstatistik und die\nInvalidierungsregeln voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1740,6 +1849,8 @@
       ],
       "issue": 945,
       "source": "https://github.com/silentspike/rota/issues/945",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "fällt mit #927 (Aktives Bossset).",
       "dependency_evidence": {
         "issue_context": "Dieses Issue nimmt nur **verletzte** Bosse ins aktive Set auf, statt gegen alle zu prüfen —\nund lässt die Abschlussprüfung trotzdem gegen die vollständige Menge laufen. Es setzt das\naktive Bossset voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e125-encounter-constraint-generation"],
@@ -1766,6 +1877,8 @@
       ],
       "issue": 946,
       "source": "https://github.com/silentspike/rota/issues/946",
+      "zuschnitt": "notwendig",
+      "zuschnitt_grund": "„Bewiesen unterlegen“ gegen „nicht gefunden“, darin #953 — die Zauber-Vergleichstabelle trennt mindestens bezeugt / bewiesen dominiert / nicht gefunden / ungeklärt (AC1, AC2, AC6, AC7), Beweise nur auf den erschöpfend gerechneten Projektionen; aus #953 AC3 (Laufabschluss getrennt von „Vertrag verletzt“) als Zusatzzeile. Bedarf belegt am 29.10.: Der Nightly meldete „Ein Zauber hat seine Nische verloren“, obwohl die frühere Liste bitgleich weiterrechnet — ein Such-Befund als Balance-Befund.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue entscheidet, ob ein Zauber **wirklich** zu schwach ist — oder ob die Suche ihn\nnur nicht gefunden hat. Es setzt den Zielvertrag und den exakten Prioritätslisten-Löser\nvoraus.\n\n**Das ist das eigentliche Abnahmekriterium des ganzen Balance-Epics**, nicht sein letzter\nPunkt.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1795,6 +1908,8 @@
       ],
       "issue": 947,
       "source": "https://github.com/silentspike/rota/issues/947",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "mehr Stichprobe dort, wo der Masterplan Stichprobe genügen lässt; #946 verhindert schon, dass ein Zeuge als Beweis gilt.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue sucht **gezielt nach Gegenbeispielen** zu jeder behaupteten Elite, statt zu\nhoffen, dass keines kommt. Es setzt die Viabilitätsbefunde voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1837,6 +1952,9 @@
       ],
       "issue": 948,
       "source": "https://github.com/silentspike/rota/issues/948",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "eine Balance-Ausgabe rechnet erstmals über einen nicht-skalaren Pfad.",
+      "zuschnitt_hinweis": "Heute gibt es nur den skalaren.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue ist die Abschlussprüfung eines Balance-Laufs. Es setzt alle übrigen Bauteile des\nBalance-Epics voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e128-abschluss"],
@@ -1863,6 +1981,8 @@
       ],
       "issue": 949,
       "source": "https://github.com/silentspike/rota/issues/949",
+      "zuschnitt": "erledigt",
+      "zuschnitt_grund": "Commit 6b2b2865 über PR #1114, `docs/MACHBARKEIT.md`; Kontrollproben vom 06.09. noch nicht selbst nachgefahren.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue prüft **vor dem Start**, ob die Pflichtarbeit ins Budget passt. Es setzt den\nLaufvertrag und die Fähigkeitserhebung voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1894,6 +2014,8 @@
       ],
       "issue": 950,
       "source": "https://github.com/silentspike/rota/issues/950",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "ersetzt eine Masterplan-Regel („Der Rest bleibt Stichprobe“); Projektionen → N3.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue ersetzt „der Rest bleibt Stichprobe\" durch eine Abdeckungszusage, die sich\nbelegen lässt. Es setzt die typisierte Wirkungsbeschreibung voraus — sie sagt, welche\nWechselwirkungen überhaupt zählen.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1925,6 +2047,8 @@
       ],
       "issue": 951,
       "source": "https://github.com/silentspike/rota/issues/951",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "fällt mit #950 (Wechselwirkungsabdeckung).",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut den unabhängigen Verifizierer für die Abdeckungsmatrix. Es setzt die Matrix\nvoraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1957,6 +2081,8 @@
       ],
       "issue": 952,
       "source": "https://github.com/silentspike/rota/issues/952",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "beantwortet eine Betriebsfrage des Sim-Plans, keine Masterplan-Anforderung; sechs Vorbedingungen, fünf ungebaut.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue verteilt Budget zwischen **Aufgabenklassen**, nicht zwischen Suchoperatoren. Es\nsetzt den Auswertungs-Verteiler und die Operatorstatistik voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -1988,6 +2114,9 @@
       ],
       "issue": 953,
       "source": "https://github.com/silentspike/rota/issues/953",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 946,
+      "zuschnitt_grund": "aus #953 AC3 (Laufabschluss getrennt von „Vertrag verletzt“) als Zusatzzeile.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue erzeugt das Zertifikat, mit dem ein Lauf endet — es sagt, **was bewiesen und was\nnur gesucht** wurde. Es aggregiert die Viabilitätsbefunde, die Abdeckung und die aktiven\nBosssets.\n\n**Es gibt keinen Zyklus:** Die Viabilitätsbefunde hängen **nicht** an diesem Issue.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2019,6 +2148,8 @@
       ],
       "issue": 954,
       "source": "https://github.com/silentspike/rota/issues/954",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "eine Masterplan-Ausgabe muss über mehrere Vergleiche gestichprobt werden (setzt N1 voraus).",
       "dependency_evidence": {
         "issue_context": "Dieses Issue führt die statistische Sicherheit **campaignweit** statt je Vergleich. Es setzt\ndas Qualitätszertifikat voraus.\n\n**Wann es gebraucht wird — und wann nicht:** Es ist nur dort nötig, wo tatsächlich\ngestichprobt wird. Der Kampf hat zwei aktive Zufallsquellen; solange die Siegwahrscheinlichkeit\ndaraus **exakt** gerechnet wird, gibt es kein Irrtumsrisiko und damit auch kein\nMehrfachvergleichsproblem. Sobald die exakte Rechnung an einem Zustandsraum scheitert und auf\nStichproben ausweicht, wird dieses Issue **sofort** gebraucht — und zwar bevor die erste\nKampagne läuft, nicht danach.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2063,6 +2194,8 @@
       ],
       "issue": 955,
       "source": "https://github.com/silentspike/rota/issues/955",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "elf Vorbedingungen; die Gate-Matrix des Masterplans leistet es schon.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue ersetzt freie Parameter durch benannte Kampagnenprofile. Es setzt das\nKommandozeilenwerkzeug voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2094,6 +2227,8 @@
       ],
       "issue": 956,
       "source": "https://github.com/silentspike/rota/issues/956",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "eine Rechnung, die im Plan steht und für keine heutige Rechnermenge mehr gilt.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue rechnet aus, was die vorhandene Hardware in diesem Rahmen leisten kann — und\nkennzeichnet jede Zahl als das, was sie ist: eine **Ableitung aus Zielwerten**, die noch\nniemand erreicht hat.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2123,6 +2258,8 @@
       ],
       "issue": 957,
       "source": "https://github.com/silentspike/rota/issues/957",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "die Monte-Carlo-Simulation aus #922 ist für die Punktekurven-Frage zu langsam.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue löst die Fortschrittsschleife **exakt**, wo sie exakt lösbar ist — statt\nzehntausend Spielerlaufbahnen zu würfeln. Es setzt die Fortschritts-Simulation voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e216-fortschritt-exakt-statt-gewürfelt"],
@@ -2151,6 +2288,9 @@
       ],
       "issue": 958,
       "source": "https://github.com/silentspike/rota/issues/958",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "N4 zeigt einen Wiederholungslauf nach kleiner Zahlenänderung ab etwa einer Stunde.",
+      "zuschnitt_hinweis": "darin #935 (Invalidierungsregeln).",
       "dependency_evidence": {
         "issue_context": "Dieses Issue macht Ergebnisse **über Läufe hinweg** wiederverwendbar. Es setzt die Trennung\nder drei Speicher und die Invalidierungsregeln voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2214,6 +2354,8 @@
       ],
       "issue": 960,
       "source": "https://github.com/silentspike/rota/issues/960",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Festkomma-Kette (Skalierung, Überlaufbeweis, Browser-Grenze): der Auslöser verlangte den verworfenen Vektorpfad #929 und kann nie eintreten. Ein künftiger Ganzzahl- oder Vektorpfad nimmt die drei (#960, #961, #963) als seine Kriterien auf.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue legt fest, wie viele Nachkommastellen jede gespeicherte Größe trägt. Es setzt die\nDeckel-Tabelle voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2244,6 +2386,8 @@
       ],
       "issue": 961,
       "source": "https://github.com/silentspike/rota/issues/961",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Festkomma-Kette (Skalierung, Überlaufbeweis, Browser-Grenze): der Auslöser verlangte den verworfenen Vektorpfad #929 und kann nie eintreten. Ein künftiger Ganzzahl- oder Vektorpfad nimmt die drei (#960, #961, #963) als seine Kriterien auf.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue liefert für jede Rechenkette einen **maschinenprüfbaren** Überlaufbeweis. Es\nsetzt Deckel und Skalierung voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2304,6 +2448,8 @@
       ],
       "issue": 963,
       "source": "https://github.com/silentspike/rota/issues/963",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Festkomma-Kette (Skalierung, Überlaufbeweis, Browser-Grenze): der Auslöser verlangte den verworfenen Vektorpfad #929 und kann nie eintreten. Ein künftiger Ganzzahl- oder Vektorpfad nimmt die drei (#960, #961, #963) als seine Kriterien auf.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue entscheidet, wie die Browser-Seite mit Zahlen umgeht, die ihre exakte Grenze\nüberschreiten. Es setzt den Überlaufbeweis voraus — vorher wäre die Wahl geraten.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2334,6 +2480,8 @@
       ],
       "issue": 964,
       "source": "https://github.com/silentspike/rota/issues/964",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "der einzige Teil mit Bedarf, die Bitgleichheit auf node3, ist N5; die AC2-Vertragspunkte gehen an #928.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue weist nach, dass alle fünf Rechenpfade denselben numerischen Vertrag erfüllen. Es\nsetzt Deckel, Skalierung, Überlaufbeweis und Rundungsregel voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2561,6 +2709,9 @@
       ],
       "issue": 971,
       "source": "https://github.com/silentspike/rota/issues/971",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "N4 zeigt, dass ein homogener Teil mehr als die Hälfte der Wanduhr ausmacht und Stapel ab 50 000 Kandidaten bildet.",
+      "zuschnitt_hinweis": "darin #938 (gemeinsame Kalibrierung). Auslöser neu; die alte Vorbedingung #906 und die verworfenen Vorbedingungen gelten nicht mehr.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut den Grafikeinheit-Auswerter für die Teile der Arbeit, die homogen genug\ndafür sind. Es setzt den numerischen Vertrag und den Vektorpfad voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": ["41-woran-jedes-issue-hängt", "e13-die-cuda-pipeline-konkretisiert"],
@@ -2588,6 +2739,8 @@
       ],
       "issue": 972,
       "source": "https://github.com/silentspike/rota/issues/972",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "was Wert hat, baute #934; Diagnose über mehrere Rechner gibt es seit 28.10. nicht mehr.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue erhebt die Vergleichsgrundlage, gegen die die Engpassdiagnose ihre Schwellen\nsetzt — je Rechner, je Kernklasse, je Lastprofil. Es setzt die Diagnose voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2620,6 +2773,9 @@
       ],
       "issue": 973,
       "source": "https://github.com/silentspike/rota/issues/973",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 975,
+      "zuschnitt_grund": "Manifest.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut das Lauf-Manifest und das fortlaufende Journal. Es ist der Einstieg in den\nLauf-Zustand; die übrigen Teile setzen es voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2650,6 +2806,9 @@
       ],
       "issue": 974,
       "source": "https://github.com/silentspike/rota/issues/974",
+      "zuschnitt": "aufgegangen",
+      "zuschnitt_ziel": 975,
+      "zuschnitt_grund": "geordnetes Anhalten.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut das geordnete Anhalten — in sieben Schritten, von denen keiner Arbeit\nverwirft. Es setzt das Manifest voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2680,6 +2839,9 @@
       ],
       "issue": 975,
       "source": "https://github.com/silentspike/rota/issues/975",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "N4 zeigt einen Lauf über 4 h, oder ein Lauf auf node3 bricht nachweislich ab.",
+      "zuschnitt_hinweis": "darin #973 (Manifest) und #974 (geordnetes Anhalten).",
       "dependency_evidence": {
         "issue_context": "Dieses Issue baut das Fortsetzen und weist nach, dass ein fortgesetzter Lauf **bitgleich**\ndasselbe liefert wie ein durchgehender. Es setzt Manifest und geordnetes Anhalten voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2710,6 +2872,8 @@
       ],
       "issue": 976,
       "source": "https://github.com/silentspike/rota/issues/976",
+      "zuschnitt": "verworfen",
+      "zuschnitt_grund": "Index für ein Bauteil, das kein Paket baut.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue macht die Ledger-Auswertung sparsam: Bei einer Parameteränderung werden nur die\nbetroffenen Terme neu ausgewertet. Es setzt den Trace-Ledger voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
@@ -2740,6 +2904,9 @@
       ],
       "issue": 977,
       "source": "https://github.com/silentspike/rota/issues/977",
+      "zuschnitt": "ruht",
+      "zuschnitt_grund": "mehr als die Hälfte der Kampfzeit der Suche entfällt auf Kandidaten, die am Ende unter dem Amtsinhaber liegen.",
+      "zuschnitt_hinweis": "Bei Wiederaufnahme die Schranke aus `ActionBoundPass` statt aus #925.",
       "dependency_evidence": {
         "issue_context": "Dieses Issue bricht einen Kampf ab, sobald er den eingefrorenen Amtsinhaber nicht mehr\nschlagen kann. Es setzt die Trace-Regionen und die abgeleitete Schrankenfähigkeit voraus.\n\nAlles, was zur Umsetzung nötig ist, steht in diesem Issue, in den unten genannten Dateien und\nin `AGENTS.md`.",
         "plan_sections": [
