@@ -93,7 +93,7 @@ Referenzprofil "standard"
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Bis dahin stand hier
 > „Laptop + proxmox + gonet". Zusatzrechner ist nur noch **node3**; dort steht seit demselben Tag
-> ein eigener Simulations-Container (CT 105 `rota-sim`, Teil 2.1). gonet und 10.0.0.69
+> ein eigener Simulations-Container (CT 105 `rota-sim`, Teil 2.1). gonet und [interne Adresse entfernt]
 > gehören nicht mehr zum Profil. Die Ressourcenvorgaben je Rechner stehen am Code-Eintrag oben,
 > nicht ein zweites Mal hier; der Speicher ist dort auf beiden Rechnern eine **Obergrenze**, keine
 > Reservierung — der Lauf belegt nur, was er gerade braucht.
@@ -480,7 +480,7 @@ System gelaufen._
 
 > **Nachgetragen am 2026-10-28 — Entscheidung des Auftraggebers.** Diese Aufnahme stammt vom
 > 2026-08-14. Seit 2026-10-28 gehören zum Referenzprofil nur noch **Laptop + node3**; gonet
-> (`10.0.0.106`) und proxmox (`10.0.0.69`) sind keine Zielrechner mehr. **Ihre Messungen bleiben
+> (`[interne Adresse entfernt]`) und proxmox (`[interne Adresse entfernt]`) sind keine Zielrechner mehr. **Ihre Messungen bleiben
 > unten unverändert als Befund stehen** — sie begründen Verfahren, die weiter gelten: Arbeit nach
 > gemessenen Raten verteilen statt nach Kernzahl, Pakete dynamisch vergeben, Bitgleichheit über
 > Architekturen nachweisen. Wo ein Abschnitt unten eine Schlussfolgerung zieht, die an den alten
@@ -503,7 +503,7 @@ System gelaufen._
 > **Der Simulations-Container**, am 2026-10-28 angelegt: **CT 105 `rota-sim`**, unprivilegiert,
 > Debian 13, `cores 16`, `cpuunits 20`, `memory 4096` nur als **Obergrenze** (`memory.max`), keine
 > Reservierung — im Leerlauf belegt er rund 20 MB. Er hängt im LAN wie die übrigen
-> Arbeitsmaschinen auf node3 (`10.0.0.238`), ohne Internetzugang; erreichbar nur per SSH mit
+> Arbeitsmaschinen auf node3 (`[interne Adresse entfernt]`), ohne Internetzugang; erreichbar nur per SSH mit
 > Schlüssel, ein Paketfilter im Container lässt nur SSH und ICMP aus dem LAN herein. Umlaufzeit
 > Laptop → Container, TCP-Verbindungsaufbau, n = 15: min 47,8 · Median 54,7 · max 195,3 ms.
 >
@@ -532,7 +532,7 @@ derselbe i7-3930K, nur ein Container darauf.
 
 **Prozessoren**
 
-|                  | **Laptop** (Ziel)       | **gonet** `10.0.0.106`    | **proxmox** `10.0.0.69`    |
+|                  | **Laptop** (Ziel)       | **gonet** `[interne Adresse entfernt]`    | **proxmox** `[interne Adresse entfernt]`    |
 | ---------------- | ----------------------- | ------------------------- | -------------------------- |
 | Modell           | Ryzen 9 5900HS          | Core i7-3930K             | Core i5-1235U              |
 | Mikroarchitektur | Zen 3 (2021)            | Sandy Bridge-E (**2011**) | Alder Lake (2022)          |
@@ -631,8 +631,8 @@ gonet sind nur 230 GB frei.
 | System              | Str. | AVX2/FMA | Belastung im Betrieb                           |
 | ------------------- | ---: | -------- | ---------------------------------------------- |
 | Laptop (Ziel)       |   16 | **ja**   | die Arbeitsmaschine selbst, RAM-Engpass        |
-| gonet `10.0.0.106`  |   12 | **nein** | Load ~3,0 dauerhaft: rustbuild, CI-Runner, pki |
-| proxmox `10.0.0.69` |   12 | **ja**   | Load ~0,2 — praktisch im Leerlauf              |
+| gonet `[interne Adresse entfernt]`  |   12 | **nein** | Load ~3,0 dauerhaft: rustbuild, CI-Runner, pki |
+| proxmox `[interne Adresse entfernt]` |   12 | **ja**   | Load ~0,2 — praktisch im Leerlauf              |
 
 **Gemessen** (`sim/examples/orch-verteilung.rs`, dasselbe Binary, 200 000 Kämpfe, feste
 Rotation, Aufwärmlauf davor):
@@ -801,7 +801,7 @@ Eigenschaften, die keine andere Maßnahme hat:
 #### Empfehlung
 
 > **Geändert am 2026-10-28 — Entscheidung des Auftraggebers.** Hier stand eine gestaffelte
-> Empfehlung: „Zuerst `10.0.0.69` allein, als eigener LXC … **+61 % ohne Konflikt**", danach
+> Empfehlung: „Zuerst `[interne Adresse entfernt]` allein, als eigener LXC … **+61 % ohne Konflikt**", danach
 > „gonet erst danach, und mit Vorbehalt", weil er den GitHub-Actions-Runner und rustbuild trug.
 > Beide Rechner gehören nicht mehr zum Profil.
 
@@ -3956,7 +3956,7 @@ Container Anspruch anmeldet. **`cores` großzügig, `cpuunits` niedrig** — das
 Konfiguration, die Overprovisioning möglich macht. RAM dagegen wird bei LXC hart begrenzt und
 nur belegt, was wirklich gebraucht wird; der Simulator braucht davon wenig.
 
-**Freie Kapazität auf `10.0.0.69`**, gemessen: fünf LXC mit zusammen 19 zugeteilten Kernen, drei
+**Freie Kapazität auf `[interne Adresse entfernt]`**, gemessen: fünf LXC mit zusammen 19 zugeteilten Kernen, drei
 laufende VMs mit 8 — bei 12 physischen Strängen. **Der Node ist bereits um Faktor 2,25
 überbucht und läuft trotzdem bei Load 0,2.** Ein weiterer Container ändert daran nichts,
 solange er der nachgiebigste ist.

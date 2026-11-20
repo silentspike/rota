@@ -380,7 +380,7 @@ class FensterHookTests(unittest.TestCase):
         'cargo remote -h -- build',
         'flock --timeout 60 /work/tmp/x.lock cargo remote -- test',
         'bash ~/bin/cargo-remote-fmt --check',
-        'sh /home/jan/bin/cargo-remote-fmt',
+        'sh /home/operator/bin/cargo-remote-fmt',
         'cargo remote --resources=large -c -- build --release',
         "python3 -c \"import subprocess; subprocess.run(['cargo', 'remote', '--', 'test'])\"",
     ]

@@ -1115,7 +1115,7 @@ fn ac2_name_und_netz_des_referenzprofils_aendern_den_fingerabdruck() {
 ///
 /// Rechner: Entscheidung des Auftraggebers vom 2026-10-28. Der Plan nannte
 /// „Laptop + proxmox + gonet". Zusatzrechner ist nur noch node3 (Proxmox-Knoten
-/// `ovh-pve1`, AMD Ryzen 7 9700X, 8 Kerne/16 Stränge); gonet und 10.0.0.69
+/// `ovh-pve1`, AMD Ryzen 7 9700X, 8 Kerne/16 Stränge); gonet und [interne Adresse entfernt]
 /// gehören nicht mehr dazu.
 ///
 /// Rollen: zweite Entscheidung desselben Tages, auf die Frage, ob der Laptop

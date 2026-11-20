@@ -36,7 +36,7 @@
 #   project_id  steht mit Absicht im Repository: Alle Worktrees sind dasselbe
 #               Projekt, jeder bekommt trotzdem einen eigenen Arbeitsbereich.
 #
-# Der Eintrag des alten Dienstes (CT 155, root@10.0.0.155) ist gelöscht, nicht
+# Der Eintrag des alten Dienstes (CT 155, builder@build-host.example.invalid) ist gelöscht, nicht
 # nur überstimmt: Ein Aufruf, der v2 verfehlt, soll scheitern, statt still auf
 # dem alten Dienst zu bauen. Zurück geht es über `git revert` dieses Wechsels.
 

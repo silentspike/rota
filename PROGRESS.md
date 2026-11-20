@@ -2,7 +2,7 @@
 
 ## Status: ABGESCHLOSSEN MIT EINEM BLOCKER
 
-**Plan:** `/home/jan/.claude/plans/greedy-skipping-russell.md` (SSOT der Planung)
+**Plan:** `$HOME/.claude/plans/greedy-skipping-russell.md` (SSOT der Planung)
 **Umfang:** Teil E.5 — der Infrastruktur-Aufbau, bis der erste Worker (E1) starten kann.
 Der Spielinhalt selbst gehört den Worker-Sessions und ist **nicht** Teil dieser Liste.
 
@@ -56,7 +56,7 @@ Der Spielinhalt selbst gehört den Worker-Sessions und ist **nicht** Teil dieser
 | ------ | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | **B1** | Die zwei **HUD-Referenzbilder** (Reaktionsgefäß, Messring, „CASCADE FAILURE"-Zauberbalken, Pergament-Ausgabefeld, Apparatur) | Blockiert **nur Issue #19** (E9-1, Stil festlegen). Das HUD-Gerüst entsteht laut GAME-DESIGN 17.2 ohnehin zuerst ohne Vorlage | Die zwei Bilder nach `/work/rota/docs/refs/` legen und in `ASSETS.md` eintragen |
 
-Eine systemweite Suche über `/home/jan`, `/work`, `/data` und `/tmp` — alle Bilddateien der letzten
+Eine systemweite Suche über `$HOME`, `/work`, `/data` und `/tmp` — alle Bilddateien der letzten
 Tage plus Namenssuche nach `rota`, `hud`, `alch`, `crucible`, `cascade` — blieb ergebnislos.
 Wahrscheinlichste Erklärung: Sie lagen als Anhang im Gesprächsverlauf und wurden nie als Datei
 gespeichert.

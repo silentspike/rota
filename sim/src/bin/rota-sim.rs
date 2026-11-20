@@ -722,7 +722,7 @@ BEISPIELE
 
 OPTIONEN
   --peer <ziel>          ein zweiter Rechner fuer die Bitgleichheit, als
-                         BENUTZER@RECHNER — etwa 'root@10.0.0.155'. Er
+                         BENUTZER@RECHNER — etwa 'builder@build-host.example.invalid'. Er
                          braucht dasselbe Programm im Pfad. Ist er nicht
                          erreichbar, wird die Pruefung UEBERSPRUNGEN, nicht
                          als gescheitert gewertet.

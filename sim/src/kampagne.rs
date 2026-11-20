@@ -48,7 +48,7 @@
 //! [`REFERENCE_PROFILE_STANDARD`] ist **Laptop + node3: node3 rechnet, die CPU
 //! des Laptops koordiniert nur.** Der Plan nannte „Laptop + proxmox + gonet"; der
 //! Auftraggeber hat die Zusatzrechner am 2026-10-28 neu festgelegt: nur node3
-//! (Proxmox-Knoten `ovh-pve1`, AMD Ryzen 7 9700X). gonet und 10.0.0.69 gehören
+//! (Proxmox-Knoten `ovh-pve1`, AMD Ryzen 7 9700X). gonet und [interne Adresse entfernt] gehören
 //! nicht mehr dazu. Am selben Tag hat er die CPU des Laptops auf das
 //! Koordinieren beschränkt ([`CpuRole::Coordinator`], Fassung 2 des Profils);
 //! in Fassung 1 rechnete sie mit zwölf Strängen mit. Seine GPU darf rechnen
@@ -875,7 +875,7 @@ static STANDARD_HOSTS: &[HostRequirement] = &[
 ///
 /// Das Netz ist die eine Verbindung Laptop → node3, vom Koordinator zum
 /// einzigen rechnenden Rechner. Umlaufzeit höchstens 250 ms: gemessen am
-/// 2026-10-28 mit `ping -c 10` zur Bau-VM auf node3 (10.0.0.237), min 48 /
+/// 2026-10-28 mit `ping -c 10` zur Bau-VM auf node3 ([interne Adresse entfernt]), min 48 /
 /// Mittel 92 / max 183 ms. Die Bandbreite ist **nicht gemessen** und steht
 /// deshalb als unbekannt; erhoben wird sie mit #912.
 pub const REFERENCE_PROFILE_STANDARD: ReferenceProfile = ReferenceProfile {

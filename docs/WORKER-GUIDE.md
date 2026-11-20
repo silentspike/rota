@@ -4641,7 +4641,7 @@ nicht", obwohl es sie gab. Eine Stunde später kam derselbe Fehler in der Gegenr
 Eine Sitzung prüfte, ob ihre Rotationsdateien auf dem Build-Server angekommen sind:
 
 ```bash
-ssh root@10.0.0.155 "ls /tmp/builds/*/sim/apl/"
+ssh builder@build-host.example.invalid "ls /tmp/builds/*/sim/apl/"
   step1-bad.apl   step1-good.apl   step3-good.apl
 ```
 
@@ -4651,7 +4651,7 @@ und daraus eine Diagnose, ein Blocker und drei Lösungswege.
 **Sie waren da.**
 
 ```bash
-ssh root@10.0.0.155 "find /tmp/builds -name 'step517*'"
+ssh builder@build-host.example.invalid "find /tmp/builds -name 'step517*'"
   /tmp/builds/9932248061915886481/sim/apl/step517-mit.apl
   /tmp/builds/9932248061915886481/sim/apl/step517-ohne.apl
 ```
@@ -7733,8 +7733,8 @@ Sie lieferte drei Zeilen — und keine davon gehörte der meldenden Sitzung:
 
 ```
 /bin/bash -c ... cd /work/rota-worktrees/e9 ... cargo-remote-fmt
-/bin/bash /home/jan/bin/cargo-remote-fmt
-ssh root@10.0.0.155 cd '/tmp/cargo-remote-fmt/e9' && rustup update ...
+/bin/bash $HOME/bin/cargo-remote-fmt
+ssh builder@build-host.example.invalid cd '/tmp/cargo-remote-fmt/e9' && rustup update ...
 ```
 
 `cargo-remote-fmt`, `vitest`, `cargo`, `tests-lokal` laufen in allen Worktrees gleich. Der
