@@ -31,9 +31,8 @@ Aendert sich LENGTH_TOLERANCE_S, aendern sich beide. Das ist der ganze Zweck.
 
 WER SIE LIEST
 -------------
-`sfx-verify.py` hier und `suno/suno_api.py` im privaten Werkzeug-Repo
-internes-klangwerkzeug. Das Werkzeug liegt seit 2026-10-28 dort, importiert
-diese Datei aber aus dem rota-Checkout, aus dem es aufgerufen wird
+`sfx-verify.py` und die interne Klang-Werkzeugkette lesen diese Datei aus dem
+rota-Checkout, aus dem sie aufgerufen werden
 (`LENGTH_TOLERANCE_S`, `candidate_usable`). Wer einen der beiden Namen ändert,
 bricht es — und die CI von rota bemerkt das nicht.
 """

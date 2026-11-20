@@ -4137,16 +4137,7 @@ Eine Sitzung meldete zwei Blocker. Der zweite lautete:
 Daraus folgte eine Frage an den Orchestrator, ob ein Spiel-Zauber ausnahmsweise auf die `STUMM`-Liste
 dürfe — eine Design-Entscheidung, die niemand treffen wollte.
 
-Gemessen, in einer Zeile:
-
-```
-python tools/suno_api.py auth-test
-  Account: internes-klangkonto | billing/info: HTTP 200
-  Credits: 1342 | Tier: True
-```
-
-(Das Werkzeug liegt seit 2026-10-28 als `suno/suno_api.py` im privaten Werkzeug-Repo
-`internes-klangwerkzeug`.)
+Die interne Tarifprüfung bestätigte verfügbares Guthaben und einen aktiven Tarif.
 
 Der Klang war zwei Minuten später fertig. Die Einordnung der Sitzung selbst: _„Meine Suno-Sperre war
 eine ungeprüfte Annahme aus einer alten Notiz."_

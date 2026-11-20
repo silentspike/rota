@@ -3,9 +3,8 @@
  *
  * `data/sound-manifest.json` ist die eine Wahrheit darueber, welche Klaenge es
  * gibt, wofuer sie da sind, wie lang sie werden sollen und mit welchem Prompt
- * sie erzeugt wurden. Die Erzeugung (`suno/` im privaten Werkzeug-Repo
- * internes-klangwerkzeug) und das Spiel lesen dieselbe Datei — sonst
- * driften Prompt-Sammlung und Auslieferung auseinander.
+ * sie erzeugt wurden. Die interne Erzeugung und das Spiel verwenden diese Datei,
+ * damit Prompt-Sammlung und Auslieferung dieselben Eintraege beschreiben.
  *
  * Die Datei wird von Hand gepflegt. Deshalb wird sie hier geprueft, statt ihr
  * zu vertrauen: Ein Tippfehler in einem Weg-Namen soll beim Laden auffallen und

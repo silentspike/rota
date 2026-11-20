@@ -11,7 +11,7 @@ entschieden („Nur warnen", `f-lastwarnung-hook-3`).
 rechnet node3 die Zeitmessungen, und dort stört nicht ein lokaler Lauf,
 sondern jeder `cargo remote`-Aufruf einer anderen Sitzung: Der Bau-Dienst läuft
 auf demselben Knoten. `rota-fenster geben <Rolle> --ort node3 "<Zweck>"`
-(internes-klangwerkzeug) trägt den Ort in den Schalter ein; ein Schalter ohne Ort gilt
+(internes Fenster-Werkzeug) trägt den Ort in den Schalter ein; ein Schalter ohne Ort gilt
 als Laptop. Im node3-Fenster warnen nur Bau-Dienst-Aufrufe (`cargo remote`,
 `cargo-remote-fmt`), im Laptop-Fenster nur lokale Last. Nicht Entscheidbares
 meldet sich an beiden Orten, ein unbekannter Ort macht den Schalter unlesbar.

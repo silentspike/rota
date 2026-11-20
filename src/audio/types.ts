@@ -37,8 +37,7 @@ export interface OneShotDef {
 
 /**
  * Ein Klang, der so lange laeuft wie der Spieleffekt — dreiteilig aufgebaut
- * (GAME-DESIGN 17.1; suno/suno-sfx.md 4.2 im privaten Werkzeug-Repo
- * internes-klangwerkzeug):
+ * (GAME-DESIGN 17.1):
  *
  * | Teil    | Quelle   | Abspielweise                          |
  * | ------- | -------- | ------------------------------------- |

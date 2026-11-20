@@ -53,9 +53,7 @@ ohne_codebloecke() {
 # Abschnittsnummern tragen (suno-sfx.md, VERIFICATION.md und STEP1-SPEC.md
 # fehlten). Ein sechstes Dokument haette der Waechter nie zu sehen bekommen,
 # und er haette weiter brav "keine doppelt" gemeldet — ueber die zwei, die er
-# kannte. (Stand von #1023. suno-sfx.md liegt seit 2026-10-28 im privaten
-# Werkzeug-Repo internes-klangwerkzeug, die Ablesung fand sie danach von
-# selbst nicht mehr.)
+# kannte. (Stand von #1023. Die interne Sound-Doku liegt ausserhalb dieses Checkouts.)
 #
 # Eine Liste dort, wo eine Ablesung hingehoert: Der Waechter waechst dann nicht
 # mit dem Bestand, sondern muss gepflegt werden — und wer ihn pflegen muesste,

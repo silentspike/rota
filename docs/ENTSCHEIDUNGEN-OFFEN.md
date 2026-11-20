@@ -144,8 +144,7 @@ bereits mit; ich hatte den Vorgang von Hand nachgebaut, statt ihn aufzurufen.
 geprüft (Länge exakt, −16 bis −20 LUFS, keine Anfangsstille, 120 von 120 Paaren unterscheidbar),
 ästhetisch nicht — das kann ich nicht.
 
-Das `tools/suno_api.py` im ursprünglichen Text liegt seit 2026-10-28 als `suno/suno_api.py` im
-privaten Werkzeug-Repo `internes-klangwerkzeug`.
+Der im ursprünglichen Text erwähnte Tarifabruf gehört zur internen Werkzeugkette.
 
 <details>
 <summary>Der ursprüngliche Text, zur Nachvollziehbarkeit</summary>
@@ -157,13 +156,7 @@ Sieben Zauber sind stumm, und das Manifest hält sie für fertig:
 | `spell-crust`, `spell-salve`, `spell-temper`              | fehlt | **nein**               |
 | `spell-bind`, `spell-stall`, `spell-stay`, `spell-anchor` | fehlt | **nein**               |
 
-Am Guthaben liegt es nicht:
-
-```
-$ /venv/bin/python tools/suno_api.py auth-test
-Account: internes-klangkonto  |  billing/info: HTTP 200
-  Credits: 2322  Tier: True
-```
+Zum Zeitpunkt des dokumentierten Tests war Guthaben vorhanden.
 
 Es liegt an der Bot-Erkennung vor dem Erzeugen. **Der Weg, sie zu umgehen, ist abgelehnt und bleibt
 es** — hier steht nur, welche Wege offen sind:

@@ -9,9 +9,8 @@
  * Der Pfad im Manifest ist relativ zum Projekt, z. B. `audio/spell-kindle.ogg`.
  */
 // Bewusst nur `assets/audio/`: Dort liegen die Klaenge des Spiels. Die uebrigen
-// Ordner unter `assets/sfx/` sind Messreihen der Werkzeugkette (suno/suno-sfx.md 7
-// im privaten Werkzeug-Repo internes-klangwerkzeug) und haetten in der
-// Auslieferung nichts verloren.
+// Ordner unter `assets/sfx/` enthalten interne Messreihen. Die Auslieferung
+// enthaelt nur die Spielklaenge.
 const urls = import.meta.glob<string>('/assets/audio/**/*.{ogg,mp3,wav}', {
   eager: true,
   query: '?url',

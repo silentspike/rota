@@ -2033,8 +2033,7 @@ hunderten Wiederholungen zur Qual wird.
 | **Tonhöhen-Streuung** | Wenige Prozent, zufällig, bei jeder Wiedergabe. Verhindert den Maschinengewehr-Effekt. Bei tonalen Klängen je Klang begrenzen                                                      |
 | **Zwei Sound-Typen**  | **One-Shot** (feste Länge) und **Sustained** — letztere **dreiteilig**: Ansatz (One-Shot) → Körper (Loop) → Ausklang (One-Shot), weil der Effekt abgebrochen werden kann           |
 
-**Produktion:** Suno, Werkzeugkette steht und ist verifiziert — SSOT `suno/suno-sfx.md` im privaten
-Werkzeug-Repo `internes-klangwerkzeug`.
+**Produktion:** Suno. Prompt-Regeln und Werkzeugkette sind intern dokumentiert.
 
 #### Was die Klang-Produktion kostet (gemessen, 2026-07-28)
 

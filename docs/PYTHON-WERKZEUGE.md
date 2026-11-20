@@ -12,11 +12,7 @@ ausgeführte Werkzeuge erhalten die Syntaxprüfung. Keine der genannten Dateien
 wird als veraltet entfernt: Die manuelle Asset-Produktion und die langen
 Messläufe sind weiterhin benannte Aufgaben.
 
-Die beiden Werkzeuge der Klangerzeugung, `suno_api.py` und
-`sound-manifest-to-suno.py`, standen bis 2026-10-28 in dieser Liste. Sie sind
-nicht entfernt, sondern ins private Werkzeug-Repo `internes-klangwerkzeug`
-umgezogen (`suno/`), weil rota öffentlich werden soll. Dort prüft
-`tests/test_suno_pfade.py` ihre Pfadauflösung, ohne Suno zu erreichen.
+Die Werkzeuge für Klangerzeugung und Manifest-Export werden intern gepflegt. Dort prüfen Tests ihre Pfadauflösung ohne einen Aufruf des Generierungsdienstes.
 
 `python3 -B tools/sim-registry.py --check` prüft im selben `lint`-Job zusätzlich
 die Planungsregistry und ihre erzeugten Tabellen (#895). Ihre Verhaltenstests

@@ -17,7 +17,7 @@ vier Kernklänge müssen fertig sein, wenn E1 seinen Kampf abgibt.
 | --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | 1   | `CLAUDE.md`                                                               | Rahmenbedingungen, besonders zum Klang                             |
 | 2   | `docs/GAME-DESIGN.md` 17.1                                                | Die Aufstellung aller 115 Klänge und die Musik-Schichten           |
-| 3   | `suno/suno-sfx.md` im privaten Werkzeug-Repo `internes-klangwerkzeug` | Die fertige Werkzeugkette — Prompt-Regeln, Längen, Nachbearbeitung |
+| 3   | Interne Dokumentation zur Klangerzeugung | Prompt-Regeln, Längen und Nachbearbeitung |
 | 4   | `docs/WORKER-GUIDE.md`                                                    | Der verbindliche Ablauf je Issue                                   |
 
 ## Dein Arbeitsplatz
@@ -43,8 +43,7 @@ Teil von #16, werden aber am dringendsten gebraucht. Mach sie zuerst.
 
 ## Zwei Dinge, die nicht verhandelbar sind
 
-1. **Nur das Suno-Konto `internes-klangkonto`.** `suno/suno_api.py` (Werkzeug-Repo) erzwingt das über einen
-   Konto-Wächter.
+1. **Kontozuordnung prüfen.** Die interne Werkzeugkette verwendet das für die Produktion freigegebene Konto.
 2. **Die ästhetische Abnahme macht der Auftraggeber.** Claude kann nicht hören. Du prüfst technisch
    mit `ffprobe`: Länge, Pegel, Anfangs-Stille, Clipping. Für das Urteil baust du ein
    Abhör-Soundboard.
