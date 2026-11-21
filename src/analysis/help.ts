@@ -50,7 +50,15 @@ export function withPlainText(term: string): string {
 }
 
 /** Worauf sich eine Erklaerung bezieht. */
-export type HelpSubject = 'spell' | 'stat' | 'school' | 'bossAbility' | 'mechanic';
+export type HelpSubject =
+  | 'spell'
+  | 'stat'
+  | 'school'
+  | 'bossAbility'
+  | 'mechanic'
+  // Seit #1177: Talente und Ausrüstungsplätze sind Begriffe, die das Spiel zeigt.
+  | 'talent'
+  | 'slot';
 
 export interface HelpEntry {
   readonly id: string;

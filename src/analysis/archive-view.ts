@@ -26,6 +26,18 @@ const VOICE_LABEL: Readonly<Record<string, string>> = {
   other: 'Unattributed',
 };
 
+/**
+ * Die Überschriften der Kapitel ohne Instanz (Issue #1177). Die Kennungen
+ * stehen in `ARCHIVE_CHAPTERS` (archive.ts); hier steht nur, was der Spieler
+ * liest.
+ */
+export const ARCHIVE_CHAPTER_TITLES: Readonly<Record<string, string>> = {
+  processes: 'Processes',
+  spells: 'Spells',
+  sets: 'Sets',
+  finds: 'Finds',
+};
+
 function element(tag: string, className?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   if (className !== undefined) node.className = className;
@@ -103,7 +115,15 @@ export function buildEntryPopup(entry: ArchiveEntry, onDismiss: () => void): HTM
  * `buildArchive` in archive.ts, nicht die Ansicht. Zwei Stellen, die darueber
  * befinden, waeren eine zu viel.
  */
-export function buildArchiveView(sections: readonly ArchiveSection[]): HTMLElement {
+export function buildArchiveView(
+  sections: readonly ArchiveSection[],
+  /**
+   * Die Überschrift eines Abschnitts (Issue #1177): der Name der Instanz oder
+   * des Kapitels. Vorher stand dort die Kennung („instance-1"). Ohne Angabe
+   * bleibt es bei ihr — die Prüfseite kennt keine Instanzen.
+   */
+  titleOf: (sectionId: string) => string = (sectionId) => sectionId,
+): HTMLElement {
   const root = element('section', 'archive');
   root.appendChild(element('h2', 'archive-heading', 'ARCHIVE'));
 
@@ -116,7 +136,8 @@ export function buildArchiveView(sections: readonly ArchiveSection[]): HTMLEleme
 
   for (const section of sections) {
     const group = element('div', 'archive-section');
-    group.appendChild(element('h3', 'archive-instance', section.instanceId));
+    group.dataset.section = section.instanceId;
+    group.appendChild(element('h3', 'archive-instance', titleOf(section.instanceId)));
     for (const entry of section.entries) group.appendChild(buildEntry(entry));
     root.appendChild(group);
   }

@@ -222,7 +222,11 @@ export function buildComposition(options: CompositionViewOptions): HTMLElement {
     // nennt — die Schule ist der Prozess-Name, den ein neuer Spieler zuerst
     // liest und am wenigsten einordnen kann.
     const titel = element('h4', 'composition-group-title', withPlainText(gruppe.label));
-    titel.dataset.help = gruppe.school ?? '';
+    // **Auch die Gruppe ohne Schule hat eine Kennung** (Issue #1177). Bis
+    // dahin stand hier ein leeres `data-help` — ein Merkmal, zu dem es nie
+    // eine Erklärung geben konnte; „School-independent" ist aber ein Begriff,
+    // den der Spieler liest.
+    titel.dataset.help = gruppe.school ?? 'school-independent';
     // Die Farbe steht am Element, nicht in der CSS-Datei: Sie kommt aus den
     // Daten (welche Schule), nicht aus der Gestaltung.
     if (gruppe.colour !== null) {
@@ -302,6 +306,10 @@ export function buildComposition(options: CompositionViewOptions): HTMLElement {
   for (const zeile of previewOfLoadout(options.bindings, plaetze, options.spells)) {
     const line = element('p', 'composition-preview-line', zeile.text);
     line.dataset.school = zeile.school;
+    // **Die Vorschau nennt den Vorrat einer Schule** („Heat · 2 feeding"),
+    // und erklärt wird er dort, wo die Schule erklärt wird (Issue #1177):
+    // derselbe Eintrag wie am Schulnamen links, der den Vorrat beschreibt.
+    line.dataset.help = zeile.school;
     const farbe = colourOfSchool(zeile.school);
     if (farbe !== null) line.style.color = farbe;
     vorschau.appendChild(line);

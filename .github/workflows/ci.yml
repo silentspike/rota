@@ -263,6 +263,13 @@ jobs:
           fi
           echo "Auslieferungs-Bundle enthält keine Dev-Werkzeuge."
 
+      # Issue #1177: Die Prüfeinträge für Archiv und Hilfe sind Prüfdaten und
+      # gehören nicht zum Spiel. Das Werkzeug bildet seine Merkmale aus den
+      # Prüfdateien selbst und sucht sie im gebauten Stand; Exit 2 heißt
+      # „nichts geprüft" und ist ebenfalls rot.
+      - name: Prüfeinträge nicht im Auslieferungs-Bundle
+        run: python3 -B tools/auslieferung-pruefdaten.py --dist dist
+
   # ---------------------------------------------------------- Rust (Simulator)
   # Läuft nur, wenn sim/ betroffen ist — sonst zahlt jede TypeScript-Änderung
   # Rust-Bauzeit.

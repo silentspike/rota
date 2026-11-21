@@ -85,10 +85,16 @@ const FONT_VESSEL = '58px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_TIMER = '46px ui-monospace, "DejaVu Sans Mono", monospace';
 const FONT_COUNTDOWN = '140px ui-monospace, "DejaVu Sans Mono", monospace';
 
-const LABEL_HEAT = 'HEAT';
+// **Die Beschriftungen sind exportiert, und nur dafür** (Issue #1177): Die
+// Zeichenfläche trägt kein `data-help`, an dem ein Erklärfenster hängen könnte.
+// Ihre Begriffe erklärt die geführte Einführung, und
+// `tests/unit/hilfe-abdeckung.test.ts` hält jede `LABEL_*`-Konstante dieser
+// Datei gegen deren Texte. Eine neue Beschriftung fällt dort auf, ohne dass
+// jemand eine Liste pflegt.
+export const LABEL_HEAT = 'HEAT';
 /** Die zwei Mechaniken, die seit #283 danebenstehen (GAME-DESIGN 5). */
-const LABEL_CONTROL = 'CONTROL';
-const LABEL_DECAY = 'DECAY';
+export const LABEL_CONTROL = 'CONTROL';
+export const LABEL_DECAY = 'DECAY';
 /**
  * Die Rückmeldung, dass der Auswahlmodus scharf steht (Issue E3-3c).
  *
@@ -97,17 +103,23 @@ const LABEL_DECAY = 'DECAY';
  * diesen Satz wüsste der Spieler nicht, dass sein nächster Druck etwas
  * anderes bedeutet als sonst.
  */
-const LABEL_RESET_ARMED = 'CHOOSE A SPELL TO RESET';
+export const LABEL_RESET_ARMED = 'CHOOSE A SPELL TO RESET';
 
-const LABEL_PERCENT = 'REACTION';
-const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
+/**
+ * Abstand der Zeile „Press Q" vom linken Rand der Leiste (Issue #1177): genug,
+ * um „DIRECT" in `FONT_SMALL` davor frei zu lassen.
+ */
+const FIRST_PRESS_OFFSET = 132;
+
+export const LABEL_PERCENT = 'REACTION';
+export const LABEL_OVERPRESSURE = 'OVERPRESSURE IN';
 // Spieltexte englisch (Design-Gesetz 5).
-const LABEL_DOOM = 'DOOM';
-const LABEL_ENERGY = 'ENERGY';
-const LABEL_DOOM_CHARGES = 'CLEANSE';
+export const LABEL_DOOM = 'DOOM';
+export const LABEL_ENERGY = 'ENERGY';
+export const LABEL_DOOM_CHARGES = 'CLEANSE';
 // Spieltexte englisch (Design-Gesetz 5).
-const LABEL_RACE = 'IMMUNE — BREAK THE SEAL';
-const LABEL_RACE_HINT = 'no damage lands';
+export const LABEL_RACE = 'IMMUNE — BREAK THE SEAL';
+export const LABEL_RACE_HINT = 'no damage lands';
 /** Ab diesem Anteil der Schwelle warnt die Farbe. Vorlaeufig, wird gemessen. */
 const THRESHOLD_WARN_AT = 0.7;
 const THRESHOLD_WIDTH = 190;
@@ -121,11 +133,11 @@ const THRESHOLD_HEIGHT = 10;
  */
 const THRESHOLD_STACK_STEP = 10 + THRESHOLD_HEIGHT + 20 + 24;
 const THRESHOLD_TRACK = 'rgba(255, 255, 255, 0.12)';
-const LABEL_TIME = 'time';
-const LABEL_DAMAGE = 'damage';
-const LABEL_CASTS = 'casts';
-const LABEL_MISSED = 'misinputs';
-const LABEL_STATE = 'state';
+export const LABEL_TIME = 'time';
+export const LABEL_DAMAGE = 'damage';
+export const LABEL_CASTS = 'casts';
+export const LABEL_MISSED = 'misinputs';
+export const LABEL_STATE = 'state';
 
 const BAR_WIDTH = BAR_RIGHT - BAR_LEFT;
 /** Direkt über der Zauberleiste (GAME-DESIGN 9.1). */
@@ -319,6 +331,15 @@ export class HudRenderer {
      * heisst: Es gibt keine zweite Kurve, also wird eine gezeichnet.
      */
     private readonly bestCurveSource: () => RunCurve | null = () => null,
+    /**
+     * Die Zeile „Press Q" beim allerersten Kampf, oder `null` (Issue #1177;
+     * Masterplan, Einstieg).
+     *
+     * **Als Zulieferung**, aus demselben Grund wie die Quellen darüber: Ob es
+     * der erste Kampf ist, steht im Spielstand, und den kennt der HUD nicht.
+     * **Ans Ende der Liste**, damit kein bestehender Aufruf sich verschiebt.
+     */
+    private readonly firstPressSource: () => string | null = () => null,
   ) {
     this.mechanicSource = {
       slotCount: SLOT_COUNT,
@@ -379,6 +400,7 @@ export class HudRenderer {
     this.announcements.drawCenter(ctx);
     this.drawCastBar(ctx, shownMs);
     this.drawResetPrompt(ctx);
+    this.drawFirstPress(ctx);
     this.spellBar.draw(ctx, shownMs);
     this.announcements.drawList(ctx, shownMs);
     this.drawReadouts(ctx, shownMs);
@@ -765,6 +787,30 @@ export class HudRenderer {
     ctx.font = FONT_SMALL;
     ctx.fillStyle = HEAT_FILL_BONUS;
     ctx.fillText(LABEL_RESET_ARMED, BAR_LEFT, BLOCK_TOP - 18);
+  }
+
+  /**
+   * „Press Q" über der Leiste — nur im allerersten Kampf, bis zum ersten
+   * Druck (Issue #1177; Masterplan, Einstieg: „ein Symbol leuchtet, eine
+   * Zeile sagt ‚Press Q'").
+   *
+   * Über der Leiste, weil der Blick dort ist — und **rechts neben** der
+   * Ebenen-Beschriftung „DIRECT", die `spellbar.ts` auf dieselbe Höhe setzt.
+   * Im Browser gesehen: Auf `BAR_LEFT` lagen beide Wörter übereinander. Im
+   * ersten Kampf gibt es keinen Rücksetzer, der Auswahlmodus trifft die Zeile
+   * also nie. Das Leuchten des Symbols besorgt die Leiste selbst: Ein bereiter
+   * Zauber leuchtet ohnehin (GAME-DESIGN 9).
+   */
+  private drawFirstPress(ctx: CanvasRenderingContext2D): void {
+    const phase = this.session.phase;
+    if (phase !== PHASE_COUNTDOWN && phase !== PHASE_FIGHTING) return;
+    if (this.session.isResetArmed) return;
+    const zeile = this.firstPressSource();
+    if (zeile === null) return;
+    ctx.textAlign = 'left';
+    ctx.font = FONT_TEXT;
+    ctx.fillStyle = INK;
+    ctx.fillText(zeile, BAR_LEFT + FIRST_PRESS_OFFSET, BLOCK_TOP - 18);
   }
 
   /**

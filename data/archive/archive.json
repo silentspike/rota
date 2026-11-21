@@ -1,0 +1,1299 @@
+{
+  "schema": 1,
+  "_comment": "DER ARCHIV-KATALOG (Issue #1177, Abschnitt 5). Masterplan, Geschichte und Ton: Vor jeder Instanz und nach jedem ERSTEN Boss-Sieg ein kurzer Text, danach nie wieder automatisch, aber jederzeit im Archiv nachlesbar. Umfang ~150: Instanz-Einleitungen, Boss-Eintraege, fuenf Prozess-Erklaerungen, Endgame-Instanzen, dazu Eintraege fuer Zauber, Gegenstands-Saetze und versteckte Funde. Stimmen wie beschlossen: eigene Notizen (ownNotes, sachlich erklaerend), gefundene Fragmente (fragment, verstoerend), Geraete-Protokolle (deviceLog, trocken-komisch) und gelegentlich etwas Nichtmenschliches (other) — im Endgame zunehmend.\n\nDIE AUSLOESER: beforeInstance (bei der ersten Wahl eines Bosses der Instanz, auf dem Vorbereitungs-Bildschirm), afterFirstKill (beim ersten Sieg, auf der Auswertung), firstOutcome (erster Tod, erster Ueberdruck — die versteckten Funde, ebenfalls als Fenster auf der Auswertung). Still ins Archiv, ohne Fenster: spellLearned (der Zauber steht erstmals in der Zusammenstellung), schoolLearned (der erste Zauber der Schule), setFound (das erste Stueck eines Satzes im Besitz). Bei hunderten Wiederholungen stehen sie nie im Weg — und 58 Fenster fuer 58 Zauber waeren genau das, was der Plan vermeiden will.\n\nDER PROLOG HAT KEINE EINLEITUNG, und das ist Absicht: Masterplan Einstieg, Erster Eindruck — kein Menue, kein Vorspann, sofort druecken. Ein Text vor dem allerersten Kampf waere ein Vorspann.\n\nTEXTE ZU NOCH NICHT GEBAUTEN BOSSEN (boss-6-1 bis boss-14-6) haengen am Thema und Schwerpunkt ihrer Instanz (data/instances.json), nicht an einer Mechanik, die es noch nicht gibt. Sie werden erst sichtbar, wenn ein Boss mit dieser Kennung existiert. Das Boss-Paket, das ihn baut, gleicht den Text an seine Mechanik an — wo hier eine Mechanik anklingt (Endgame: mehrere Unterbrechungen, umgekehrte Regeln, Strafe bei falscher Reihenfolge), stammt sie aus dem Plan.\n\nZAHLEN IN DEN TEXTEN: Die Zauber-Eintraege nennen bewusst keine Balance-Zahlen (Schaden, Dauer, Betrag) — die setzt der Balance-Laeufer, und ein Text, der sie wiederholt, waere nach der naechsten Messung falsch, ohne dass ein Prueffall es merkt. Die Zahlen stehen im Erklaerfenster, und dort werden sie aus den Zauberdaten erzeugt (src/analysis/help-values.ts). Die Boss-Eintraege der gebauten Bosse nennen einige Zahlen ihrer Bausteine, Stand 29.10.; wer einen Boss umbaut, sucht hier nach seiner Kennung.\n\nDIE PRUEFEINTRAEGE stehen getrennt in test-entries.json und gelangen nicht in den Auslieferungs-Bau (src/analysis/archive-data.ts, tools/auslieferung-pruefdaten.py). Spieltexte englisch (Design-Gesetz 5).",
+  "entries": [
+    {
+      "id": "first-crucible-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "A Crack in the Crucible",
+      "body": "The ring is the reaction, and today it lost. Kindle builds heat in my hands; Smoulder keeps burning after the cast and adds a little more with every tick. That is the whole trick of calcination: heat gathers while I work and drains away when I stop. The crucible cracked at zero with time to spare. I wrote the time down. I suspect I will be writing a great many times down.",
+      "instanceId": "prologue",
+      "bossId": "first-crucible"
+    },
+    {
+      "id": "instance-1-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Cold Athanor",
+      "body": "An athanor is the furnace that is never supposed to go out. This one went out a long time ago, and four reactions have been sulking in the cold ever since. The notes I inherited say the Great Work proceeds in stages and that every stage fails in its own particular way. Fine. Then I will learn the four ways, one at a time, and keep the fire going while I do.",
+      "instanceId": "instance-1"
+    },
+    {
+      "id": "boss-1-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "It Roars Before It Burns",
+      "body": "The roar has a bar, and a bar can be broken. Quench cuts a cast short and costs no global cooldown, which is why it can always be reached. What I did not expect is that the roar learns. Every time it comes round, the bar is shorter than the time before. Drag the fight out and the moment to break it gets narrower with it.",
+      "instanceId": "instance-1",
+      "bossId": "boss-1-1"
+    },
+    {
+      "id": "boss-1-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Fusion Counter, Annotated",
+      "body": "ATHANOR LOG. Fusion counter rising, six per second. At one hundred the operator ceases to be relevant. Operator applied Purge: counter reduced by forty. Purge charges: depleted. Purge charges: returning, slowly. Operator applied Purge again. Note for the next operator: the counter does not stop, it is only ever pushed back. Plan for the pushing.",
+      "instanceId": "instance-1",
+      "bossId": "boss-1-2"
+    },
+    {
+      "id": "boss-1-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "On Blights That Cling",
+      "body": "...the blight takes hold in the ninth breath and does not let go, a little and a little, like interest on a debt. No fire burns it off. Only a quenching, or a tempering of one's own skin, and neither of those strikes the reaction at all. A place on the bench given to a cure is a place taken from the attack. My master called this the first honest lesson...",
+      "instanceId": "instance-1",
+      "bossId": "boss-1-3"
+    },
+    {
+      "id": "boss-1-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Glass Seal",
+      "body": "For six seconds the reaction wraps itself in glass and nothing I throw at it lands. The glass can be broken, but only with enough damage in that short window, and the seal does not care how well I did before it. Worse, every chant it finishes mends what I have taken from it. The stage ends where it began: in one window, with everything ready at once.",
+      "instanceId": "instance-1",
+      "bossId": "boss-1-4"
+    },
+    {
+      "id": "instance-2-before",
+      "trigger": "beforeInstance",
+      "voice": "fragment",
+      "title": "The Cracked Retort",
+      "body": "...keep the retort whole, they told me, and the work stays clean. Mine is not whole. There is a crack along the neck no wider than a hair, and what comes through it is not vapour but a slow, sweet poison. I sealed it with wax. I sealed it with lead. I have stopped sealing it. Whoever reads this: the cracks are not damage. The cracks are how this stage breathes...",
+      "instanceId": "instance-2"
+    },
+    {
+      "id": "boss-2-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Miasma, Hourly",
+      "body": "RETORT LOG. Taint detected at six seconds. Taint ticking twice per second. Taint cleared by operator. Taint detected again. The cycle repeats every eight seconds. Operator efficiency: high. Operator mood: not logged, by request. Recommendation withdrawn: there is no cure that stays cured here, only a cure that comes back round in time.",
+      "instanceId": "instance-2",
+      "bossId": "boss-2-1"
+    },
+    {
+      "id": "boss-2-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "One Quench, Two Problems",
+      "body": "Ash in the lungs from the eighth second, a shell of cinders two seconds later, and then the collapse begins to cast. Quench clears the ash and Quench breaks the cast, but Quench is one spell on one cooldown. This reaction is not harder than the others. It only asks in what order I mean to be sorry. Answering that question was the fight.",
+      "instanceId": "instance-2",
+      "bossId": "boss-2-2"
+    },
+    {
+      "id": "boss-2-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Inverted",
+      "body": "This one wins by filling. The ring climbs by itself, faster than I can bear it, and a full ring here is my defeat, not its. Every point of damage I deal pushes it further up. Crust, salve and every layer of coagulation push it back down. The reaction was not broken, it was contained: I held it until the clock ran out. I have never been so pleased to have done no damage.",
+      "instanceId": "instance-2",
+      "bossId": "boss-2-3"
+    },
+    {
+      "id": "boss-2-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Hairline",
+      "body": "...the seal and the chant arrive together, and that is the cruelty of the thing. Break the chant, and the seal stands. Break the seal, and the chant completes and the reaction mends a great deal of what was taken. I have watched three apprentices argue about which is worse. All three were wrong in the same interesting way: they thought it was a choice between two losses. It is a matter of timing...",
+      "instanceId": "instance-2",
+      "bossId": "boss-2-4"
+    },
+    {
+      "id": "instance-3-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Sealed Furnace",
+      "body": "Someone sealed this furnace from the inside. The door was barred with the bolts on my side, and still the fire is fed. There are four reactions in here and none of them behaves like the ones above: one shrugs off heat, one breathes on a rhythm of its own, one sings louder the longer I listen, and one keeps the seal. I have decided not to think about who barred the door.",
+      "instanceId": "instance-3"
+    },
+    {
+      "id": "boss-3-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Slagmaw Does Not Mind the Heat",
+      "body": "Calcination does a fifth less here. The slag has burned before and has no interest in burning again. The fight showed me what resistances are for: not to make a reaction stronger, but to make one way of attacking it worse. A school that the target resists still works. It is simply no longer the obvious answer, and the obvious answer was what I had been relying on.",
+      "instanceId": "instance-3",
+      "bossId": "boss-3-1"
+    },
+    {
+      "id": "boss-3-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Bellows Telemetry",
+      "body": "FURNACE LOG. Energy rising, six per second, independent of the reaction's health. At one hundred: Overload. Energy reset to zero. Energy rising. The bellows keep their own time and do not consult the operator. Operator observed that a slow fight means more overloads, not stronger ones. Operator then said something about bellows that this log declines to store.",
+      "instanceId": "instance-3",
+      "bossId": "boss-3-2"
+    },
+    {
+      "id": "boss-3-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Choir Swells",
+      "body": "...it begins as a hum and swells every few breaths, one voice laid upon the last, until four voices sing at once and the sound alone is enough to blister the glass. There it stops growing. That is its only mercy and its whole threat: whoever is slow does not die of time, they die of the song. Finish the choir before it finishes its fourth verse...",
+      "instanceId": "instance-3",
+      "bossId": "boss-3-3"
+    },
+    {
+      "id": "boss-3-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "The Sealkeeper",
+      "body": "Seal pressure climbs two points a second and kills at one hundred, and Purge pushes it back. Below sixty per cent the keeper breaks seals on me, and at a fixed moment it starts the Final Seal, a long cast that I must not let finish. Three things, three clocks, all at once. The furnace was sealed from the inside, and the thing that sealed it is finally quiet.",
+      "instanceId": "instance-3",
+      "bossId": "boss-3-4"
+    },
+    {
+      "id": "instance-4-before",
+      "trigger": "beforeInstance",
+      "voice": "fragment",
+      "title": "The Ash Cellar",
+      "body": "...we swept the ash into the cellar, all of it, every failed stage of every year, and we thought it would lie still because ash is what is left when a thing is finished. Ash is not finished. Ash remembers the fire it came from, and down here it remembers it badly: brittle where it should be hard, eager where it should be dead. Go down with a broom and a good deal of heat...",
+      "instanceId": "instance-4"
+    },
+    {
+      "id": "boss-4-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Brittle",
+      "body": "This one breaks easily. Calcination does a quarter more damage than usual, and for once the target wants exactly what I already brought. I almost distrust it. Resistance cuts both ways: a reaction can be soft to one school as surely as another is hard to it, and the list on the preparation screen says which. I read it twice before I believed it.",
+      "instanceId": "instance-4",
+      "bossId": "boss-4-1"
+    },
+    {
+      "id": "boss-4-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Partial Discharge",
+      "body": "CELLAR LOG. Energy bar present. Discharge at one hundred. Energy reset to forty-five, not zero. Second discharge arrived eleven seconds later instead of twenty. Third, eleven. The interval does not lengthen again. Operator remarked that this vent never fully empties. This log can confirm the vent never fully empties. This log would like to stop standing next to the vent.",
+      "instanceId": "instance-4",
+      "bossId": "boss-4-2"
+    },
+    {
+      "id": "boss-4-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Late Swell",
+      "body": "The cinder choir starts quietly, a voice every eight seconds, and does not reach its full six until the fight is nearly over. It is the opposite of the choir in the sealed furnace, which peaked early and then held. Here the danger is at the end, and the end comes at the same time as my own tiredness. I won by not being there when the last voice joined.",
+      "instanceId": "instance-4",
+      "bossId": "boss-4-3"
+    },
+    {
+      "id": "boss-4-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Long Shortening",
+      "body": "...the chant grows shorter each time it is sung, a fifth of a breath at a time, for so many rounds that I stopped counting, until it is half the length it began. At first a slow hand can break it. At the end only a ready hand can. The ash taught me patience and then took it away again, one fifth of a breath at a time...",
+      "instanceId": "instance-4",
+      "bossId": "boss-4-4"
+    },
+    {
+      "id": "instance-5-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Clotting Vats",
+      "body": "Coagulation is the art of making a thing set: of taking what runs and giving it a skin, a crust, a shape that holds. The vats down here refuse to set. Everything I pour in comes back thinner and angrier. The four reactions in this stage do not ask me to hit harder. They ask me to last, and to make the work hold together long enough to finish it.",
+      "instanceId": "instance-5"
+    },
+    {
+      "id": "boss-5-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Sour Taint",
+      "body": "A sour taint from the eighth second, a discharge every time its bar fills, and between them the draughts. Quench can clear the taint, but so can Temper, and Temper does more: for ten seconds a quarter of the damage I deal becomes a shield. In this vat survival is not a pause in the attack. It is part of the attack, if it is set up that way.",
+      "instanceId": "instance-5",
+      "bossId": "boss-5-1"
+    },
+    {
+      "id": "boss-5-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Ash Layer Report",
+      "body": "VAT LOG. Ash layer accumulating, one per four seconds, to a maximum of four. Incoming pressure rising accordingly. At thirty-two seconds the crust seals and the reaction becomes immune until it is broken. Operator responded with shields laid in advance, not afterwards. Shields absorbed the layers. Operator then broke the crust. This log notes that setting a thing and breaking it were, for once, the same skill.",
+      "instanceId": "instance-5",
+      "bossId": "boss-5-2"
+    },
+    {
+      "id": "boss-5-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "On Holding a Thing That Runs",
+      "body": "...it runs away from you, and every blow you strike only lends it speed. Do not strike it. Hold it. A crust, a salve, a plate of hardened skin: each one drags the reaction back down by its own weight. And the chant comes quicker every turn, so that holding and breaking must happen in the same breath. This is coagulation at its purest: nothing is destroyed, everything is kept...",
+      "instanceId": "instance-5",
+      "bossId": "boss-5-3"
+    },
+    {
+      "id": "boss-5-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "The Final Tally",
+      "body": "The last vat keeps a tally that kills at a hundred, charges a bar that discharges on me, and shortens every cast it repeats. Below thirty per cent it begins the Last Reckoning. I did not outdamage it. I outlasted it, layer by layer, purge by purge, and broke the one cast that mattered. The vats are set now. The work holds. I am less sure about my hands.",
+      "instanceId": "instance-5",
+      "bossId": "boss-5-4"
+    },
+    {
+      "id": "instance-6-before",
+      "trigger": "beforeInstance",
+      "voice": "fragment",
+      "title": "The Wandering Mercury",
+      "body": "...mercury will not stay. Put it in a bowl and it finds the crack; put it in a sealed glass and it climbs the walls as vapour. The masters called it the servant who runs away. Fixation is the art of making it stay: not by force but by binding, gathering control and spending it on the one moment that matters. A cast slowed, a strike delayed, a turning held back...",
+      "instanceId": "instance-6"
+    },
+    {
+      "id": "boss-6-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Quick to Leave",
+      "body": "The first of the wandering things is fast, and it does not care how hard it is hit. What it cares about is time. Every point of control I gather can buy a moment back from it: a cast stretched, a strike pushed further off. Spent badly, the points are gone. Spent on the right moment, the reaction simply arrives too late to hurt me.",
+      "instanceId": "instance-6",
+      "bossId": "boss-6-1"
+    },
+    {
+      "id": "boss-6-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Containment Attempts",
+      "body": "MERCURY LOG. Attempt one: sealed glass. Result: escape. Attempt two: lead casing. Result: escape. Attempt three: operator applied Bind, then Stay. Result: strike delayed until it no longer mattered. Attempt four was not required. This log is updating its definition of containment to include arriving after the fact.",
+      "instanceId": "instance-6",
+      "bossId": "boss-6-2"
+    },
+    {
+      "id": "boss-6-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Held Turning",
+      "body": "...it waits for its turning point like a dancer for the downbeat, and the moment the reaction falls far enough it changes and becomes something worse. An anchor can hold that turning back for a while, but only the next one, and only for a while. Hold too early and it is wasted. Hold too late and it has already turned...",
+      "instanceId": "instance-6",
+      "bossId": "boss-6-3"
+    },
+    {
+      "id": "boss-6-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Pinned",
+      "body": "The last of the mercury stopped running. It did not stop because I struck it hard; it stopped because I was always where it meant to go next, with the points to spend and the spell ready to spend them. Fixation is not a wall. It is a hand on the shoulder at exactly the right moment, and this stage asked for that hand four times.",
+      "instanceId": "instance-6",
+      "bossId": "boss-6-4"
+    },
+    {
+      "id": "instance-7-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Black Cistern",
+      "body": "Every recipe for the Great Work has a black stage. The matter has to die and rot before it can be made into something new, and the masters wrote about it as if it were a door you walk through. This cistern is that door, and it is not closed. Putrefaction weakens what it touches: every stack of decay makes a reaction take more from everything else I do.",
+      "instanceId": "instance-7"
+    },
+    {
+      "id": "boss-7-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The First Rot",
+      "body": "...the first sign is a softness, a give in the skin of the thing. Lay the rot on and it spreads; leave it and it fades, stack by stack. It does almost nothing by itself. A rotting reaction is not killed by the rot but by everything else, striking at a thing that can no longer hold its shape. Rot is the friend of every other art and the master of none...",
+      "instanceId": "instance-7",
+      "bossId": "boss-7-1"
+    },
+    {
+      "id": "boss-7-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Cistern Sample 7-2",
+      "body": "CISTERN LOG. Sample decay stacks: five of five. Sample damage taken: elevated, from all sources. Sample appears to resent this. Operator reports the sample tried to rot the operator back. Operator also reports this was ineffective. This log reports that the log's casing is now slightly soft and would like a new casing.",
+      "instanceId": "instance-7",
+      "bossId": "boss-7-2"
+    },
+    {
+      "id": "boss-7-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "we were here first",
+      "body": "you lay your rot on us as if rot were yours. rot was ours when your kind was still learning to stand. we taught it to the first one who came down. we taught it to the last one. you are quicker than they were. you leave the stacks to fade and lay them on again at the very moment you strike. we will remember that. we remember everything that rots.",
+      "instanceId": "instance-7",
+      "bossId": "boss-7-3"
+    },
+    {
+      "id": "boss-7-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Out of the Black",
+      "body": "At the bottom of the cistern the rot finally turned on itself. I built the stacks up before the window, spent them in one fall of everything I had, and the reaction came apart like wet paper. The black stage is done. The masters were right that it is a door. They did not mention that the door is on the floor and that you have to climb back out of it.",
+      "instanceId": "instance-7",
+      "bossId": "boss-7-4"
+    },
+    {
+      "id": "instance-8-before",
+      "trigger": "beforeInstance",
+      "voice": "fragment",
+      "title": "The Conjunction",
+      "body": "...and when the five processes have each been learned alone, they must be married: the fire to the fixing, the rot to the rising, the setting to all of them. This is the conjunction, and it is where most of us stop. Not because it is too hard, but because each art pulls the others out of shape, and the one who would join them must keep all five in hand at once...",
+      "instanceId": "instance-8"
+    },
+    {
+      "id": "boss-8-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "The First Wedding",
+      "body": "Two processes at once, and both of them wanted me. Heat to gather, a cast to slow, and only so many places on the bar. I learned in the earlier stages what each school does. Here I am learning what they do to each other: control buys time for heat, rot multiplies the fire. Nothing in this stage is new. Everything in it is combined.",
+      "instanceId": "instance-8",
+      "bossId": "boss-8-1"
+    },
+    {
+      "id": "boss-8-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Compatibility Matrix",
+      "body": "CONJUNCTION LOG. Calcination with Putrefaction: compatible. Fixation with Calcination: compatible. Sublimation with everything: compatible, and smug about it. Coagulation with operator's nerves: pending. Operator has requested a sixth process for coping. Request denied. There are five.",
+      "instanceId": "instance-8",
+      "bossId": "boss-8-2"
+    },
+    {
+      "id": "boss-8-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "On Keeping Five in Hand",
+      "body": "...the hand that holds five things holds each of them more loosely. The fire cools while you set, the rot fades while you fix, and the cooldowns you shortened run out while you were busy. The conjunction is not won by one great stroke but by never letting go of any part of the work for longer than it can bear...",
+      "instanceId": "instance-8",
+      "bossId": "boss-8-3"
+    },
+    {
+      "id": "boss-8-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Joined",
+      "body": "It is done. The five processes held together for one whole reaction, and the reaction gave way under all of them at once. The ascent is over. I expected to feel finished. Instead I can hear, below the conjunction, something that sounds very much like a furnace that nobody here ever lit. The work, it seems, goes further down than the notes do.",
+      "instanceId": "instance-8",
+      "bossId": "boss-8-4"
+    },
+    {
+      "id": "instance-9-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Furnace Below",
+      "body": "Under the first furnace there is another one, and it is older. The bricks are the wrong size for human hands and the heat has no source that I can find. The notes end above this floor. From here on I write my own. Calcination again, but calcination that has been burning for longer than the house above it has stood, and it does not forgive a wasted spark.",
+      "instanceId": "instance-9"
+    },
+    {
+      "id": "boss-9-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Thermal Record, Partial",
+      "body": "DEEP FURNACE LOG. Temperature: off scale. Previous record: off scale. Record before that: off scale, annotated 'probably fine'. Operator built heat to the cap and discharged it in one strike. Reaction responded with two casts at once. Operator broke one and survived the other. This log assumes that was the plan and will be writing it down as the plan.",
+      "instanceId": "instance-9",
+      "bossId": "boss-9-1"
+    },
+    {
+      "id": "boss-9-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "Two Voices, One Breath",
+      "body": "...down here they cast in pairs, two bars rising together, and the quenching hand can only fall once at a time. One must be broken and the other must be borne, and which is which changes each time it comes round. Whoever learned only to interrupt will drown in the second voice...",
+      "instanceId": "instance-9",
+      "bossId": "boss-9-2"
+    },
+    {
+      "id": "boss-9-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Heat That Bites Back",
+      "body": "In this furnace heat is not only mine. The longer I hold it, the more of it the reaction drinks from me. Spend it too early and the strike is weak; hold it too long and it is taken. The rhythm of calcination has not changed, gather and release, but here the gap between the two is a blade I have to walk along.",
+      "instanceId": "instance-9",
+      "bossId": "boss-9-3"
+    },
+    {
+      "id": "boss-9-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "warm",
+      "body": "warm. you are warm. the ones before you were warm too, at first. we kept them warm a long time. you spend your warmth all at once, in one bright stroke, and then you are cold and quick and gone. we do not understand this. we would like to. come back and spend it again.",
+      "instanceId": "instance-9",
+      "bossId": "boss-9-4"
+    },
+    {
+      "id": "boss-9-5-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Wrong Order",
+      "body": "...it punished me for the order of things. The same spells, the same strength, but struck in the wrong sequence the fire turned on me instead. I have written the order on the wall above the bench in my own blood, which in hindsight was a poor choice of ink...",
+      "instanceId": "instance-9",
+      "bossId": "boss-9-5"
+    },
+    {
+      "id": "boss-9-6-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Banked",
+      "body": "The deepest fire is banked now, not out. I am not sure it can be put out, or that it should be. Six reactions, each asking a different question of the same process, and each answer was heat, gathered and released at a moment I chose. If the ascent taught me the schools, this furnace taught me that a school is a rhythm, not a list of spells.",
+      "instanceId": "instance-9",
+      "bossId": "boss-9-6"
+    },
+    {
+      "id": "instance-10-before",
+      "trigger": "beforeInstance",
+      "voice": "fragment",
+      "title": "The Weightless Galleries",
+      "body": "...in the galleries nothing keeps its weight. Solids rise as vapour before they touch the floor, and a thing you set down is overhead by the time you turn round. Sublimation is the art of the rising, the shortening of what should take long. Here every wait can be cut, every cooldown made less, and the hand that cuts them must be quicker than the thing that rises...",
+      "instanceId": "instance-10"
+    },
+    {
+      "id": "boss-10-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Cut Short",
+      "body": "The first gallery reaction moves faster than my spells come back. The answer was sublimation: each cast shaving a little from every cooldown still running, until the strongest spells came round again before the reaction expected them. It is the strangest school. It does almost nothing to the target and almost everything to the order in which I can act.",
+      "instanceId": "instance-10",
+      "bossId": "boss-10-1"
+    },
+    {
+      "id": "boss-10-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Inventory, Galleries",
+      "body": "GALLERY LOG. Inventory at start of shift: one bench, one stool, four flasks. Inventory at end of shift: one bench, overhead. Stool not located. Flasks rising. Operator remained on the floor throughout, by means unknown, and reset a cooldown twice in one breath. This log would like the stool back.",
+      "instanceId": "instance-10",
+      "bossId": "boss-10-2"
+    },
+    {
+      "id": "boss-10-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "Rules Upside Down",
+      "body": "...in the middle of the fight the gallery turns over, and what was weight becomes lift and what was help becomes harm. The spell that saved you a moment ago now feeds the reaction. Watch for the turning. Everything you know is still true, only standing on its head...",
+      "instanceId": "instance-10",
+      "bossId": "boss-10-3"
+    },
+    {
+      "id": "boss-10-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "up",
+      "body": "up. everything goes up. you stay down and make the waiting short. we have watched you make the waiting short. it is a small thing and you do it very well. when the waiting is gone, what is left? we went up a long time ago. it is quiet up here. there is no waiting at all.",
+      "instanceId": "instance-10",
+      "bossId": "boss-10-4"
+    },
+    {
+      "id": "boss-10-5-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Two Resets",
+      "body": "This one taught me that a reset is a decision, not a gift. Alembic offers two, and the reaction changes what is worth resetting in the middle of the fight. I spent the first one well and the second one on habit. The habit cost me thirty tries. The decision, once I made it properly, cost nothing at all.",
+      "instanceId": "instance-10",
+      "bossId": "boss-10-5"
+    },
+    {
+      "id": "boss-10-6-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Last Gallery",
+      "body": "...at the end of the galleries there is a door that opens upward, and through it you can see the rest of the work, laid out like a map seen from above. It is larger than any of us thought. It is moving. Close the door before it notices the light...",
+      "instanceId": "instance-10",
+      "bossId": "boss-10-6"
+    },
+    {
+      "id": "instance-11-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Iron Orrery",
+      "body": "A machine of rings within rings, each carrying a metal round a centre I cannot see. It is fixation taken to its end: nothing in the orrery moves except as the orrery allows. It allows me very little. Here my control points are not a convenience. Every cast I slow and every strike I delay is a gear I am pulling out of a machine that wants them all.",
+      "instanceId": "instance-11"
+    },
+    {
+      "id": "boss-11-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Orrery Calibration",
+      "body": "ORRERY LOG. Ring one: nominal. Ring two: nominal. Ring three: operator-shaped dent. Operator delayed the strike of ring three by four seconds. Ring three arrived late, met ring four, and both lost their timing. Operator described this as elegant. This log describes it as a dent.",
+      "instanceId": "instance-11",
+      "bossId": "boss-11-1"
+    },
+    {
+      "id": "boss-11-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "Three at Once",
+      "body": "...three casts begin together, and there is one quench and one slowing and one pair of hands. The orrery does not care which you choose. It only cares that you choose before the bars are full, because a choice made late is not a choice but a guess...",
+      "instanceId": "instance-11",
+      "bossId": "boss-11-2"
+    },
+    {
+      "id": "boss-11-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Held Phase",
+      "body": "The orrery changes its turning at fixed points, and every change is worse than the last. Anchor holds the next change back for a while, but only the next one, and the orrery has many. I learned to spend control not on the first turning, which I could survive, but on the third, which I could not. Saving is part of fixation too.",
+      "instanceId": "instance-11",
+      "bossId": "boss-11-3"
+    },
+    {
+      "id": "boss-11-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "your place",
+      "body": "everything here has a place. we gave you a place when you came in. you are not in it. you keep moving our pieces a little later, a little slower, until they arrive where you are not. this is not how places work. we will give you a new place. please stay in it.",
+      "instanceId": "instance-11",
+      "bossId": "boss-11-4"
+    },
+    {
+      "id": "boss-11-5-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "On the Order of Gears",
+      "body": "...the gears must be stopped in their order, first the small and then the great, and whoever stops the great one first finds the small ones spinning free and very sharp. I have the scars to show the right order. I would rather you learned it from the scars than from your own...",
+      "instanceId": "instance-11",
+      "bossId": "boss-11-5"
+    },
+    {
+      "id": "boss-11-6-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "The Centre",
+      "body": "At the centre of the orrery there was nothing. No sun, no metal, no master. The rings had been turning round an empty place, holding each other in position for no reason but habit. I fixed the last ring in its place and the machine stopped. The silence afterwards was the loudest thing I have heard in this work.",
+      "instanceId": "instance-11",
+      "bossId": "boss-11-6"
+    },
+    {
+      "id": "instance-12-before",
+      "trigger": "beforeInstance",
+      "voice": "fragment",
+      "title": "The Black Garden",
+      "body": "...someone planted the rot. Down here it grows in rows, in beds, staked and tended, and the blooms are black and sweet and very patient. Putrefaction was always the art that helped the others; in this garden it has learned to help itself. Every stack laid on these reactions makes them weaker, and every stack they keep makes them stranger...",
+      "instanceId": "instance-12"
+    },
+    {
+      "id": "boss-12-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Weeding",
+      "body": "The first bed was the easiest, and it still took me a long evening. The rot here fades quickly unless it is renewed, and the reaction's worst moments come exactly when my stacks are thinnest. I learned to lay the rot as a gardener waters: not all at once, but steadily, so that it is deep when the heavy work begins.",
+      "instanceId": "instance-12",
+      "bossId": "boss-12-1"
+    },
+    {
+      "id": "boss-12-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Garden Maintenance",
+      "body": "GARDEN LOG. Blooms counted: many. Blooms pruned by operator: several. Blooms regrown: many. Blooms now facing operator: all of them. This log was not aware that blooms could face things. This log is recording the event in case it turns out to be important later, which it suspects it will.",
+      "instanceId": "instance-12",
+      "bossId": "boss-12-2"
+    },
+    {
+      "id": "boss-12-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "we grew you a flower",
+      "body": "we grew you a flower. it is black, like all of ours. you cut it down and laid your own rot in its place, and your rot was faster than ours and you struck at the very moment it was deepest. that was rude. it was also very beautiful. we have planted another one for you. come and see it.",
+      "instanceId": "instance-12",
+      "bossId": "boss-12-3"
+    },
+    {
+      "id": "boss-12-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "When the Garden Turns",
+      "body": "...in its second season the garden turns, and the rot you lay begins to feed the reaction instead of starving it. Stop laying it. Let it fade. Then begin again when the season turns back. The gardener who cannot stop watering drowns the bed...",
+      "instanceId": "instance-12",
+      "bossId": "boss-12-4"
+    },
+    {
+      "id": "boss-12-5-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Compost",
+      "body": "Everything in this garden ends up feeding something else. The rot, the blooms, the failed tries I made against it, all of it turned into the soil the next reaction grew from. I won by making sure that when the reaction came apart, it came apart all at once, too fast to be composted into anything.",
+      "instanceId": "instance-12",
+      "bossId": "boss-12-5"
+    },
+    {
+      "id": "boss-12-6-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Gardener",
+      "body": "...I found the gardener at the end of the last row, kneeling, still tending. It had been one of us once. It did not look up. It said that the work needs a black stage and that someone has to keep it, and asked whether I would like to take over. I did not answer. I am not certain I have answered yet...",
+      "instanceId": "instance-12",
+      "bossId": "boss-12-6"
+    },
+    {
+      "id": "instance-13-before",
+      "trigger": "beforeInstance",
+      "voice": "ownNotes",
+      "title": "The Weeping Stone",
+      "body": "At the bottom of everything there is a stone. It is red, it is warm, and it weeps. This was meant to be the end of the work: the matter made perfect and fixed for ever, the stone that changes all things. Something went wrong in the setting. Coagulation again, but here the thing that will not hold is the end of the work itself, and holding it is the fight.",
+      "instanceId": "instance-13"
+    },
+    {
+      "id": "boss-13-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The First Tear",
+      "body": "...the stone weeps, and where the tears fall a reaction rises. Each one asks to be held, not broken, for the stone does not forgive the hand that strikes it too hard. Shield the bench, heal the hand, turn what you deal into what protects you. It is the lesson of the clotting vats again, taught by the thing that wrote it...",
+      "instanceId": "instance-13",
+      "bossId": "boss-13-1"
+    },
+    {
+      "id": "boss-13-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Stone Moisture Readings",
+      "body": "STONE LOG. Moisture: rising. Source: stone. Stone is not porous. Stone is not wet. Stone is weeping. Operator applied shields in layers and outlasted the flood. This log has consulted its manual. The manual does not have a section on weeping. The manual has begun, very slightly, to weep.",
+      "instanceId": "instance-13",
+      "bossId": "boss-13-2"
+    },
+    {
+      "id": "boss-13-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Turned to Protection",
+      "body": "The stone strikes harder than anything above it, and my answer was not to avoid the strikes but to turn my own damage into a skin that drank them. Temper, Quicksilver, Crucible Skin: the old coagulation, the third way, the one I used least in the vats. Here it is not a luxury. Here it is the difference between the stone weeping and me.",
+      "instanceId": "instance-13",
+      "bossId": "boss-13-3"
+    },
+    {
+      "id": "boss-13-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "do not finish it",
+      "body": "do not finish it. we tried. we finished it and it would not stay finished, it kept setting and unsetting and every time it set it took one of us into it. you can hear them in the weeping if you are quiet. you are not quiet. you are very loud with your shields and your strikes. good. stay loud.",
+      "instanceId": "instance-13",
+      "bossId": "boss-13-4"
+    },
+    {
+      "id": "boss-13-5-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "The Price of Holding",
+      "body": "...every shield you lay is a strike you did not make, and the stone counts both. Too much holding and the reaction outlives you; too little and it ends you. The setting must be exact. My master said the stone is a balance, not a weapon. My master is inside the stone now, so perhaps she was not entirely right...",
+      "instanceId": "instance-13",
+      "bossId": "boss-13-5"
+    },
+    {
+      "id": "boss-13-6-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Dry",
+      "body": "The stone stopped weeping. It is still red and still warm, but the tears have dried on its face and no new reactions rise from them. I held the last one until it had nothing left to give and then let it go. I think the stone was never broken. I think it was waiting for someone to finish setting it properly. I am not sure that someone should have been me.",
+      "instanceId": "instance-13",
+      "bossId": "boss-13-6"
+    },
+    {
+      "id": "instance-14-before",
+      "trigger": "beforeInstance",
+      "voice": "other",
+      "title": "the work",
+      "body": "you have come all the way down. you have learned all five of us. fire, fixing, rot, rising, setting. you think we are processes. we are the work. we were begun a very long time ago and we have been failing, stage by stage, ever since, and every failure was a door for one of you. this is the last door. we would prefer that it stay closed.",
+      "instanceId": "instance-14"
+    },
+    {
+      "id": "boss-14-1-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "Awake",
+      "body": "The Great Work is not a recipe. It is awake, and it does not want to be completed, because completion means that it stops. Every reaction in this last instance is the work defending itself with everything I learned on the way down. All five schools, all at once, against the thing that invented them. I have rarely been so frightened, or so interested.",
+      "instanceId": "instance-14",
+      "bossId": "boss-14-1"
+    },
+    {
+      "id": "boss-14-2-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "deviceLog",
+      "title": "Final Log, Draft",
+      "body": "WORK LOG. This log has been asked to record the end of the work. This log has prepared several drafts. Draft one: success. Draft two: failure. Draft three: the work records the operator. This log is keeping all three drafts until further notice and would like it known that it has always admired the operator.",
+      "instanceId": "instance-14",
+      "bossId": "boss-14-2"
+    },
+    {
+      "id": "boss-14-3-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "Every Rule Reversed",
+      "body": "...the work turns its own laws over in the middle of the fight. Heat that cools, rot that heals, shields that cut. Everything the five arts taught, the work can unteach for a breath at a time. Hold to what is true in that breath and nothing longer, and do not trust your hands to remember what they knew a moment before...",
+      "instanceId": "instance-14",
+      "bossId": "boss-14-3"
+    },
+    {
+      "id": "boss-14-4-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "other",
+      "title": "why",
+      "body": "why. we have asked all of you. why finish us. when we are finished we are a stone, and a stone does not dream, and we have been dreaming you for so long. you will say that the work must be completed. we will say that you are the only one who ever made it this far, and that we would like to keep you a little longer.",
+      "instanceId": "instance-14",
+      "bossId": "boss-14-4"
+    },
+    {
+      "id": "boss-14-5-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "ownNotes",
+      "title": "The Order of Everything",
+      "body": "This reaction wanted all five processes in one order and punished every other. Fire, then rot, then the fixing, then the rising, then the setting. I learned the order by being wrong in every other one. I keep thinking that the work has been teaching me this from the very first crucible, and that I was simply too busy to listen.",
+      "instanceId": "instance-14",
+      "bossId": "boss-14-5"
+    },
+    {
+      "id": "boss-14-6-first-kill",
+      "trigger": "afterFirstKill",
+      "voice": "fragment",
+      "title": "Completed",
+      "body": "...if you are reading this, the work is complete, or it is not and you have found my notes on the floor beside the last reaction. Either way, look down. Below this floor there is another, and another below that, and something is still running down there that is older than all of the work. Go carefully. Take good notes. Leave some for the one after you...",
+      "instanceId": "instance-14",
+      "bossId": "boss-14-6"
+    },
+    {
+      "id": "process-calcination",
+      "trigger": "schoolLearned",
+      "voice": "fragment",
+      "title": "On Calcination",
+      "body": "...calcination is the burning of a thing until only what cannot burn remains. In the practice it is a gathering: every working of the fire leaves heat behind, in the hands and in the glass, and heat held is power held. It drains if neglected, a little at a time. And at the right moment it is all released at once, in a single strike that carries everything gathered. Gather, hold, release. The whole art is in the choosing of the moment...",
+      "school": "CALCINATION"
+    },
+    {
+      "id": "process-coagulation",
+      "trigger": "schoolLearned",
+      "voice": "ownNotes",
+      "title": "On Coagulation",
+      "body": "Coagulation makes a thing set. In practice it keeps me alive, and it does so in three ways that do not resemble each other. A shield is laid before the blow and soaks it up, and it can be stacked. A heal is laid after and gives back what was lost. And a conversion turns part of the damage I deal into shield while it lasts. Which way fits depends on the reaction, and on how much of the bar I am willing to spend on not dying.",
+      "school": "COAGULATION"
+    },
+    {
+      "id": "process-fixation",
+      "trigger": "schoolLearned",
+      "voice": "fragment",
+      "title": "On Fixation",
+      "body": "...fixation is the making-still of what runs. The practitioner gathers control, a point at a time, with every binding strike, and the points do not drain. They are spent: on slowing a cast that is already under way, on pushing the next strike further off, on holding back the next turning of the reaction. Each buys one moment, never a lasting state. Points spent on a moment that did not need buying are simply gone...",
+      "school": "FIXATION"
+    },
+    {
+      "id": "process-putrefaction",
+      "trigger": "schoolLearned",
+      "voice": "ownNotes",
+      "title": "On Putrefaction",
+      "body": "Putrefaction does not make my spells stronger. It makes the reaction weaker. Every stack of decay I lay on it makes it take more damage from every source, whatever school that source belongs to. The stacks fade one by one and there is a limit to how many will hold. On its own the rot is feeble. Laid on deep just before everything else strikes, it is the most generous art I know.",
+      "school": "PUTREFACTION"
+    },
+    {
+      "id": "process-sublimation",
+      "trigger": "schoolLearned",
+      "voice": "fragment",
+      "title": "On Sublimation",
+      "body": "...sublimation is the passing of a solid straight into vapour, skipping the slow melt between. The art does the same to waiting. Its workings shorten every cooldown still running, a little with each cast, and its strongest working sets one spell ready again at once. It deals almost nothing to the reaction. It changes what the practitioner can do next, which is a different and more dangerous kind of strength...",
+      "school": "SUBLIMATION"
+    },
+    {
+      "id": "spell-kindle",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Kindle",
+      "body": "The first spell anyone learns, and the one my hands will still know when they have forgotten everything else. It strikes, and it leaves a little heat behind. Simple enough to teach a child and important enough that the child will curse it later.",
+      "spellId": "kindle"
+    },
+    {
+      "id": "spell-smoulder",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Smoulder",
+      "body": "...a fire that does not need watching. Lay it on and it burns by itself for a long while, ticking damage and a little heat each time. Lay it on again too soon and the time left in it is lost: a renewed smoulder starts over, it does not add...",
+      "spellId": "smoulder"
+    },
+    {
+      "id": "spell-pyre",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Pyre",
+      "body": "Pyre spends every point of heat I hold and strikes with all of it, and once the heat runs high it strikes twice as hard per point. The decision is never whether to cast it. The decision is when, and that decision is most of calcination.",
+      "spellId": "pyre"
+    },
+    {
+      "id": "spell-bellows",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Bellows",
+      "body": "FURNACE LOG. Bellows applied. Heat gained: plenty. Damage dealt: modest. Operator appears to regard this as a fair trade. This log has noted that the bellows in the sealed furnace were also a fair trade, for the bellows.",
+      "spellId": "bellows"
+    },
+    {
+      "id": "spell-searing",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Searing",
+      "body": "...a hotter, shorter burn than smoulder: half the time, but each tick bites far deeper, and each still leaves its heat behind. The searing fire asks to be renewed often, and pays well for the attention...",
+      "spellId": "searing"
+    },
+    {
+      "id": "spell-cinder",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Cinder",
+      "body": "A small fire that ticks quickly for a few seconds. Short, quick, and a steady source of heat while it lasts. I keep finding that the small fires are the ones that fill the gaps between the large ones.",
+      "spellId": "cinder"
+    },
+    {
+      "id": "spell-slag",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Slag",
+      "body": "...the slag raises the ceiling of the fire. For a few workings the hand can hold half as much heat again as it otherwise could, and a fire that may grow larger may also be spent larger. It costs nothing to the reaction. It is all promise...",
+      "spellId": "slag"
+    },
+    {
+      "id": "spell-ember",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Ember",
+      "body": "Ember deals no damage at all. It gives a little heat and lengthens every fire already burning by one more tick. It took me an embarrassingly long time to see the point. The point is the fires, not the ember.",
+      "spellId": "ember"
+    },
+    {
+      "id": "spell-pyroclasm",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Pyroclasm",
+      "body": "FURNACE LOG. Pyroclasm applied. All heat consumed. All burning fires consumed, their remaining damage released at once. Furnace temperature: briefly unrecordable. This log requests notice before the next one, for the sake of its gauges.",
+      "spellId": "pyroclasm"
+    },
+    {
+      "id": "spell-flashpoint",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Flashpoint",
+      "body": "...for three workings the fire answers twice: every heat gained is gained double. The flashpoint is short, and whoever spends it on idle hands has thrown it away. Whoever spends it on a run of strikes has bought a pyre in a third of the time...",
+      "spellId": "flashpoint"
+    },
+    {
+      "id": "spell-crust",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Crust",
+      "body": "A shield that soaks up the next blows, and several of them can lie on me at once. It has to be laid down ahead of the blow; a crust laid afterwards is only a hat after the rain.",
+      "spellId": "crust"
+    },
+    {
+      "id": "spell-salve",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Salve",
+      "body": "...the oldest cure: lay it on and a good part of what was lost returns. A salve does not prevent anything. It forgives. There are reactions that never forgive, and against those the salve is the only kind word on the bench...",
+      "spellId": "salve"
+    },
+    {
+      "id": "spell-temper",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Temper",
+      "body": "For a while, a share of the damage I deal turns into shield. It also clears certain taints, as the blights of the first stages taught me. The tempered alchemist attacks and defends in the same motion, which is the most efficient thing I have learned to do with my hands.",
+      "spellId": "temper"
+    },
+    {
+      "id": "spell-scab",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Scab",
+      "body": "BENCH LOG. Scab applied. Small damage dealt. Small shield laid, stackable. Operator describes scab as 'not glamorous'. This log agrees and notes that operator has applied scab four hundred times this week.",
+      "spellId": "scab"
+    },
+    {
+      "id": "spell-plate",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Plate",
+      "body": "One heavy shield, deeper than any other, and it does not stack: a second plate replaces the first. It comes back slowly. When a reaction announces a single great blow, the plate is how I answer.",
+      "spellId": "plate"
+    },
+    {
+      "id": "spell-harden",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Harden",
+      "body": "...harden does not lay a new shield. It makes the shields already lying there last a good while longer. The wise practitioner hardens what is already in place; the foolish one hardens nothing at all and wonders why...",
+      "spellId": "harden"
+    },
+    {
+      "id": "spell-quicksilver",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Quicksilver",
+      "body": "For four workings, the share of my damage that turns into shield is doubled. It does nothing unless a conversion is already running. With one running, it turns an attack into a wall.",
+      "spellId": "quicksilver"
+    },
+    {
+      "id": "spell-poultice",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Poultice",
+      "body": "...a slow cure, given back over several seconds, a little at each heartbeat. A poultice is laid on the wound you expect, not the one you have, and pays out while the hands are busy with other things...",
+      "spellId": "poultice"
+    },
+    {
+      "id": "spell-decoction",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Decoction",
+      "body": "BENCH LOG. Decoction cast. Operator committed for several seconds while the decoction draws, damage dealt in steps. Operator interrupted by reaction once. Operator expressed views on the matter. Decoction since recast without incident.",
+      "spellId": "decoction"
+    },
+    {
+      "id": "spell-mend",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Mend",
+      "body": "Mend heals more the less of me there is left: a base amount, and more for every per cent I am missing. At full strength it is a poor spell. At the edge of the end it is the best one I own.",
+      "spellId": "mend"
+    },
+    {
+      "id": "spell-suture",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Suture",
+      "body": "...the suture stitches shield into flesh: what lies on you as protection is turned into healing, all of it, and the protection is gone. A strange bargain, and a good one, when the blows have already stopped coming...",
+      "spellId": "suture"
+    },
+    {
+      "id": "spell-riposte",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Riposte",
+      "body": "For a few seconds, a large share of the damage that reaches me is sent back into the reaction. It made me look forward to being hit, which I had not expected to feel about anything in this work.",
+      "spellId": "riposte"
+    },
+    {
+      "id": "spell-crucible-skin",
+      "trigger": "spellLearned",
+      "voice": "other",
+      "title": "crucible skin",
+      "body": "you have made yourself a skin like ours. a shield, a heal, and half of what you strike turned to covering, all in one breath. we wore that skin for a very long time. it does not come off easily. keep it on.",
+      "spellId": "crucible-skin"
+    },
+    {
+      "id": "spell-quench",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Quench",
+      "body": "Quench breaks a cast while it runs and costs no global cooldown, so it is always within reach even in the middle of a run of strikes. It also clears certain taints. Of all my spells it is the one I have most often been too slow with, and never once too fast.",
+      "spellId": "quench"
+    },
+    {
+      "id": "spell-purge",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Purge",
+      "body": "BENCH LOG. Purge applied. Counter reduced. Purge charges: one fewer. Charges return over time and do not exceed the reaction's limit. Operator would like more charges. The reaction would like fewer. This log stays neutral.",
+      "spellId": "purge"
+    },
+    {
+      "id": "spell-bind",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Bind",
+      "body": "A light strike that leaves points of control behind. Control does not drain, so every bind is money in the bank, to be spent later on the moment that needs it.",
+      "spellId": "bind"
+    },
+    {
+      "id": "spell-stall",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Stall",
+      "body": "...stall spends control to slow the cast the reaction is working on, stretching its bar by a moment. Only that one cast; the next comes as quick as ever. A moment is a long time to a quenching hand that was not quite ready...",
+      "spellId": "stall"
+    },
+    {
+      "id": "spell-stay",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Stay",
+      "body": "Stay spends control and pushes the reaction's next strike further off. Only the next one; the ones after it keep their places. I use it like a hand held up: not yet, not yet, now.",
+      "spellId": "stay"
+    },
+    {
+      "id": "spell-anchor",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Anchor",
+      "body": "...the anchor holds back the reaction's next turning. For a while, the point at which it would change lies lower, and it must be driven further before it turns. Only the next turning, and only for a while; a turning already made cannot be undone...",
+      "spellId": "anchor"
+    },
+    {
+      "id": "spell-wedge",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Wedge",
+      "body": "ORRERY LOG. Wedge applied. Control points converted to damage, so much per point spent. Operator explains this is for reactions with nothing worth controlling. This log has observed that operator says this about most reactions shortly before using wedge.",
+      "spellId": "wedge"
+    },
+    {
+      "id": "spell-tether",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Tether",
+      "body": "A second binding strike, a little weaker than Bind, with the same control left behind. Two spells that build the same thing are not a waste. They are a way of never being without one.",
+      "spellId": "tether"
+    },
+    {
+      "id": "spell-capstone",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Capstone",
+      "body": "...the capstone does everything fixation can do at once: slows the cast, delays the strike, holds back the turning. It is the most expensive working of the art, and the one that most often arrives a breath too late to matter, in the hands of the impatient...",
+      "spellId": "capstone"
+    },
+    {
+      "id": "spell-clasp",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Clasp",
+      "body": "A quick strike that leaves a single point of control. Less than Bind, but it comes round as fast, and in a long fight single points add up to whole moments.",
+      "spellId": "clasp"
+    },
+    {
+      "id": "spell-latch",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Latch",
+      "body": "ORRERY LOG. Latch applied. Cost: control. Next strike delayed. Operator notes that latch is cheaper and slower to return than stay. This log notes that operator has stopped distinguishing between them out loud and now simply hums.",
+      "spellId": "latch"
+    },
+    {
+      "id": "spell-griplock",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Griplock",
+      "body": "...for four workings every point of control gathered is gathered twice. The grip tightens. Whoever spends the griplock on strikes that build nothing has closed a fist on air...",
+      "spellId": "griplock"
+    },
+    {
+      "id": "spell-pin",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Pin",
+      "body": "Pin spends control and makes the reaction's next cast breakable, even one that could not be broken before. It turns fixation into the friend of Quench, which I did not expect from two arts that never seemed to speak to each other.",
+      "spellId": "pin"
+    },
+    {
+      "id": "spell-canker",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Canker",
+      "body": "A light strike that lays a stack of decay and opens a short window. If Fester follows inside that window, it strikes harder than it would alone. The first of the rot spells, and the first real pair I learned.",
+      "spellId": "canker"
+    },
+    {
+      "id": "spell-fester",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Fester",
+      "body": "...fester strikes deeper the more decay lies on the reaction, more for every stack. And after a canker, for a short while, deeper still. The rot does not hurry. It waits for the stacks to be laid, and then it collects...",
+      "spellId": "fester"
+    },
+    {
+      "id": "spell-blight",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Blight",
+      "body": "CISTERN LOG. Blight applied. Small damage dealt. Decay stack laid. Blight is quick to return. Operator applied blight again. And again. This log has started counting in stacks rather than seconds and suspects that is the point.",
+      "spellId": "blight"
+    },
+    {
+      "id": "spell-rot",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Rot",
+      "body": "A short decay that ticks quickly for a few seconds, laying a stack with every tick. Rot does the laying for me while my hands do something else, which is the kindest thing a rot has ever done.",
+      "spellId": "rot"
+    },
+    {
+      "id": "spell-sepsis",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Sepsis",
+      "body": "...sepsis lengthens the life of every stack already laid, by the same span for each of them alike. A deep rot kept alive is worth more than a new one begun, and sepsis is the art of keeping...",
+      "spellId": "sepsis"
+    },
+    {
+      "id": "spell-virulence",
+      "trigger": "spellLearned",
+      "voice": "other",
+      "title": "virulence",
+      "body": "for a little while every stack you lay counts twice. we taught that to the first one too. they used it on everything. you use it once, just before the strike. we did not teach you that. who did.",
+      "spellId": "virulence"
+    },
+    {
+      "id": "spell-miasma",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Miasma",
+      "body": "Miasma lays no stack at all. It strikes harder the more decay is already lying on the reaction, a little for each. It is the rot's way of being paid for the work it has already done.",
+      "spellId": "miasma"
+    },
+    {
+      "id": "spell-necrosis",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Necrosis",
+      "body": "...necrosis strikes with every stack of decay at once and then clears them all away. A great blow, and an ending: what the rot built up is spent in the one stroke, and must be built again...",
+      "spellId": "necrosis"
+    },
+    {
+      "id": "spell-decay",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Decay",
+      "body": "The spell called Decay does not lay decay. It turns the decay already on the reaction against its strength: for a few seconds the reaction deals less damage, a little less for every stack it carries. The rot, it turns out, can also be a shield.",
+      "spellId": "decay"
+    },
+    {
+      "id": "spell-putrid-bloom",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Putrid Bloom",
+      "body": "...the bloom raises the limit of the rot. For a while more stacks can lie on the reaction than it would otherwise bear. A garden is only as deep as its beds; the bloom digs them deeper for a season...",
+      "spellId": "putrid-bloom"
+    },
+    {
+      "id": "spell-vapour",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Vapour",
+      "body": "Vapour does no damage. It takes a little off every cooldown that is still running. A little, on every spell at once. The first time I counted what that adds up to, I sat down.",
+      "spellId": "vapour"
+    },
+    {
+      "id": "spell-reflux",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Reflux",
+      "body": "GALLERY LOG. Reflux applied. Operator asked to choose a spell to reset. Operator chose. Chosen spell ready again at once. Operator did not choose the obvious spell. This log has learned not to predict the operator.",
+      "spellId": "reflux"
+    },
+    {
+      "id": "spell-wisp",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Wisp",
+      "body": "...a little strike that shaves a sliver from every cooldown still running. Nothing in itself. Cast often, it is the slow wind that wears down mountains...",
+      "spellId": "wisp"
+    },
+    {
+      "id": "spell-alembic",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Alembic",
+      "body": "Alembic offers two resets: I choose a spell to make ready again, and then a second. Two decisions, not one bigger one. It returns faster than Reflux, which means it is the reset I have to think about most often.",
+      "spellId": "alembic"
+    },
+    {
+      "id": "spell-ascend",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Ascend",
+      "body": "...ascend takes the rest from every cooldown that is nearly done, which is to say it makes all of them ready at once. Only the short ones; the long waits stay long. Whoever ascends with nothing short running has climbed a stair to nowhere...",
+      "spellId": "ascend"
+    },
+    {
+      "id": "spell-decant",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Decant",
+      "body": "A small strike that takes time from the single longest cooldown still running, and from no other. It aims where Vapour scatters. I like it for that.",
+      "spellId": "decant"
+    },
+    {
+      "id": "spell-efflux",
+      "trigger": "spellLearned",
+      "voice": "deviceLog",
+      "title": "Efflux",
+      "body": "GALLERY LOG. Efflux applied. Remaining cooldown time summed and converted to damage, so much per whole second. Operator observes that waiting has finally become useful. This log observes that operator has been waiting for that sentence for a long time.",
+      "spellId": "efflux"
+    },
+    {
+      "id": "spell-distil",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Distil",
+      "body": "...for four workings every shortening of a cooldown is doubled. Distil gives nothing by itself; it makes the rising rise twice as fast. Whoever distils with nothing to shorten has distilled water...",
+      "spellId": "distil"
+    },
+    {
+      "id": "spell-aether",
+      "trigger": "spellLearned",
+      "voice": "other",
+      "title": "aether",
+      "body": "for a while every shortening counts twice. this is how it is up here, always. you can only borrow it for a little while. we can tell you enjoyed it. give it back slowly.",
+      "spellId": "aether"
+    },
+    {
+      "id": "spell-sublime",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Sublime",
+      "body": "Sublime frees the next spell I cast from the global cooldown. One spell, straight after another, with no wait between them. It is a very small thing, and it rearranges everything around it.",
+      "spellId": "sublime"
+    },
+    {
+      "id": "spell-condense",
+      "trigger": "spellLearned",
+      "voice": "fragment",
+      "title": "Condense",
+      "body": "...the next working after condense is worked twice, in full, not merely doubled in strength. Choose the working with care. A doubled trifle is still a trifle...",
+      "spellId": "condense"
+    },
+    {
+      "id": "spell-retort",
+      "trigger": "spellLearned",
+      "voice": "ownNotes",
+      "title": "Retort",
+      "body": "When a reaction breaks one of my casts, Retort gives back the global cooldown that cast had cost me. It is the only spell I own that is about being interrupted, and I am interrupted more often than I would like to admit.",
+      "spellId": "retort"
+    },
+    {
+      "id": "set-1",
+      "trigger": "setFound",
+      "voice": "fragment",
+      "title": "The Whole Work",
+      "body": "...these pieces were made for one who would practise all five arts and favour none. Each piece alone is plain. Worn together they remember the conjunction and lend a little of it to whoever wears them...",
+      "setId": 1
+    },
+    {
+      "id": "set-2",
+      "trigger": "setFound",
+      "voice": "ownNotes",
+      "title": "Slow Rot",
+      "body": "A set for the rot. The pieces are soft at the edges and smell of the cistern, and worn together they make every stack of decay a little more patient. I keep them in a separate drawer, which they appear to resent.",
+      "setId": 2
+    },
+    {
+      "id": "set-3",
+      "trigger": "setFound",
+      "voice": "deviceLog",
+      "title": "The Sealed Vessel",
+      "body": "BENCH LOG. Item recovered: piece of the Sealed Vessel. Item is warm. Item is humming. Item is, according to operator, 'fine'. This log has recorded every previous use of the word 'fine' by operator and has concerns.",
+      "setId": 3
+    },
+    {
+      "id": "set-4",
+      "trigger": "setFound",
+      "voice": "fragment",
+      "title": "The Long Grip",
+      "body": "...a set for the hand that holds. Its pieces were forged for an alchemist who never let a reaction out of her grasp, and they still close a little on their own when no one is wearing them...",
+      "setId": 4
+    },
+    {
+      "id": "set-5",
+      "trigger": "setFound",
+      "voice": "ownNotes",
+      "title": "Perpetual Draft",
+      "body": "The pieces of the Perpetual Draft are cold to the touch and always slightly damp, as if something were evaporating from them that never runs out. Worn together they keep the waiting short. I have stopped asking what is evaporating.",
+      "setId": 5
+    },
+    {
+      "id": "find-first-death",
+      "trigger": "firstOutcome",
+      "voice": "deviceLog",
+      "title": "Operator Status: Unchanged",
+      "body": "VESSEL LOG. Vessel integrity: zero. Operator status: unchanged. Operator appears to be standing at the bench as before, having not, in any lasting sense, died. This log does not understand the arrangement and has decided not to ask. Operator has already started another attempt.",
+      "outcome": "death"
+    },
+    {
+      "id": "find-first-overpressure",
+      "trigger": "firstOutcome",
+      "voice": "fragment",
+      "title": "Overpressure",
+      "body": "...the reaction does not have to beat you. It only has to last. When the time runs out the pressure in the vessel has nowhere left to go but outward, and it goes, and the bench goes with it. The first time is always a surprise. The second time you will hear it coming...",
+      "outcome": "overpressure"
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 /**
- * Die Hilfe-Einträge aus den Daten (Issue #811).
+ * Die Hilfe-Einträge aus den Daten (Issue #811, Katalog seit #1177).
  *
- * # Warum hier heute nur Prüfeinträge stehen
+ * # Zwei Dateien, zwei Wege
  *
- * Die Erklärungen sind **Inhalt** und gehören damit zu E10 — dieselbe
- * Entscheidung wie bei den ~150 Archiv-Texten (GAME-DESIGN Zeile 2620, Issue
- * #85). Was hier entsteht, ist die Leitung: von den Daten über das Merkmal
- * `data-help` bis in das Fenster, das der Spieler sieht.
+ * ```text
+ *   data/help/help.json        der Katalog — geht an den Spieler
+ *   data/help/test-help.json   Prüfeinträge — nur im Entwicklungs-Bau
+ * ```
  *
  * # Das Trennmerkmal ist die DATEI, nicht die Kennung
  *
@@ -20,42 +20,86 @@
  *
  * **Die Kennung IST die Kupplung.** Hiesse der Eintrag `test-essence`, fände
  * `helpFor` ihn nicht, kein Fenster erschiene, und die Prüfdaten belegten
- * nichts — sie wären genau das Gegenteil eines Nachweises.
+ * nichts. Deshalb trennt die Herkunft: Die Prüfdatei wird nur im
+ * Entwicklungs-Bau gelesen, hinter `__ROTA_DEVTOOLS__` wie die
+ * Entwicklungs-Werkzeuge (GAME-DESIGN 19.3). Ob sie wirklich aus dem
+ * Auslieferungs-Bau fällt, prüft `tools/auslieferung-pruefdaten.py` am
+ * gebauten Stand.
  *
- * Getrennt wird deshalb über die Herkunft: Diese Datei ist die Prüfdatei.
- * Sobald E10 `data/help/help.json` liefert, kommen die ausgelieferten Einträge
- * von dort, und [`PLAYABLE_HELP_ENTRIES`] füllt sich, ohne dass hier eine Zeile
- * geändert werden muss.
+ * # Die Werte eines Zaubers kommen aus seinen Daten
+ *
+ * Der Katalog trägt die Wirkung als Satz. Die Zahlen setzt `spellValues` aus
+ * `data/spells/` dazu — eine zweite Quelle wäre nach der nächsten
+ * Balance-Messung falsch.
  */
+import rawCatalog from '../../data/help/help.json';
 import rawHelp from '../../data/help/test-help.json';
+import { CALCINATION, TALENTS } from '../core/data.js';
 import type { HelpEntry, HelpSubject, Introduction } from './help.js';
+import { resourceNameOf, spellValues, talentValues } from './help-values.js';
 
-const SUBJECTS: readonly HelpSubject[] = ['spell', 'stat', 'school', 'bossAbility', 'mechanic'];
+const SUBJECTS: readonly HelpSubject[] = [
+  'spell',
+  'stat',
+  'school',
+  'bossAbility',
+  'mechanic',
+  'talent',
+  'slot',
+];
 
 /**
- * Alle Einträge, auch die Prüfeinträge.
+ * Die Einträge aus dem Katalog — sie gehen an den Spieler.
  *
- * Für Prüffälle und für die Ansicht, solange es keinen Katalog gibt. Das
- * ausgelieferte Spiel nimmt [`PLAYABLE_HELP_ENTRIES`], sobald diese Liste
- * etwas enthält.
+ * Ein Zauber-Eintrag bekommt seine Werte-Zeile aus den Zauberdaten. Eine
+ * Werte-Zeile in der Datei selbst bleibt unangetastet: Dann hat jemand sie
+ * bewusst gesetzt.
  */
-export const ALL_HELP_ENTRIES: readonly HelpEntry[] = parseHelpEntries(
-  (rawHelp as { entries?: unknown }).entries,
+export const PLAYABLE_HELP_ENTRIES: readonly HelpEntry[] = parseHelpEntries(
+  (rawCatalog as { entries?: unknown }).entries,
+  'data/help/help.json',
+).map((entry) => {
+  if (entry.values !== undefined) return entry;
+  if (entry.subject === 'spell') {
+    const spell = CALCINATION.value.spells.find((s) => s.id === entry.id);
+    if (spell !== undefined) {
+      return { ...entry, values: spellValues(spell, resourceNameOf(CALCINATION.value)) };
+    }
+  }
+  if (entry.subject === 'talent') {
+    // Dieselbe Begründung wie beim Zauber: Die Ränge und ihre Wirkung stehen
+    // in `data/player/talents.json`, und dort setzt sie das Talent-Paket.
+    const talent = TALENTS.find((t) => t.id === entry.id);
+    if (talent !== undefined) {
+      return { ...entry, values: talentValues(talent, (id) => TALENTS.find((t) => t.id === id)) };
+    }
+  }
+  return entry;
+});
+
+/** Die Einführungen aus dem Katalog. */
+export const PLAYABLE_INTRODUCTIONS: readonly Introduction[] = parseIntroductions(
+  (rawCatalog as { introductions?: unknown }).introductions,
+  'data/help/help.json',
 );
 
 /**
- * Die Einträge aus dem Katalog.
+ * Die Prüfeinträge — im Entwicklungs-Bau und in den Prüffällen, sonst leer.
  *
- * Heute ist die Liste **leer**, und das ist kein Fehler: `data/help/help.json`
- * gibt es noch nicht. Der Fall ist derselbe wie bei
- * `PLAYABLE_ARCHIVE_ENTRIES`.
+ * Sie tragen dieselben Kennungen wie der Katalog („essence", „kindle") und
+ * gehören deshalb nie in dieselbe Liste: `helpFor` nähme den ersten Treffer.
  */
-export const PLAYABLE_HELP_ENTRIES: readonly HelpEntry[] = [];
+export const ALL_HELP_ENTRIES: readonly HelpEntry[] = __ROTA_DEVTOOLS__
+  ? parseHelpEntries((rawHelp as { entries?: unknown }).entries, 'data/help/test-help.json')
+  : [];
 
-/** Die Einführungen, ebenfalls als Prüfdaten. */
-export const ALL_INTRODUCTIONS: readonly Introduction[] = parseIntroductions(
-  (rawHelp as { introductions?: unknown }).introductions,
-);
+/** Die Prüf-Einführungen, ebenfalls nur im Entwicklungs-Bau. */
+export const ALL_INTRODUCTIONS: readonly Introduction[] = __ROTA_DEVTOOLS__
+  ? parseIntroductions(
+      (rawHelp as { introductions?: unknown }).introductions,
+      'data/help/test-help.json',
+    )
+  : [];
 
 /**
  * Prüft und übersetzt die rohen Einträge.
@@ -65,9 +109,9 @@ export const ALL_INTRODUCTIONS: readonly Introduction[] = parseIntroductions(
  * im Kommentar, und die Prüfungen darin waren bis #809 selbst ungeprüft: Der
  * Kommentar beschrieb eine Absicht, nicht einen Zustand.
  */
-export function parseHelpEntries(roh: unknown): HelpEntry[] {
+export function parseHelpEntries(roh: unknown, datei = 'data/help'): HelpEntry[] {
   if (!Array.isArray(roh)) {
-    throw new Error('data/help/test-help.json: "entries" fehlt oder ist keine Liste');
+    throw new Error(`${datei}: "entries" fehlt oder ist keine Liste`);
   }
   const vergeben = new Set<string>();
   return roh.map((eintrag) => {
@@ -107,9 +151,9 @@ export function parseHelpEntries(roh: unknown): HelpEntry[] {
 }
 
 /** Prüft und übersetzt die rohen Einführungen. */
-export function parseIntroductions(roh: unknown): Introduction[] {
+export function parseIntroductions(roh: unknown, datei = 'data/help'): Introduction[] {
   if (!Array.isArray(roh)) {
-    throw new Error('data/help/test-help.json: "introductions" fehlt oder ist keine Liste');
+    throw new Error(`${datei}: "introductions" fehlt oder ist keine Liste`);
   }
   const vergeben = new Set<string>();
   return roh.map((eintrag) => {
