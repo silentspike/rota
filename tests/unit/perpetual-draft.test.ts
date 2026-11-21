@@ -64,11 +64,44 @@ function pruefSchule(): ReturnType<typeof parseSchool> {
   return parseSchool({
     schema: 1,
     school: 'CALCINATION',
-    resource: { id: 'heat', name: 'Heat', cap: 20, decayPerStepMs: 2000, decayAmount: 1 },
+    resource: {
+      id: 'heat',
+      name: 'Heat',
+      cap: 20,
+      decayPerStepMs: 2000,
+      decayAmount: 1,
+      highlightAt: 0,
+    },
     spells: [
-      { id: 'lang', name: 'Lang', cooldownMs: 30_000, baseDamage: 50 },
-      { id: 'eine', name: 'Eine', cooldownMs: 60_000, baseDamage: 0, cooldownResetCharges: 1 },
-      { id: 'zwei', name: 'Zwei', cooldownMs: 60_000, baseDamage: 0, cooldownResetCharges: 2 },
+      {
+        id: 'lang',
+        unlockLevel: 1,
+        castTimeMs: 0,
+        triggersGcd: true,
+        name: 'Lang',
+        cooldownMs: 30_000,
+        baseDamage: 50,
+      },
+      {
+        id: 'eine',
+        unlockLevel: 1,
+        castTimeMs: 0,
+        triggersGcd: true,
+        name: 'Eine',
+        cooldownMs: 60_000,
+        baseDamage: 0,
+        cooldownResetCharges: 1,
+      },
+      {
+        id: 'zwei',
+        unlockLevel: 1,
+        castTimeMs: 0,
+        triggersGcd: true,
+        name: 'Zwei',
+        cooldownMs: 60_000,
+        baseDamage: 0,
+        cooldownResetCharges: 2,
+      },
     ],
   });
 }
