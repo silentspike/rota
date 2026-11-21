@@ -204,9 +204,10 @@ fn rotation_search_zaehlt_die_listen_nach_dem_nachlauf() {
     );
 }
 
-/// `zauber-abdeckung`: Kein `exit` vor den beiden Schalter-Teilen. Eine rote
-/// Untergrenze endet weiter mit 1 — aber erst, nachdem `--mit-ausruestung` und
-/// `--toepfe-einzeln` gelaufen sind.
+/// `zauber-abdeckung`: Kein `exit` vor den Schalter-Teilen. Eine rote
+/// Untergrenze endet weiter mit 1 — aber erst, nachdem `--mit-ausruestung`,
+/// `--toepfe-einzeln`, `--schulen` und `--pruefboss` (#550 AC3, seit
+/// 2026-10-29) gelaufen sind.
 #[test]
 fn zauber_abdeckung_bricht_erst_nach_den_schalter_teilen_ab() {
     let rumpf = main_rumpf("zauber-abdeckung.rs");
@@ -219,8 +220,16 @@ fn zauber_abdeckung_bricht_erst_nach_den_schalter_teilen_ab() {
                 panic!("main fragt {schalter} nicht mehr ab — der Fall muss nachgezogen werden")
             })
     };
-    let letzter_schalter =
-        schalter_stelle("--mit-ausruestung").max(schalter_stelle("--toepfe-einzeln"));
+    let letzter_schalter = [
+        "--mit-ausruestung",
+        "--toepfe-einzeln",
+        "--schulen",
+        "--pruefboss",
+    ]
+    .into_iter()
+    .map(schalter_stelle)
+    .max()
+    .expect("vier Schalter");
 
     let abbrueche: Vec<usize> = rumpf
         .iter()

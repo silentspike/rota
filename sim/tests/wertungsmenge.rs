@@ -37,9 +37,14 @@ use rota_sim::scoring::{
 /// wächst. Die Probe ist damit unverändert: Wer diese Zeile ändert, prüft das
 /// Feld `instance` der neuen Bosse. `test` und `testing` gehören nach
 /// `PRUEFPROFILE`, alles andere hierher.
+///
+/// **Am 2026-10-29 `PRUEFPROFILE` von 21 auf 22:** `test-late-lethal-strike`
+/// aus #550 (AC3), der Prüfboss für FIXATION, in der Instanz `testing`.
+/// `WERTUNGSFAEHIG` bleibt bei 21 — dieselbe Probe wie bei den Zwillingen aus
+/// #797.
 const WERTUNGSFAEHIG: usize = 21;
 const GRUPPEN: usize = 6;
-const PRUEFPROFILE: usize = 21;
+const PRUEFPROFILE: usize = 22;
 
 fn boss(id: &str) -> &'static Boss {
     data::boss_by_id(id).unwrap_or_else(|| panic!("Boss {id} fehlt im Datensatz"))
