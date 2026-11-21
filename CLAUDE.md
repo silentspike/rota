@@ -14,10 +14,10 @@ angelehnt an World-of-Warcraft-Rotationen (Global Cooldown, Cooldown-Management,
 
 ## SSOT-Dokumente
 
-| Dokument                                                         | Inhalt                                                                                                                                        |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/GAME-DESIGN.md`                                            | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
-| Interne Dokumentation zur Klangerzeugung | Prompt-Regeln, Workflow und Prompt-Vorlagen |
+| Dokument                                 | Inhalt                                                                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/GAME-DESIGN.md`                    | **Das komplette Spiel-Design — SSOT der Umsetzung.** Vor jeder Design-Entscheidung Kapitel 21 lesen (dort steht, was bereits verworfen wurde) |
+| Interne Dokumentation zur Klangerzeugung | Prompt-Regeln, Workflow und Prompt-Vorlagen                                                                                                   |
 
 Bei Widerspruch zwischen Code/Kommentaren und `docs/GAME-DESIGN.md` gewinnt IMMER das Design-Dokument.
 

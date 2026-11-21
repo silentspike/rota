@@ -532,18 +532,18 @@ derselbe i7-3930K, nur ein Container darauf.
 
 **Prozessoren**
 
-|                  | **Laptop** (Ziel)       | **gonet** `[interne Adresse entfernt]`    | **proxmox** `[interne Adresse entfernt]`    |
-| ---------------- | ----------------------- | ------------------------- | -------------------------- |
-| Modell           | Ryzen 9 5900HS          | Core i7-3930K             | Core i5-1235U              |
-| Mikroarchitektur | Zen 3 (2021)            | Sandy Bridge-E (**2011**) | Alder Lake (2022)          |
-| Kerne / Stränge  | 8 / 16                  | 6 / 12                    | **2 P + 8 E** / 12         |
-| Takt max         | 3 301 MHz               | 3 800 MHz                 | 4 400 (P) · 3 300 (E)      |
-| Takt min         | 423 MHz                 | 1 200 MHz                 | 400 MHz                    |
-| BogoMIPS         | 6 588                   | 6 404                     | 4 992                      |
-| L1d / L1i        | 256 + 256 KiB           | 192 + 192 KiB             | 352 + 576 KiB              |
-| **L2 je Kern**   | **512 KiB** (4 MiB / 8) | **256 KiB** (1,5 MiB / 6) | 1,25 MiB (P) · 512 KiB (E) |
-| L3               | 16 MiB                  | 12 MiB                    | 12 MiB                     |
-| NUMA-Knoten      | 1                       | 1                         | 1                          |
+|                  | **Laptop** (Ziel)       | **gonet** `[interne Adresse entfernt]` | **proxmox** `[interne Adresse entfernt]` |
+| ---------------- | ----------------------- | -------------------------------------- | ---------------------------------------- |
+| Modell           | Ryzen 9 5900HS          | Core i7-3930K                          | Core i5-1235U                            |
+| Mikroarchitektur | Zen 3 (2021)            | Sandy Bridge-E (**2011**)              | Alder Lake (2022)                        |
+| Kerne / Stränge  | 8 / 16                  | 6 / 12                                 | **2 P + 8 E** / 12                       |
+| Takt max         | 3 301 MHz               | 3 800 MHz                              | 4 400 (P) · 3 300 (E)                    |
+| Takt min         | 423 MHz                 | 1 200 MHz                              | 400 MHz                                  |
+| BogoMIPS         | 6 588                   | 6 404                                  | 4 992                                    |
+| L1d / L1i        | 256 + 256 KiB           | 192 + 192 KiB                          | 352 + 576 KiB                            |
+| **L2 je Kern**   | **512 KiB** (4 MiB / 8) | **256 KiB** (1,5 MiB / 6)              | 1,25 MiB (P) · 512 KiB (E)               |
+| L3               | 16 MiB                  | 12 MiB                                 | 12 MiB                                   |
+| NUMA-Knoten      | 1                       | 1                                      | 1                                        |
 
 > **Der i5-1235U ist heterogen, und das ist kein Detail.** Von seinen 12 Strängen liegen nur
 > **vier** auf zwei P-Cores (4,4 GHz, mit HT); die anderen acht sind E-Cores (Gracemont,
@@ -628,10 +628,10 @@ gonet sind nur 230 GB frei.
 
 #### Zusammengefasst: Belastung und Eignung
 
-| System              | Str. | AVX2/FMA | Belastung im Betrieb                           |
-| ------------------- | ---: | -------- | ---------------------------------------------- |
-| Laptop (Ziel)       |   16 | **ja**   | die Arbeitsmaschine selbst, RAM-Engpass        |
-| gonet `[interne Adresse entfernt]`  |   12 | **nein** | Load ~3,0 dauerhaft: rustbuild, CI-Runner, pki |
+| System                               | Str. | AVX2/FMA | Belastung im Betrieb                           |
+| ------------------------------------ | ---: | -------- | ---------------------------------------------- |
+| Laptop (Ziel)                        |   16 | **ja**   | die Arbeitsmaschine selbst, RAM-Engpass        |
+| gonet `[interne Adresse entfernt]`   |   12 | **nein** | Load ~3,0 dauerhaft: rustbuild, CI-Runner, pki |
 | proxmox `[interne Adresse entfernt]` |   12 | **ja**   | Load ~0,2 — praktisch im Leerlauf              |
 
 **Gemessen** (`sim/examples/orch-verteilung.rs`, dasselbe Binary, 200 000 Kämpfe, feste

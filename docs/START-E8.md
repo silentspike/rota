@@ -13,12 +13,12 @@ vier Kernklänge müssen fertig sein, wenn E1 seinen Kampf abgibt.
 
 ## Zuerst lesen
 
-| #   | Datei                                                                     | Warum                                                              |
-| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| 1   | `CLAUDE.md`                                                               | Rahmenbedingungen, besonders zum Klang                             |
-| 2   | `docs/GAME-DESIGN.md` 17.1                                                | Die Aufstellung aller 115 Klänge und die Musik-Schichten           |
-| 3   | Interne Dokumentation zur Klangerzeugung | Prompt-Regeln, Längen und Nachbearbeitung |
-| 4   | `docs/WORKER-GUIDE.md`                                                    | Der verbindliche Ablauf je Issue                                   |
+| #   | Datei                                    | Warum                                                    |
+| --- | ---------------------------------------- | -------------------------------------------------------- |
+| 1   | `CLAUDE.md`                              | Rahmenbedingungen, besonders zum Klang                   |
+| 2   | `docs/GAME-DESIGN.md` 17.1               | Die Aufstellung aller 115 Klänge und die Musik-Schichten |
+| 3   | Interne Dokumentation zur Klangerzeugung | Prompt-Regeln, Längen und Nachbearbeitung                |
+| 4   | `docs/WORKER-GUIDE.md`                   | Der verbindliche Ablauf je Issue                         |
 
 ## Dein Arbeitsplatz
 
