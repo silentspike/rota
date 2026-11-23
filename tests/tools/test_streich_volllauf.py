@@ -53,9 +53,7 @@ class StreichVolllauf(unittest.TestCase):
         self.fake.chmod(0o755)
 
     def run_tool(self, *args):
-        # The node_modules source is always named: its default /work/rota
-        # exists on this machine and not on CI — as /work itself does not,
-        # which a disk check on a fixed '/work' met there (lint, PR #1160).
+        # Use the fixture dependency tree for the preflight checks.
         env = dict(os.environ, ROTA_FENSTER=str(self.fake))
         args = (*args, '--node-modules-von', str(self.source))
         result = subprocess.run([sys.executable, '-B', str(TOOL), *args], cwd=ROOT, env=env,
@@ -114,20 +112,20 @@ class StreichVolllauf(unittest.TestCase):
         self.assertFalse((self.temp / 'probe').exists())
 
     def test_the_checkout_lies_where_rota_fenster_attributes_its_processes(self):
-        # rota-fenster knows a role only as a directory under
-        # /work/rota-worktrees (its _kennungen()) and matches
-        # `rota-worktrees/<name>/` in a process line. The probe of 2026-10-28
-        # ran under /work/tmp, and the window was assigned in the middle of it.
+        primary = subprocess.check_output(
+            ['git', 'worktree', 'list', '--porcelain', '-z'], cwd=ROOT, text=True,
+        ).split('\0', 1)[0].removeprefix('worktree ')
+        worktree_dir = Path(primary).parent / 'rota-worktrees'
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])
         result = self.run_tool('--rolle', 'w3-streich', '--stand', 'HEAD', '--trocken',
                                '--aus', str(self.temp / 'lauf'))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-volllauf ',
+        self.assertIn(f'git worktree add --detach {worktree_dir / "w3-streich-1055-volllauf"} ',
                       result.stdout)
         self.window(*FREE)
         probe = self.run_tool('--rolle', 'w3-streich', '--probe', 'clearsDoom', '--stand', 'HEAD',
                               '--trocken', '--aus', str(self.temp / 'probe'))
-        self.assertIn('git worktree add --detach /work/rota-worktrees/w3-streich-1055-probe ',
+        self.assertIn(f'git worktree add --detach {worktree_dir / "w3-streich-1055-probe"} ',
                       probe.stdout)
 
     def test_free_space_is_measured_where_output_and_checkout_go(self):
@@ -136,7 +134,7 @@ class StreichVolllauf(unittest.TestCase):
                                '--aus', str(self.temp / 'neu/lauf'), '--baum', str(self.temp / 'neu/baum'))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(f'MB frei unter {self.temp.resolve()} ', result.stdout)
-        self.assertNotIn('unter /work ', result.stdout)
+        self.assertNotIn(f'unter {ROOT.parent} ', result.stdout)
 
     def test_an_existing_checkout_directory_refuses(self):
         self.window(HELD_BY[0].format(role='w3-streich'), HELD_BY[1])

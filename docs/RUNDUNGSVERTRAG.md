@@ -112,7 +112,7 @@ Insbesondere ersetzt diese Regel keine noch ausstehende Skalierung am Typ.
 | Gemeinsamer vollständiger Prüflauf und alle Kampfaufzeichnungen    | BLOCKED        | Root koordiniert einmaligen Gesamtlauf und CI vor Abnahme  |
 | Auf `main` gelandet und zurückgelesen                              | BLOCKED        | Integration und Abschluss erfolgen durch Root nach Prüfung |
 
-Lokale Rohbelege: `/work/tmp/rota-962-evidence-20260906/`, insbesondere
+Die lokalen Rohbelege umfassen insbesondere
 `ts-baseline.log`, `ts-negative-mutation.log`, `ts-restored.log` und
 `ts-mutation-summary.json` sowie `rust-targeted.log` und
 `rust-targeted-summary.json`, `rustfmt.log` und `rust-clippy.log`.

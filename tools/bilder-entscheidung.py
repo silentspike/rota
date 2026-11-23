@@ -14,7 +14,7 @@ Die Ausgabe ist in `.prettierignore`, weil sie erzeugt wird.
 import json, os, subprocess, html
 from pathlib import Path
 
-ROOT = Path('/work/rota')
+ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/bilder-entscheidung/index.html'
 man = json.load(open(ROOT / 'docs/style-candidates/manifest.json'))
 

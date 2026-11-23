@@ -38,6 +38,5 @@ ebenfalls. [PR #1114](https://github.com/silentspike/rota/pull/1114) brachte die
 Korrektur nach vollständiger CI-Abnahme auf `main`. Diese Regression ersetzt
 nicht den vollständigen Durchgang über alle 60 Mutationsfelder.
 
-Die lokalen Vorher-/Nachher-Protokolle liegen unter
-`/work/tmp/rota-1055-20260906-full/channeltick-before.log`,
+Die lokalen Vorher-/Nachher-Protokolle heißen `channeltick-before.log`,
 `channeltick-after.log` und `channeltick-typecheck.log`.
