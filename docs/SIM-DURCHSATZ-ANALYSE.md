@@ -25,8 +25,7 @@ Worker-3  /…/-work-rota-worktrees-e9/253e6fbb….jsonl   261,8 MB   80 039 Zei
 ```
 
 Gemessen wurde: Werkzeugaufrufe je Typ, Dauer je Aufruf (Differenz `tool_use` → `tool_result`),
-Zeitlücken, Fehlerklassen, Datei-Zugriffe, IPC-Volumen, Token-Verbrauch. Die Skripte liegen in
-`/work/tmp/orch-analyse/`.
+Zeitlücken, Fehlerklassen, Datei-Zugriffe, IPC-Volumen, Token-Verbrauch. Die Skripte wurden lokal archiviert.
 
 ## Die Bilanz
 

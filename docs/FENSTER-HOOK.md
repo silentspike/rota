@@ -162,8 +162,7 @@ Grundlage sind alle 33.268 Bash-Aufrufe aus den Transkripten früherer
 Worker-Sitzungen (`~/.claude/projects/-work-rota-worktrees-*/*.jsonl`, sieben
 Dateien, letzte Änderung am 22. August 2026; ein doppelt gespeicherter Aufruf
 zählt wie in der Ausgangsmessung zweimal). Gezählt wurde die Rückgabe von
-`load_command`: wahr, falsch oder nicht entscheidbar. Das Messskript und die
-Rohbefehle liegen privat unter `/work/tmp` und sind nicht eingecheckt.
+`load_command`: wahr, falsch oder nicht entscheidbar. Das Messskript und die Rohbefehle wurden lokal archiviert.
 
 | Klasse            | vorher (`8aa7e644`) | nachher |
 | ----------------- | ------------------: | ------: |

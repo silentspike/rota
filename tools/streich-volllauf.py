@@ -2,7 +2,7 @@
 """Startet den vollen Streich-Mutationsdurchgang (#1055) mit einem Befehl.
 
     python3 tools/streich-volllauf.py --rolle <Rolle> [--stand origin/main]
-                                      [--aus /work/tmp/rota-1055-…] [--trocken]
+                                      [--aus AUSGABEVERZEICHNIS] [--trocken]
     python3 tools/streich-volllauf.py --rolle <Rolle> --probe FELD [--probe FELD …]
 
 Mit `--probe` derselbe Weg für wenige Felder: Nullprobe, beide Vorproben, die
@@ -26,18 +26,15 @@ endet mit Exit 2 und dem Grund, ohne dass etwas angelegt wurde:
   5. `package-lock.json` des Standes gleicht dem der Quelle für node_modules;
      sonst wäre ein `npm ci` nötig, und das gehört nicht in dieses Werkzeug.
 
-Danach: Checkout per `git worktree add --detach` unter
-/work/rota-worktrees/<Rolle>-1055-volllauf (bzw. -probe), node_modules per Reflink,
-der historische Bericht des Standes als Vergleichsgrundlage, und der Lauf
-abgekoppelt (`setsid nohup`), weil ein Hintergrundlauf des Bash-Werkzeugs nach
-Minuten ohne Meldung eingesammelt werden kann. Sein Exit-Code steht am Ende
-des Protokolls als `rc=N`.
+Danach: Checkout per `git worktree add --detach` im Geschwisterordner
+`rota-worktrees` des Git-Hauptcheckouts, node_modules per Reflink und der
+historische Bericht des Standes als Vergleichsgrundlage. Der Lauf startet
+mit `setsid nohup` und schreibt den Exit-Code als `rc=N` ans Protokollende.
 
-WARUM DER CHECKOUT UNTER /work/rota-worktrees LIEGT, und nicht neben den
-Nachweisen unter /work/tmp: `rota-fenster` kennt Rollen nur als Verzeichnisse
-dort und ordnet Prozesse über `rota-worktrees/<name>/` zu. Die erste Probe
-(2026-10-28, 18:09 bis 18:41) lief unter /work/tmp, und um 18:25 wurde das
-Fenster mitten hinein einer kerngepinnten Messung zugeteilt.
+`rota-fenster` ordnet laufende Prozesse über `rota-worktrees/<name>/` einer
+Rolle zu. Die Ausgabe landet standardmäßig im Geschwisterordner `tmp`.
+Für ein anderes Layout lassen sich Checkout, Ausgabe und Quelle der
+node_modules explizit setzen.
 
 Exit 0: gestartet (oder mit --trocken: alle Bedingungen erfüllt). Exit 2:
 nicht gestartet.
@@ -84,10 +81,8 @@ def fenster_inhaber():
 def platz(pfad):
     """(freie MB, geprüfter Ort) auf dem Dateisystem, das `pfad` aufnehmen wird.
 
-    Geprüft wird der nächste vorhandene Vorfahr, nicht ein fester Ort: Ein
-    festes `/work` gab es auf dem CI-Läufer nicht (FileNotFoundError, lint
-    von PR #1160), und auf einer anderen Maschine wäre es das falsche
-    Dateisystem gewesen.
+    Geprüft wird der nächste vorhandene Vorfahr, damit auch das Dateisystem
+    eines abweichenden Zielorts berücksichtigt wird.
     """
     ort = pfad
     while not ort.exists():
@@ -100,15 +95,23 @@ def abbruch(text):
     return 2
 
 
+def hauptcheckout():
+    fertig = subprocess.run(["git", "worktree", "list", "--porcelain", "-z"], cwd=WURZEL,
+                            capture_output=True, text=True, check=False)
+    erste_zeile = fertig.stdout.split("\0", 1)[0]
+    if fertig.returncode != 0 or not erste_zeile.startswith("worktree "):
+        return None
+    return pathlib.Path(erste_zeile.removeprefix("worktree "))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--rolle", required=True, help="die Rolle, der das Messfenster zugeteilt ist")
     ap.add_argument("--stand", default="origin/main", help="zu messender Commit (Vorgabe origin/main)")
     ap.add_argument("--aus", help="Ausgabeverzeichnis, darf nicht existieren")
-    ap.add_argument("--baum", help="Checkout, darf nicht existieren; Vorgabe "
-                                   "/work/rota-worktrees/<Rolle>-1055-volllauf bzw. -probe")
-    ap.add_argument("--node-modules-von", default="/work/rota",
-                    help="Checkout, dessen node_modules per Reflink übernommen werden")
+    ap.add_argument("--baum", help="Checkout im Messfenster-Bereich, darf nicht existieren")
+    ap.add_argument("--node-modules-von",
+                    help="Checkout für node_modules, Vorgabe ist der Git-Hauptcheckout")
     ap.add_argument("--timeout", type=int, default=1800,
                     help="je Stufe und Versuch (nach Exit 75 neu), an streich-mutation.py")
     ap.add_argument("--trocken", action="store_true", help="nur prüfen und den Befehl zeigen")
@@ -134,21 +137,24 @@ def main():
     if stand.returncode != 0:
         return abbruch(f"kein Commit: '{args.stand}'")
     commit = stand.stdout.strip()
+    haupt = hauptcheckout()
+    if haupt is None:
+        return abbruch("der Git-Hauptcheckout konnte nicht bestimmt werden")
 
     art = "probe-" if args.probe else ""
-    aus = pathlib.Path(args.aus or
-                       f"/work/tmp/rota-1055-{art}{datetime.datetime.now():%Y%m%d-%H%M}").resolve()
+    aus = pathlib.Path(args.aus or haupt.parent / "tmp" /
+                       f"rota-1055-{art}{datetime.datetime.now():%Y%m%d-%H%M}").resolve()
     if aus.exists():
         return abbruch(f"{aus} existiert bereits — ein alter Nachweis darin sähe aus wie dieser Lauf")
-    baum = pathlib.Path(args.baum or f"/work/rota-worktrees/{args.rolle}-1055-"
-                        f"{'probe' if args.probe else 'volllauf'}").resolve()
+    rollenordner = "w3-streich-1055-probe" if args.probe else "w3-streich-1055-volllauf"
+    baum = pathlib.Path(args.baum or haupt.parent / "rota-worktrees" / rollenordner).resolve()
     if baum.exists():
         return abbruch(f"Checkout {baum} existiert bereits — erst `git worktree remove {baum}`")
     plaetze = {platz(aus), platz(baum)}
     for frei_mb, ort in sorted(plaetze, key=lambda eintrag: str(eintrag[1])):
         if frei_mb < MINDEST_FREI_MB:
             return abbruch(f"nur {frei_mb} MB frei unter {ort}, verlangt {MINDEST_FREI_MB}")
-    quelle = pathlib.Path(args.node_modules_von)
+    quelle = pathlib.Path(args.node_modules_von or haupt)
     lock = subprocess.run(["git", "show", f"{commit}:package-lock.json"], cwd=WURZEL,
                           capture_output=True, check=False)
     if lock.returncode != 0 or not (quelle / "node_modules").is_dir() \
